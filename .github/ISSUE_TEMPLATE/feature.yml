@@ -1,0 +1,49 @@
+name: 기능 (Feature)
+description: 사용자에게 보이는 새 기능 또는 기존 기능 변경
+title: '[Feature] '
+labels: ['type:feature', 'status:triage']
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 배경 / 목표
+      description: 왜 필요한가? 사용자는 무엇을 할 수 있게 되는가?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 기준 (Acceptance Criteria)
+      description: 각 항목이 곧 테스트 케이스가 된다. Given / When / Then 형식 권장.
+      value: |
+        - [ ] Given ... When ... Then ...
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: 먼저 작성할 테스트 (TDD Red 단계)
+      description: 구현 전에 실패시킬 테스트 목록. 파일 경로까지 적으면 좋다.
+      placeholder: |
+        - src/features/xxx/XxxScreen.test.tsx — 빈 상태일 때 안내 문구를 보여준다
+    validations:
+      required: true
+  - type: checkboxes
+    id: perf
+    attributes:
+      label: 성능 영향 (docs/performance.md)
+      description: 해당되는 항목이 있으면 Reassure perf-test 또는 실기기 측정이 필요하다.
+      options:
+        - label: 가변 길이 리스트 렌더링
+        - label: 애니메이션 / 제스처
+        - label: 이미지 / 미디어
+        - label: 주기적 작업 (타이머, 폴링, 위치, 센서, 백그라운드)
+        - label: 네이티브 모듈 추가 / 변경
+        - label: 새 npm 의존성 추가 (번들 크기)
+  - type: checkboxes
+    id: platform
+    attributes:
+      label: 플랫폼
+      options:
+        - label: iOS
+        - label: Android

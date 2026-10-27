@@ -1,0 +1,6 @@
+ios/
+android/
+coverage/
+.reassure/
+.omc/
+package-lock.json

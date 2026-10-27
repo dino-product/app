@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "measurement": {
+    "build": "Release",
+    "referenceDevices": {
+      "ios": "iPhone 12 (A14 Bionic, 4GB RAM)",
+      "android": "Galaxy A35 (Exynos 1380, 6GB RAM)"
+    },
+    "conditions": "실온, 비충전, 화면 밝기 50%, 저전력 모드 OFF"
+  },
+  "frame": {
+    "targetFps": 60,
+    "minAvgFps": 55,
+    "maxDroppedFrameRatio": 0.05,
+    "maxFrameMs": 50,
+    "iosMaxHitchRatioMsPerS": 5
+  },
+  "startup": {
+    "coldStartTtiMs": { "ios": 1500, "android": 2000 }
+  },
+  "memory": {
+    "steadyStateMb": 200,
+    "peakMb": 300,
+    "maxGrowthAfterRepeatMb": 20
+  },
+  "cpu": {
+    "idleAvgPercent": 5,
+    "activeAvgPercent": 80
+  },
+  "thermal": {
+    "scenarioMinutes": 10,
+    "iosMaxState": "fair",
+    "androidMaxStatus": "light"
+  },
+  "bundle": {
+    "maxJsBundleKb": { "ios": 2048, "android": 2048 }
+  },
+  "render": {
+    "maxInitialUpdateCount": 0,
+    "maxRedundantUpdates": 0
+  },
+  "devMonitor": {
+    "windowMs": 2000,
+    "reportCooldownMs": 10000
+  }
+}

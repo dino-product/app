@@ -1,0 +1,46 @@
+name: 버그 (Bug)
+description: 의도와 다르게 동작하는 문제
+title: '[Bug] '
+labels: ['type:bug', 'status:triage']
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 절차
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작 / 실제 동작
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 기기 / OS
+      placeholder: iPhone 13 / iOS 26.0, Galaxy A35 / Android 15
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: 빌드 종류
+      options:
+        - Debug (Metro 연결)
+        - Release
+    validations:
+      required: true
+  - type: textarea
+    id: failing-test
+    attributes:
+      label: 재현 테스트 (TDD)
+      description: 수정 전에 이 버그를 재현하는 실패 테스트를 먼저 작성한다. 테스트 이름이나 경로를 적는다.
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그 / 스크린샷
+      render: shell

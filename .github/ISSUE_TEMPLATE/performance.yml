@@ -1,0 +1,49 @@
+name: 성능 (Performance)
+description: 버벅임, 발열, 메모리, 시작 시간, 번들 크기 등 성능 예산 위반 또는 개선
+title: '[Perf] '
+labels: ['type:perf', 'status:triage']
+body:
+  - type: dropdown
+    id: metric
+    attributes:
+      label: 지표
+      description: performance-budget.json 의 항목
+      multiple: true
+      options:
+        - 프레임 (FPS / 끊김)
+        - 시작 시간 (Cold start TTI)
+        - 메모리
+        - CPU / 발열
+        - 번들 크기
+        - 리렌더 (Reassure)
+    validations:
+      required: true
+  - type: textarea
+    id: measurement
+    attributes:
+      label: 측정값 vs 예산
+      placeholder: |
+        - 측정: 평균 48fps, 프레임 드랍 12%
+        - 예산: 평균 55fps 이상, 드랍 5% 이하
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 재현 시나리오
+      description: 어떤 화면에서 어떤 동작을 몇 초/분 동안 했는가
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 측정 기기 / OS / 빌드
+      description: 성능 측정은 반드시 Release 빌드 기준
+      placeholder: iPhone 12 / iOS 26.0 / Release
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: 측정 도구
+      placeholder: Xcode Instruments (Animation Hitches), Flashlight, Perf Monitor, Reassure

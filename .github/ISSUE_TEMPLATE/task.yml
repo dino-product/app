@@ -1,0 +1,20 @@
+name: 작업 (Task)
+description: 사용자에게 직접 보이지 않는 기술 작업 (설정, 리팩터링, 인프라, 문서)
+title: '[Task] '
+labels: ['type:chore', 'status:triage']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 할 일
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건 (Definition of Done)
+      value: |
+        - [ ] ...
+        - [ ] CI 통과
+    validations:
+      required: true

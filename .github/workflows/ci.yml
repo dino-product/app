@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint · Typecheck · Test · Bundle budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:coverage -- --ci
+      - run: npm run perf:bundle
+
+  render-perf:
+    name: Render perf (Reassure)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Baseline (base 브랜치)
+        run: |
+          git switch --detach origin/${{ github.base_ref }}
+          npm ci
+          npm run perf:baseline --if-present
+      - name: Current (PR)
+        run: |
+          git switch --detach ${{ github.event.pull_request.head.sha }}
+          npm ci
+          npm run test:perf
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f .reassure/output.md ]; then cat .reassure/output.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: 렌더 회귀 게이트
+        run: npm run perf:regression
