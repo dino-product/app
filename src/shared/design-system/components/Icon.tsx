@@ -9,8 +9,9 @@ export type IconName = SvgIconName | 'wrench';
 
 export type IconProps = {
   name: IconName;
+  /** 기본값은 Figma 프레임 크기 */
   size?: number;
-  /** 단색 아이콘(tint)에만 적용된다 */
+  /** 단색 아이콘(tint)에만 적용된다. 기본값은 Figma 색 */
   color?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -18,14 +19,21 @@ export type IconProps = {
 
 const wrench = require('../../../../assets/images/work-wrench.png');
 
+// 렌치 PNG 의 기본 크기 (호출부가 size 로 정한다)
+const WRENCH_SIZE = 24;
+
 export const Icon = memo(function DesignSystemIcon({
   name,
-  size = 24,
-  color = colors.gray[900],
+  size,
+  color,
   style,
   testID,
 }: IconProps) {
-  const box = { width: size, height: size };
+  const svg: { xml: string; size: number; color?: string } | undefined =
+    name === 'wrench' ? undefined : iconSvgs[name];
+  // 기본 크기·색은 Figma 값 (icons/svgs.ts)
+  const dimension = size ?? svg?.size ?? WRENCH_SIZE;
+  const box = { width: dimension, height: dimension };
   return (
     <View
       accessibilityElementsHidden
@@ -33,7 +41,7 @@ export const Icon = memo(function DesignSystemIcon({
       style={[box, style]}
       testID={testID}
     >
-      {name === 'wrench' ? (
+      {svg === undefined ? (
         <Image
           source={wrench}
           style={box}
@@ -41,10 +49,10 @@ export const Icon = memo(function DesignSystemIcon({
         />
       ) : (
         <SvgXml
-          xml={iconSvgs[name].xml}
-          width={size}
-          height={size}
-          color={color}
+          xml={svg.xml}
+          width={dimension}
+          height={dimension}
+          color={color ?? svg.color ?? colors.gray[900]}
         />
       )}
     </View>
