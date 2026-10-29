@@ -13,6 +13,10 @@
 		761780EF2CA45674006654EF /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EE2CA45674006654EF /* SceneDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		C7A2C912180B145DBDA7E2E6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		D1F0A0010000000000000B01 /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A0010000000000000A01 /* Pretendard-Regular.otf */; };
+		D1F0A0010000000000000B02 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A0010000000000000A02 /* Pretendard-Medium.otf */; };
+		D1F0A0010000000000000B03 /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */; };
+		D1F0A0010000000000000B04 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = D1F0A0010000000000000A04 /* Pretendard-Bold.otf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +31,10 @@
 		761780EE2CA45674006654EF /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = DinoApp/SceneDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = DinoApp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		D1F0A0010000000000000A01 /* Pretendard-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Regular.otf"; sourceTree = "<group>"; };
+		D1F0A0010000000000000A02 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
+		D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
+		D1F0A0010000000000000A04 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +71,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		D1F0A0010000000000000C01 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				D1F0A0010000000000000A01 /* Pretendard-Regular.otf */,
+				D1F0A0010000000000000A02 /* Pretendard-Medium.otf */,
+				D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */,
+				D1F0A0010000000000000A04 /* Pretendard-Bold.otf */,
+			);
+			name = Fonts;
+			path = ../assets/fonts;
+			sourceTree = "<group>";
+		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07FAE1A68108700A75B9A /* DinoApp */,
+				D1F0A0010000000000000C01 /* Fonts */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -164,6 +185,10 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				C7A2C912180B145DBDA7E2E6 /* PrivacyInfo.xcprivacy in Resources */,
+				D1F0A0010000000000000B01 /* Pretendard-Regular.otf in Resources */,
+				D1F0A0010000000000000B02 /* Pretendard-Medium.otf in Resources */,
+				D1F0A0010000000000000B03 /* Pretendard-SemiBold.otf in Resources */,
+				D1F0A0010000000000000B04 /* Pretendard-Bold.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
