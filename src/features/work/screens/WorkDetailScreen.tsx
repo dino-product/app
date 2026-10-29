@@ -10,14 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BottomNavigationBar,
   colors,
   CTA,
   Icon,
   Text,
   TextArea,
 } from '../../../shared/design-system';
-import { mainTabs, type MainTabKey } from '../../../shared/navigation/mainTabs';
 import { Section, SectionBand } from '../components/InfoCard';
 import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
@@ -47,15 +45,12 @@ export type WorkDetailScreenProps = {
   onNavigate: (address: string) => void;
   /** 촬영·앨범 연동. 고르지 않으면 null */
   onPickPhoto: () => Promise<string | null>;
-  onTabChange?: (tab: MainTabKey) => void;
 };
 
 type PhotoKey = 'beforePhotos' | 'afterPhotos';
 
 // 완료 보고 영역이 화면 아래쪽에서 이만큼 올라오면 "완료 보고 작성하기" 버튼을 숨긴다
 const JUMP_HIDE_OFFSET = 120;
-
-const noop = () => {};
 
 export function WorkDetailScreen({
   work,
@@ -65,7 +60,6 @@ export function WorkDetailScreen({
   onCall,
   onNavigate,
   onPickPhoto,
-  onTabChange = noop,
 }: WorkDetailScreenProps) {
   const [report, setReport] = useState<WorkReport>(emptyReport);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -248,12 +242,6 @@ export function WorkDetailScreen({
           </View>
         )}
       </View>
-
-      <BottomNavigationBar
-        items={mainTabs}
-        activeKey="home"
-        onChange={onTabChange}
-      />
 
       {result && <ResultModal visible result={result} onConfirm={onDone} />}
     </SafeAreaView>

@@ -1,13 +1,7 @@
 import { useCallback } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  BottomNavigationBar,
-  colors,
-  Icon,
-  Text,
-} from '../../../shared/design-system';
-import { mainTabs, type MainTabKey } from '../../../shared/navigation/mainTabs';
+import { colors, Icon, Text } from '../../../shared/design-system';
 import { CurrentWorkCard } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import type { CurrentWork, ScheduleItem } from '../model';
@@ -22,10 +16,7 @@ export type WorkHomeScreenProps = {
   onStartWork: () => void;
   onOpenWork: (id: string) => void;
   onOpenNotifications?: () => void;
-  onTabChange?: (tab: MainTabKey) => void;
 };
-
-const noop = () => {};
 
 export function WorkHomeScreen({
   currentWork,
@@ -35,7 +26,6 @@ export function WorkHomeScreen({
   onStartWork,
   onOpenWork,
   onOpenNotifications,
-  onTabChange = noop,
 }: WorkHomeScreenProps) {
   const renderItem = useCallback(
     ({ item }: { item: ScheduleItem }) => (
@@ -106,11 +96,6 @@ export function WorkHomeScreen({
         ListHeaderComponent={header}
         ItemSeparatorComponent={Separator}
         contentContainerStyle={styles.content}
-      />
-      <BottomNavigationBar
-        items={mainTabs}
-        activeKey="home"
-        onChange={onTabChange}
       />
     </SafeAreaView>
   );
