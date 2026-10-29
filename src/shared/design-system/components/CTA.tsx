@@ -11,9 +11,16 @@ import { Text } from './Text';
 
 // Figma DesignSystem › CTA. state 이름 대응: Primary → primary, Secondery → secondary,
 // Default → outline, Reject → reject, Hover → 눌림(opacity 0.8).
+// brand(Secondary) 는 컴포넌트 세트에는 없지만 화면 CTA(작업 시작, 완료 보고 작성하기)가 쓰는 색이다.
+// disabled 는 완료보고 제출 비활성 화면의 회색을 따른다.
 // 너비는 Figma 에서 고정값이지만 실제로는 부모 폭을 채운다 (Modal S 는 두 개를 flex: 1 로 나란히 둔다).
 // 높이는 글꼴 확대 시 라벨이 잘리지 않도록 최소값으로만 건다.
-export type CTAVariant = 'primary' | 'secondary' | 'outline' | 'reject';
+export type CTAVariant =
+  | 'primary'
+  | 'secondary'
+  | 'brand'
+  | 'outline'
+  | 'reject';
 
 type CTALayout =
   | { type?: 'bottom'; size?: 'L' | 'M' }
@@ -44,7 +51,7 @@ export const CTA = memo(function DesignSystemCTA({
   const pressableStyle = ({ pressed }: PressableStateCallbackType) => [
     styles.base,
     layout,
-    variantStyles[variant],
+    disabled ? styles.disabled : variantStyles[variant],
     pressed && styles.pressed,
     style,
   ];
@@ -62,7 +69,7 @@ export const CTA = memo(function DesignSystemCTA({
       {icon}
       <Text
         variant={type === 'modal' ? 'Button/S' : 'Body/XS/Medium'}
-        color={labelColors[variant]}
+        color={disabled ? colors.white[100] : labelColors[variant]}
         numberOfLines={1}
       >
         {label}
@@ -77,6 +84,7 @@ const MODAL_HIT_SLOP = { top: 1, bottom: 1 };
 const labelColors: Record<CTAVariant, string> = {
   primary: colors.white[100],
   secondary: colors.white[100],
+  brand: colors.white[100],
   outline: colors.gray[700],
   reject: colors.warning[1],
 };
@@ -96,6 +104,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pressed: { opacity: 0.8 },
+  disabled: { backgroundColor: colors.gray[400] },
 });
 
 const bottom = {
@@ -113,6 +122,7 @@ const sizeStyles = StyleSheet.create({
 const variantStyles = StyleSheet.create({
   primary: { backgroundColor: colors.primary },
   secondary: { backgroundColor: colors.accepted[1] },
+  brand: { backgroundColor: colors.secondary },
   outline: { borderWidth: 1, borderColor: colors.gray[500] },
   reject: { backgroundColor: colors.warning[2] },
 });

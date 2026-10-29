@@ -9,10 +9,12 @@ export {
 
 export { Text, type TextProps } from './components/Text';
 export { CTA, type CTAProps, type CTAVariant } from './components/CTA';
+export { Icon, type IconName, type IconProps } from './components/Icon';
 export {
   StatusChip,
   type StatusChipProps,
   type WorkStatus,
+  workStatusLabels,
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
 export { TabBar, type TabBarItem, type TabBarProps } from './components/TabBar';

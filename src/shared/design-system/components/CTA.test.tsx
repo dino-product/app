@@ -125,4 +125,33 @@ describe('CTA', () => {
 
     expect(screen.getByTestId('cta-icon')).toBeOnTheScreen();
   });
+
+  it('brand 는 Secondary 배경이다 (화면 CTA: 작업 시작, 완료 보고 작성하기)', async () => {
+    await render(<CTA variant="brand" label="작업 시작" onPress={jest.fn()} />);
+
+    expect(screen.getByRole('button')).toHaveStyle({
+      backgroundColor: colors.secondary,
+    });
+    expect(screen.getByText('작업 시작')).toHaveStyle({
+      color: colors.white[100],
+    });
+  });
+
+  it('disabled 면 variant 와 관계없이 회색으로 그린다', async () => {
+    await render(
+      <CTA
+        variant="primary"
+        label="완료보고 제출"
+        onPress={jest.fn()}
+        disabled
+      />,
+    );
+
+    expect(screen.getByRole('button')).toHaveStyle({
+      backgroundColor: colors.gray[400],
+    });
+    expect(screen.getByText('완료보고 제출')).toHaveStyle({
+      color: colors.white[100],
+    });
+  });
 });
