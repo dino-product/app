@@ -179,4 +179,42 @@ describe('ScheduleScreen — 응답 필요', () => {
 
     expect(screen.getByText('응답할 요청이 없습니다')).toBeOnTheScreen();
   });
+
+  describe('ScheduleScreen — 정렬·접근성', () => {
+    it('그날 일정을 시작 시각 순으로 보여준다', async () => {
+      await renderSchedule({
+        confirmed: [
+          {
+            ...base,
+            id: 'late',
+            dateKey: '2026-12-15',
+            title: '늦은 일정',
+            timeRange: '15:00 - 16:00',
+          },
+          {
+            ...base,
+            id: 'early',
+            dateKey: '2026-12-15',
+            title: '이른 일정',
+            timeRange: '08:00 - 09:00',
+          },
+        ],
+      });
+
+      const titles = screen
+        .getAllByText(/일정$/)
+        .map(node => node.props.children)
+        .filter(text => text === '늦은 일정' || text === '이른 일정');
+      expect(titles).toEqual(['이른 일정', '늦은 일정']);
+    });
+
+    it('확정 일정 행은 누를 수 없으므로 버튼으로 노출하지 않는다', async () => {
+      await renderSchedule();
+
+      expect(
+        screen.queryByRole('button', { name: /^세탁기 설치,/ }),
+      ).toBeNull();
+      expect(screen.getByLabelText(/^세탁기 설치, 배정됨/)).toBeOnTheScreen();
+    });
+  });
 });

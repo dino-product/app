@@ -38,16 +38,11 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   item: ConfirmedSchedule;
   onPress?: (id: string) => void;
 }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${item.title}, ${workStatusLabels[item.status]}, ${
-        item.timeRange
-      }, ${item.company} ${item.customerName} · ${item.address}`}
-      disabled={!onPress}
-      onPress={() => onPress?.(item.id)}
-      style={styles.row}
-    >
+  const label = `${item.title}, ${workStatusLabels[item.status]}, ${
+    item.timeRange
+  }, ${item.company} ${item.customerName} · ${item.address}`;
+  const content = (
+    <>
       <View style={styles.titleRow}>
         <Text variant="Body/S/Bold" numberOfLines={1} style={styles.shrink}>
           {item.title}
@@ -61,6 +56,25 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
         </Text>
       </View>
       <Meta item={item} />
+    </>
+  );
+
+  // 누를 동작이 없으면 버튼이 아니라 한 덩어리 정보로 읽히게 한다
+  if (!onPress) {
+    return (
+      <View accessible accessibilityLabel={label} style={styles.row}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => onPress(item.id)}
+      style={styles.row}
+    >
+      {content}
     </Pressable>
   );
 });

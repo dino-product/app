@@ -79,4 +79,23 @@ describe('RejectReasonScreen', () => {
     expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
     expect(onBack).toHaveBeenCalledTimes(2);
   });
+
+  it('기타 입력란에 쓰기 시작하면 기타가 선택된다', async () => {
+    const onSubmit = jest.fn();
+    await renderReject({ onSubmit });
+
+    await userEvent.press(
+      screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+    );
+    await userEvent.type(
+      screen.getByLabelText('기타 거절 사유 입력'),
+      '개인 사정',
+    );
+
+    expect(
+      screen.getByRole('radio', { name: '기타 (직접 입력)' }),
+    ).toBeChecked();
+    await userEvent.press(screen.getByRole('button', { name: '거절 제출' }));
+    expect(onSubmit).toHaveBeenCalledWith('개인 사정');
+  });
 });

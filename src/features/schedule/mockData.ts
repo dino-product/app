@@ -2,6 +2,7 @@ import { workDetail } from '../work/mockData';
 import type { WorkDetail } from '../work/model';
 import {
   toDateKey,
+  WEEKDAYS,
   type ConfirmedSchedule,
   type PendingRequest,
 } from './model';
@@ -66,10 +67,12 @@ export function makeScheduleMock(today: Date): {
 
 /** 응답 필요 상세에 보여줄 작업 정보 (요청 + 작업 상세 예시) */
 export function requestToWorkDetail(request: PendingRequest): WorkDetail {
+  const [year, month, day] = request.dateKey.split('-').map(Number);
+  const weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()];
   return {
     ...workDetail,
-    id: request.id,
     title: request.title,
+    date: `${request.dateKey} (${weekday})`,
     status: request.status,
     timeRange: request.timeRange,
     address: request.address,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   BackHandler,
   Linking,
@@ -56,7 +56,25 @@ export default function App() {
   const schedule = useScheduleStore(initialSchedule);
   useFrameMonitor();
 
-  const push = (route: Route) => setStack(prev => [...prev, route]);
+  // 같은 화면을 연달아 누르면 한 번만 쌓는다
+  const push = useCallback(
+    (route: Route) =>
+      setStack(prev => {
+        const last = prev[prev.length - 1];
+        return last && last.name === route.name && last.id === route.id
+          ? prev
+          : [...prev, route];
+      }),
+    [],
+  );
+  const openReject = useCallback(
+    (id: string) => push({ name: 'rejectReason', id }),
+    [push],
+  );
+  const openRequest = useCallback(
+    (id: string) => push({ name: 'requestDetail', id }),
+    [push],
+  );
   const pop = () => setStack(prev => prev.slice(0, -1));
   const changeTab = (next: MainTabKey) => {
     // 작업 이력·마이는 아직 화면이 없다
@@ -143,13 +161,17 @@ export default function App() {
     return null;
   };
 
+  const topScreen = renderTop();
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
       {/* 네이티브 스택처럼 아래 화면을 유지한 채 위에 덮는다 (탭·선택 날짜·스크롤이 돌아와도 남는다) */}
       <View
-        accessibilityElementsHidden={hasStack}
-        importantForAccessibility={hasStack ? 'no-hide-descendants' : 'auto'}
+        accessibilityElementsHidden={topScreen !== null}
+        importantForAccessibility={
+          topScreen !== null ? 'no-hide-descendants' : 'auto'
+        }
         style={styles.fill}
       >
         {tab === 'home' ? (
@@ -168,13 +190,14 @@ export default function App() {
             confirmed={schedule.confirmed}
             pending={schedule.pending}
             onAccept={schedule.accept}
-            onReject={id => push({ name: 'rejectReason', id })}
-            onOpenRequest={id => push({ name: 'requestDetail', id })}
+            onReject={openReject}
+            onOpenRequest={openRequest}
             onTabChange={changeTab}
           />
         )}
       </View>
-      {hasStack && <View style={styles.overlay}>{renderTop()}</View>}
+      {/* 화면을 그릴 수 없는 경로(사라진 요청 등)면 덮지 않는다 */}
+      {topScreen !== null && <View style={styles.overlay}>{topScreen}</View>}
     </SafeAreaProvider>
   );
 }

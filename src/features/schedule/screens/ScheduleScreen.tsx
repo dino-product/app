@@ -56,7 +56,11 @@ export function ScheduleScreen({
 
   const selectedKey = toDateKey(selected);
   const daySchedules = useMemo(
-    () => confirmed.filter(item => item.dateKey === selectedKey),
+    () =>
+      confirmed
+        .filter(item => item.dateKey === selectedKey)
+        // "08:00 - 09:00" 처럼 시작 시각이 앞에 오므로 문자열 비교로 시간순이 된다
+        .sort((a, b) => a.timeRange.localeCompare(b.timeRange)),
     [confirmed, selectedKey],
   );
   const markedKeys = useMemo(

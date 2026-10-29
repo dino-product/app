@@ -55,7 +55,7 @@ export function MonthCalendar({
             key={label}
             variant="Caption/M/Medium"
             color={weekdayColor(day)}
-            style={styles.cell}
+            style={styles.weekdayText}
           >
             {label}
           </Text>
@@ -118,7 +118,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   week: { flexDirection: 'row' },
-  cell: { flex: 1, alignItems: 'center', textAlign: 'center' },
+  cell: { flex: 1, alignItems: 'center' },
+  weekdayText: { flex: 1, textAlign: 'center' },
   circle: {
     width: 40,
     height: 40,

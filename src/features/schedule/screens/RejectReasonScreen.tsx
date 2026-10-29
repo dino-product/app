@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
@@ -43,6 +49,8 @@ export function RejectReasonScreen({
       onSubmit(result.reason);
     } else {
       setError(result.error);
+      // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 도 알린다
+      AccessibilityInfo.announceForAccessibility(errorMessages[result.error]);
     }
   };
 
@@ -103,6 +111,7 @@ export function RejectReasonScreen({
               </Pressable>
             );
           })}
+          {error === 'select' && <ErrorText error={error} />}
         </View>
 
         <View style={styles.other}>
@@ -113,20 +122,13 @@ export function RejectReasonScreen({
             value={otherText}
             onChangeText={text => {
               setOtherText(text);
+              // 직접 쓰기 시작하면 기타 사유로 본다 (다른 선택지가 고른 채로 남아 입력이 버려지지 않게)
+              setSelected('other');
               setError(null);
             }}
             error={error === 'otherText'}
           />
-          {error && (
-            <Text
-              accessibilityLiveRegion="polite"
-              variant="Caption/M/Medium"
-              color={colors.warning[1]}
-              style={styles.error}
-            >
-              {errorMessages[error]}
-            </Text>
-          )}
+          {error === 'otherText' && <ErrorText error={error} />}
         </View>
       </ScrollView>
 
@@ -146,6 +148,19 @@ export function RejectReasonScreen({
         />
       </View>
     </SafeAreaView>
+  );
+}
+
+function ErrorText({ error }: { error: keyof typeof errorMessages }) {
+  return (
+    <Text
+      accessibilityLiveRegion="polite"
+      variant="Caption/M/Medium"
+      color={colors.warning[1]}
+      style={styles.error}
+    >
+      {errorMessages[error]}
+    </Text>
   );
 }
 
