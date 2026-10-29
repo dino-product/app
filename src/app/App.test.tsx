@@ -118,4 +118,74 @@ describe('App', () => {
       expect.stringMatching(/^(https:\/\/maps\.apple\.com\/\?q=|geo:0,0\?q=)/),
     );
   });
+
+  describe('내 일정', () => {
+    async function openSchedule() {
+      await render(<App />);
+      await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
+    }
+
+    it('하단 탭으로 내 일정과 홈을 오간다', async () => {
+      await openSchedule();
+      expect(screen.getByRole('header', { name: '내 일정' })).toBeOnTheScreen();
+
+      await userEvent.press(screen.getByRole('tab', { name: '홈' }));
+      expect(screen.getByRole('header', { name: '내 작업' })).toBeOnTheScreen();
+    });
+
+    it('응답 필요 요청을 수락하면 목록에서 빠진다', async () => {
+      await openSchedule();
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      const before = screen.getAllByRole('button', { name: /수락$/ }).length;
+
+      await userEvent.press(
+        screen.getAllByRole('button', { name: /수락$/ })[0],
+      );
+
+      expect(screen.queryAllByRole('button', { name: /수락$/ })).toHaveLength(
+        before - 1,
+      );
+    });
+
+    it('거절하면 거절 사유를 받고 요청을 목록에서 뺀다', async () => {
+      await openSchedule();
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      const before = screen.getAllByRole('button', { name: /거절$/ }).length;
+
+      await userEvent.press(
+        screen.getAllByRole('button', { name: /거절$/ })[0],
+      );
+      expect(
+        screen.getByRole('header', { name: '거절 사유' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(
+        screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '거절 제출' }));
+
+      expect(screen.getByRole('header', { name: '내 일정' })).toBeOnTheScreen();
+      expect(screen.queryAllByRole('button', { name: /거절$/ })).toHaveLength(
+        before - 1,
+      );
+    });
+
+    it('요청 상세에서 수락하면 내 일정으로 돌아오고 요청이 빠진다', async () => {
+      await openSchedule();
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      const before = screen.getAllByRole('button', { name: /수락$/ }).length;
+
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+      expect(
+        screen.getByRole('header', { name: '작업 상세' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '수락' }));
+
+      expect(screen.getByRole('header', { name: '내 일정' })).toBeOnTheScreen();
+      expect(screen.queryAllByRole('button', { name: /수락$/ })).toHaveLength(
+        before - 1,
+      );
+    });
+  });
 });

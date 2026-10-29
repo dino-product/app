@@ -33,6 +33,8 @@ export type CTAProps = CTALayout & {
   icon?: ReactNode;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** 같은 라벨의 버튼이 여러 개일 때 구분용 (예: "에어컨 필터 교체 수락") */
+  accessibilityLabel?: string;
   testID?: string;
 };
 
@@ -45,6 +47,7 @@ export const CTA = memo(function DesignSystemCTA({
   icon,
   disabled = false,
   style,
+  accessibilityLabel,
   testID,
 }: CTAProps) {
   const layout = type === 'modal' ? styles.modal : sizeStyles[size];
@@ -59,6 +62,7 @@ export const CTA = memo(function DesignSystemCTA({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
       disabled={disabled}
       hitSlop={type === 'modal' ? MODAL_HIT_SLOP : undefined}
