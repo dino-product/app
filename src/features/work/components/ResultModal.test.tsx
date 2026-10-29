@@ -66,4 +66,28 @@ describe('ResultModal', () => {
 
     expect(screen.queryByText('제출 완료')).not.toBeOnTheScreen();
   });
+
+  it('제출 완료는 Modal-check, 취소는 Modal-X 아이콘이다', async () => {
+    const { rerender } = await render(
+      <ResultModal
+        visible
+        result={{ kind: 'submitted', at: '10.01 15:15' }}
+        onConfirm={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId('icon-modal-check', { includeHiddenElements: true }),
+    ).toBeTruthy();
+
+    await rerender(
+      <ResultModal
+        visible
+        result={{ kind: 'canceled', reason: '고객 요청', at: '10.01 15:15' }}
+        onConfirm={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId('icon-modal-x', { includeHiddenElements: true }),
+    ).toBeTruthy();
+  });
 });

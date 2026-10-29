@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, Icon, Text, withOpacity } from '../../../shared/design-system';
+import { colors, Icon, Text } from '../../../shared/design-system';
 import { PHOTO_LIMIT } from '../model';
 import { InfoCard } from './InfoCard';
 import { PhotoThumb, THUMB_SIZE } from './PhotoThumb';
@@ -31,7 +31,7 @@ export function PhotoUploader({
           onPress={onAdd}
           style={styles.addTile}
         >
-          <Icon name="camera" size={20} color={colors.gray[500]} />
+          <Icon name="camera" />
           <Text variant="Caption/S/Medium" color={colors.gray[500]}>
             {`${photos.length}/${PHOTO_LIMIT}`}
           </Text>
@@ -47,7 +47,7 @@ export function PhotoUploader({
               onPress={() => onRemove(index)}
               style={styles.remove}
             >
-              <Icon name="close" size={12} color={colors.white[100]} />
+              <Icon name="photo-remove" />
             </Pressable>
           </View>
         ))}
@@ -71,15 +71,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray[200],
   },
-  remove: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: withOpacity('#000000', 0.5),
-  },
+  // 사진 삭제 아이콘(x)이 원 배경을 포함한다
+  remove: { position: 'absolute', top: 6, right: 6 },
 });

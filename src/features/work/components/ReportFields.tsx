@@ -96,7 +96,7 @@ export function PaymentMethodSelect({
         >
           {value ? paymentMethodLabels[value] : '결제 방식을 선택해주세요'}
         </Text>
-        <Icon name="chevron-down" size={20} color={colors.gray[500]} />
+        <Icon name="chevron-down" />
       </Pressable>
       {open && (
         <View style={styles.options}>

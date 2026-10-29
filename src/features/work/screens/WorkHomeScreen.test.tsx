@@ -84,4 +84,18 @@ describe('WorkHomeScreen', () => {
       }),
     ).toHaveLength(3);
   });
+
+  it('알림 종과 목록·격자 보기 아이콘을 그린다', async () => {
+    await renderHome();
+
+    expect(
+      screen.getByTestId('icon-bell', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('icon-list', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('icon-grid', { includeHiddenElements: true }),
+    ).toBeTruthy();
+  });
 });

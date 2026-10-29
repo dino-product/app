@@ -38,18 +38,7 @@ export function ResultModal({
     >
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <View
-            style={[
-              styles.badge,
-              submitted ? styles.badgeSuccess : styles.badgeDanger,
-            ]}
-          >
-            <Icon
-              name={submitted ? 'check' : 'close'}
-              size={20}
-              color={submitted ? colors.accepted[1] : colors.warning[1]}
-            />
-          </View>
+          <Icon name={submitted ? 'modal-check' : 'modal-x'} />
           <Text accessibilityRole="header" variant="Body/S/Bold">
             {submitted ? '제출 완료' : '작업이 취소되었습니다'}
           </Text>
@@ -106,15 +95,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.white[100],
   },
-  badge: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-  },
-  badgeSuccess: { backgroundColor: colors.accepted[2] },
-  badgeDanger: { backgroundColor: colors.warning[2] },
   description: { textAlign: 'center' },
   summary: {
     alignSelf: 'stretch',

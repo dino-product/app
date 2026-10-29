@@ -30,11 +30,11 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = DinoApp/AppDelegate.swift; sourceTree = "<group>"; };
 		761780EE2CA45674006654EF /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = DinoApp/SceneDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = DinoApp/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		D1F0A0010000000000000A01 /* Pretendard-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Regular.otf"; sourceTree = "<group>"; };
 		D1F0A0010000000000000A02 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
 		D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		D1F0A0010000000000000A04 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
+		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -69,18 +69,6 @@
 				5DCACB8F33CDC322A6C60F78 /* libPods-DinoApp.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		D1F0A0010000000000000C01 /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				D1F0A0010000000000000A01 /* Pretendard-Regular.otf */,
-				D1F0A0010000000000000A02 /* Pretendard-Medium.otf */,
-				D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */,
-				D1F0A0010000000000000A04 /* Pretendard-Bold.otf */,
-			);
-			name = Fonts;
-			path = ../assets/fonts;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -120,6 +108,18 @@
 				5709B34CF0A7D63546082F79 /* Pods-DinoApp.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		D1F0A0010000000000000C01 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				D1F0A0010000000000000A01 /* Pretendard-Regular.otf */,
+				D1F0A0010000000000000A02 /* Pretendard-Medium.otf */,
+				D1F0A0010000000000000A03 /* Pretendard-SemiBold.otf */,
+				D1F0A0010000000000000A04 /* Pretendard-Bold.otf */,
+			);
+			name = Fonts;
+			path = ../assets/fonts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -219,13 +219,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-DinoApp/Pods-DinoApp-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-DinoApp/Pods-DinoApp-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -262,13 +258,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-DinoApp/Pods-DinoApp-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-DinoApp/Pods-DinoApp-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

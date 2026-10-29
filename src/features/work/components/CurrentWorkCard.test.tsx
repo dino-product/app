@@ -73,4 +73,22 @@ describe('CurrentWorkCard', () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it('렌치 일러스트와 상세 화살표를 그린다', async () => {
+    await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('work-illustration', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('icon-chevron-right', { includeHiddenElements: true }),
+    ).toBeTruthy();
+  });
 });

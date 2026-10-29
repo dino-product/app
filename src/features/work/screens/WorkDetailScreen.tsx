@@ -234,7 +234,7 @@ export function WorkDetailScreen({
                   onPress={() => onCall(work.customer.phone)}
                   style={styles.call}
                 >
-                  <Icon name="phone" size={20} color={colors.gray[600]} />
+                  <Icon name="phone" />
                 </Pressable>
               </View>
             </InfoCard>
@@ -249,9 +249,7 @@ export function WorkDetailScreen({
             <CTA
               size="M"
               variant="primary"
-              icon={
-                <Icon name="navigation" size={20} color={colors.white[100]} />
-              }
+              icon={<Icon name="navigation" />}
               label="길찾기"
               onPress={() => onNavigate(work.address)}
               style={styles.navigate}
@@ -348,13 +346,7 @@ export function WorkDetailScreen({
           <View style={styles.jump}>
             <CTA
               variant="brand"
-              icon={
-                <Icon
-                  name="chevrons-down"
-                  size={20}
-                  color={colors.white[100]}
-                />
-              }
+              icon={<Icon name="chevrons-down" />}
               label="완료 보고 작성하기"
               onPress={jumpToReport}
             />

@@ -84,4 +84,8 @@ import { colors, CTA, Text } from '../shared/design-system';
   - `TabBar` — Tab Bar (밑줄 + 건수), `TypeTabs` — Tab / Type (알약 필터)
   - `Toggle` — Toggle
   - `BottomNavigationBar` — Bottom Navigation Bar (아이콘은 `renderIcon` 으로 주입)
+- `Icon` — Figma 에서 SVG 로 내보낸 아이콘 (`react-native-svg` 의 `SvgXml`). 기본 크기·색은 Figma 값이고, 한 가지 색 아이콘만 `color` 로 바꿀 수 있다
+  - 아이콘 추가: Figma 에서 레이어를 SVG 로 Export → `src/shared/design-system/icons/svgs.ts` 에 넣고, 한 가지 색이면 그 색을 `currentColor` 로 바꾸고 원래 색을 `color` 로 적는다
+  - 레이어 이름에 `/` 가 있으면 Figma 가 `Design.v0.zip` 으로 묶어 내보낸다 (zip 안에 SVG 가 있다)
+  - 일러스트처럼 Figma 에 이미지(PNG)로 들어간 것은 `assets/images` 의 PNG 로 쓴다
 - 폰트를 추가하려면 `assets/fonts` 에 PostScript 이름과 같은 파일명으로 넣고, iOS 는 `Info.plist` 의 `UIAppFonts` 와 Xcode `Fonts` 그룹에 등록한다 (Android 는 자동).

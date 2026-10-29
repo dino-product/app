@@ -1,6 +1,9 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import type { CurrentWork } from '../model';
+
+// Figma 에서 3x(101px)로 내보낸 PNG. 화면에서는 33.41pt 로 줄여 그린다
+const wrench = require('../../../../assets/images/wrench.png');
 
 // 메인화면 상단의 오늘 진행할 작업 카드. 시작 전 "작업 시작"(Secondary), 시작 후 "작업 수행중"(Primary).
 export function CurrentWorkCard({
@@ -22,7 +25,14 @@ export function CurrentWorkCard({
         onPress={onOpen}
         style={styles.header}
       >
-        <Icon name="wrench" size={32} />
+        {/* Figma 에서 이미지(PNG)로 들어간 일러스트라 SVG 가 아닌 PNG 로 쓴다 */}
+        <Image
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          source={wrench}
+          style={styles.illustration}
+          testID="work-illustration"
+        />
         <View style={styles.info}>
           <Text variant="Body/S/Bold">{work.title}</Text>
           <Text variant="Caption/M/Medium">{work.timeRange}</Text>
@@ -62,6 +72,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white[100],
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  illustration: { width: 33.41, height: 33.41, marginTop: 7.5, marginLeft: 3 },
   info: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },

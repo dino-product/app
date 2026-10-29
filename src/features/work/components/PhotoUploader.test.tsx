@@ -69,4 +69,22 @@ describe('PhotoUploader', () => {
     expect(add).toBeDisabled();
     expect(onAdd).not.toHaveBeenCalled();
   });
+
+  it('추가 타일은 카메라, 삭제 버튼은 사진 삭제(x) 아이콘이다', async () => {
+    await render(
+      <PhotoUploader
+        title="작업 전"
+        photos={['p1']}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('icon-camera', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('icon-photo-remove', { includeHiddenElements: true }),
+    ).toBeTruthy();
+  });
 });

@@ -1,46 +1,43 @@
 import { memo } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+import { icons, type IconName } from '../icons/svgs';
 
-// Figma App Icon 세트와 화면에 쓰인 아이콘 이름. SVG 를 아직 확보하지 못해 지금은 크기만큼 자리를 비워 둔다.
-// SVG 가 들어오면 이 컴포넌트 안에서만 그리면 되도록 호출부는 name·size·color 로 고정한다.
-export type IconName =
-  | 'bell'
-  | 'chevron-left'
-  | 'chevron-right'
-  | 'chevron-down'
-  | 'chevrons-down'
-  | 'phone'
-  | 'navigation'
-  | 'camera'
-  | 'close'
-  | 'check'
-  | 'list'
-  | 'grid'
-  | 'wrench'
-  | 'home'
-  | 'calendar'
-  | 'history'
-  | 'user';
+export type { IconName };
 
 export type IconProps = {
   name: IconName;
+  /** 기본값은 Figma 프레임 크기 */
   size?: number;
+  /** 한 가지 색 아이콘만 적용된다. 기본값은 Figma 색 */
   color?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
 export const Icon = memo(function DesignSystemIcon({
-  size = 24,
+  name,
+  size,
+  color,
   style,
   testID,
 }: IconProps) {
+  const icon: { xml: string; size: number; color?: string } = icons[name];
+  const dimension = size ?? icon.size;
+
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[{ width: size, height: size }, style]}
-      testID={testID}
-    />
+      style={[{ width: dimension, height: dimension }, style]}
+      testID={testID ?? `icon-${name}`}
+    >
+      <SvgXml
+        xml={icon.xml}
+        width={dimension}
+        height={dimension}
+        color={color ?? icon.color}
+      />
+    </View>
   );
 });
