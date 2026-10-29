@@ -22,5 +22,6 @@ describe('WorkHomeScreen 렌더 예산', () => {
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
     );
-  });
+    // FlatList 화면을 10회 반복 측정하므로 CI 러너에서는 기본 5초를 넘긴다
+  }, 30_000);
 });
