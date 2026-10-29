@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors } from '../tokens/colors';
 import { Text } from './Text';
 
@@ -18,6 +18,8 @@ export type StatusChipProps = {
   size?: 'M' | 'S';
   /** 기본값은 상태 이름 (등록, 배정됨 …) */
   label?: string;
+  /** 기본은 내용 폭(alignSelf: flex-start). 가로 줄 안에서 정렬을 바꿀 때 쓴다. */
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
@@ -66,6 +68,7 @@ export const StatusChip = memo(function DesignSystemStatusChip({
   status,
   size = 'M',
   label,
+  style,
   testID,
 }: StatusChipProps) {
   const spec = statusSpec[status];
@@ -73,7 +76,7 @@ export const StatusChip = memo(function DesignSystemStatusChip({
   return (
     <View
       testID={testID}
-      style={[styles.base, sizeStyles[size], backgroundStyles[status]]}
+      style={[styles.base, sizeStyles[size], backgroundStyles[status], style]}
     >
       <Text
         variant={size === 'M' ? 'Body/XS/Medium' : 'Caption/M/SemiBold'}

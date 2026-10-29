@@ -20,6 +20,10 @@ const items: BottomNavigationItem[] = [
 ];
 
 describe('BottomNavigationBar', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('항목마다 탭을 그리고 활성 탭을 선택 상태로 노출한다', async () => {
     await render(
       <BottomNavigationBar

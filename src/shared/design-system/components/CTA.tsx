@@ -12,6 +12,7 @@ import { Text } from './Text';
 // Figma DesignSystem › CTA. state 이름 대응: Primary → primary, Secondery → secondary,
 // Default → outline, Reject → reject, Hover → 눌림(opacity 0.8).
 // 너비는 Figma 에서 고정값이지만 실제로는 부모 폭을 채운다 (Modal S 는 두 개를 flex: 1 로 나란히 둔다).
+// 높이는 글꼴 확대 시 라벨이 잘리지 않도록 최소값으로만 건다.
 export type CTAVariant = 'primary' | 'secondary' | 'outline' | 'reject';
 
 type CTALayout =
@@ -53,6 +54,7 @@ export const CTA = memo(function DesignSystemCTA({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
+      hitSlop={type === 'modal' ? MODAL_HIT_SLOP : undefined}
       onPress={onPress}
       style={pressableStyle}
       testID={testID}
@@ -69,6 +71,9 @@ export const CTA = memo(function DesignSystemCTA({
   );
 });
 
+// Modal 높이 42 를 터치 최소 44pt 로 보완한다
+const MODAL_HIT_SLOP = { top: 1, bottom: 1 };
+
 const labelColors: Record<CTAVariant, string> = {
   primary: colors.white[100],
   secondary: colors.white[100],
@@ -84,7 +89,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   modal: {
-    height: 42,
+    minHeight: 42,
     gap: 8,
     paddingHorizontal: 8,
     paddingVertical: 10,
@@ -101,8 +106,8 @@ const bottom = {
 } as const;
 
 const sizeStyles = StyleSheet.create({
-  L: { ...bottom, height: 56 },
-  M: { ...bottom, height: 46 },
+  L: { ...bottom, minHeight: 56 },
+  M: { ...bottom, minHeight: 46 },
 });
 
 const variantStyles = StyleSheet.create({

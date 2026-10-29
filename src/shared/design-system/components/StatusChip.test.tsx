@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 import { StatusChip, type WorkStatus } from './StatusChip';
@@ -42,4 +43,14 @@ describe('StatusChip', () => {
 
     expect(screen.getByText('진행중')).toBeOnTheScreen();
   });
+
+  it('style 로 정렬을 바꿀 수 있다 (가로 줄에서 세로 가운데 정렬 등)', async () => {
+    await render(
+      <StatusChip status="completed" style={styles.center} testID="chip" />,
+    );
+
+    expect(screen.getByTestId('chip')).toHaveStyle({ alignSelf: 'center' });
+  });
 });
+
+const styles = StyleSheet.create({ center: { alignSelf: 'center' } });

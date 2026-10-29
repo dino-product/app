@@ -37,7 +37,7 @@ describe('CTA', () => {
 
       expect(screen.getByRole('button')).toHaveStyle({
         backgroundColor: colors.primary,
-        height: 56,
+        minHeight: 56,
         borderRadius: 12,
       });
       expect(screen.getByText('확인')).toHaveStyle({
@@ -49,7 +49,14 @@ describe('CTA', () => {
     it('size M 은 높이 46 이다', async () => {
       await render(<CTA label="확인" size="M" onPress={jest.fn()} />);
 
-      expect(screen.getByRole('button')).toHaveStyle({ height: 46 });
+      expect(screen.getByRole('button')).toHaveStyle({ minHeight: 46 });
+    });
+
+    // 글꼴을 키운 사용자에게 라벨이 잘리지 않도록 높이는 최소값으로만 건다
+    it('고정 height 를 쓰지 않는다', async () => {
+      await render(<CTA label="확인" onPress={jest.fn()} />);
+
+      expect(screen.getByRole('button')).not.toHaveStyle({ height: 56 });
     });
   });
 
@@ -58,10 +65,19 @@ describe('CTA', () => {
       await render(<CTA type="modal" label="확인" onPress={jest.fn()} />);
 
       expect(screen.getByRole('button')).toHaveStyle({
-        height: 42,
+        minHeight: 42,
         borderRadius: 8,
       });
       expect(screen.getByText('확인')).toHaveStyle(typography['Button/S']);
+    });
+
+    it('42pt 높이를 터치 최소 44pt 로 보완한다', async () => {
+      await render(<CTA type="modal" label="확인" onPress={jest.fn()} />);
+
+      expect(screen.getByRole('button')).toHaveProp('hitSlop', {
+        top: 1,
+        bottom: 1,
+      });
     });
   });
 

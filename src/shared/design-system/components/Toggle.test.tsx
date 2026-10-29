@@ -40,7 +40,10 @@ describe('Toggle', () => {
       width: 46,
       height: 26,
     });
-    expect(screen.getByTestId('toggle-knob')).toHaveStyle({ left: 2 });
+    expect(screen.getByTestId('toggle-knob')).toHaveStyle({
+      left: 2,
+      backgroundColor: colors.toggleKnob,
+    });
 
     await rerender(
       <Toggle

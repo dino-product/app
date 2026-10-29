@@ -20,6 +20,7 @@ export type BottomNavigationBarProps<K extends string> = {
 };
 
 // Figma 프레임(홈 인디케이터 있는 iPhone)에서 아래 여백이 33 이다. 인셋이 없는 기기도 최소 여백은 둔다.
+// 아래 안전 영역을 여기서 처리하므로, 감싸는 SafeAreaView 는 edges 에서 'bottom' 을 빼야 한다.
 const MIN_BOTTOM_PADDING = 16;
 
 export function BottomNavigationBar<K extends string>({

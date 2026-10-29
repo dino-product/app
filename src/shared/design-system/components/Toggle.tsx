@@ -37,13 +37,14 @@ export const Toggle = memo(function DesignSystemToggle({
   );
 });
 
+const TRACK_WIDTH = 46;
 const KNOB_SIZE = 22;
 const INSET = 2;
 // 트랙 높이 26 을 터치 최소 44pt 로 보완한다
 const HIT_SLOP = { top: 9, bottom: 9, left: 0, right: 0 };
 
 const styles = StyleSheet.create({
-  track: { width: 46, height: 26, borderRadius: 999 },
+  track: { width: TRACK_WIDTH, height: 26, borderRadius: 999 },
   trackOff: { backgroundColor: colors.gray[200] },
   trackOn: { backgroundColor: colors.secondary },
   knob: {
@@ -53,7 +54,9 @@ const styles = StyleSheet.create({
     height: KNOB_SIZE,
     borderRadius: KNOB_SIZE / 2,
   },
-  // Figma 라이브러리 변수 "Gray100"(#F2F2F2). 로컬 Gray100(#E9E9EA)과 값이 달라 그대로 옮긴다.
-  knobOff: { left: INSET, backgroundColor: '#F2F2F2' },
-  knobOn: { left: 46 - INSET - KNOB_SIZE, backgroundColor: colors.white[100] },
+  knobOff: { left: INSET, backgroundColor: colors.toggleKnob },
+  knobOn: {
+    left: TRACK_WIDTH - INSET - KNOB_SIZE,
+    backgroundColor: colors.white[100],
+  },
 });
