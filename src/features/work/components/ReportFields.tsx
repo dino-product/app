@@ -3,31 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { colors, Icon, Text, typography } from '../../../shared/design-system';
 import { paymentMethodLabels, type PaymentMethod } from '../model';
 
-// 완료 보고 입력 필드 (수행 메모·사용 부품, 결제 금액, 결제 방식)
-
-export function MemoInput({
-  label,
-  placeholder,
-  value,
-  onChangeText,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChangeText: (text: string) => void;
-}) {
-  return (
-    <TextInput
-      accessibilityLabel={label}
-      multiline
-      placeholder={placeholder}
-      placeholderTextColor={colors.gray[400]}
-      value={value}
-      onChangeText={onChangeText}
-      style={[styles.memo, typography['Caption/M/Regular']]}
-    />
-  );
-}
+// 완료 보고 입력 필드 (결제 금액, 결제 방식). 여러 줄 메모는 디자인 시스템 TextArea 를 쓴다.
 
 export function FieldLabel({ children }: { children: string }) {
   return (
@@ -124,15 +100,6 @@ export function PaymentMethodSelect({
 }
 
 const styles = StyleSheet.create({
-  memo: {
-    minHeight: 110,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-    color: colors.gray[900],
-    textAlignVertical: 'top',
-  },
   box: {
     flexDirection: 'row',
     alignItems: 'center',

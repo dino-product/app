@@ -17,6 +17,12 @@ export {
   workStatusLabels,
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
+export { TextArea, type TextAreaProps } from './components/TextArea';
+export {
+  UnderlineTabs,
+  type UnderlineTabsItem,
+  type UnderlineTabsProps,
+} from './components/UnderlineTabs';
 export { TabBar, type TabBarItem, type TabBarProps } from './components/TabBar';
 export {
   TypeTabs,

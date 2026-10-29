@@ -14,29 +14,22 @@ import {
   colors,
   CTA,
   Icon,
-  StatusChip,
   Text,
+  TextArea,
 } from '../../../shared/design-system';
 import { mainTabs, type MainTabKey } from '../../../shared/navigation/mainTabs';
-import {
-  InfoCard,
-  InfoField,
-  Section,
-  SectionBand,
-} from '../components/InfoCard';
-import { PhotoThumb } from '../components/PhotoThumb';
+import { Section, SectionBand } from '../components/InfoCard';
+import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
 import {
   AmountInput,
   FieldLabel,
-  MemoInput,
   PaymentMethodSelect,
 } from '../components/ReportFields';
 import { ResultModal } from '../components/ResultModal';
 import {
   canSubmitReport,
   emptyReport,
-  formatWon,
   PHOTO_LIMIT,
   type SubmitResult,
   type WorkDetail,
@@ -174,117 +167,11 @@ export function WorkDetailScreen({
           scrollEventThrottle={16}
           contentContainerStyle={styles.content}
         >
-          <View style={styles.summary}>
-            <View style={styles.titleRow}>
-              <Text variant="Body/XL/Bold" style={styles.shrink}>
-                {work.title}
-              </Text>
-              <StatusChip status={work.status} size="S" style={styles.chip} />
-            </View>
-            <View style={styles.metaRow}>
-              <View style={styles.idPill}>
-                <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-                  {work.id}
-                </Text>
-              </View>
-              <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-                {`· ${work.registeredAt} 등록`}
-              </Text>
-            </View>
-          </View>
-          <SectionBand />
-
-          <Section title="일정 및 담당 정보">
-            <InfoCard>
-              <View style={styles.pair}>
-                <InfoField label="날짜" value={work.date} style={styles.half} />
-                <InfoField
-                  label="시간"
-                  value={work.timeRange}
-                  style={styles.half}
-                />
-              </View>
-              <View style={styles.pair}>
-                <InfoField
-                  label="담당기사"
-                  value={work.technician}
-                  style={styles.half}
-                />
-                <InfoField
-                  label="작업유형"
-                  value={work.workType}
-                  style={styles.half}
-                />
-              </View>
-            </InfoCard>
-          </Section>
-
-          <Section title="고객 정보">
-            <InfoCard>
-              <InfoField label="고객명" value={work.customer.name} />
-              <View style={styles.pair}>
-                <InfoField
-                  label="연락처"
-                  value={work.customer.phone}
-                  style={styles.half}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${work.customer.name} 고객에게 전화`}
-                  onPress={() => onCall(work.customer.phone)}
-                  style={styles.call}
-                >
-                  <Icon name="phone" size={20} color={colors.gray[600]} />
-                </Pressable>
-              </View>
-            </InfoCard>
-          </Section>
-
-          <Section title="작업 위치">
-            <InfoCard>
-              <InfoField label="주소" value={work.address} />
-              {/* 지도 SDK 연동 전까지 자리만 둔다 */}
-              <View style={styles.map} />
-            </InfoCard>
-            <CTA
-              size="M"
-              variant="primary"
-              icon={
-                <Icon name="navigation" size={20} color={colors.white[100]} />
-              }
-              label="길찾기"
-              onPress={() => onNavigate(work.address)}
-              style={styles.navigate}
-            />
-          </Section>
-
-          <Section title="작업 내용">
-            <InfoCard>
-              <InfoField label="작업 메모" value={work.memo} />
-              <View style={styles.divider} />
-              <View style={styles.priceRow}>
-                <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-                  가격
-                </Text>
-                <Text variant="Body/M/SemiBold">{formatWon(work.price)}</Text>
-              </View>
-            </InfoCard>
-            <View style={styles.requestImages}>
-              <View style={styles.priceRow}>
-                <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-                  작업 요청 이미지
-                </Text>
-                <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-                  {`${work.requestImages.length}장`}
-                </Text>
-              </View>
-              <View style={styles.thumbs}>
-                {work.requestImages.map(uri => (
-                  <PhotoThumb key={uri} uri={uri} />
-                ))}
-              </View>
-            </View>
-          </Section>
+          <WorkInfoSections
+            work={work}
+            onCall={onCall}
+            onNavigate={onNavigate}
+          />
           <SectionBand />
 
           <View
@@ -308,7 +195,7 @@ export function WorkDetailScreen({
               />
             </Section>
             <Section title="수행 메모">
-              <MemoInput
+              <TextArea
                 label="수행 메모 입력"
                 placeholder="수행 메모 작성"
                 value={report.memo}
@@ -316,7 +203,7 @@ export function WorkDetailScreen({
               />
             </Section>
             <Section title="사용 부품">
-              <MemoInput
+              <TextArea
                 label="사용 부품 입력"
                 placeholder="사용 부품 작성"
                 value={report.parts}
@@ -383,46 +270,6 @@ const styles = StyleSheet.create({
   back: { position: 'absolute', left: 20 },
   body: { flex: 1 },
   content: { paddingBottom: 32 },
-  summary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chip: { alignSelf: 'center' },
-  shrink: { flexShrink: 1 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  idPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: colors.background[1],
-  },
-  pair: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  half: { flex: 1 },
-  call: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: colors.gray[50],
-  },
-  map: {
-    height: 160,
-    borderRadius: 12,
-    backgroundColor: colors.background[1],
-  },
-  navigate: { minHeight: 48 },
-  divider: { height: 1, backgroundColor: colors.gray[100] },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  requestImages: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: colors.gray[50],
-  },
-  thumbs: { flexDirection: 'row', gap: 10 },
   submit: { marginHorizontal: 24, marginTop: 32 },
   jump: { position: 'absolute', left: 24, right: 24, bottom: 16 },
 });

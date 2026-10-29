@@ -154,4 +154,18 @@ describe('CTA', () => {
       color: colors.white[100],
     });
   });
+
+  it('accessibilityLabel 로 스크린리더 이름을 바꿀 수 있다', async () => {
+    await render(
+      <CTA
+        label="수락"
+        accessibilityLabel="에어컨 필터 교체 수락"
+        onPress={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),
+    ).toBeOnTheScreen();
+  });
 });
