@@ -90,6 +90,7 @@ export function ScheduleRoute({ navigation }: MainTabScreenProps<'schedule'>) {
 }
 
 // 목록에 없는 요청(이미 처리됐거나 서버에서 취소됨)이면 빈 화면 대신 이전 화면으로 돌아간다.
+// 딥링크처럼 돌아갈 화면이 없으면 탭 첫 화면으로 바꾼다.
 // 수락·거절은 목록에서 빼면서 같은 커밋에 화면을 닫으므로 여기에 걸리지 않는다.
 function usePendingRequest(
   id: string,
@@ -99,8 +100,13 @@ function usePendingRequest(
   const request = pending.find(item => item.id === id);
   const missing = request === undefined;
   useEffect(() => {
-    if (missing) {
+    if (!missing) {
+      return;
+    }
+    if (navigation.canGoBack()) {
       navigation.goBack();
+    } else {
+      navigation.replace('Main');
     }
   }, [missing, navigation]);
   return request;

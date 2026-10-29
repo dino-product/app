@@ -24,7 +24,12 @@ const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 
 // 화면마다 뒤로 가기가 있는 자체 헤더를 그리므로 내비게이터 헤더는 끈다.
 // 네이티브 스택이라 iOS 는 왼쪽 가장자리 스와이프로, Android 는 뒤로가기 버튼·제스처로 이전 화면에 간다.
-const screenOptions = { headerShown: false } as const;
+// 메모·사유를 입력하다 스와이프로 나가면 키보드도 함께 내린다.
+const stackOptions = {
+  headerShown: false,
+  keyboardHandlingEnabled: true,
+} as const;
+const tabOptions = { headerShown: false } as const;
 
 const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 
@@ -35,7 +40,7 @@ function HomeTab() {
   return (
     <HomeStack.Navigator
       initialRouteName={HOME_INITIAL_ROUTE}
-      screenOptions={screenOptions}
+      screenOptions={stackOptions}
     >
       <HomeStack.Screen name="WorkHome" component={WorkHomeRoute} />
       <HomeStack.Screen
@@ -53,7 +58,7 @@ function MainTabs() {
     <Tab.Navigator
       backBehavior="firstRoute"
       tabBar={renderTabBar}
-      screenOptions={screenOptions}
+      screenOptions={tabOptions}
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
@@ -63,14 +68,18 @@ function MainTabs() {
 
 export function RootNavigator() {
   return (
-    <RootStack.Navigator screenOptions={screenOptions}>
+    <RootStack.Navigator screenOptions={stackOptions}>
       <RootStack.Screen name="Main" component={MainTabs} />
       <RootStack.Screen
         name="RequestDetail"
         component={RequestDetailRoute}
         getId={byId}
       />
-      <RootStack.Screen name="RejectReason" component={RejectReasonRoute} />
+      <RootStack.Screen
+        name="RejectReason"
+        component={RejectReasonRoute}
+        getId={byId}
+      />
     </RootStack.Navigator>
   );
 }

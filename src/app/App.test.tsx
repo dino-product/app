@@ -1,4 +1,10 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { BackHandler, Linking } from 'react-native';
 import { colors } from '../shared/design-system';
 import App from './App';
@@ -37,6 +43,18 @@ describe('App', () => {
     expect(header('작업 상세')).not.toBeOnTheScreen();
   });
 
+  it('전환 중에 작업 카드를 한 번 더 눌러도 상세는 하나만 쌓인다', async () => {
+    await render(<App />);
+    const card = screen.getByRole('button', { name: '보일러 점검 상세 보기' });
+
+    await fireEvent.press(card);
+    // 상세가 올라오는 동안 아래 카드가 한 번 더 눌린 경우
+    await fireEvent.press(card);
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+    expect(header('내 작업')).toBeOnTheScreen();
+  });
+
   it('작업을 시작하고 상세에 다녀와도 "작업 수행중" 이 유지된다', async () => {
     await render(<App />);
 
@@ -50,24 +68,26 @@ describe('App', () => {
   });
 
   describe('Android 뒤로가기', () => {
-    // 내비게이션 컨테이너가 등록한 하드웨어 뒤로가기 핸들러를 잡아 직접 부른다
+    // RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리(true)하면 멈춘다.
+    // 아무도 처리하지 않으면(false) RN 은 앱을 나간다.
     async function renderWithBackButton() {
-      const listeners: Array<
-        Parameters<typeof BackHandler.addEventListener>[1]
-      > = [];
+      type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+      const handlers = new Set<Handler>();
       jest
         .spyOn(BackHandler, 'addEventListener')
         .mockImplementation((_event, handler) => {
-          listeners.push(handler);
-          return { remove: jest.fn() };
+          handlers.add(handler);
+          return { remove: () => handlers.delete(handler) };
         });
       await render(<App />);
 
       return async () => {
-        let handled: boolean | null | undefined;
+        let handled = false;
         await act(() => {
           // 이벤트 인자는 쓰지 않는다
-          handled = listeners[listeners.length - 1](undefined as never);
+          handled = [...handlers]
+            .reverse()
+            .some(handler => handler(undefined as never) === true);
         });
         return handled;
       };
@@ -82,6 +102,20 @@ describe('App', () => {
 
       expect(await pressBack()).toBe(true);
       expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    it('요청 상세(탭 위 루트 스택)에서 누르면 내 일정으로 돌아온다', async () => {
+      const pressBack = await renderWithBackButton();
+
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+
+      expect(await pressBack()).toBe(true);
+      expect(header('내 일정')).toBeOnTheScreen();
       expect(header('작업 상세')).not.toBeOnTheScreen();
     });
 
