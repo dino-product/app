@@ -37,7 +37,9 @@ export function FieldLabel({ children }: { children: string }) {
   );
 }
 
-const onlyDigits = (text: string) => text.replace(/\D/g, '');
+// 숫자만 남기고 앞자리 0 은 지운다 ("0" 하나는 남긴다)
+const onlyDigits = (text: string) =>
+  text.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
 
 export function AmountInput({
   value,

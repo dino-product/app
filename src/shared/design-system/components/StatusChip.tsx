@@ -64,6 +64,10 @@ const statusSpec: Record<
   },
 };
 
+export const workStatusLabels = Object.fromEntries(
+  Object.entries(statusSpec).map(([status, spec]) => [status, spec.label]),
+) as Record<WorkStatus, string>;
+
 export const StatusChip = memo(function DesignSystemStatusChip({
   status,
   size = 'M',

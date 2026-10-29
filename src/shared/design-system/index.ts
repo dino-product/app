@@ -14,6 +14,7 @@ export {
   StatusChip,
   type StatusChipProps,
   type WorkStatus,
+  workStatusLabels,
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
 export { TabBar, type TabBarItem, type TabBarProps } from './components/TabBar';

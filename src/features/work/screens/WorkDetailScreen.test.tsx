@@ -113,6 +113,14 @@ describe('WorkDetailScreen', () => {
     expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('75000');
   });
 
+  it('결제 금액의 앞자리 0 은 지운다', async () => {
+    await renderDetail();
+
+    await userEvent.type(screen.getByLabelText('결제 금액 입력'), '0075');
+
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('75');
+  });
+
   it('사진을 지우면 다시 제출할 수 없다', async () => {
     await renderDetail();
     await fillRequired();

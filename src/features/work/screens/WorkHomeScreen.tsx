@@ -84,24 +84,16 @@ export function WorkHomeScreen({
             {weekLabel}
           </Text>
         </View>
-        {/* 격자 보기는 Figma 화면이 없어 목록 보기만 지원한다 */}
-        <View style={styles.viewToggle}>
-          <View
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="목록 보기"
-            accessibilityState={{ selected: true }}
-            style={[styles.toggleButton, styles.toggleSelected]}
-          >
+        {/* 격자 보기는 Figma 화면이 없어 목록 보기만 지원한다. 동작하지 않으므로 스크린리더에서는 숨긴다 */}
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.viewToggle}
+        >
+          <View style={[styles.toggleButton, styles.toggleSelected]}>
             <Icon name="list" size={16} color={colors.white[100]} />
           </View>
-          <View
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="격자 보기 (준비 중)"
-            accessibilityState={{ disabled: true }}
-            style={styles.toggleButton}
-          >
+          <View style={styles.toggleButton}>
             <Icon name="grid" size={16} color={colors.gray[500]} />
           </View>
         </View>

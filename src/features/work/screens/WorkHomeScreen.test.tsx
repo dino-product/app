@@ -74,4 +74,14 @@ describe('WorkHomeScreen', () => {
 
     expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
   });
+
+  it('일정 카드는 상태와 주소까지 스크린리더에 읽힌다', async () => {
+    await renderHome();
+
+    expect(
+      screen.getAllByRole('button', {
+        name: '세탁기 설치, 작업전, 11:00 – 12:00 오늘 · 9. 19. (토), 한빛 설비 정다은 · 서울 용산구 이태원로 202',
+      }),
+    ).toHaveLength(3);
+  });
 });

@@ -1,6 +1,11 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, StatusChip, Text } from '../../../shared/design-system';
+import {
+  colors,
+  StatusChip,
+  Text,
+  workStatusLabels,
+} from '../../../shared/design-system';
 import type { ScheduleItem } from '../model';
 
 // 메인화면 주간 일정 카드
@@ -14,7 +19,11 @@ export const ScheduleCard = memo(function ScheduleCardView({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.title}, ${item.timeRange} ${item.dayLabel}`}
+      accessibilityLabel={`${item.title}, ${workStatusLabels[item.status]}, ${
+        item.timeRange
+      } ${item.dayLabel}, ${item.company} ${item.customerName} · ${
+        item.address
+      }`}
       onPress={() => onPress(item.id)}
       style={styles.card}
     >
@@ -22,7 +31,7 @@ export const ScheduleCard = memo(function ScheduleCardView({
         <Text variant="Body/S/Bold" style={styles.title} numberOfLines={1}>
           {item.title}
         </Text>
-        <StatusChip status={item.status} size="S" />
+        <StatusChip status={item.status} size="S" style={styles.chip} />
       </View>
       <View style={styles.row}>
         <Text variant="Caption/M/SemiBold">{item.timeRange}</Text>
@@ -62,6 +71,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: { flexShrink: 1 },
+  chip: { alignSelf: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
   shrink: { flexShrink: 1 },

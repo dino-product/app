@@ -79,6 +79,7 @@ export function WorkDetailScreen({
   const [showJump, setShowJump] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const picking = useRef(false);
+  const submittingRef = useRef(false);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const reportY = useRef(0);
   const viewportHeight = useRef(0);
@@ -114,12 +115,18 @@ export function WorkDetailScreen({
     }));
 
   const submit = async () => {
+    // disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       setResult(await onSubmitReport(report));
     } catch {
       // 실패하면 다시 누를 수 있게 둔다 (오류 안내 UI 는 API 연동 때)
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -172,7 +179,7 @@ export function WorkDetailScreen({
               <Text variant="Body/XL/Bold" style={styles.shrink}>
                 {work.title}
               </Text>
-              <StatusChip status={work.status} size="S" />
+              <StatusChip status={work.status} size="S" style={styles.chip} />
             </View>
             <View style={styles.metaRow}>
               <View style={styles.idPill}>
@@ -378,6 +385,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32 },
   summary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chip: { alignSelf: 'center' },
   shrink: { flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   idPill: {
