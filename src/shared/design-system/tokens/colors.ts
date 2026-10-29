@@ -82,7 +82,8 @@ export const colors = {
   },
 
   // 이 컬렉션 밖에서 컴포넌트에 직접 쓰인 값
-  black: '#000000', // Tab Bar 활성 라벨
+  black: '#000000', // Tab Bar 활성 라벨, 메인화면 헤더
+  mainText: '#2A2A2A', // "메인 문구" — 작업 상세 헤더 제목
   inactive: '#F0F0F0', // "비활성화 색" — Bottom Navigation Bar 테두리
   toggleKnob: '#F2F2F2', // 라이브러리 "Gray100" (로컬 Gray100 #E9E9EA 와 다름) — Toggle Off 노브
 } as const;
