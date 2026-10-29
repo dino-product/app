@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, Icon, Text, withOpacity } from '../../../shared/design-system';
+import { colors, Icon, Text } from '../../../shared/design-system';
 import { PHOTO_LIMIT } from '../model';
 import { InfoCard } from './InfoCard';
 import { PhotoThumb, THUMB_SIZE } from './PhotoThumb';
@@ -47,7 +47,7 @@ export function PhotoUploader({
               onPress={() => onRemove(index)}
               style={styles.remove}
             >
-              <Icon name="close" size={12} color={colors.white[100]} />
+              <Icon name="close" size={24} />
             </Pressable>
           </View>
         ))}
@@ -71,15 +71,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray[200],
   },
-  remove: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: withOpacity('#000000', 0.5),
-  },
+  remove: { position: 'absolute', top: 4, right: 4 },
 });

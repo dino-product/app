@@ -1,46 +1,52 @@
 import { memo } from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, View, type StyleProp, type ViewStyle } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+import { iconSvgs, type SvgIconName } from '../icons/svgs';
+import { colors } from '../tokens/colors';
 
-// Figma App Icon 세트와 화면에 쓰인 아이콘 이름. SVG 를 아직 확보하지 못해 지금은 크기만큼 자리를 비워 둔다.
-// SVG 가 들어오면 이 컴포넌트 안에서만 그리면 되도록 호출부는 name·size·color 로 고정한다.
-export type IconName =
-  | 'bell'
-  | 'chevron-left'
-  | 'chevron-right'
-  | 'chevron-down'
-  | 'chevrons-down'
-  | 'phone'
-  | 'navigation'
-  | 'camera'
-  | 'close'
-  | 'check'
-  | 'list'
-  | 'grid'
-  | 'wrench'
-  | 'home'
-  | 'calendar'
-  | 'history'
-  | 'user';
+// Figma App Icon 세트와 화면 아이콘. SVG 는 icons/svgs.ts, 렌치는 일러스트라 PNG 다.
+export type IconName = SvgIconName | 'wrench';
 
 export type IconProps = {
   name: IconName;
   size?: number;
+  /** 단색 아이콘(tint)에만 적용된다 */
   color?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
+const wrench = require('../../../../assets/images/work-wrench.png');
+
 export const Icon = memo(function DesignSystemIcon({
+  name,
   size = 24,
+  color = colors.gray[900],
   style,
   testID,
 }: IconProps) {
+  const box = { width: size, height: size };
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[{ width: size, height: size }, style]}
+      style={[box, style]}
       testID={testID}
-    />
+    >
+      {name === 'wrench' ? (
+        <Image
+          source={wrench}
+          style={box}
+          testID={testID && `${testID}-image`}
+        />
+      ) : (
+        <SvgXml
+          xml={iconSvgs[name].xml}
+          width={size}
+          height={size}
+          color={color}
+        />
+      )}
+    </View>
   );
 });

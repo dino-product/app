@@ -90,12 +90,8 @@ export function WorkHomeScreen({
           importantForAccessibility="no-hide-descendants"
           style={styles.viewToggle}
         >
-          <View style={[styles.toggleButton, styles.toggleSelected]}>
-            <Icon name="list" size={16} color={colors.white[100]} />
-          </View>
-          <View style={styles.toggleButton}>
-            <Icon name="grid" size={16} color={colors.gray[500]} />
-          </View>
+          <Icon name="list" size={26} />
+          <Icon name="grid" size={26} />
         </View>
       </View>
     </View>
@@ -143,14 +139,5 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewToggle: { flexDirection: 'row', gap: 4 },
-  toggleButton: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 6,
-    backgroundColor: colors.gray[100],
-  },
-  toggleSelected: { backgroundColor: colors.primary },
   separator: { height: 12 },
 });

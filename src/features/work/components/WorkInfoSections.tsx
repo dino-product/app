@@ -83,7 +83,7 @@ export function WorkInfoSections({
               onPress={() => onCall(work.customer.phone)}
               style={styles.call}
             >
-              <Icon name="phone" size={20} color={colors.gray[600]} />
+              <Icon name="phone" color={colors.gray[800]} />
             </Pressable>
           </View>
         </InfoCard>
