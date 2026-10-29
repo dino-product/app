@@ -85,6 +85,10 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    sourceSets {
+        // 폰트 원본은 레포 루트 assets/fonts 한 곳에만 둔다 (iOS 와 공유)
+        main { assets.srcDirs += "$rootDir/../assets" }
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')

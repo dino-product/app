@@ -1,5 +1,6 @@
-import { StatusBar, StyleSheet, Text, useColorScheme } from 'react-native';
+import { StatusBar, StyleSheet, useColorScheme } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { colors, Text } from '../shared/design-system';
 import { useFrameMonitor } from '../shared/perf/useFrameMonitor';
 
 export default function App() {
@@ -11,7 +12,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <SafeAreaView style={[styles.container, theme.container]}>
-        <Text accessibilityRole="header" style={[styles.title, theme.text]}>
+        <Text accessibilityRole="header" variant="Title/S" style={theme.text}>
           Dino
         </Text>
       </SafeAreaView>
@@ -21,12 +22,11 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 32, fontWeight: '700' },
 });
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#FFFFFF' },
-  text: { color: '#111111' },
+  container: { backgroundColor: colors.gray[0] },
+  text: { color: colors.gray[900] },
 });
 
 const darkStyles = StyleSheet.create({
