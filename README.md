@@ -57,9 +57,31 @@ npm start         # Metro (Debug 빌드용)
 src/
   app/            앱 루트 (Provider, 내비게이션)
   features/<이름>/ 기능 단위 화면·로직·테스트
-  shared/         공용 모듈 (perf/ : 성능 예산·프레임 모니터)
+  shared/         공용 모듈 (perf/ : 성능 예산·프레임 모니터, design-system/ : 토큰·공통 컴포넌트)
+assets/fonts/     Pretendard (iOS·Android 가 같은 파일을 번들)
 scripts/          예산 검사, 커밋 메시지 검사 (lib/ 는 테스트 대상)
 performance-budget.json   성능 예산 단일 출처
 ```
 
 테스트는 대상 파일 옆에 둔다: `Foo.tsx` → `Foo.test.tsx`, 렌더 성능은 `Foo.perf-test.tsx`.
+
+## 디자인 시스템
+
+Figma `Design.v0` › DesignSystem 페이지가 원본이다. 색·글꼴을 하드코딩하지 말고 `src/shared/design-system` 에서 가져온다.
+
+```tsx
+import { colors, CTA, Text } from '../shared/design-system';
+
+<Text variant="Body/S/Bold" color={colors.gray[700]}>오늘 일정</Text>
+<CTA label="작업 시작" onPress={start} />
+```
+
+- `colors` — Figma 변수와 1:1 (`InProgress/2` → `colors.inProgress[2]`)
+- `typography` / `<Text variant>` — Figma 텍스트 스타일 이름 그대로 (`Body/XS/Medium` 등)
+- 컴포넌트 (Figma 컴포넌트 이름)
+  - `CTA` — CTA (Bottom L·M / Modal, primary·secondary·outline·reject)
+  - `StatusChip` — 작업상태 컬러칩(M) · 작업 상세 컬러 칩(S)
+  - `TabBar` — Tab Bar (밑줄 + 건수), `TypeTabs` — Tab / Type (알약 필터)
+  - `Toggle` — Toggle
+  - `BottomNavigationBar` — Bottom Navigation Bar (아이콘은 `renderIcon` 으로 주입)
+- 폰트를 추가하려면 `assets/fonts` 에 PostScript 이름과 같은 파일명으로 넣고, iOS 는 `Info.plist` 의 `UIAppFonts` 와 Xcode `Fonts` 그룹에 등록한다 (Android 는 자동).
