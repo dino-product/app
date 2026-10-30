@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentRef } from 'react';
+import { useRef, useState, type ComponentRef, type Ref } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,6 +7,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type TextInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -45,6 +46,8 @@ export type WorkDetailScreenProps = {
   onNavigate: (address: string) => void;
   /** 촬영·앨범 연동. 고르지 않으면 null */
   onPickPhoto: () => Promise<string | null>;
+  /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
+  titleRef?: Ref<TextInstance>;
 };
 
 type PhotoKey = 'beforePhotos' | 'afterPhotos';
@@ -60,6 +63,7 @@ export function WorkDetailScreen({
   onCall,
   onNavigate,
   onPickPhoto,
+  titleRef,
 }: WorkDetailScreenProps) {
   const [report, setReport] = useState<WorkReport>(emptyReport);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -140,6 +144,7 @@ export function WorkDetailScreen({
           <Icon name="chevron-left" />
         </Pressable>
         <Text
+          ref={titleRef}
           accessibilityRole="header"
           variant="Body/M/SemiBold"
           color={colors.mainText}

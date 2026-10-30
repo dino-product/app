@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { createRef } from 'react';
+import { StyleSheet, type TextInstance } from 'react-native';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 import { Text } from './Text';
@@ -12,6 +13,13 @@ describe('Text', () => {
       ...typography['Body/XS/Medium'],
       color: colors.gray[900],
     });
+  });
+
+  it('ref 를 RN Text 로 넘긴다 (스크린리더 포커스를 옮길 때 쓴다)', async () => {
+    const ref = createRef<TextInstance>();
+    await render(<Text ref={ref}>제목</Text>);
+
+    expect(ref.current).not.toBeNull();
   });
 
   it('variant 에 맞는 텍스트 스타일을 적용한다', async () => {

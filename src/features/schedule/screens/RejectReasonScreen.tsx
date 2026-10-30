@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
+  type TextInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -29,10 +30,13 @@ const errorMessages = {
 export function RejectReasonScreen({
   onBack,
   onSubmit,
+  titleRef,
 }: {
   /** 뒤로 가기·취소 */
   onBack: () => void;
   onSubmit: (reason: string) => void;
+  /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
+  titleRef?: Ref<TextInstance>;
 }) {
   const [selected, setSelected] = useState<RejectReasonKey | null>(null);
   const [otherText, setOtherText] = useState('');
@@ -67,6 +71,7 @@ export function RejectReasonScreen({
           <Icon name="chevron-left" />
         </Pressable>
         <Text
+          ref={titleRef}
           accessibilityRole="header"
           variant="Body/M/SemiBold"
           color={colors.mainText}
