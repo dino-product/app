@@ -12,7 +12,7 @@ export type RootStackParamList = {
   RejectReason: { id: string };
 };
 
-// 탭 이름은 하단 탭 키(MainTabKey)와 같다. 작업 이력·마이는 화면이 생기면 더한다
+// 탭 이름은 하단 탭 키(MainTabKey)와 같다 (MainTabBar 가 컴파일 타임에 확인). 작업 이력·마이는 화면이 생기면 더한다
 export type MainTabParamList = {
   home: NavigatorScreenParams<HomeStackParamList> | undefined;
   schedule: undefined;

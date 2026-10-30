@@ -1,5 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState, type Ref } from 'react';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View,
+  type FlatListInstance,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
@@ -28,6 +34,8 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
+  /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 (지금 탭을 다시 누름) */
+  listRef?: Ref<FlatListInstance>;
 };
 
 type ScheduleTab = 'confirmed' | 'pending';
@@ -39,6 +47,7 @@ export function ScheduleScreen({
   onAccept,
   onReject,
   onOpenRequest,
+  listRef,
 }: ScheduleScreenProps) {
   const [tab, setTab] = useState<ScheduleTab>('confirmed');
   const [selected, setSelected] = useState(today);
@@ -138,8 +147,10 @@ export function ScheduleScreen({
         selectedKey={tab}
         onChange={setTab}
       />
+      {/* 두 리스트는 번갈아 그려지므로 ref 는 지금 보이는 쪽을 가리킨다 */}
       {tab === 'confirmed' ? (
         <FlatList
+          ref={listRef}
           data={daySchedules}
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}
@@ -149,6 +160,7 @@ export function ScheduleScreen({
         />
       ) : (
         <FlatList
+          ref={listRef}
           data={pending}
           keyExtractor={keyExtractor}
           renderItem={renderPending}

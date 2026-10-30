@@ -1,5 +1,11 @@
-import { useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, type Ref } from 'react';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View,
+  type FlatListInstance,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Icon, Text } from '../../../shared/design-system';
 import { CurrentWorkCard } from '../components/CurrentWorkCard';
@@ -16,6 +22,8 @@ export type WorkHomeScreenProps = {
   onStartWork: () => void;
   onOpenWork: (id: string) => void;
   onOpenNotifications?: () => void;
+  /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 (지금 탭을 다시 누름) */
+  listRef?: Ref<FlatListInstance>;
 };
 
 export function WorkHomeScreen({
@@ -26,6 +34,7 @@ export function WorkHomeScreen({
   onStartWork,
   onOpenWork,
   onOpenNotifications,
+  listRef,
 }: WorkHomeScreenProps) {
   const renderItem = useCallback(
     ({ item }: { item: ScheduleItem }) => (
@@ -90,6 +99,7 @@ export function WorkHomeScreen({
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <FlatList
+        ref={listRef}
         data={schedule}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
