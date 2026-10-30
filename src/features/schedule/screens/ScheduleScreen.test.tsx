@@ -137,12 +137,6 @@ describe('ScheduleScreen — 확정 일정', () => {
       screen.getByRole('button', { name: '12월 15일 화요일' }),
     ).toBeOnTheScreen();
   });
-
-  it('하단 내비게이션에서 내 일정이 선택되어 있다', async () => {
-    await renderSchedule();
-
-    expect(screen.getByRole('tab', { name: '내 일정' })).toBeSelected();
-  });
 });
 
 describe('ScheduleScreen — 응답 필요', () => {

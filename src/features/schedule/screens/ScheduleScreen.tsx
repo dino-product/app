@@ -2,13 +2,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BottomNavigationBar,
   colors,
   Icon,
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
-import { mainTabs, type MainTabKey } from '../../../shared/navigation/mainTabs';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { WeekStrip } from '../components/WeekStrip';
@@ -30,12 +28,9 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
-  onTabChange?: (tab: MainTabKey) => void;
 };
 
 type ScheduleTab = 'confirmed' | 'pending';
-
-const noop = () => {};
 
 export function ScheduleScreen({
   today,
@@ -44,7 +39,6 @@ export function ScheduleScreen({
   onAccept,
   onReject,
   onOpenRequest,
-  onTabChange = noop,
 }: ScheduleScreenProps) {
   const [tab, setTab] = useState<ScheduleTab>('confirmed');
   const [selected, setSelected] = useState(today);
@@ -162,11 +156,6 @@ export function ScheduleScreen({
           style={styles.list}
         />
       )}
-      <BottomNavigationBar
-        items={mainTabs}
-        activeKey="schedule"
-        onChange={onTabChange}
-      />
     </SafeAreaView>
   );
 }

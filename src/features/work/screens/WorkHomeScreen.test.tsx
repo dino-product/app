@@ -69,12 +69,6 @@ describe('WorkHomeScreen', () => {
     ).not.toBeOnTheScreen();
   });
 
-  it('하단 내비게이션에서 홈이 선택되어 있다', async () => {
-    await renderHome();
-
-    expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
-  });
-
   it('일정 카드는 상태와 주소까지 스크린리더에 읽힌다', async () => {
     await renderHome();
 
