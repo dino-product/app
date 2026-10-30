@@ -5,7 +5,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { BackHandler, Linking } from 'react-native';
+import { BackHandler, FlatList, Linking } from 'react-native';
 import { colors } from '../shared/design-system';
 import App from './App';
 
@@ -210,6 +210,74 @@ describe('App', () => {
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(tab('홈')).toBeSelected();
+  });
+
+  describe('지금 탭을 다시 누르면 리스트를 맨 위로', () => {
+    // 탭 다시 누름 처리(첫 화면으로·맨 위로)는 다음 프레임에 돈다
+    const nextFrame = () =>
+      act(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    // 테스트 환경의 리스트는 스크롤 위치가 없어 맨 위로 보내는 호출로 확인한다
+    const spyScroll = () => jest.spyOn(FlatList.prototype, 'scrollToOffset');
+    const toTop = expect.objectContaining({ offset: 0 });
+
+    it('홈 첫 화면에서 홈 탭을 다시 누르면 맨 위로 간다', async () => {
+      const scroll = spyScroll();
+      await render(<App />);
+
+      await userEvent.press(tab('홈'));
+      await nextFrame();
+
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).toHaveBeenCalledWith(toTop);
+    });
+
+    it('상세가 열려 있으면 첫 화면으로만 돌아가고, 한 번 더 누르면 맨 위로 간다', async () => {
+      const scroll = spyScroll();
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      await userEvent.press(tab('홈'));
+      await nextFrame();
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(scroll).not.toHaveBeenCalled();
+
+      await userEvent.press(tab('홈'));
+      await nextFrame();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).toHaveBeenCalledWith(toTop);
+    });
+
+    it('내 일정 탭을 다시 누르면 보이는 리스트(확정 일정·응답 필요)가 맨 위로 간다', async () => {
+      const scroll = spyScroll();
+      await render(<App />);
+
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(tab('내 일정'));
+      await nextFrame();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).toHaveBeenLastCalledWith(toTop);
+
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      await userEvent.press(tab('내 일정'));
+      await nextFrame();
+      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(scroll).toHaveBeenLastCalledWith(toTop);
+    });
+
+    it('다른 탭으로 옮길 때는 스크롤하지 않는다', async () => {
+      const scroll = spyScroll();
+      await render(<App />);
+
+      // 탭은 처음 열 때 마운트되므로, 두 탭을 모두 연 뒤에 오가야 양쪽 리스너가 걸린 상태다
+      for (const name of ['내 일정', '홈', '내 일정', '홈']) {
+        await userEvent.press(tab(name));
+        await nextFrame();
+      }
+
+      expect(scroll).not.toHaveBeenCalled();
+    });
   });
 
   it('작업 이력·마이는 화면이 없어 눌러도 지금 탭에 머문다', async () => {

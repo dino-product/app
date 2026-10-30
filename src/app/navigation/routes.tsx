@@ -1,4 +1,6 @@
-import { useCallback, useEffect } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
+import { useCallback, useEffect, useRef } from 'react';
+import type { FlatListInstance } from 'react-native';
 import { requestToWorkDetail } from '../../features/schedule/mockData';
 import { RejectReasonScreen } from '../../features/schedule/screens/RejectReasonScreen';
 import { RequestDetailScreen } from '../../features/schedule/screens/RequestDetailScreen';
@@ -21,8 +23,17 @@ import type {
 
 // 내비게이터에 올리는 화면들. 앱 상태·목 데이터를 화면 컴포넌트 props 로 이어 준다.
 
+// 탭 첫 화면에서 지금 탭을 다시 누르면 리스트를 맨 위로 올린다 (iOS 관례).
+// 상세가 열려 있을 때는 스택이 첫 화면으로 돌아가기만 한다
+function useTabScrollToTop() {
+  const listRef = useRef<FlatListInstance>(null);
+  useScrollToTop(listRef);
+  return listRef;
+}
+
 export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
   const { started, setStarted } = useWorkSession();
+  const listRef = useTabScrollToTop();
   const startWork = useCallback(() => setStarted(true), [setStarted]);
   const openWork = useCallback(
     (id: string) => navigation.navigate('WorkDetail', { id }),
@@ -37,6 +48,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
       started={started}
       onStartWork={startWork}
       onOpenWork={openWork}
+      listRef={listRef}
     />
   );
 }
@@ -68,6 +80,7 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
 
 export function ScheduleRoute({ navigation }: MainTabScreenProps<'schedule'>) {
   const { today, confirmed, pending, accept } = useSchedule();
+  const listRef = useTabScrollToTop();
   const openRequest = useCallback(
     (id: string) => navigation.navigate('RequestDetail', { id }),
     [navigation],
@@ -85,6 +98,7 @@ export function ScheduleRoute({ navigation }: MainTabScreenProps<'schedule'>) {
       onAccept={accept}
       onReject={openReject}
       onOpenRequest={openRequest}
+      listRef={listRef}
     />
   );
 }
