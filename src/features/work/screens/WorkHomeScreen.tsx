@@ -22,7 +22,7 @@ export type WorkHomeScreenProps = {
   onStartWork: () => void;
   onOpenWork: (id: string) => void;
   onOpenNotifications?: () => void;
-  /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 (지금 탭을 다시 누름) */
+  /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
 };
 

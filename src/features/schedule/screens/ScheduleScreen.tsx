@@ -34,7 +34,7 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
-  /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 (지금 탭을 다시 누름) */
+  /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
 };
 
@@ -147,7 +147,7 @@ export function ScheduleScreen({
         selectedKey={tab}
         onChange={setTab}
       />
-      {/* 두 리스트는 번갈아 그려지므로 ref 는 지금 보이는 쪽을 가리킨다 */}
+      {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
       {tab === 'confirmed' ? (
         <FlatList
           ref={listRef}

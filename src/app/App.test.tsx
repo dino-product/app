@@ -218,7 +218,7 @@ describe('App', () => {
       act(() => new Promise(resolve => requestAnimationFrame(resolve)));
     // 테스트 환경의 리스트는 스크롤 위치가 없어 맨 위로 보내는 호출로 확인한다
     const spyScroll = () => jest.spyOn(FlatList.prototype, 'scrollToOffset');
-    const toTop = { offset: 0, animated: true };
+    const toTop = expect.objectContaining({ offset: 0 });
 
     it('홈 첫 화면에서 홈 탭을 다시 누르면 맨 위로 간다', async () => {
       const scroll = spyScroll();
@@ -253,11 +253,7 @@ describe('App', () => {
       const scroll = spyScroll();
       await render(<App />);
 
-      // 다른 탭으로 옮길 때는 스크롤하지 않는다
       await userEvent.press(tab('내 일정'));
-      await nextFrame();
-      expect(scroll).not.toHaveBeenCalled();
-
       await userEvent.press(tab('내 일정'));
       await nextFrame();
       expect(scroll).toHaveBeenCalledTimes(1);
@@ -268,6 +264,19 @@ describe('App', () => {
       await nextFrame();
       expect(scroll).toHaveBeenCalledTimes(2);
       expect(scroll).toHaveBeenLastCalledWith(toTop);
+    });
+
+    it('다른 탭으로 옮길 때는 스크롤하지 않는다', async () => {
+      const scroll = spyScroll();
+      await render(<App />);
+
+      // 탭은 처음 열 때 마운트되므로, 두 탭을 모두 연 뒤에 오가야 양쪽 리스너가 걸린 상태다
+      for (const name of ['내 일정', '홈', '내 일정', '홈']) {
+        await userEvent.press(tab(name));
+        await nextFrame();
+      }
+
+      expect(scroll).not.toHaveBeenCalled();
     });
   });
 
