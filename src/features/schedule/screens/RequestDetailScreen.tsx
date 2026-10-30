@@ -1,4 +1,11 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import type { Ref } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type TextInstance,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
@@ -12,6 +19,7 @@ export function RequestDetailScreen({
   onReject,
   onCall,
   onNavigate,
+  titleRef,
 }: {
   work: WorkDetail;
   onBack: () => void;
@@ -20,6 +28,8 @@ export function RequestDetailScreen({
   onReject: () => void;
   onCall: (phone: string) => void;
   onNavigate: (address: string) => void;
+  /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
+  titleRef?: Ref<TextInstance>;
 }) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
@@ -34,6 +44,7 @@ export function RequestDetailScreen({
           <Icon name="chevron-left" />
         </Pressable>
         <Text
+          ref={titleRef}
           accessibilityRole="header"
           variant="Body/M/SemiBold"
           color={colors.mainText}
