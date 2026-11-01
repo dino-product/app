@@ -1,5 +1,9 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, type ViewStyle } from 'react-native';
+import {
+  READABLE_MAX_WIDTH,
+  readableColumn,
+} from '../shared/layout/readableColumn';
 import type { HostElement } from '../shared/testing/touchTarget';
 import App from './App';
 
@@ -59,6 +63,15 @@ const expectInReadableColumn = (...elements: HostElement[]) => {
 const header = (name: string) => screen.getByRole('header', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
+// 작업 상세의 떠 있는 "완료 보고 작성하기" 버튼을 감싼 absolute 래퍼
+function jumpWrapper() {
+  let node: HostElement | null = button('완료 보고 작성하기');
+  while (node && flat(node.props.style)?.position !== 'absolute') {
+    node = node.parent;
+  }
+  return node;
+}
+
 async function openPendingRequest() {
   await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
   await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
@@ -96,11 +109,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
     await render(<App />);
     await userEvent.press(button('보일러 점검 상세 보기'));
 
-    let node: HostElement | null = button('완료 보고 작성하기');
-    while (node && flat(node.props.style)?.position !== 'absolute') {
-      node = node.parent;
-    }
-    expect(node?.props.pointerEvents).toBe('box-none');
+    expect(jumpWrapper()?.props.pointerEvents).toBe('box-none');
   });
 
   it('내 일정: 제목·하위 탭·주간 줄·달력·응답 필요 카드가 읽기 좋은 폭 안에 있다', async () => {
@@ -130,6 +139,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
     expectInReadableColumn(
       header('작업 상세'),
       button('뒤로 가기'),
+      button(/ 고객에게 전화$/),
       button('거절'),
       button('수락'),
     );
@@ -152,7 +162,29 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 });
 
-describe('창 크기가 바뀔 때 (회전, 폴더블 접고 펴기, 분할 화면)', () => {
+// 기둥은 스타일만으로 폭이 정해져 테스트 렌더러에서는 창 크기와 상관없이 같다. 휴대폰에서 지금과 같게 그려지는 조건을 따로 지킨다
+describe('휴대폰 폭에서는 지금과 같게 그려진다', () => {
+  it('가장 넓은 iPhone 세로 폭(440pt)보다 최대 폭이 넓어, 휴대폰에서는 기둥이 창 폭 그대로다', () => {
+    expect(READABLE_MAX_WIDTH).toBeGreaterThanOrEqual(440);
+    // 가로 여백을 더하면 휴대폰에서도 본문이 좁아진다
+    expect(readableColumn).toEqual(READABLE_COLUMN);
+  });
+
+  it('떠 있는 버튼 래퍼는 좌우 위치 없이 폭 100% 와 좌우 패딩으로 놓인다 (left/right 가 있으면 폭 100% 와 겹쳐 넘친다)', async () => {
+    await render(<App />);
+    await userEvent.press(button('보일러 점검 상세 보기'));
+
+    const style = flat(jumpWrapper()?.props.style);
+    expect(style).toEqual(
+      expect.objectContaining({ ...READABLE_COLUMN, paddingHorizontal: 24 }),
+    );
+    expect(style?.left).toBeUndefined();
+    expect(style?.right).toBeUndefined();
+  });
+});
+
+// iOS 전용 옵션이다. 지금은 iPhone 세로 전용(#23)이라 폭이 바뀌지 않지만, 모듈 로드 때 읽은 값에 묶이지 않게 한다
+describe('창 크기가 바뀌면', () => {
   // 네이티브 화면은 받는 영역(start ≤ x ≤ end) 밖의 스와이프를 거절한다
   const swipeEnd = (title: string) => {
     let node: HostElement | null = header(title).parent;

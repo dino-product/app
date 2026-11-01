@@ -38,14 +38,19 @@ function functionBody(source, name) {
   throw new Error(`${name} 함수가 닫히지 않았다`);
 }
 
-// requestedOrientation 을 정하는 함수: `private fun 이름(config: Configuration) { requestedOrientation = ... }`
+// requestedOrientation 을 정하는 함수: `private fun 이름(config: Configuration) { ... requestedOrientation = ... }`
 function orientationPolicy() {
-  const name = mustMatch(
-    activity,
-    /private fun (\w+)\(\w+: Configuration\)\s*\{\s*requestedOrientation\s*=/,
-    'requestedOrientation 을 정하는 함수',
-  )[1];
-  return { name, body: functionBody(activity, name) };
+  const policies = [
+    ...activity.matchAll(/private fun (\w+)\(\w+: Configuration\)/g),
+  ]
+    .map(match => ({ name: match[1], body: functionBody(activity, match[1]) }))
+    .filter(({ body }) => /requestedOrientation\s*=(?!=)/.test(body));
+  if (policies.length !== 1) {
+    throw new Error(
+      `requestedOrientation 을 정하는 함수가 하나가 아니다: ${policies.length}`,
+    );
+  }
+  return policies[0];
 }
 
 describe('Android 화면 방향 (#56 휴대폰 세로, 큰 화면 반응형)', () => {
@@ -96,6 +101,16 @@ describe('Android 화면 방향 (#56 휴대폰 세로, 큰 화면 반응형)', (
     expect(compact).toBe('SCREEN_ORIENTATION_PORTRAIT');
     // 매니페스트에 방향을 두지 않았을 때의 기본값으로 돌려놓는다
     expect(large).toBe('SCREEN_ORIENTATION_UNSPECIFIED');
+  });
+
+  it('지금과 같은 방향이면 다시 요청하지 않는다 (키보드·uiMode 변경에도 불린다. 1초에 여러 번 요청하면 시스템이 반복으로 보고 무시할 수 있다)', () => {
+    const { body } = orientationPolicy();
+    const assignments = body.match(/requestedOrientation\s*=(?!=)/g) ?? [];
+
+    expect(assignments).toHaveLength(1);
+    expect(body).toMatch(
+      /val (\w+) =\s*if[\s\S]*\n\s*if\s*\(\s*requestedOrientation\s*!=\s*\1\s*\)\s*\{\s*requestedOrientation\s*=\s*\1\s*\}/,
+    );
   });
 
   it('onCreate 는 Fragment 팩토리 → super.onCreate → 방향 순서다', () => {

@@ -1,5 +1,6 @@
 package com.dinoproduct.app
 
+import android.annotation.SuppressLint
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Bundle
@@ -37,15 +38,24 @@ class MainActivity : ReactActivity() {
    * 그래서 짧은 변이 600dp 를 조금 넘는 기기는 가로로 돌리면 600 아래로 내려가 세로 고정과 해제를 오갈 수 있다.
    * 회전해도 그대로인 smallestScreenWidthDp 로 본다. Android 16 이 방향 고정을 무시하는 큰 화면 기준(sw600dp)과 같다.
    * 분할 화면에서는 시스템이 방향 요청을 무시한다.
+   *
+   * 키보드·uiMode 변경에도 불리므로 방향이 바뀔 때만 요청한다. 1초에 여러 번 요청하면 시스템이 반복으로 보고 무시할 수 있다.
+   * https://developer.android.com/guide/practices/device-compatibility-mode
+   *
+   * 큰 화면에서는 고정하지 않으므로 lint 의 세로 고정 경고(SourceLockedOrientationActivity)는 해당하지 않는다.
    */
+  @SuppressLint("SourceLockedOrientationActivity")
   private fun requestOrientationFor(config: Configuration) {
-    requestedOrientation =
+    val orientation =
         if (config.smallestScreenWidthDp < LARGE_SCREEN_MIN_DP) {
           ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
           // 매니페스트에 방향을 두지 않았을 때의 기본값
           ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+    if (requestedOrientation != orientation) {
+      requestedOrientation = orientation
+    }
   }
 
   /**

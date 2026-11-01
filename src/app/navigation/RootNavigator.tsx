@@ -30,7 +30,8 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 
 // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
-// 창 폭의 이 비율까지인 왼쪽 영역에서만 받는다. 창 폭은 실행 중에 바뀔 수 있어(회전, 폴더블, 분할 화면) 다시 계산한다.
+// 창 폭의 이 비율까지인 왼쪽 영역에서만 받는다. iOS 전용 옵션이다. 지금은 iPhone 세로 전용(#23)이라 폭이 바뀌지 않지만,
+// 모듈 로드 때 읽은 값에 묶이지 않게 창 폭으로 계산한다.
 // 판정은 start ≤ x ≤ end 라서 왼쪽 영역은 end 로 정한다. x 는 손가락이 처음 닿은 곳이 아니라 제스처를
 // 인식하는 순간의 위치라, 경계 근처에서 빠르게 밀면 거절될 수 있다.
 // 가장자리 스와이프(iOS 26 미만은 이것만 있음)는 이 판정을 거치지 않아 늘 받는다
