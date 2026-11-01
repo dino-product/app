@@ -4,7 +4,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
 import {
   expectMinTouchTarget,
@@ -354,4 +354,34 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
       stylePt(title, 'paddingBottom'),
     );
   });
+});
+
+// 주간 줄·달력은 dateArea 좌우 패딩만큼 화면 가장자리에서 들어가 있다. 그 패딩까지 넓혀야
+// 제스처 내비게이션의 가장자리 뒤로 가기 영역을 덮는다 (#58)
+describe('ScheduleScreen — Android 가장자리 밀기', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    { label: '주간 줄', testID: 'week-strip', open: false },
+    { label: '달력', testID: 'month-calendar', open: true },
+  ])(
+    '$label 의 제외 영역이 dateArea 좌우 패딩 끝까지 닿는다',
+    async ({ testID, open }) => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await renderSchedule();
+      if (open) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+      }
+
+      const dateArea = screen.getByTestId(testID).parent as HostElement;
+      const inset = stylePt(dateArea, 'paddingHorizontal');
+      expect(
+        StyleSheet.flatten(screen.getByTestId('gesture-exclusion').props.style),
+      ).toMatchObject({ left: -inset, right: -inset });
+    },
+  );
 });
