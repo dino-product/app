@@ -278,6 +278,22 @@ describe('WorkDetailScreen', () => {
       ).toBeOnTheScreen();
       expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
     });
+
+    it('제출이 실패하면 계속 작성 중이다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({
+        onUnsavedReportChange,
+        onSubmitReport: jest.fn().mockRejectedValue(new Error('network')),
+      });
+      await fillRequired();
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      );
+
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+      expect(onUnsavedReportChange).not.toHaveBeenLastCalledWith(false);
+    });
   });
 
   it('결제 방식 선택 버튼이 고른 값을 스크린리더에 알린다', async () => {

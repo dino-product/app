@@ -89,7 +89,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
   );
 }
 
-// 문구는 기획 확인 전 기본안이다
+// 문구는 기획 확인 전 기본안이다. Android 는 뒤로가기·바깥 탭으로 닫을 수 있고, 그러면 '계속 작성' 과 같다
 function confirmDiscardReport(onDiscard: () => void) {
   Alert.alert(
     '작성 중인 완료 보고가 있어요',
@@ -98,23 +98,24 @@ function confirmDiscardReport(onDiscard: () => void) {
       { text: '계속 작성', style: 'cancel' },
       { text: '나가기', style: 'destructive', onPress: onDiscard },
     ],
+    { cancelable: true },
   );
 }
 
 export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
   const { setStarted } = useWorkSession();
   const titleRef = useFocusTitleOnOpen(navigation);
-  const [unsavedReport, setUnsavedReport] = useState(false);
+  const [hasUnsavedReport, setHasUnsavedReport] = useState(false);
 
   // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 초안을 저장하게 되면 여기서 지운다.
   // 막았던 동작을 다시 보낸다. 한 번 확인을 거친 동작이라 이 화면에서 다시 막히지 않는다
   const discardReportAndLeave = (action: NavigationAction) =>
     navigation.dispatch(action);
 
-  // 작성 중인 보고가 있으면 화면을 스택에서 빼기 전에 묻는다. 뒤로 가기 버튼·iOS 스와이프·Android 뒤로가기·
-  // 두 손가락 Z·지금 탭 다시 누르기가 모두 여기서 막힌다. 탭을 옮기는 건 화면을 빼지 않아(입력이 남음) 묻지 않는다.
-  // iOS 스와이프는 끝까지 밀면 화면이 제자리로 돌아온 뒤 묻는다 (막는 동안 native-stack 이 네이티브 닫기를 막는다)
-  usePreventRemove(unsavedReport, ({ data }) =>
+  // 작성 중인 보고가 있으면 화면을 스택에서 빼는 모든 동작에서 묻는다.
+  // 포커스만 잃는 탭 이동은 화면을 빼지 않아(입력이 남음) 묻지 않는다.
+  // iOS 스와이프는 끝까지 밀면 화면이 닫혔다가 다시 밀려 들어오며 묻는다
+  usePreventRemove(hasUnsavedReport, ({ data }) =>
     confirmDiscardReport(() => discardReportAndLeave(data.action)),
   );
 
@@ -123,7 +124,7 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
     <WorkDetailScreen
       work={workDetail}
       titleRef={titleRef}
-      onUnsavedReportChange={setUnsavedReport}
+      onUnsavedReportChange={setHasUnsavedReport}
       onBack={() => navigation.goBack()}
       onDone={() => {
         // 제출 완료·작업 취소 모두 진행 중 작업이 끝난 것이다

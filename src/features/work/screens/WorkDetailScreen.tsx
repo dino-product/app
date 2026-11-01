@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type ComponentRef,
@@ -55,7 +56,7 @@ export type WorkDetailScreenProps = {
   onPickPhoto: () => Promise<string | null>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
-  /** 제출하지 않은 완료 보고 입력이 생기거나 없어질 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
+  /** 제출하지 않은 완료 보고 입력이 있는지 처음과 바뀔 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
   onUnsavedReportChange?: (unsaved: boolean) => void;
 };
 
@@ -85,11 +86,15 @@ export function WorkDetailScreen({
   const reportY = useRef(0);
   const viewportHeight = useRef(0);
 
-  // 제출을 마친 보고는 잃을 입력이 아니다. 여부가 바뀔 때만 알린다
-  const unsavedReport = result === null && hasReportInput(report);
+  // 제출을 마친 보고는 잃을 입력이 아니다. 제출 중에는 아직 결과가 없어 작성 중이다 (API 연동 때 다시 본다).
+  // 글자마다가 아니라 여부가 바뀔 때만 알린다. 콜백이 바뀌어도 다시 부르지 않는다
+  const unsaved = result === null && hasReportInput(report);
+  const notifyUnsaved = useEffectEvent((value: boolean) =>
+    onUnsavedReportChange?.(value),
+  );
   useEffect(() => {
-    onUnsavedReportChange?.(unsavedReport);
-  }, [unsavedReport, onUnsavedReportChange]);
+    notifyUnsaved(unsaved);
+  }, [unsaved]);
 
   const update = (patch: Partial<WorkReport>) =>
     setReport(prev => ({ ...prev, ...patch }));
