@@ -5,7 +5,12 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { BackHandler, FlatList, Linking } from 'react-native';
+import {
+  AccessibilityInfo,
+  BackHandler,
+  FlatList,
+  Linking,
+} from 'react-native';
 import { colors } from '../shared/design-system';
 import App from './App';
 
@@ -203,6 +208,18 @@ describe('App', () => {
     );
   });
 
+  // 탭 화면은 떠나도 마운트된 채로 남는다 (예전 수작업 탭 전환은 다른 탭을 언마운트해 날짜·하위 탭·달력 상태가 초기화됐다)
+  it('홈에 다녀와도 내 일정에서 고른 하위 탭이 남아 있다', async () => {
+    await render(<App />);
+
+    await userEvent.press(tab('내 일정'));
+    await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+    await userEvent.press(tab('홈'));
+    await userEvent.press(tab('내 일정'));
+
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+
   it('홈 첫 화면에서 홈 탭을 다시 눌러도 그대로다', async () => {
     await render(<App />);
 
@@ -277,6 +294,144 @@ describe('App', () => {
       }
 
       expect(scroll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('VoiceOver', () => {
+    // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
+    const finishTransition = (title: string) =>
+      fireEvent(screen.getByRole('header', { name: title }), 'appear');
+    // 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다
+    const escapeTarget = (title: string) => {
+      let node = screen.getByRole('header', { name: title }).parent;
+      while (node && !node.props.onAccessibilityEscape) {
+        node = node.parent;
+      }
+      return node;
+    };
+    // RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
+    const escapeFrom = (title: string) => {
+      const target = escapeTarget(title);
+      if (!target) {
+        throw new Error(`"${title}" 화면은 escape 를 받지 않는다`);
+      }
+      return fireEvent(target, 'accessibilityEscape');
+    };
+    // jest 프리셋이 이미 목으로 둬서 spyOn 이 같은 목을 돌려준다. 앞 테스트의 호출을 지운다
+    const spyFocus = () =>
+      jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockClear();
+    // 테스트 환경의 Text ref 는 목 컴포넌트 인스턴스라 props 로 어떤 제목인지 확인한다
+    const titleNode = (name: string) =>
+      expect.objectContaining({
+        props: expect.objectContaining({
+          accessibilityRole: 'header',
+          children: name,
+        }),
+      });
+
+    it('작업 상세는 전환이 끝나면 포커스가 제목으로 간다', async () => {
+      const focus = spyFocus();
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      // 전환 중에 옮기면 전환이 끝날 때 플랫폼이 포커스를 다시 잡는다
+      expect(focus).not.toHaveBeenCalled();
+
+      await finishTransition('작업 상세');
+      expect(focus).toHaveBeenCalledTimes(1);
+      expect(focus).toHaveBeenCalledWith(titleNode('작업 상세'), 'focus');
+    });
+
+    // 열리는 중에 위 화면이 또 열리면 이 화면은 보이기 전에 닫힘 전환부터 받는다
+    it('닫힘 전환으로는 포커스를 옮기지 않고, 그 뒤 처음 보일 때 옮긴다', async () => {
+      const focus = spyFocus();
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      await fireEvent(
+        screen.getByRole('header', { name: '작업 상세' }),
+        'disappear',
+      );
+      expect(focus).not.toHaveBeenCalled();
+
+      await finishTransition('작업 상세');
+      expect(focus).toHaveBeenCalledTimes(1);
+    });
+
+    it('요청 상세·거절 사유도 열릴 때 제목으로 가고, 돌아온 화면에서는 다시 옮기지 않는다', async () => {
+      const focus = spyFocus();
+      await render(<App />);
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+      await finishTransition('작업 상세');
+      await userEvent.press(screen.getByRole('button', { name: '거절' }));
+      await finishTransition('거절 사유');
+      expect(focus).toHaveBeenNthCalledWith(1, titleNode('작업 상세'), 'focus');
+      expect(focus).toHaveBeenNthCalledWith(2, titleNode('거절 사유'), 'focus');
+
+      // 돌아온 화면은 플랫폼의 포커스 복원(열었던 버튼)에 맡긴다
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await finishTransition('작업 상세');
+      expect(focus).toHaveBeenCalledTimes(2);
+    });
+
+    it('작업 상세에서 두 손가락 Z 로 메인화면으로 돌아온다', async () => {
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      await escapeFrom('작업 상세');
+
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    it('거절 사유 → 요청 상세 → 내 일정 순서로 두 손가락 Z 로 돌아온다', async () => {
+      await render(<App />);
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+      await userEvent.press(screen.getByRole('button', { name: '거절' }));
+
+      await escapeFrom('거절 사유');
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(header('거절 사유')).not.toBeOnTheScreen();
+
+      await escapeFrom('작업 상세');
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    // Android 뒤로가기(다른 탭 첫 화면 → 홈 탭)와 달리 탭을 바꾸지 않는다.
+    // 아무도 받지 않아야 VoiceOver 가 돌아갈 곳이 없다고 처리한다
+    it('탭 첫 화면은 두 손가락 Z 를 받지 않는다', async () => {
+      await render(<App />);
+      expect(escapeTarget('내 작업')).toBeNull();
+
+      await userEvent.press(tab('내 일정'));
+      expect(escapeTarget('내 일정')).toBeNull();
+    });
+
+    it('escape 를 받는 뷰는 iOS 뷰 평탄화로 사라지지 않는다', async () => {
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+
+      // Fabric 은 escape 핸들러만 있는 View 를 평탄화해 네이티브 뷰로 만들지 않는다
+      expect(escapeTarget('작업 상세')?.props.collapsable).toBe(false);
     });
   });
 
