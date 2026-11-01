@@ -9,8 +9,6 @@ const LAYER_DP = 108;
 const VIEWPORT_DP = 72;
 const SAFE_ZONE_DP = 66;
 const LEGACY_DP = 48;
-// 안전 영역 밖이 배경색과 이만큼까지 다른 것은 압축 잡음으로 본다
-const BACKGROUND_TOLERANCE = 2;
 const LEGACY_SHAPES = {
   square: { size: 38, radius: 3 },
   round: { size: 44, radius: 22 },
@@ -169,7 +167,8 @@ const toHex = rgb =>
     .join('')
     .toUpperCase()}`;
 
-// 안전 영역 밖이 한 가지 배경색이어야 배경을 단색 층으로 떼어 내도 모양이 같다
+// 안전 영역 밖이 왼쪽 위 픽셀과 정확히 같은 색이어야 한다.
+// 1단계만 달라도 배경 분리에서 알파가 남아 단색 층에 안전 영역 밖 점이 생긴다
 function assertSolidBackground(source, background) {
   const center = source.width / 2;
   const radius = (SAFE_ZONE_DP / VIEWPORT_DP / 2) * source.width;
@@ -177,17 +176,10 @@ function assertSolidBackground(source, background) {
     for (let x = 0; x < source.width; x++) {
       const [dx, dy] = [x + 0.5 - center, y + 0.5 - center];
       const i = (y * source.width + x) * 4;
-      let difference = 0;
-      for (let c = 0; c < 3; c++) {
-        difference = Math.max(
-          difference,
-          Math.abs(source.data[i + c] - background[c]),
-        );
-      }
-      if (
-        dx * dx + dy * dy > radius * radius &&
-        difference > BACKGROUND_TOLERANCE
-      ) {
+      const differs = background.some(
+        (channel, c) => source.data[i + c] !== channel,
+      );
+      if (differs && dx * dx + dy * dy > radius * radius) {
         throw new Error(
           `원본의 66dp 안전 영역 밖 (${x}, ${y}) 이 배경색과 다릅니다. 배경은 한 가지 색이어야 합니다`,
         );
@@ -224,9 +216,22 @@ function buildLauncherIcons(source) {
   return { background: toHex(background), images };
 }
 
+// AppIcon 세트 Contents.json 에서 기본(라이트) 1024 이미지 파일 이름. 다크·틴트 변형은 appearances 가 붙어 있다
+function appIconSource({ images }) {
+  const entry = images.find(
+    ({ filename, size, appearances }) =>
+      filename && size === '1024x1024' && !appearances,
+  );
+  if (!entry) {
+    throw new Error('AppIcon 세트에 기본 1024 이미지가 없습니다');
+  }
+  return entry.filename;
+}
+
 module.exports = {
   DENSITIES,
   adaptiveLayer,
+  appIconSource,
   buildLauncherIcons,
   legacyIcon,
   placeImage,

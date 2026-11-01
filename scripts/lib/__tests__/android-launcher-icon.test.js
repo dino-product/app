@@ -1,17 +1,24 @@
 // Android 홈 화면 아이콘 (#53). iOS 앱 아이콘과 같은 원본에서 `npm run icons:android` 로 만든다.
-// 원본(iOS AppIcon.png)을 바꾸면 스크립트를 다시 돌려야 '최신 결과' 테스트가 통과한다.
+// 원본(AppIcon 세트의 기본 1024 이미지)을 바꾸면 스크립트를 다시 돌려야 '최신 결과' 테스트가 통과한다.
 const { Buffer } = require('buffer');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { decodePng } = require('../png');
-const { buildLauncherIcons } = require('../launcher-icon');
+const { appIconSource, buildLauncherIcons } = require('../launcher-icon');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const RES = path.join(root, 'android/app/src/main/res');
-const IOS_ICON = path.join(
+// 생성 스크립트와 같은 방법으로 원본을 찾는다
+const ICON_SET = path.join(
   root,
-  'ios/DinoApp/Images.xcassets/AppIcon.appiconset/AppIcon.png',
+  'ios/DinoApp/Images.xcassets/AppIcon.appiconset',
+);
+const IOS_ICON = path.join(
+  ICON_SET,
+  appIconSource(
+    JSON.parse(fs.readFileSync(path.join(ICON_SET, 'Contents.json'), 'utf8')),
+  ),
 );
 // 주석 안의 층·색은 세지 않는다
 const read = file =>

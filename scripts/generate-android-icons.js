@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { decodePng, encodePng } = require('./lib/png');
-const { buildLauncherIcons } = require('./lib/launcher-icon');
+const { appIconSource, buildLauncherIcons } = require('./lib/launcher-icon');
 
 const root = path.resolve(__dirname, '..');
 const iconSet = path.join(
@@ -13,18 +13,12 @@ const iconSet = path.join(
 );
 const res = path.join(root, 'android/app/src/main/res');
 
-// AppIcon 세트의 기본(라이트) 1024 이미지. 다크·틴트 변형은 appearances 가 붙어 있다
-const { images: entries } = JSON.parse(
-  fs.readFileSync(path.join(iconSet, 'Contents.json'), 'utf8'),
+const source = path.join(
+  iconSet,
+  appIconSource(
+    JSON.parse(fs.readFileSync(path.join(iconSet, 'Contents.json'), 'utf8')),
+  ),
 );
-const entry = entries.find(
-  ({ filename, size, appearances }) =>
-    filename && size === '1024x1024' && !appearances,
-);
-if (!entry) {
-  throw new Error(`${iconSet}/Contents.json 에 기본 1024 아이콘이 없습니다`);
-}
-const source = path.join(iconSet, entry.filename);
 
 const { background, images } = buildLauncherIcons(
   decodePng(fs.readFileSync(source)),

@@ -1,6 +1,7 @@
 const {
   DENSITIES,
   adaptiveLayer,
+  appIconSource,
   buildLauncherIcons,
   legacyIcon,
   placeImage,
@@ -222,16 +223,33 @@ describe('buildLauncherIcons', () => {
 
   it.each([
     ['모서리가 배경색과 다른', withPixel(71, 71, RED)],
+    ['모서리가 배경색과 1단계만 다른', withPixel(71, 71, [254, 255, 255, 255])],
+    [
+      '배경색을 정하는 왼쪽 위 픽셀이 튀는',
+      withPixel(0, 0, [253, 253, 255, 255]),
+    ],
     ['그림이 안전 영역 밖으로 나간', withPixel(36, 1, [107, 90, 254, 255])],
   ])('%s 원본은 배경을 단색 층으로 뗄 수 없어 거부한다', (_, source) => {
     expect(() => buildLauncherIcons(source)).toThrow(/안전 영역 밖/);
   });
 
-  it('안전 영역 밖이 배경색과 2단계 안쪽으로만 다르면 받아들인다', () => {
-    expect(() =>
-      buildLauncherIcons(withPixel(71, 71, [253, 253, 255, 255])),
-    ).not.toThrow();
-  });
+  it.each([['ic_launcher_foreground'], ['ic_launcher_monochrome']])(
+    '받아들인 원본의 %s 층은 안전 영역 밖이 투명하다',
+    name => {
+      const { width, data } = built.images[`mipmap-mdpi/${name}.png`];
+      const visible = [];
+      for (let y = 0; y < width; y++) {
+        for (let x = 0; x < width; x++) {
+          const [dx, dy] = [x + 0.5 - width / 2, y + 0.5 - width / 2];
+          if (dx * dx + dy * dy > 33 * 33 && data[(y * width + x) * 4 + 3]) {
+            visible.push([x, y]);
+          }
+        }
+      }
+
+      expect(visible).toEqual([]);
+    },
+  );
 
   it('밀도마다 8.0 미만용 두 장과 적응형 전경·단색 층을 만든다', () => {
     const expected = Object.entries(DENSITIES).flatMap(([density, scale]) => [
@@ -269,5 +287,35 @@ describe('buildLauncherIcons', () => {
 
     expect(pixel(icon, 24, 24)).toEqual([107, 90, 254, 255]);
     expect(pixel(icon, 8, 24)).toEqual([255, 255, 255, 255]);
+  });
+});
+
+describe('appIconSource', () => {
+  it('AppIcon 세트 Contents.json 에서 다크·틴트가 아닌 기본 1024 이미지를 고른다', () => {
+    const contents = {
+      images: [
+        { idiom: 'universal', platform: 'ios', size: '1024x1024' },
+        {
+          appearances: [{ appearance: 'luminosity', value: 'dark' }],
+          filename: 'Dark.png',
+          idiom: 'universal',
+          platform: 'ios',
+          size: '1024x1024',
+        },
+        { filename: 'Small.png', idiom: 'universal', size: '512x512' },
+        {
+          filename: 'Orbit.png',
+          idiom: 'universal',
+          platform: 'ios',
+          size: '1024x1024',
+        },
+      ],
+    };
+
+    expect(appIconSource(contents)).toBe('Orbit.png');
+  });
+
+  it('기본 1024 이미지가 없으면 거부한다', () => {
+    expect(() => appIconSource({ images: [] })).toThrow(/1024/);
   });
 });

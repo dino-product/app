@@ -29,14 +29,19 @@ function readChunks(buffer) {
   throw new Error('PNG 에 IEND 가 없습니다');
 }
 
-// 색이 sRGB 가 아니게 되는 청크는 거부한다. iCCP 데이터는 프로필 이름(널 문자로 끝남)으로 시작한다
+// 픽셀 값을 sRGB 로 그대로 쓸 수 없는 PNG 는 거부한다.
+// 색 정보 청크(iCCP·gAMA·cHRM)는 sRGB 청크가 함께 있을 때만 받아들인다. 프로필 이름으로는 내용을 알 수 없다
 function assertSrgb(chunks) {
-  const profile = chunks.find(({ type }) => type === 'iCCP');
-  const name = profile?.data.toString('latin1', 0, profile.data.indexOf(0));
-  if (profile && !name.includes('sRGB')) {
-    throw new Error(`sRGB 가 아닌 색 프로필(${name})은 읽지 않습니다`);
+  const types = new Set(chunks.map(({ type }) => type));
+  const colorInfo = ['iCCP', 'gAMA', 'cHRM'].filter(type => types.has(type));
+  if (colorInfo.length > 0 && !types.has('sRGB')) {
+    throw new Error(
+      `sRGB 로 표시되지 않은 색 정보(${colorInfo.join(
+        '·',
+      )})가 있습니다. sRGB 로 다시 내보내세요`,
+    );
   }
-  if (chunks.some(({ type }) => type === 'tRNS')) {
+  if (types.has('tRNS')) {
     throw new Error('투명색(tRNS) 청크는 읽지 않습니다');
   }
 }

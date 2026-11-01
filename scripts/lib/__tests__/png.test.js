@@ -102,9 +102,12 @@ describe('decodePng', () => {
     expect([...decodePng(png).data]).toEqual([1, 2, 3, 255]);
   });
 
-  it('sRGB 색 프로필(iCCP)은 읽는다', () => {
+  it('sRGB 청크가 있으면 다른 색 정보 청크가 함께 있어도 읽는다', () => {
     const png = onePixel({
-      extra: [['iCCP', iccProfile('sRGB IEC61966-2.1')]],
+      extra: [
+        ['sRGB', Buffer.from([0])],
+        ['gAMA', Buffer.from([0, 0, 0xb1, 0x8f])],
+      ],
     });
 
     expect([...decodePng(png).data]).toEqual([1, 2, 3, 255]);
@@ -147,10 +150,10 @@ describe('decodePng', () => {
   });
 
   it.each([
-    ['청크 중간에서 잘린', png => png.subarray(0, png.length - 20)],
-    ['IEND 가 없는', png => png.subarray(0, png.length - 12)],
-  ])('%s 파일은 거부한다', (_, cut) => {
-    expect(() => decodePng(cut(onePixel()))).toThrow(/파일 끝|IEND/);
+    ['청크 중간에서 잘린', png => png.subarray(0, png.length - 20), /파일 끝/],
+    ['IEND 가 없는', png => png.subarray(0, png.length - 12), /IEND 가 없/],
+  ])('%s 파일은 거부한다', (_, cut, reason) => {
+    expect(() => decodePng(cut(onePixel()))).toThrow(reason);
   });
 
   it('압축을 푼 길이가 이미지 크기와 맞지 않으면 거부한다', () => {
@@ -166,12 +169,19 @@ describe('decodePng', () => {
   });
 
   it.each([
-    ['sRGB 가 아닌 색 프로필(iCCP)', ['iCCP', iccProfile('Display P3')]],
-    ['투명색(tRNS)', ['tRNS', Buffer.from([0, 1, 0, 2, 0, 3])]],
-  ])('%s 이 있으면 색이 달라지므로 거부한다', (_, extra) => {
-    expect(() => decodePng(onePixel({ extra: [extra] }))).toThrow(
-      /Display P3|tRNS/,
-    );
+    [
+      'sRGB 청크 없는 색 프로필(iCCP)',
+      ['iCCP', iccProfile('sRGB IEC61966-2.1')],
+      /sRGB 로 다시 내보내/,
+    ],
+    [
+      'sRGB 청크 없는 감마(gAMA)',
+      ['gAMA', Buffer.from([0, 0, 0xb1, 0x8f])],
+      /sRGB 로 다시 내보내/,
+    ],
+    ['투명색(tRNS)', ['tRNS', Buffer.from([0, 1, 0, 2, 0, 3])], /tRNS/],
+  ])('%s 이 있으면 색이 달라질 수 있어 거부한다', (_, extra, reason) => {
+    expect(() => decodePng(onePixel({ extra: [extra] }))).toThrow(reason);
   });
 });
 
