@@ -20,6 +20,7 @@
     "perf:baseline": "reassure --baseline",
     "perf:bundle": "node scripts/check-bundle-size.js",
     "perf:regression": "node scripts/check-perf-regression.js",
+    "icons:android": "node scripts/generate-android-icons.js",
     "verify": "npm run lint && npm run typecheck && npm run test:coverage && npm run test:android && npm run test:perf && npm run perf:bundle",
     "prepare": "husky"
   },
