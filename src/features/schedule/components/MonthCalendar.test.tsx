@@ -2,16 +2,13 @@ import { render, screen } from '@testing-library/react-native';
 import {
   expectMinTouchTarget,
   hitSlopOf,
-  NARROWEST_IPHONE_WIDTH,
+  minLineHeight,
   stylePt,
   type HostElement,
 } from '../../../shared/testing/touchTarget';
 import { MonthCalendar } from './MonthCalendar';
 
-// 내 일정 화면 dateArea 의 좌우 패딩
-const SCREEN_GUTTER = 24;
-// 주(행) 사이 간격 (container gap)
-const WEEK_GAP = 12;
+// 칸 폭은 화면 폭에 따라 정해져 ScheduleScreen.test 에서 확인한다
 
 const renderCalendar = () =>
   render(
@@ -26,28 +23,29 @@ const renderCalendar = () =>
     />,
   );
 
+const getDay = () => screen.getByRole('button', { name: '10월 15일 목요일' });
+const getArrow = (name: string) => screen.getByRole('button', { name });
+// 날짜 칸 › 주(행) › 달력 루트
+const rootOf = (day: HostElement) => day.parent?.parent as HostElement;
+
 describe('MonthCalendar 터치 영역', () => {
   it('날짜 칸은 40pt 원 그대로 위아래로 넓혀 44pt 를 채운다', async () => {
     await renderCalendar();
 
-    const day = screen.getByRole('button', { name: '10월 15일 목요일' });
     const circle = screen.getByText('15').parent as HostElement;
-    expectMinTouchTarget(day, {
-      // 칸 폭은 달력 폭의 1/7 이다
-      width: (NARROWEST_IPHONE_WIDTH - SCREEN_GUTTER * 2) / 7,
-      height: stylePt(circle, 'height'),
-    });
+    expectMinTouchTarget(getDay(), { height: stylePt(circle, 'height') });
   });
 
-  it('넓힌 영역이 옆 칸·이웃 주와 겹치지 않는다', async () => {
+  it('날짜 칸이 넓힌 영역이 옆 칸·이웃 주와 겹치지 않는다', async () => {
     await renderCalendar();
 
-    const slop = hitSlopOf(
-      screen.getByRole('button', { name: '10월 15일 목요일' }),
-    );
+    const day = getDay();
+    const slop = hitSlopOf(day);
     // 7칸이 빈틈없이 붙어 있어 좌우로는 넓히지 않는다
     expect(slop.left + slop.right).toBe(0);
-    expect(slop.top + slop.bottom).toBeLessThanOrEqual(WEEK_GAP);
+    expect(slop.top + slop.bottom).toBeLessThanOrEqual(
+      stylePt(rootOf(day), 'gap'),
+    );
   });
 
   it.each(['이전 달', '다음 달'])(
@@ -55,12 +53,40 @@ describe('MonthCalendar 터치 영역', () => {
     async name => {
       await renderCalendar();
 
-      const button = screen.getByRole('button', { name });
-      const icon = button.children[0] as HostElement;
-      expectMinTouchTarget(button, {
+      const arrow = getArrow(name);
+      const icon = arrow.children[0] as HostElement;
+      expectMinTouchTarget(arrow, {
         width: stylePt(icon, 'width'),
         height: stylePt(icon, 'height'),
       });
     },
   );
+
+  // 제목은 화살표와 겹치면 먼저 터치를 받아 가는 네이티브 뷰다
+  it('화살표가 제목 쪽으로 넓힌 영역은 제목과의 간격 안에 든다', async () => {
+    await renderCalendar();
+
+    const prev = getArrow('이전 달');
+    const gap = stylePt(prev.parent as HostElement, 'gap');
+    expect(hitSlopOf(prev).right).toBeLessThanOrEqual(gap);
+    expect(hitSlopOf(getArrow('다음 달')).left).toBeLessThanOrEqual(gap);
+  });
+
+  // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
+  it('루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
+    await renderCalendar();
+
+    const root = rootOf(getDay());
+    const rootSlop = hitSlopOf(root);
+    // 마지막 주 날짜 칸의 아래쪽
+    expect(hitSlopOf(getDay()).bottom).toBeLessThanOrEqual(rootSlop.bottom);
+    // 맨 위 제목 줄의 화살표 위쪽. 제목 줄 높이는 글자가 가장 작을 때 가장 낮다
+    const prev = getArrow('이전 달');
+    const icon = prev.children[0] as HostElement;
+    const titleInset =
+      (minLineHeight(screen.getByText('2026년 10월')) -
+        stylePt(icon, 'height')) /
+      2;
+    expect(hitSlopOf(prev).top - titleInset).toBeLessThanOrEqual(rootSlop.top);
+  });
 });

@@ -28,12 +28,12 @@ export function MonthCalendar({
   onNext: () => void;
 }) {
   return (
-    <View style={styles.container}>
+    <View hitSlop={ROOT_HIT_SLOP} style={styles.container}>
       <View style={styles.titleRow}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="이전 달"
-          hitSlop={ARROW_HIT_SLOP}
+          hitSlop={PREV_HIT_SLOP}
           onPress={onPrev}
         >
           <Icon name="chevron-left" size={16} color={colors.gray[500]} />
@@ -42,7 +42,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="다음 달"
-          hitSlop={ARROW_HIT_SLOP}
+          hitSlop={NEXT_HIT_SLOP}
           onPress={onNext}
         >
           <Icon name="chevron-right" size={16} color={colors.gray[500]} />
@@ -110,11 +110,13 @@ export function MonthCalendar({
   );
 }
 
-// 16pt 화살표를 터치 최소 44pt 로 보완한다
-const ARROW_HIT_SLOP = 14;
-// 날짜 칸 높이 40 을 터치 최소 44pt 로 보완한다. 주 사이 간격(12) 안에 들고,
-// 칸 폭은 375pt 화면에서도 약 46.7 이라 좌우로는 넓히지 않는다
+// 16pt 화살표를 터치 최소 44pt 로 보완한다. 제목 쪽은 간격(12)까지만 넓힌다 (제목이 먼저 받는다)
+const PREV_HIT_SLOP = { top: 14, bottom: 14, left: 16, right: 12 };
+const NEXT_HIT_SLOP = { top: 14, bottom: 14, left: 12, right: 16 };
+// 날짜 칸 높이 40 을 터치 최소 44pt 로 보완한다
 const DAY_HIT_SLOP = { top: 2, bottom: 2 };
+// 루트가 네이티브 뷰가 되어도 화살표·마지막 주가 루트 밖으로 넓힌 영역에 터치가 닿게 한다
+const ROOT_HIT_SLOP = { top: PREV_HIT_SLOP.top, bottom: DAY_HIT_SLOP.bottom };
 
 const styles = StyleSheet.create({
   container: { gap: 12 },

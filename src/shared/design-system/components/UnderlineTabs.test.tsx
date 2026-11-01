@@ -2,6 +2,7 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import {
   expectMinTouchTarget,
   hitSlopOf,
+  minLineHeight,
   stylePt,
   type HostElement,
 } from '../../testing/touchTarget';
@@ -86,7 +87,7 @@ describe('UnderlineTabs', () => {
   });
 
   // 탭 폭은 라벨 글자 폭이라 계산하지 않는다. 탭 사이는 20 간격이라 좌우로 넓히지 않는다
-  it('탭 높이를 위아래로 넓혀 44pt 를 채운다', async () => {
+  it('가장 작은 글자 설정에서도 탭 높이를 위아래로 넓혀 44pt 를 채운다', async () => {
     await render(
       <UnderlineTabs
         items={items}
@@ -99,7 +100,7 @@ describe('UnderlineTabs', () => {
     expectMinTouchTarget(tab, {
       height:
         stylePt(tab, 'paddingTop') +
-        stylePt(screen.getByText('확정 일정'), 'lineHeight') +
+        minLineHeight(screen.getByText('확정 일정')) +
         stylePt(tab, 'gap') +
         stylePt(
           screen.getByTestId('underline-tabs-indicator-confirmed'),

@@ -67,10 +67,9 @@ export function UnderlineTabs<K extends string>({
   );
 }
 
-// 탭 높이 42.4 (위 패딩 8 + 라벨 22.4 + 간격 10 + 밑줄 2) 를 터치 최소 44pt 로 보완한다.
-// 아래 1 은 목록의 밑줄 테두리 안이다. 부모 뷰 경계 밖의 터치는 자식에게 가지 않으므로
-// 위로 넓힌 1 만큼 목록의 터치 영역도 넓힌다.
-const TAB_HIT_SLOP = { top: 1, bottom: 1 };
+// 탭 높이(가장 작은 글자 설정에서 38.4)를 터치 최소 44pt 로 보완한다. 아래 1 은 밑줄 테두리 안이다
+const TAB_HIT_SLOP = { top: 5, bottom: 1 };
+// 부모 뷰 경계 밖의 터치는 자식에게 가지 않으므로, 탭이 위로 넓힌 만큼 목록도 넓힌다
 const LIST_HIT_SLOP = { top: TAB_HIT_SLOP.top };
 
 const styles = StyleSheet.create({

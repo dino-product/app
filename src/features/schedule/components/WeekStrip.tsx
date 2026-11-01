@@ -14,7 +14,7 @@ export function WeekStrip({
   onSelect: (date: Date) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <View hitSlop={DAY_HIT_SLOP} style={styles.row}>
       {days.map(date => {
         const active = isSameDay(date, selected);
         const color = active ? colors.white[100] : weekdayColor(date.getDay());
@@ -45,8 +45,9 @@ export function WeekStrip({
   );
 }
 
-// 날짜 칸 폭 40 을 터치 최소 44pt 로 보완한다 (375pt 화면에서 칸 사이 간격 약 7.8)
-const DAY_HIT_SLOP = { left: 2, right: 2 };
+// 날짜 칸 폭 40 을 터치 최소 44pt 로 보완한다. 칸이 붙어도 겹친 곳은 뒤 칸이 먼저 받도록 뒤쪽으로만
+// 넓히고, 루트가 네이티브 뷰가 되어도 마지막 칸에 닿도록 루트도 같이 넓힌다
+const DAY_HIT_SLOP = { right: 4 };
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },

@@ -1,6 +1,12 @@
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet, View, type Insets } from 'react-native';
-import { expectMinTouchTarget, hitSlopOf, stylePt } from './touchTarget';
+import { StyleSheet, Text, View, type Insets } from 'react-native';
+import {
+  expectMinTouchTarget,
+  hitSlopOf,
+  MIN_FONT_SCALE,
+  minLineHeight,
+  stylePt,
+} from './touchTarget';
 
 const renderBox = (hitSlop?: number | Insets) =>
   render(<View testID="box" hitSlop={hitSlop} style={styles.box} />);
@@ -44,13 +50,30 @@ describe('touchTarget', () => {
     expect(() => stylePt(box, 'height')).toThrow('height 가 pt 숫자가 아니다');
   });
 
-  it('크기와 hitSlop 의 합이 44 이상이면 통과하고, 모자라면 실패한다', async () => {
+  it('크기와 hitSlop 의 합이 44 이상이면 통과하고, 모자라면 축과 내역을 알린다', async () => {
     await renderBox({ top: 2, bottom: 2, left: 1, right: 1 });
     const box = screen.getByTestId('box');
 
     expectMinTouchTarget(box, { height: 40 });
-    expect(() => expectMinTouchTarget(box, { width: 40 })).toThrow();
+    expect(() => expectMinTouchTarget(box, { width: 40, height: 40 })).toThrow(
+      '터치 영역 width 42 가 44 보다 작다 (크기 40 + hitSlop 1 + 1)',
+    );
+  });
+
+  it('가장 작은 글자 설정의 한 줄 높이를 계산한다', async () => {
+    await render(
+      <Text testID="label" style={styles.label}>
+        라벨
+      </Text>,
+    );
+
+    expect(minLineHeight(screen.getByTestId('label'))).toBeCloseTo(
+      20 * MIN_FONT_SCALE,
+    );
   });
 });
 
-const styles = StyleSheet.create({ box: { width: 40, height: '100%' } });
+const styles = StyleSheet.create({
+  box: { width: 40, height: '100%' },
+  label: { lineHeight: 20 },
+});
