@@ -67,7 +67,8 @@
     "*.{js,jsx,ts,tsx}": [
       "prettier --write",
       "eslint --fix --max-warnings=0",
-      "jest --bail --findRelatedTests --passWithNoTests"
+      "jest --bail --findRelatedTests --passWithNoTests",
+      "jest -c jest.android.config.js --bail --findRelatedTests --passWithNoTests"
     ],
     "*.{json,md,yml}": [
       "prettier --write"

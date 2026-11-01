@@ -72,6 +72,15 @@ describe('MonthCalendar 터치 영역', () => {
     expect(hitSlopOf(getArrow('다음 달')).left).toBeLessThanOrEqual(gap);
   });
 
+  // 요일 줄은 화살표보다 뒤 형제라 겹친 곳의 터치를 먼저 받는다. 화살표가 아래로 넓힌 영역은
+  // 제목 줄 아래 여백(가장 작은 글자에서 1~2) + 간격 12 보다 넓어 요일 줄에 걸친다
+  it('요일 줄은 터치를 받지 않아 화살표가 아래로 넓힌 영역을 가로채지 않는다', async () => {
+    await renderTouchCalendar();
+
+    const weekdays = screen.getByText('일').parent as HostElement;
+    expect(weekdays).toHaveStyle({ pointerEvents: 'none' });
+  });
+
   // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
   it('루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
     await renderTouchCalendar();

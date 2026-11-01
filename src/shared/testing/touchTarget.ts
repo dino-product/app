@@ -58,7 +58,10 @@ export function stylePt(element: HostElement, key: keyof TextStyle): number {
   return value;
 }
 
-/** 가장 작은 글자 설정에서 글자 한 줄의 높이. 글자로 정해지는 크기는 이 값으로 계산한다 */
+/**
+ * 가장 작은 글자 설정에서 글자 한 줄의 높이. 글자로 정해지는 크기는 이 값으로 계산한다.
+ * 렌더한 Text 의 스타일에서 읽는다. 컴포넌트는 타이포 이름으로 계산하는 smallestLineHeight 를 쓴다.
+ */
 export function minLineHeight(text: HostElement): number {
   return stylePt(text, 'lineHeight') * MIN_FONT_SCALE;
 }

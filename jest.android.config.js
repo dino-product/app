@@ -11,4 +11,6 @@ module.exports = {
     platforms: ['android', 'ios', 'native'],
   },
   testMatch: ['**/*.touch.test.[jt]s?(x)'],
+  // 일부 테스트만 돌므로 커버리지 기준(80%)은 물려받지 않는다. 커버리지는 npm run test:coverage 가 본다
+  coverageThreshold: undefined,
 };

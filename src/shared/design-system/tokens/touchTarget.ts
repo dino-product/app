@@ -16,7 +16,7 @@ export const MIN_FONT_SCALE = Platform.select({
   default: 0.823,
 });
 
-/** 가장 작은 글자 설정에서 타이포 한 줄의 높이. 글자로 정해지는 크기는 이 값으로 계산한다 */
+/** 가장 작은 글자 설정에서 타이포 한 줄의 높이. 글자로 정해지는 크기는 이 값으로 계산한다 (테스트 헬퍼의 minLineHeight 와 같은 값) */
 export const smallestLineHeight = (variant: TypographyVariant) =>
   typography[variant].lineHeight * MIN_FONT_SCALE;
 

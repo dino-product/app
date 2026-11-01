@@ -8,9 +8,7 @@ export {
 } from './tokens/typography';
 export {
   ICON_HIT_SLOP,
-  MIN_FONT_SCALE,
   MIN_TOUCH_TARGET,
-  smallestLineHeight,
   touchSlop,
 } from './tokens/touchTarget';
 

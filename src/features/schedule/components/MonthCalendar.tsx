@@ -77,7 +77,8 @@ export function MonthCalendar({
         </Pressable>
       </View>
 
-      <View style={styles.week}>
+      {/* 화살표가 아래로 넓힌 영역이 요일 줄에 걸친다. 뒤 형제인 요일 글자가 먼저 받지 않게 터치를 넘긴다 */}
+      <View style={[styles.week, styles.passTouches]}>
         {WEEKDAYS.map((label, day) => (
           <Text
             key={label}
@@ -172,6 +173,7 @@ const styles = StyleSheet.create({
     gap: TITLE_GAP,
   },
   week: { flexDirection: 'row' },
+  passTouches: { pointerEvents: 'none' },
   cell: { flex: 1, alignItems: 'center' },
   weekdayText: { flex: 1, textAlign: 'center' },
   circle: {
