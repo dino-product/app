@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { expectMinTouchTarget, stylePt } from '../../testing/touchTarget';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 import { TypeTabs } from './TypeTabs';
@@ -49,5 +50,19 @@ describe('TypeTabs', () => {
     await userEvent.press(screen.getByRole('tab', { name: '작업유형' }));
 
     expect(onChange).toHaveBeenCalledWith('work');
+  });
+
+  // 탭 폭은 좌우 패딩 32 + 라벨 글자 폭이라 계산하지 않는다
+  it('세로 패딩과 라벨 행간만으로 높이가 44pt 를 넘는다', async () => {
+    await render(
+      <TypeTabs items={items} selectedKey="employee" onChange={jest.fn()} />,
+    );
+
+    const tab = screen.getByRole('tab', { name: '직원유형' });
+    expectMinTouchTarget(tab, {
+      height:
+        stylePt(tab, 'paddingVertical') * 2 +
+        stylePt(screen.getByText('직원유형'), 'lineHeight'),
+    });
   });
 });

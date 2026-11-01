@@ -21,7 +21,11 @@ export function UnderlineTabs<K extends string>({
   onChange,
 }: UnderlineTabsProps<K>) {
   return (
-    <View accessibilityRole="tablist" style={styles.container}>
+    <View
+      accessibilityRole="tablist"
+      hitSlop={LIST_HIT_SLOP}
+      style={styles.container}
+    >
       {items.map(item => {
         const selected = item.key === selectedKey;
         return (
@@ -32,6 +36,7 @@ export function UnderlineTabs<K extends string>({
               item.count != null ? `${item.label} ${item.count}건` : item.label
             }
             accessibilityState={{ selected }}
+            hitSlop={TAB_HIT_SLOP}
             onPress={() => onChange(item.key)}
             style={styles.tab}
           >
@@ -61,6 +66,12 @@ export function UnderlineTabs<K extends string>({
     </View>
   );
 }
+
+// 탭 높이 42.4 (위 패딩 8 + 라벨 22.4 + 간격 10 + 밑줄 2) 를 터치 최소 44pt 로 보완한다.
+// 아래 1 은 목록의 밑줄 테두리 안이다. 부모 뷰 경계 밖의 터치는 자식에게 가지 않으므로
+// 위로 넓힌 1 만큼 목록의 터치 영역도 넓힌다.
+const TAB_HIT_SLOP = { top: 1, bottom: 1 };
+const LIST_HIT_SLOP = { top: TAB_HIT_SLOP.top };
 
 const styles = StyleSheet.create({
   container: {

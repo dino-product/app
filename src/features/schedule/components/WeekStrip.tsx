@@ -24,6 +24,7 @@ export function WeekStrip({
             accessibilityRole="button"
             accessibilityLabel={dayA11yLabel(date)}
             accessibilityState={{ selected: active }}
+            hitSlop={DAY_HIT_SLOP}
             onPress={() => onSelect(date)}
             style={[styles.day, active && styles.dayActive]}
           >
@@ -43,6 +44,9 @@ export function WeekStrip({
     </View>
   );
 }
+
+// 날짜 칸 폭 40 을 터치 최소 44pt 로 보완한다 (375pt 화면에서 칸 사이 간격 약 7.8)
+const DAY_HIT_SLOP = { left: 2, right: 2 };
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },

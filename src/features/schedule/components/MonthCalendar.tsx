@@ -33,7 +33,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="이전 달"
-          hitSlop={12}
+          hitSlop={ARROW_HIT_SLOP}
           onPress={onPrev}
         >
           <Icon name="chevron-left" size={16} color={colors.gray[500]} />
@@ -42,7 +42,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="다음 달"
-          hitSlop={12}
+          hitSlop={ARROW_HIT_SLOP}
           onPress={onNext}
         >
           <Icon name="chevron-right" size={16} color={colors.gray[500]} />
@@ -73,6 +73,7 @@ export function MonthCalendar({
                 accessibilityRole="button"
                 accessibilityLabel={dayA11yLabel(date)}
                 accessibilityState={{ selected: active }}
+                hitSlop={DAY_HIT_SLOP}
                 onPress={() => onSelect(date)}
                 style={styles.cell}
               >
@@ -108,6 +109,12 @@ export function MonthCalendar({
     </View>
   );
 }
+
+// 16pt 화살표를 터치 최소 44pt 로 보완한다
+const ARROW_HIT_SLOP = 14;
+// 날짜 칸 높이 40 을 터치 최소 44pt 로 보완한다. 주 사이 간격(12) 안에 들고,
+// 칸 폭은 375pt 화면에서도 약 46.7 이라 좌우로는 넓히지 않는다
+const DAY_HIT_SLOP = { top: 2, bottom: 2 };
 
 const styles = StyleSheet.create({
   container: { gap: 12 },
