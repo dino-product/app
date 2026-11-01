@@ -213,6 +213,26 @@ describe('buildLauncherIcons', () => {
     expect(() => buildLauncherIcons(source)).toThrow(/정사각·불투명/);
   });
 
+  // 72×72 원본에서 66dp 안전 영역은 가운데 (36, 36) 반지름 33px 원이다
+  const withPixel = (x, y, rgba) => {
+    const data = Uint8Array.from(SOURCE.data);
+    data.set(rgba, (y * 72 + x) * 4);
+    return { ...SOURCE, data };
+  };
+
+  it.each([
+    ['모서리가 배경색과 다른', withPixel(71, 71, RED)],
+    ['그림이 안전 영역 밖으로 나간', withPixel(36, 1, [107, 90, 254, 255])],
+  ])('%s 원본은 배경을 단색 층으로 뗄 수 없어 거부한다', (_, source) => {
+    expect(() => buildLauncherIcons(source)).toThrow(/안전 영역 밖/);
+  });
+
+  it('안전 영역 밖이 배경색과 2단계 안쪽으로만 다르면 받아들인다', () => {
+    expect(() =>
+      buildLauncherIcons(withPixel(71, 71, [253, 253, 255, 255])),
+    ).not.toThrow();
+  });
+
   it('밀도마다 8.0 미만용 두 장과 적응형 전경·단색 층을 만든다', () => {
     const expected = Object.entries(DENSITIES).flatMap(([density, scale]) => [
       [`mipmap-${density}/ic_launcher.png`, 48 * scale],

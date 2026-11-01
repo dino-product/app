@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { decodePng } = require('../png');
-const { DENSITIES, buildLauncherIcons } = require('../launcher-icon');
+const { buildLauncherIcons } = require('../launcher-icon');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const RES = path.join(root, 'android/app/src/main/res');
@@ -13,10 +13,15 @@ const IOS_ICON = path.join(
   root,
   'ios/DinoApp/Images.xcassets/AppIcon.appiconset/AppIcon.png',
 );
-const read = file => fs.readFileSync(path.join(RES, file), 'utf8');
+// 주석 안의 층·색은 세지 않는다
+const read = file =>
+  fs.readFileSync(path.join(RES, file), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 const readPng = file => decodePng(fs.readFileSync(path.join(RES, file)));
+const iosIcon = decodePng(fs.readFileSync(IOS_ICON));
 
 const ADAPTIVE_ICONS = ['ic_launcher', 'ic_launcher_round'];
+// Android 밀도별 배율. 구현 값을 그대로 믿지 않도록 테스트에 따로 적는다
+const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 const LEGACY_DP = 48;
 const LAYER_DP = 108;
 const SAFE_ZONE_DIAMETER_DP = 66;
@@ -43,6 +48,10 @@ const layersOf = name =>
       ),
     ].map(([, layer, type, resource]) => [layer, { type, resource }]),
   );
+// 두 적응형 아이콘이 가리키는 그 층의 리소스 (서로 달라도 모두 검사한다)
+const layerResources = layer => [
+  ...new Set(ADAPTIVE_ICONS.map(name => layersOf(name)[layer].resource)),
+];
 const colorValue = name =>
   fs
     .readdirSync(path.join(RES, 'values'))
@@ -95,23 +104,22 @@ describe('Android 런처 아이콘 (#53)', () => {
   );
 
   it('배경색이 iOS 앱 아이콘 배경과 같다', () => {
-    const { resource } = layersOf('ic_launcher').background;
-    const [r, g, b] = decodePng(fs.readFileSync(IOS_ICON)).data;
-    const hex = `#${[r, g, b]
+    const hex = `#${[...iosIcon.data.subarray(0, 3)]
       .map(channel => channel.toString(16).padStart(2, '0'))
       .join('')}`.toUpperCase();
 
-    expect(colorValue(resource)).toBe(hex);
+    expect(layerResources('background').map(colorValue)).toEqual(
+      layerResources('background').map(() => hex),
+    );
   });
 
   it.each(densityEntries)(
     '%s 아이콘 크기가 Android 규격이다 — 8.0 미만용 48dp, 적응형 층 108dp',
     (density, scale) => {
-      const { foreground, monochrome } = layersOf('ic_launcher');
       const sizes = [
         ...ADAPTIVE_ICONS.map(name => [name, LEGACY_DP]),
-        [foreground.resource, LAYER_DP],
-        [monochrome.resource, LAYER_DP],
+        ...layerResources('foreground').map(name => [name, LAYER_DP]),
+        ...layerResources('monochrome').map(name => [name, LAYER_DP]),
       ];
 
       sizes.forEach(([name, dp]) => {
@@ -145,11 +153,14 @@ describe('Android 런처 아이콘 (#53)', () => {
   it.each(densityEntries)(
     '%s 전경·단색 층의 그림이 지름 66dp 안전 영역 안에 있다',
     (density, scale) => {
-      const { foreground, monochrome } = layersOf('ic_launcher');
+      const resources = [
+        ...layerResources('foreground'),
+        ...layerResources('monochrome'),
+      ];
       // 안전 영역 원에 걸친 픽셀은 중심이 원 밖으로 반 픽셀 대각선만큼 나갈 수 있다
       const limit = (SAFE_ZONE_DIAMETER_DP / 2) * scale + Math.SQRT1_2;
 
-      [foreground, monochrome].forEach(({ resource }) => {
+      resources.forEach(resource => {
         const { width, height, data } = readPng(
           `mipmap-${density}/${resource}.png`,
         );
@@ -171,20 +182,21 @@ describe('Android 런처 아이콘 (#53)', () => {
   );
 
   it.each(densityEntries)('%s 단색 층은 한 가지 색이다', density => {
-    const { resource } = layersOf('ic_launcher').monochrome;
-    const { data } = readPng(`mipmap-${density}/${resource}.png`);
     const colors = new Set();
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] > 0) {
-        colors.add(data.subarray(i, i + 3).join(','));
+    layerResources('monochrome').forEach(resource => {
+      const { data } = readPng(`mipmap-${density}/${resource}.png`);
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 0) {
+          colors.add(data.subarray(i, i + 3).join(','));
+        }
       }
-    }
+    });
 
     expect([...colors]).toEqual(['255,255,255']);
   });
 
   it('PNG 가 iOS 앱 아이콘에서 만든 최신 결과다 (원본을 바꿨다면 npm run icons:android)', () => {
-    const { images } = buildLauncherIcons(decodePng(fs.readFileSync(IOS_ICON)));
+    const { images } = buildLauncherIcons(iosIcon);
     const stale = Object.entries(images)
       .filter(([file, image]) => {
         const committed = readPng(file);

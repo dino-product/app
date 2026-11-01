@@ -1,11 +1,16 @@
 // iOS 앱 아이콘 한 장(정사각·불투명)에서 Android 런처 아이콘을 만든다 (#53).
 // - 적응형 아이콘(8.0+): 108dp 층의 가운데 72dp 가 보이고, 지름 66dp 원 안은 잘리지 않는다.
 //   iOS 아이콘 전체를 보이는 72dp 에 맞춘다. 전경은 배경색을 뺀 그림, 단색 층(13+ 테마 아이콘)은 전경의 알파다.
+//   전경은 반투명 색이라 배경 층(같은 배경색) 위에서만 원본 색이 된다. 다른 색 위에 그리는 곳
+//   (예: 스플래시의 windowSplashScreenIconBackgroundColor, #21)에서는 색이 달라진다.
 // - 8.0 미만: 48dp 안에서 Material 키라인 모양으로 자른다. 템플릿 아이콘과 같은 치수(사각 38dp·모서리 3dp, 원 44dp)다.
 const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 const LAYER_DP = 108;
 const VIEWPORT_DP = 72;
+const SAFE_ZONE_DP = 66;
 const LEGACY_DP = 48;
+// 안전 영역 밖이 배경색과 이만큼까지 다른 것은 압축 잡음으로 본다
+const BACKGROUND_TOLERANCE = 2;
 const LEGACY_SHAPES = {
   square: { size: 38, radius: 3 },
   round: { size: 44, radius: 22 },
@@ -164,6 +169,33 @@ const toHex = rgb =>
     .join('')
     .toUpperCase()}`;
 
+// 안전 영역 밖이 한 가지 배경색이어야 배경을 단색 층으로 떼어 내도 모양이 같다
+function assertSolidBackground(source, background) {
+  const center = source.width / 2;
+  const radius = (SAFE_ZONE_DP / VIEWPORT_DP / 2) * source.width;
+  for (let y = 0; y < source.height; y++) {
+    for (let x = 0; x < source.width; x++) {
+      const [dx, dy] = [x + 0.5 - center, y + 0.5 - center];
+      const i = (y * source.width + x) * 4;
+      let difference = 0;
+      for (let c = 0; c < 3; c++) {
+        difference = Math.max(
+          difference,
+          Math.abs(source.data[i + c] - background[c]),
+        );
+      }
+      if (
+        dx * dx + dy * dy > radius * radius &&
+        difference > BACKGROUND_TOLERANCE
+      ) {
+        throw new Error(
+          `원본의 66dp 안전 영역 밖 (${x}, ${y}) 이 배경색과 다릅니다. 배경은 한 가지 색이어야 합니다`,
+        );
+      }
+    }
+  }
+}
+
 // 반환하는 images 의 키는 android/app/src/main/res 아래 경로다
 function buildLauncherIcons(source) {
   let opaque = true;
@@ -174,6 +206,7 @@ function buildLauncherIcons(source) {
     throw new Error('원본은 iOS 앱 아이콘처럼 정사각·불투명해야 합니다');
   }
   const background = [...source.data.subarray(0, 3)];
+  assertSolidBackground(source, background);
   const logo = separateBackground(source, background);
   const monochrome = toMonochrome(logo);
 
