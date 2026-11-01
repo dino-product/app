@@ -4,6 +4,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { workDetail } from '../mockData';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -133,6 +134,31 @@ describe('WorkDetailScreen', () => {
     expect(
       screen.getByRole('button', { name: '완료보고 제출' }),
     ).toBeDisabled();
+  });
+
+  describe('키보드', () => {
+    it('iOS 는 내용을 끌어내리면 키보드가 따라 내려간다', async () => {
+      await renderDetail();
+
+      const scroll = screen.getByTestId('work-detail-scroll');
+      expect(scroll).toHaveProp('keyboardDismissMode', 'interactive');
+      expect(scroll).toHaveProp('keyboardShouldPersistTaps', 'handled');
+      expect(scroll).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+    });
+
+    it('Android 는 interactive 가 없어 끌기 시작하면 내린다', async () => {
+      const os = jest.replaceProperty(Platform, 'OS', 'android');
+      try {
+        await renderDetail();
+
+        expect(screen.getByTestId('work-detail-scroll')).toHaveProp(
+          'keyboardDismissMode',
+          'on-drag',
+        );
+      } finally {
+        os.restore();
+      }
+    });
   });
 
   describe('완료 보고 작성하기 버튼', () => {

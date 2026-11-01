@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { RejectReasonScreen } from './RejectReasonScreen';
 
@@ -20,6 +21,31 @@ describe('RejectReasonScreen', () => {
     expect(screen.getByRole('header', { name: '거절 사유' })).toBeOnTheScreen();
     expect(screen.getByText('작업을 거절할까요?')).toBeOnTheScreen();
     expect(screen.getAllByRole('radio')).toHaveLength(5);
+  });
+
+  describe('키보드', () => {
+    it('iOS 는 내용을 끌어내리면 키보드가 따라 내려간다', async () => {
+      await renderReject();
+
+      const scroll = screen.getByTestId('reject-reason-scroll');
+      expect(scroll).toHaveProp('keyboardDismissMode', 'interactive');
+      expect(scroll).toHaveProp('keyboardShouldPersistTaps', 'handled');
+      expect(scroll).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+    });
+
+    it('Android 는 interactive 가 없어 끌기 시작하면 내린다', async () => {
+      const os = jest.replaceProperty(Platform, 'OS', 'android');
+      try {
+        await renderReject();
+
+        expect(screen.getByTestId('reject-reason-scroll')).toHaveProp(
+          'keyboardDismissMode',
+          'on-drag',
+        );
+      } finally {
+        os.restore();
+      }
+    });
   });
 
   it('사유를 고르면 선택 상태와 강조 테두리가 된다', async () => {
