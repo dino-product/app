@@ -11,6 +11,7 @@ import {
   FlatList,
   Linking,
 } from 'react-native';
+import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
 import App from './App';
 
@@ -303,28 +304,6 @@ describe('App', () => {
     // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
     const finishTransition = (title: string) =>
       fireEvent(screen.getByRole('header', { name: title }), 'appear');
-    // 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다.
-    // 모달 내용은 따로 띄운 뷰 계층이라 Modal 위(가린 화면)로는 올라가지 않는다
-    const escapeTarget = (title: string) => {
-      for (
-        let node = screen.getByRole('header', { name: title }).parent;
-        node && node.type !== 'Modal';
-        node = node.parent
-      ) {
-        if (node.props.onAccessibilityEscape) {
-          return node;
-        }
-      }
-      return null;
-    };
-    // RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
-    const escapeFrom = (title: string) => {
-      const target = escapeTarget(title);
-      if (!target) {
-        throw new Error(`"${title}" 화면은 escape 를 받지 않는다`);
-      }
-      return fireEvent(target, 'accessibilityEscape');
-    };
     // jest 프리셋이 이미 목으로 둬서 spyOn 이 같은 목을 돌려준다. 앞 테스트의 호출을 지운다
     const spyFocus = () =>
       jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockClear();

@@ -1,35 +1,8 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  userEvent,
-} from '@testing-library/react-native';
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { escapeFrom, escapeTarget } from '../../../../jest/voiceOver';
 import { colors } from '../../../shared/design-system';
 import type { SubmitResult } from '../model';
 import { ResultModal } from './ResultModal';
-
-// 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다.
-// 모달 내용은 따로 띄운 뷰 계층이라 Modal 위로는 올라가지 않고, Modal 자신도 escape 를 받지 않는다
-const escapeTarget = (title: string) => {
-  for (
-    let node = screen.getByRole('header', { name: title }).parent;
-    node && node.type !== 'Modal';
-    node = node.parent
-  ) {
-    if (node.props.onAccessibilityEscape) {
-      return node;
-    }
-  }
-  return null;
-};
-// RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
-const escapeFrom = (title: string) => {
-  const target = escapeTarget(title);
-  if (!target) {
-    throw new Error(`"${title}" 모달은 escape 를 받지 않는다`);
-  }
-  return fireEvent(target, 'accessibilityEscape');
-};
 
 describe('ResultModal', () => {
   it('제출 완료: 제목·안내·상태·제출 시간을 보여준다', async () => {
@@ -114,7 +87,7 @@ describe('ResultModal', () => {
       />,
     );
 
-    // Fabric 은 escape 핸들러만 있는 View 를 평탄화해 네이티브 뷰로 만들지 않는다
+    // 지금은 배경색이 있어 네이티브 뷰가 된다. 배경색이 빠지면 escape 핸들러만 남아 Fabric 이 평탄화한다
     expect(escapeTarget('제출 완료')?.props.collapsable).toBe(false);
   });
 
