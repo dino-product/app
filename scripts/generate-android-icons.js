@@ -36,6 +36,7 @@ for (const [file, image] of Object.entries(images)) {
     );
   }
 }
+fs.mkdirSync(path.join(res, 'values'), { recursive: true });
 fs.writeFileSync(
   path.join(res, 'values/ic_launcher_background.xml'),
   `<?xml version="1.0" encoding="utf-8"?>
