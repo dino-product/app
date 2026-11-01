@@ -4,6 +4,7 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { workDetail } from '../mockData';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -133,6 +134,35 @@ describe('WorkDetailScreen', () => {
     expect(
       screen.getByRole('button', { name: '완료보고 제출' }),
     ).toBeDisabled();
+  });
+
+  describe('키보드', () => {
+    // Platform.OS 만 바꾼다. 화면이 render 안에서 Platform.OS 를 읽어야 반영된다
+    // (jest 의 Platform.select·모듈 상수는 늘 ios). prop 값 확인에만 쓴다
+    const renderOn = async (os: 'ios' | 'android') => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderDetail();
+      return screen.getByTestId('work-detail-scroll');
+    };
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('iOS 는 내용을 끌어내리면 키보드가 따라 내려간다', async () => {
+      const scroll = await renderOn('ios');
+
+      expect(scroll).toHaveProp('keyboardDismissMode', 'interactive');
+      expect(scroll).toHaveProp('keyboardShouldPersistTaps', 'handled');
+      expect(scroll).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+    });
+
+    it('Android 는 interactive 가 없어 끌기 시작하면 내린다', async () => {
+      const scroll = await renderOn('android');
+
+      expect(scroll).toHaveProp('keyboardDismissMode', 'on-drag');
+      expect(scroll).toHaveProp('keyboardShouldPersistTaps', 'handled');
+    });
   });
 
   describe('완료 보고 작성하기 버튼', () => {

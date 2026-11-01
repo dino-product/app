@@ -1,6 +1,7 @@
 import { useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -81,6 +82,9 @@ export function RejectReasonScreen({
       </View>
 
       <ScrollView
+        testID="reject-reason-scroll"
+        // 끌어내리면 키보드가 손가락을 따라 내려간다. Android 는 interactive 가 없어 끌기 시작할 때 내린다
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={styles.content}
