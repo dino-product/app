@@ -72,6 +72,25 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * Play 업로드 키 (#57). 값은 ~/.gradle/gradle.properties 나 CI 비밀값(ORG_GRADLE_PROJECT_<이름>)에서 읽고
+ * 저장소에는 넣지 않는다. 넷 다 없으면 release 도 debug 키로 서명한다. 그 빌드는 Play 가 받지 않는다.
+ * 절차는 docs/play-store.md
+ */
+def uploadKeyProperties = [
+    "ORBIT_UPLOAD_STORE_FILE",
+    "ORBIT_UPLOAD_STORE_PASSWORD",
+    "ORBIT_UPLOAD_KEY_ALIAS",
+    "ORBIT_UPLOAD_KEY_PASSWORD",
+]
+// 빈 값(설정하지 않은 CI 비밀값)은 없는 것으로 본다
+def uploadKey = uploadKeyProperties.collectEntries { [(it): findProperty(it)?.toString()?.trim()] }.findAll { it.value }
+def missingUploadKeyProperties = uploadKeyProperties - uploadKey.keySet()
+if (uploadKey && missingUploadKeyProperties) {
+    throw new GradleException("업로드 키 속성이 일부만 있다. 넷 다 넣거나 모두 뺀다. 빠진 것: ${missingUploadKeyProperties.join(', ')}")
+}
+def hasUploadKey = missingUploadKeyProperties.isEmpty()
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -96,15 +115,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasUploadKey) {
+            release {
+                storeFile file(uploadKey.ORBIT_UPLOAD_STORE_FILE)
+                storePassword uploadKey.ORBIT_UPLOAD_STORE_PASSWORD
+                keyAlias uploadKey.ORBIT_UPLOAD_KEY_ALIAS
+                keyPassword uploadKey.ORBIT_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig hasUploadKey ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
