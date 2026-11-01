@@ -36,6 +36,15 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeRight).not.toHaveBeenCalled();
   });
 
+  it('누르다 손가락이 가로로 조금(10pt 이하) 흔들려도 응답자가 되지 않아 날짜 탭이 눌린다', async () => {
+    const { result } = await setup();
+
+    expect((await drag(result.current, { dx: -10, dy: 2 })).granted).toBe(
+      false,
+    );
+    expect((await drag(result.current, { dx: 8 })).granted).toBe(false);
+  });
+
   it('세로로 더 많이 움직이면 응답자가 되지 않고 리스트 스크롤에 맡긴다', async () => {
     const { result, onSwipeLeft, onSwipeRight } = await setup();
 
