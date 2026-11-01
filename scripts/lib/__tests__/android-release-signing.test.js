@@ -44,10 +44,11 @@ function block(source, name) {
 const android = block(gradle, 'android');
 const signingConfigs = block(android, 'signingConfigs');
 const buildTypes = block(android, 'buildTypes');
+// `field value` 와 `field = value`(Gradle 10 대입 문법)를 함께 받는다
 const assignments = (source, field) =>
-  [...source.matchAll(new RegExp(`\\b${field}\\s+(.+)`, 'g'))].map(match =>
-    match[1].trim(),
-  );
+  [
+    ...source.matchAll(new RegExp(`\\b${field}(?:\\s*=\\s*|\\s+)(.+)`, 'g')),
+  ].map(match => match[1].trim());
 
 describe('Android release 서명 (#57)', () => {
   it('업로드 키 속성 이름 넷을 정해 두고 Gradle 속성(findProperty)에서 읽는다', () => {
@@ -63,13 +64,34 @@ describe('Android release 서명 (#57)', () => {
     expect(gradle).not.toMatch(/System\.getenv/);
   });
 
+  // 설정하지 않은 CI 비밀값은 빈 문자열로 들어온다. 있는 것으로 보면 file("") 로 빌드가 깨진다
+  it('빈 값·공백만 있는 값은 없는 것으로 본다', () => {
+    expect(gradle).toMatch(
+      /findProperty\(it\)\?\.toString\(\)\?\.trim\(\)\s*\]\s*\}\s*\.findAll\s*\{\s*it\.value\s*\}/,
+    );
+  });
+
   it('속성이 일부만 있으면 debug 로 넘어가지 않고 빌드를 멈춘다', () => {
+    expect(gradle).toMatch(
+      /def missingUploadKeyProperties\s*=\s*uploadKeyProperties\s*-\s*uploadKey\.keySet\(\)/,
+    );
     expect(gradle).toMatch(
       /if\s*\(\s*uploadKey\s*&&\s*missingUploadKeyProperties\s*\)\s*\{\s*throw new GradleException\(/,
     );
     expect(gradle).toMatch(
       /def hasUploadKey\s*=\s*missingUploadKeyProperties\.isEmpty\(\)/,
     );
+  });
+
+  it('멈출 때 메시지에는 빠진 속성 이름만 넣고 값(비밀번호)은 넣지 않는다', () => {
+    const message =
+      gradle.match(/throw new GradleException\(("[^"\n]*")\)/)?.[1] ?? '';
+
+    expect(
+      [...message.matchAll(/\$\{([^}]*)\}/g)].map(match => match[1].trim()),
+    ).toEqual(["missingUploadKeyProperties.join(', ')"]);
+    // `$uploadKey` 같은 중괄호 없는 보간도 막는다
+    expect(message).not.toMatch(/\$(?!\{)/);
   });
 
   it('release 서명 설정은 업로드 키가 있을 때만 만들고, 값은 모두 속성에서 온다', () => {
@@ -113,16 +135,15 @@ describe('Android release 서명 (#57)', () => {
       'android/app/debug.keystore',
     ]);
     expect(read('android/gradle.properties')).not.toMatch(/ORBIT_UPLOAD_/);
-    // Android Studio 가 만드는 .jks 도 실수로 커밋되지 않게 무시한다
-    expect(
-      git(
-        'check-ignore',
-        '--no-index',
-        'android/app/orbit-upload.keystore',
-        'android/app/orbit-upload.jks',
-        'android/keystores/orbit-upload.jks',
-      ),
-    ).toHaveLength(3);
+    // 위에서 찾는 키 파일 확장자는 커밋되기 전에 막는다. Android Studio 는 .jks 로 만든다
+    const keyFiles = [
+      'android/app/orbit-upload.keystore',
+      'android/app/orbit-upload.jks',
+      'android/keystores/orbit-upload.jks',
+      'android/app/orbit-upload.p12',
+      'android/app/orbit-upload.pfx',
+    ];
+    expect(git('check-ignore', '--no-index', ...keyFiles)).toEqual(keyFiles);
   });
 
   it('출시 문서(docs/play-store.md)가 같은 속성 이름을 안내한다', () => {

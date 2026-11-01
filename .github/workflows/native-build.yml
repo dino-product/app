@@ -63,9 +63,52 @@ jobs:
       # CI 에는 업로드 키 속성이 없으니 release AAB 는 debug 키로 서명돼야 한다 (#57)
       - name: AAB 가 debug 키로 서명됐는지 확인
         run: |
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$aab" || { echo "AAB 가 없다: $aab"; exit 1; }
           sha256() { awk '/SHA256:/ && !found { print $2; found = 1 }'; }
           debug=$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | sha256)
-          aab=$(keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | sha256)
+          cert=$(keytool -printcert -jarfile "$aab" 2>&1 || true)
+          signed=$(echo "$cert" | sha256)
           echo "debug.keystore  $debug"
-          echo "app-release.aab $aab"
-          test -n "$debug" && test "$debug" = "$aab"
+          echo "app-release.aab $signed"
+          if [ -z "$debug" ] || [ "$debug" != "$signed" ]; then
+            echo "$cert"
+            exit 1
+          fi
+      # build.gradle 의 업로드 키 분기를 실제 Gradle 로 확인한다 (#57).
+      # 키를 새로 만들지 않고 저장소의 debug.keystore 를 업로드 키 자리에 넣는다
+      - name: 업로드 키 속성에 따라 release 서명 설정이 바뀌는지 확인
+        working-directory: android
+        run: |
+          log="$RUNNER_TEMP/signing.log"
+          # signingReport 에서 release 변형이 쓰는 서명 설정 이름
+          release_config() {
+            env "$@" ./gradlew :app:signingReport > "$log" 2>&1 || { cat "$log" >&2; return 1; }
+            awk '/^Variant: release$/ { v = 1 } v && /^Config:/ && !found { print $2; found = 1 }' "$log"
+          }
+          upload_key=ORG_GRADLE_PROJECT_ORBIT_UPLOAD
+
+          # 설정하지 않은 CI 비밀값처럼 넷 다 빈 값이면 debug
+          config=$(release_config "${upload_key}_STORE_FILE=" "${upload_key}_STORE_PASSWORD=" "${upload_key}_KEY_ALIAS=" "${upload_key}_KEY_PASSWORD=")
+          echo "빈 값 → $config"
+          [ "$config" = debug ] || { cat "$log"; exit 1; }
+
+          # 넷 다 있으면 release
+          config=$(release_config "${upload_key}_STORE_FILE=$PWD/app/debug.keystore" "${upload_key}_STORE_PASSWORD=android" "${upload_key}_KEY_ALIAS=androiddebugkey" "${upload_key}_KEY_PASSWORD=android")
+          echo "넷 다 → $config"
+          [ "$config" = release ] || { cat "$log"; exit 1; }
+
+          # 일부만 있으면 멈추고, 빠진 이름만 알려 주고, 값은 찍지 않는다
+          if ./gradlew help -PORBIT_UPLOAD_STORE_PASSWORD=value-must-not-be-logged > "$log" 2>&1; then
+            cat "$log"
+            echo "업로드 키 속성이 일부만 있는데 빌드가 멈추지 않았다"
+            exit 1
+          fi
+          for name in ORBIT_UPLOAD_STORE_FILE ORBIT_UPLOAD_KEY_ALIAS ORBIT_UPLOAD_KEY_PASSWORD; do
+            grep -q "$name" "$log" || { cat "$log"; echo "빠진 속성 $name 을 알려 주지 않았다"; exit 1; }
+          done
+          if grep -q value-must-not-be-logged "$log"; then
+            echo "속성 값이 로그에 찍혔다"
+            exit 1
+          fi
+          echo "일부만 → 멈춤"
