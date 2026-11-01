@@ -10,6 +10,7 @@ import {
   AccessibilityInfo,
   Alert,
   BackHandler,
+  Dimensions,
   FlatList,
   Linking,
 } from 'react-native';
@@ -305,6 +306,49 @@ describe('App', () => {
       }
 
       expect(scroll).not.toHaveBeenCalled();
+    });
+  });
+
+  // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다.
+  // 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게 왼쪽 1/3 에서 시작한 스와이프만 받는다
+  describe('뒤로 가기 스와이프', () => {
+    // 네이티브 화면은 받는 영역(start ≤ x ≤ end) 밖의 스와이프를 거절한다. 지정하지 않은 값은 -1(제한 없음)
+    const swipeArea = (title: string) => {
+      let node = screen.getByRole('header', { name: title }).parent;
+      while (node && !node.props.gestureResponseDistance) {
+        node = node.parent;
+      }
+      return node?.props.gestureResponseDistance;
+    };
+    // 왼쪽 가장자리부터(start 제한 없음) 화면 폭의 1/3 까지
+    const leftThird = () =>
+      expect.objectContaining({
+        start: -1,
+        end: Dimensions.get('window').width / 3,
+      });
+
+    it('작업 상세는 화면 왼쪽 1/3 에서 시작한 스와이프만 받는다', async () => {
+      await render(<App />);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+
+      expect(swipeArea('작업 상세')).toEqual(leftThird());
+    });
+
+    it('요청 상세·거절 사유(탭 위 루트 스택)도 왼쪽 1/3 에서만 받는다', async () => {
+      await render(<App />);
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+      expect(swipeArea('작업 상세')).toEqual(leftThird());
+
+      await userEvent.press(screen.getByRole('button', { name: '거절' }));
+      expect(swipeArea('거절 사유')).toEqual(leftThird());
     });
   });
 

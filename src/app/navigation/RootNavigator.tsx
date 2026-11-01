@@ -8,7 +8,7 @@ import {
   type NativeStackNavigationOptions,
   type NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
-import { StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { MainTabBar } from './MainTabBar';
 import {
   RejectReasonRoute,
@@ -28,12 +28,22 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 
+// iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
+// 화면 폭의 이 비율까지인 왼쪽 영역에서만 받는다. iPhone 세로 전용(#23)이라 폭은 실행 중에 바뀌지 않는다.
+// 판정은 start ≤ x ≤ end 라서 왼쪽 영역은 end 로 정한다. x 는 손가락이 처음 닿은 곳이 아니라 제스처를
+// 인식하는 순간의 위치라, 경계 근처에서 빠르게 밀면 거절될 수 있다.
+// 가장자리 스와이프(iOS 26 미만은 이것만 있음)는 이 판정을 거치지 않아 늘 받는다
+const BACK_SWIPE_WIDTH_RATIO = 1 / 3;
+
 // 화면마다 뒤로 가기가 있는 자체 헤더를 그리므로 내비게이터 헤더는 끈다.
-// 네이티브 스택이라 iOS 는 왼쪽 가장자리 스와이프로, Android 는 뒤로가기 버튼·제스처로 이전 화면에 간다.
+// 네이티브 스택이라 iOS 는 스와이프로, Android 는 뒤로가기 버튼·제스처로 이전 화면에 간다.
 // 메모·사유를 입력하다 스와이프로 나가면 키보드도 함께 내린다.
 const stackOptions = {
   headerShown: false,
   keyboardHandlingEnabled: true,
+  gestureResponseDistance: {
+    end: Dimensions.get('window').width * BACK_SWIPE_WIDTH_RATIO,
+  },
 } as const;
 const tabOptions = { headerShown: false } as const;
 
