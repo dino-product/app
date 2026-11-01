@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, Icon, Text } from '../../../shared/design-system';
 import {
@@ -8,8 +9,10 @@ import {
   WEEKDAYS,
 } from '../model';
 import { dayA11yLabel, weekdayColor } from './calendarDay';
+import { useHorizontalSwipe } from './useHorizontalSwipe';
 
 // Figma 내 일정 › 달력 펼침. 선택일은 Secondary 원, 일정이 있는 날은 점으로 표시한다.
+// 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달. 이전·다음 달 버튼과 같은 콜백을 부른다.
 export function MonthCalendar({
   year,
   month,
@@ -27,8 +30,19 @@ export function MonthCalendar({
   onPrev: () => void;
   onNext: () => void;
 }) {
+  const swipeHandlers = useHorizontalSwipe({
+    onSwipeLeft: onNext,
+    onSwipeRight: onPrev,
+  });
+  const weeks = useMemo(() => monthGrid(year, month), [year, month]);
+
   return (
-    <View hitSlop={ROOT_HIT_SLOP} style={styles.container}>
+    <View
+      testID="month-calendar"
+      hitSlop={ROOT_HIT_SLOP}
+      style={styles.container}
+      {...swipeHandlers}
+    >
       <View style={styles.titleRow}>
         <Pressable
           accessibilityRole="button"
@@ -62,7 +76,7 @@ export function MonthCalendar({
         ))}
       </View>
 
-      {monthGrid(year, month).map(week => (
+      {weeks.map(week => (
         <View key={toDateKey(week[0].date)} style={styles.week}>
           {week.map(({ date, inMonth }) => {
             const active = isSameDay(date, selected);

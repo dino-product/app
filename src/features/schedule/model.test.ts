@@ -1,9 +1,11 @@
 import {
   addMonths,
+  addWeeks,
   formatDateHeader,
   formatMonthTitle,
   isSameDay,
   monthGrid,
+  startOfWeek,
   toDateKey,
   validateRejection,
   weekDays,
@@ -58,6 +60,21 @@ describe('날짜 계산', () => {
   it('addMonths 는 해를 넘나든다', () => {
     expect(addMonths(2026, 11, 1)).toEqual({ year: 2027, month: 0 });
     expect(addMonths(2026, 0, -1)).toEqual({ year: 2025, month: 11 });
+  });
+
+  it('startOfWeek 는 그 주의 일요일 0시를 돌려준다', () => {
+    expect(startOfWeek(new Date(2026, 11, 15, 9))).toEqual(
+      new Date(2026, 11, 13),
+    );
+    expect(startOfWeek(new Date(2026, 11, 13))).toEqual(new Date(2026, 11, 13));
+    expect(startOfWeek(new Date(2027, 0, 1))).toEqual(new Date(2026, 11, 27));
+  });
+
+  it('addWeeks 는 같은 요일로 주를 옮기고 달·해를 넘나든다', () => {
+    expect(toDateKey(addWeeks(new Date(2026, 11, 15), 1))).toBe('2026-12-22');
+    expect(toDateKey(addWeeks(new Date(2026, 11, 15), -1))).toBe('2026-12-08');
+    expect(toDateKey(addWeeks(new Date(2026, 11, 29), 1))).toBe('2027-01-05');
+    expect(addWeeks(new Date(2026, 11, 29), 1).getDay()).toBe(2);
   });
 
   it('isSameDay 는 시각을 무시하고 날짜만 비교한다', () => {

@@ -18,7 +18,9 @@ import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
+  addWeeks,
   formatDateHeader,
+  startOfWeek,
   toDateKey,
   weekDays,
   type ConfirmedSchedule,
@@ -79,6 +81,11 @@ export function ScheduleScreen({
   const moveMonth = (delta: number) =>
     setViewMonth(prev => addMonths(prev.year, prev.month, delta));
 
+  // 주간 줄은 선택한 날의 주를 그린다. 밀어서 주를 넘기면 같은 요일을 고른다 (iOS 캘린더 일 보기)
+  const moveWeek = (delta: number) => selectDate(addWeeks(selected, delta));
+  const weekStart = startOfWeek(selected).getTime();
+  const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
+
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
     [],
@@ -121,9 +128,11 @@ export function ScheduleScreen({
         />
       ) : (
         <WeekStrip
-          days={weekDays(selected)}
+          days={week}
           selected={selected}
           onSelect={selectDate}
+          onPrev={() => moveWeek(-1)}
+          onNext={() => moveWeek(1)}
         />
       )}
     </View>
@@ -151,6 +160,8 @@ export function ScheduleScreen({
       {tab === 'confirmed' ? (
         <FlatList
           ref={listRef}
+          // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
+          directionalLockEnabled
           data={daySchedules}
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}

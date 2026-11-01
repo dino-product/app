@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { drag } from '../../../../jest/gesture';
 import {
   expectMinTouchTarget,
   hitSlopOf,
@@ -8,9 +9,58 @@ import {
 } from '../../../shared/testing/touchTarget';
 import { MonthCalendar } from './MonthCalendar';
 
+const renderCalendar = async () => {
+  const props = { onSelect: jest.fn(), onPrev: jest.fn(), onNext: jest.fn() };
+  await render(
+    <MonthCalendar
+      year={2026}
+      month={11}
+      selected={new Date(2026, 11, 15)}
+      markedKeys={new Set()}
+      {...props}
+    />,
+  );
+  return props;
+};
+
+const calendar = () => screen.getByTestId('month-calendar').props;
+
+describe('MonthCalendar', () => {
+  it('왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달로 간다', async () => {
+    const { onPrev, onNext } = await renderCalendar();
+
+    await drag(calendar(), { dx: -80 });
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(onPrev).not.toHaveBeenCalled();
+
+    await drag(calendar(), { dx: 80 });
+    expect(onPrev).toHaveBeenCalledTimes(1);
+  });
+
+  it('세로로 밀면 달을 옮기지 않는다', async () => {
+    const { onPrev, onNext } = await renderCalendar();
+
+    await drag(calendar(), { dx: -60, dy: -120 });
+    await drag(calendar(), { dx: 60, dy: 120 });
+
+    expect(onPrev).not.toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('이전·다음 달 버튼도 밀기와 같은 콜백을 부른다', async () => {
+    const { onPrev, onNext } = await renderCalendar();
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(screen.getByRole('button', { name: '이전 달' }));
+
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(onPrev).toHaveBeenCalledTimes(1);
+  });
+});
+
 // 칸 폭은 화면 폭에 따라 정해져 ScheduleScreen.test 에서 확인한다
 
-const renderCalendar = () =>
+const renderTouchCalendar = () =>
   render(
     <MonthCalendar
       year={2026}
@@ -30,14 +80,14 @@ const rootOf = (day: HostElement) => day.parent?.parent as HostElement;
 
 describe('MonthCalendar 터치 영역', () => {
   it('날짜 칸은 40pt 원 그대로 위아래로 넓혀 44pt 를 채운다', async () => {
-    await renderCalendar();
+    await renderTouchCalendar();
 
     const circle = screen.getByText('15').parent as HostElement;
     expectMinTouchTarget(getDay(), { height: stylePt(circle, 'height') });
   });
 
   it('날짜 칸이 넓힌 영역이 옆 칸·이웃 주와 겹치지 않는다', async () => {
-    await renderCalendar();
+    await renderTouchCalendar();
 
     const day = getDay();
     const slop = hitSlopOf(day);
@@ -51,7 +101,7 @@ describe('MonthCalendar 터치 영역', () => {
   it.each(['이전 달', '다음 달'])(
     '%s 버튼은 16pt 아이콘 그대로 44pt 로 넓힌다',
     async name => {
-      await renderCalendar();
+      await renderTouchCalendar();
 
       const arrow = getArrow(name);
       const icon = arrow.children[0] as HostElement;
@@ -64,7 +114,7 @@ describe('MonthCalendar 터치 영역', () => {
 
   // 제목은 화살표와 겹치면 먼저 터치를 받아 가는 네이티브 뷰다
   it('화살표가 제목 쪽으로 넓힌 영역은 제목과의 간격 안에 든다', async () => {
-    await renderCalendar();
+    await renderTouchCalendar();
 
     const prev = getArrow('이전 달');
     const gap = stylePt(prev.parent as HostElement, 'gap');
@@ -74,7 +124,7 @@ describe('MonthCalendar 터치 영역', () => {
 
   // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
   it('루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
-    await renderCalendar();
+    await renderTouchCalendar();
 
     const root = rootOf(getDay());
     const rootSlop = hitSlopOf(root);
