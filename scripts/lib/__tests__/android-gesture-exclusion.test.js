@@ -10,12 +10,28 @@ const SPEC = 'src/shared/native/GestureExclusionViewNativeComponent.ts';
 const NATIVE = 'android/app/src/main/java/com/dinoproduct/app';
 const MANAGER = `${NATIVE}/gestureexclusion/GestureExclusionViewManager.kt`;
 
+function mustMatch(text, pattern, what) {
+  const match = text.match(pattern);
+  if (!match) {
+    throw new Error(`${what} 를 찾지 못했다`);
+  }
+  return match;
+}
+
 const specName = () =>
-  read(SPEC).match(/codegenNativeComponent<\w+>\(\s*'(\w+)'/)[1];
+  mustMatch(
+    read(SPEC),
+    /codegenNativeComponent<\w+>\(\s*'(\w+)'/,
+    '스펙의 codegenNativeComponent 이름',
+  )[1];
 
 describe('Android 제스처 제외 영역 네이티브 뷰 연결 (#58)', () => {
   it('ViewManager 이름이 JS 스펙의 컴포넌트 이름과 같다', () => {
-    const [, name] = read(MANAGER).match(/const val NAME = "(\w+)"/);
+    const [, name] = mustMatch(
+      read(MANAGER),
+      /const val NAME = "(\w+)"/,
+      'ViewManager 의 NAME',
+    );
 
     expect(name).toBe(specName());
   });
@@ -36,9 +52,12 @@ describe('Android 제스처 제외 영역 네이티브 뷰 연결 (#58)', () => 
     ).toContain('GestureExclusionViewManager()');
   });
 
-  it('package.json codegenConfig 가 스펙 폴더를 읽는다', () => {
+  it('package.json codegenConfig 가 스펙 폴더의 컴포넌트를 생성한다', () => {
     const { codegenConfig } = JSON.parse(read('package.json'));
 
     expect(codegenConfig.jsSrcsDir).toBe(path.dirname(SPEC));
+    expect(['components', 'all']).toContain(codegenConfig.type);
+    // codegen 은 이 이름 꼴의 파일만 스펙으로 읽는다
+    expect(path.basename(SPEC)).toMatch(/NativeComponent\.ts$/);
   });
 });
