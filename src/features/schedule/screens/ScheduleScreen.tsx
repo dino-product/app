@@ -13,6 +13,7 @@ import {
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
+import { readableColumn } from '../../../shared/layout/readableColumn';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { WeekStrip } from '../components/WeekStrip';
@@ -140,22 +141,28 @@ export function ScheduleScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <Text
-        accessibilityRole="header"
-        variant="Body/XL/SemiBold"
-        color={colors.black}
-        style={styles.title}
-      >
-        내 일정
-      </Text>
-      <UnderlineTabs
-        items={[
-          { key: 'confirmed', label: '확정 일정', count: daySchedules.length },
-          { key: 'pending', label: '응답 필요', count: pending.length },
-        ]}
-        selectedKey={tab}
-        onChange={setTab}
-      />
+      <View style={readableColumn}>
+        <Text
+          accessibilityRole="header"
+          variant="Body/XL/SemiBold"
+          color={colors.black}
+          style={styles.title}
+        >
+          내 일정
+        </Text>
+        <UnderlineTabs
+          items={[
+            {
+              key: 'confirmed',
+              label: '확정 일정',
+              count: daySchedules.length,
+            },
+            { key: 'pending', label: '응답 필요', count: pending.length },
+          ]}
+          selectedKey={tab}
+          onChange={setTab}
+        />
+      </View>
       {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
       {tab === 'confirmed' ? (
         <FlatList
@@ -168,6 +175,7 @@ export function ScheduleScreen({
           ListHeaderComponent={dateHeader}
           ListEmptyComponent={<Empty text="예정된 일정이 없습니다" />}
           style={styles.list}
+          contentContainerStyle={readableColumn}
         />
       ) : (
         <FlatList
@@ -177,6 +185,7 @@ export function ScheduleScreen({
           renderItem={renderPending}
           ListEmptyComponent={<Empty text="응답할 요청이 없습니다" />}
           style={styles.list}
+          contentContainerStyle={readableColumn}
         />
       )}
     </SafeAreaView>
