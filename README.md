@@ -39,18 +39,19 @@ npm start         # Metro (Debug 빌드용)
 
 ## 스크립트
 
-| 명령                                    | 내용                                          |
-| --------------------------------------- | --------------------------------------------- |
-| `npm test`                              | 단위·컴포넌트 테스트                          |
-| `npm run test:watch`                    | TDD 용 watch 모드                             |
-| `npm run test:coverage`                 | 커버리지 (80% 미만이면 실패)                  |
-| `npm run test:perf`                     | Reassure 렌더 성능 테스트 (`*.perf-test.tsx`) |
-| `npm run perf:baseline`                 | Reassure baseline 저장 (비교 기준)            |
-| `npm run perf:bundle`                   | Release JS 번들 크기 예산 검사                |
-| `npm run lint` / `typecheck` / `format` | 정적 검사 / 포맷                              |
-| `npm run verify`                        | 위 검사 전부 (PR 전 로컬 확인)                |
-| `npm run ios` / `ios:release`           | iPhone 실기기에 Debug / Release 설치          |
-| `npm run android` / `android:release`   | Android 실기기에 Debug / Release 설치         |
+| 명령                                    | 내용                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `npm test`                              | 단위·컴포넌트 테스트                                                                     |
+| `npm run test:watch`                    | TDD 용 watch 모드                                                                        |
+| `npm run test:coverage`                 | 커버리지 (80% 미만이면 실패)                                                             |
+| `npm run test:perf`                     | Reassure 렌더 성능 테스트 (`*.perf-test.tsx`)                                            |
+| `npm run perf:baseline`                 | Reassure baseline 저장 (비교 기준)                                                       |
+| `npm run perf:bundle`                   | Release JS 번들 크기 예산 검사                                                           |
+| `npm run lint` / `typecheck` / `format` | 정적 검사 / 포맷                                                                         |
+| `npm run verify`                        | 위 검사 전부 (PR 전 로컬 확인)                                                           |
+| `npm run ios` / `ios:release`           | iPhone 실기기에 Debug / Release 설치                                                     |
+| `npm run android` / `android:release`   | Android 실기기에 Debug / Release 설치                                                    |
+| `npm run icons:android`                 | iOS 앱 아이콘(`AppIcon.png`)으로 Android 런처 아이콘 생성. iOS 아이콘을 바꾸면 다시 실행 |
 
 ## 구조
 
