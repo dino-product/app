@@ -80,6 +80,19 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeRight).toHaveBeenCalledTimes(1);
   });
 
+  it('한쪽으로 끌다가 반대로 튕기면 넘기지 않는다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    // 오른쪽으로 16ms 마다 3pt 끌다가 마지막에 왼쪽으로 12pt (0.75pt/ms)
+    const path = Array.from({ length: 11 }, (_, i) => ({ x: i * 3, y: 0 }));
+    path.push({ x: 18, y: 0 });
+    const { granted } = await drag(result.current, { path });
+
+    expect(granted).toBe(true);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+    expect(onSwipeRight).not.toHaveBeenCalled();
+  });
+
   it('두 손가락으로 밀면 응답자가 되지 않는다', async () => {
     const { result, onSwipeLeft } = await setup();
 

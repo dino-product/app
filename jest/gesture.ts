@@ -57,29 +57,33 @@ export type DragResult = {
 };
 
 /**
- * (0,0) 에서 (dx,dy) 까지 steps 번(한 번에 16ms)에 고르게 끈다.
+ * (0,0) 에서 (dx,dy) 까지 steps 번(한 번에 16ms)에 고르게 끈다. path 를 주면 그 점들을 차례로 지난다.
  * cancelAt 번째 이동 뒤에는 바깥(리스트 스크롤 등)이 응답자를 달라고 한다. 넘겨 주면 거기서 끝난다.
  */
 export async function drag(
   handlers: GestureResponderHandlers,
   {
-    dx,
+    dx = 0,
     dy = 0,
-    steps = 10,
+    path,
     fingers = 1,
     cancelAt,
+    ...rest
   }: {
-    dx: number;
+    dx?: number;
     dy?: number;
     steps?: number;
+    path?: readonly Point[];
     fingers?: number;
     cancelAt?: number;
   },
 ): Promise<DragResult> {
-  const at = (step: number): Point => ({
-    x: (dx * Math.min(step, steps)) / steps,
-    y: (dy * Math.min(step, steps)) / steps,
-  });
+  const steps = path ? path.length - 1 : rest.steps ?? 10;
+  const at = (step: number): Point =>
+    path?.[Math.min(step, steps)] ?? {
+      x: (dx * Math.min(step, steps)) / steps,
+      y: (dy * Math.min(step, steps)) / steps,
+    };
   const event = (step: number, active = true) =>
     touchEvent(at(step - 1), at(step), step, fingers, active);
   const result: DragResult = { granted: false };
