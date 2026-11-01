@@ -41,6 +41,7 @@ class MainActivity : ReactActivity() {
    *
    * 키보드·uiMode 변경에도 불리므로 방향이 바뀔 때만 요청한다. 1초에 여러 번 요청하면 시스템이 반복으로 보고 무시할 수 있다.
    * https://developer.android.com/guide/practices/device-compatibility-mode
+   * Android 15 부터는 Activity 가 같은 값을 직접 거르지만, 14 이하를 위해 둔다.
    *
    * 큰 화면에서는 고정하지 않으므로 lint 의 세로 고정 경고(SourceLockedOrientationActivity)는 해당하지 않는다.
    */

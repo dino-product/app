@@ -164,13 +164,17 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
 
 // 기둥은 스타일만으로 폭이 정해져 테스트 렌더러에서는 창 크기와 상관없이 같다. 휴대폰에서 지금과 같게 그려지는 조건을 따로 지킨다
 describe('휴대폰 폭에서는 지금과 같게 그려진다', () => {
-  it('가장 넓은 iPhone 세로 폭(440pt)보다 최대 폭이 넓어, 휴대폰에서는 기둥이 창 폭 그대로다', () => {
-    expect(READABLE_MAX_WIDTH).toBeGreaterThanOrEqual(440);
+  beforeEach(() => resizeWindow(375, 812));
+
+  it('세로로 고정하는 휴대폰보다 최대 폭이 넓어, 휴대폰에서는 기둥이 창 폭 그대로다', () => {
+    // MainActivity 는 짧은 변이 600dp 미만(LARGE_SCREEN_MIN_DP)이면 세로로 고정하므로 휴대폰 세로 폭은 600 보다 좁다.
+    // iPhone 세로는 가장 넓어도 440pt 다
+    expect(READABLE_MAX_WIDTH).toBeGreaterThanOrEqual(600);
     // 가로 여백을 더하면 휴대폰에서도 본문이 좁아진다
     expect(readableColumn).toEqual(READABLE_COLUMN);
   });
 
-  it('떠 있는 버튼 래퍼는 좌우 위치 없이 폭 100% 와 좌우 패딩으로 놓인다 (left/right 가 있으면 폭 100% 와 겹쳐 넘친다)', async () => {
+  it('떠 있는 버튼 래퍼는 좌우 위치 없이 폭 100% 와 좌우 패딩으로 놓인다 (left·right·start·end 가 있으면 폭 100% 와 겹쳐 넘친다)', async () => {
     await render(<App />);
     await userEvent.press(button('보일러 점검 상세 보기'));
 
@@ -178,8 +182,9 @@ describe('휴대폰 폭에서는 지금과 같게 그려진다', () => {
     expect(style).toEqual(
       expect.objectContaining({ ...READABLE_COLUMN, paddingHorizontal: 24 }),
     );
-    expect(style?.left).toBeUndefined();
-    expect(style?.right).toBeUndefined();
+    for (const inset of ['left', 'right', 'start', 'end'] as const) {
+      expect(style?.[inset]).toBeUndefined();
+    }
   });
 });
 

@@ -103,6 +103,15 @@ describe('Android 화면 방향 (#56 휴대폰 세로, 큰 화면 반응형)', (
     expect(large).toBe('SCREEN_ORIENTATION_UNSPECIFIED');
   });
 
+  it('방향은 그 함수 한 곳에서만 요청한다 (onResume 등에서 세로를 넣으면 태블릿도 묶인다)', () => {
+    const code = activity.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+    const requests =
+      code.match(/requestedOrientation\s*=(?!=)|setRequestedOrientation\(/g) ??
+      [];
+
+    expect(requests).toHaveLength(1);
+  });
+
   it('지금과 같은 방향이면 다시 요청하지 않는다 (키보드·uiMode 변경에도 불린다. 1초에 여러 번 요청하면 시스템이 반복으로 보고 무시할 수 있다)', () => {
     const { body } = orientationPolicy();
     const assignments = body.match(/requestedOrientation\s*=(?!=)/g) ?? [];
