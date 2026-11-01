@@ -16,7 +16,7 @@ import {
   Text,
   TextArea,
 } from '../../../shared/design-system';
-import { useKeyboardOverlap } from '../../../shared/keyboard/useKeyboardOverlap';
+import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import {
   rejectReasons,
   validateRejection,
@@ -43,7 +43,6 @@ export function RejectReasonScreen({
   const [selected, setSelected] = useState<RejectReasonKey | null>(null);
   const [otherText, setOtherText] = useState('');
   const [error, setError] = useState<keyof typeof errorMessages | null>(null);
-  const keyboard = useKeyboardOverlap();
 
   const select = (key: RejectReasonKey) => {
     setSelected(key);
@@ -83,13 +82,9 @@ export function RejectReasonScreen({
         </Text>
       </View>
 
-      <View
-        testID="reject-reason-body"
-        // Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다.
-        // 아래 버튼 줄은 iOS 처럼 키보드 뒤에 남는다
-        onLayout={keyboard.onLayout}
-        style={[styles.body, { paddingBottom: keyboard.overlap }]}
-      >
+      {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다.
+          아래 버튼 줄은 iOS 처럼 키보드 뒤에 남는다 */}
+      <KeyboardAvoidingArea testID="reject-reason-body">
         <ScrollView
           testID="reject-reason-scroll"
           // 끌어내리면 키보드가 손가락을 따라 내려간다. Android 는 interactive 가 없어 끌기 시작할 때 내린다
@@ -155,7 +150,7 @@ export function RejectReasonScreen({
             {error === 'otherText' && <ErrorText error={error} />}
           </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingArea>
 
       <View style={styles.actions}>
         <CTA
@@ -193,7 +188,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
-  body: { flex: 1 },
   content: {
     gap: 28,
     paddingHorizontal: 24,

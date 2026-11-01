@@ -139,15 +139,17 @@ describe('WorkDetailScreen', () => {
   });
 
   describe('키보드', () => {
-    // Platform.OS 만 바꾼다. 화면이 render 안에서 Platform.OS 를 읽어야 반영된다
-    // (jest 의 Platform.select·모듈 상수는 늘 ios). prop 값 확인에만 쓴다
+    // Platform.OS 만 바꾼다. render·effect 안에서 읽는 Platform.OS 에만 반영된다
+    // (jest 의 Platform.select·모듈 상수는 늘 ios)
     const renderOn = async (os: 'ios' | 'android') => {
       jest.replaceProperty(Platform, 'OS', os);
       await renderDetail();
       return screen.getByTestId('work-detail-scroll');
     };
 
-    afterEach(() => {
+    afterEach(async () => {
+      // Keyboard 모듈은 마지막 키보드 상태를 들고 있어 다음 테스트로 넘어가지 않게 내린다
+      await hideKeyboard();
       jest.restoreAllMocks();
     });
 
@@ -195,7 +197,6 @@ describe('WorkDetailScreen', () => {
       await showKeyboard(500);
 
       expect(body).toHaveStyle({ paddingBottom: 0 });
-      await hideKeyboard();
     });
   });
 

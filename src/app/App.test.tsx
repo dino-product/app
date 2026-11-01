@@ -10,9 +10,11 @@ import {
   AccessibilityInfo,
   Alert,
   BackHandler,
+  DeviceEventEmitter,
   Dimensions,
   FlatList,
   Linking,
+  Platform,
 } from 'react-native';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
@@ -230,6 +232,33 @@ describe('App', () => {
     await userEvent.press(tab('내 일정'));
 
     expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+
+  // 가려진 화면도 마운트된 채로 남으므로, 다른 화면에서 키보드를 쓸 때 다시 그리지 않게 구독을 푼다
+  it('Android 키보드 회피는 지금 보이는 화면만 키보드를 듣는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const keyboardListeners = () =>
+      DeviceEventEmitter.listenerCount('keyboardDidShow') +
+      DeviceEventEmitter.listenerCount('keyboardDidHide');
+    await render(<App />);
+    const before = keyboardListeners();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+    );
+    expect(keyboardListeners()).toBe(before + 2);
+
+    await userEvent.press(tab('내 일정'));
+    expect(keyboardListeners()).toBe(before);
+
+    // 홈 탭에 작업 상세가 열린 채로 탭 위 루트 스택에 거절 사유를 연다
+    await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+    await userEvent.press(screen.getAllByRole('button', { name: / 상세,/ })[0]);
+    await userEvent.press(screen.getByRole('button', { name: '거절' }));
+    expect(keyboardListeners()).toBe(before + 2);
+
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(keyboardListeners()).toBe(before);
   });
 
   it('홈 첫 화면에서 홈 탭을 다시 눌러도 그대로다', async () => {

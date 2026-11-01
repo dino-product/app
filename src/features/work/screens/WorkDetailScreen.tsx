@@ -25,7 +25,7 @@ import {
   Text,
   TextArea,
 } from '../../../shared/design-system';
-import { useKeyboardOverlap } from '../../../shared/keyboard/useKeyboardOverlap';
+import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { Section, SectionBand } from '../components/InfoCard';
 import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
@@ -87,7 +87,6 @@ export function WorkDetailScreen({
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const reportY = useRef(0);
   const viewportHeight = useRef(0);
-  const keyboard = useKeyboardOverlap();
 
   // 제출을 마친 보고는 잃을 입력이 아니다. 제출 중에는 아직 결과가 없어 작성 중이다 (API 연동 때 다시 본다).
   // 글자마다가 아니라 여부가 바뀔 때만 알린다. 콜백이 바뀌어도 다시 부르지 않는다
@@ -177,12 +176,8 @@ export function WorkDetailScreen({
         </Text>
       </View>
 
-      <View
-        testID="work-detail-body"
-        // Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다
-        onLayout={keyboard.onLayout}
-        style={[styles.body, { paddingBottom: keyboard.overlap }]}
-      >
+      {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다 */}
+      <KeyboardAvoidingArea testID="work-detail-body">
         <ScrollView
           ref={scrollRef}
           testID="work-detail-scroll"
@@ -279,7 +274,7 @@ export function WorkDetailScreen({
             />
           </View>
         )}
-      </View>
+      </KeyboardAvoidingArea>
 
       {result && <ResultModal visible result={result} onConfirm={onDone} />}
     </SafeAreaView>
@@ -294,7 +289,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   back: { position: 'absolute', left: 20 },
-  body: { flex: 1 },
   content: { paddingBottom: 32 },
   submit: { marginHorizontal: 24, marginTop: 32 },
   jump: { position: 'absolute', left: 24, right: 24, bottom: 16 },
