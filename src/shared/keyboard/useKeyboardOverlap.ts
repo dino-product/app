@@ -1,5 +1,5 @@
 import { NavigationContext } from '@react-navigation/native';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -31,8 +31,9 @@ const overlapOf = (frame: Frame | null, keyboardTop: number | null) =>
  * - 창이 디스플레이 맨 위에서 시작한다. 분할 화면 아래쪽 창·자유형 창에서는 겹침이 틀어진다.
  * paddingBottom 이 영역 높이 이하면 View 자신의 frame 은 그대로라 다시 재도 값이 흔들리지 않는다.
  *
- * 내비게이터 안에서는 화면이 보이는 동안만 키보드를 듣는다. 다른 탭·위 화면에서 키보드를 써도
- * 가려진 화면은 렌더·레이아웃하지 않는다. 내비게이터 밖(테스트 등)에서는 늘 듣는다.
+ * 포커스는 가장 가까운 화면의 NavigationContext 를 따른다. 화면이 보이는 동안만 키보드를 듣고,
+ * 다른 탭·위 화면에서 키보드를 써도 가려진 동안에는 키보드 이벤트로 다시 그리지 않는다
+ * (blur 때 0 으로 한 번 되돌린다). 내비게이터 밖(화면 단위 테스트 등)에서는 늘 듣는다.
  * KeyboardAvoidingView 는 Android 에서 마운트 직후 같은 값으로 다시 렌더해 리렌더 예산에 걸려 쓰지 않는다.
  */
 export function useKeyboardOverlap() {
@@ -40,19 +41,25 @@ export function useKeyboardOverlap() {
   const frame = useRef<Frame | null>(null);
   const keyboardTop = useRef<number | null>(null);
   const [overlap, setOverlap] = useState(0);
+  const applied = useRef(0);
+
+  // 같은 값으로 setState 해도 직전에 값이 바뀌었으면 React 가 한 번 더 렌더하므로 결과로 거른다.
+  // 내비게이션 바만 바뀌어 같은 윗변으로 keyboardDidShow 가 다시 오거나, frame 이 바뀌어도 아래 끝이 같을 때다
+  const update = useCallback(() => {
+    const next = overlapOf(frame.current, keyboardTop.current);
+    if (next !== applied.current) {
+      applied.current = next;
+      setOverlap(next);
+    }
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
-    // 같은 값으로 setState 해도 직전에 값이 바뀌었으면 React 가 한 번 더 렌더하므로 먼저 거른다.
-    // 내비게이션 바만 바뀌면 RN 이 같은 윗변으로 keyboardDidShow 를 다시 보낸다
     const setKeyboardTop = (top: number | null) => {
-      if (top === keyboardTop.current) {
-        return;
-      }
       keyboardTop.current = top;
-      setOverlap(overlapOf(frame.current, top));
+      update();
     };
 
     let subscriptions: EmitterSubscription[] = [];
@@ -90,15 +97,12 @@ export function useKeyboardOverlap() {
       unsubscribeBlur?.();
       unlisten();
     };
-  }, [navigation]);
+  }, [navigation, update]);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { y, height } = event.nativeEvent.layout;
-    if (y === frame.current?.y && height === frame.current.height) {
-      return;
-    }
     frame.current = { y, height };
-    setOverlap(overlapOf(frame.current, keyboardTop.current));
+    update();
   };
 
   return {

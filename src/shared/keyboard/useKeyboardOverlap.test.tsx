@@ -41,7 +41,8 @@ function fakeNavigation() {
       focused = type === 'focus';
       listeners[type].forEach(callback => callback());
     });
-  return { navigation, emit };
+  const listening = () => listeners.focus.size + listeners.blur.size;
+  return { navigation, emit, listening };
 }
 
 async function renderOn(
@@ -141,6 +142,7 @@ describe('useKeyboardOverlap', () => {
     await showKeyboard(500);
     await showKeyboard(500); // 내비게이션 바만 바뀌면 같은 윗변으로 다시 온다
     await onLayout(100, 700);
+    await onLayout(0, 800); // 위치·높이가 바뀌어도 아래 끝이 같으면 가린 높이도 같다
     expect(renders()).toBe(2);
   });
 
@@ -175,23 +177,50 @@ describe('useKeyboardOverlap', () => {
     expect(keyboardListeners()).toBe(before);
   });
 
+  it('내비게이션이 바뀌면 이전 포커스 구독을 풀고, 키보드 구독과 값은 그대로 둔다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const first = fakeNavigation();
+    const second = fakeNavigation();
+    let navigation = first.navigation;
+    let renders = 0;
+    const before = keyboardListeners();
+    const { result, rerender } = await renderHook(
+      () => {
+        renders += 1;
+        return useKeyboardOverlap();
+      },
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <NavigationContext.Provider value={navigation}>
+            {children}
+          </NavigationContext.Provider>
+        ),
+      },
+    );
+    await act(() => result.current.onLayout?.(layout(100, 700)));
+    await showKeyboard(500);
+    expect(renders).toBe(2);
+
+    navigation = second.navigation;
+    await rerender({});
+
+    expect(first.listening()).toBe(0);
+    expect(second.listening()).toBe(2);
+    expect(keyboardListeners()).toBe(before + 2);
+    expect(result.current.overlap).toBe(300);
+    expect(renders).toBe(3); // rerender 한 번뿐이다
+  });
+
   it('언마운트하면 키보드와 포커스 구독을 푼다', async () => {
-    const { navigation } = fakeNavigation();
-    const addListener = jest.spyOn(navigation, 'addListener');
+    const { navigation, listening } = fakeNavigation();
     const before = keyboardListeners();
 
     const { unmount } = await renderOn('android', navigation);
     expect(keyboardListeners()).toBe(before + 2);
-    const unsubscribes = addListener.mock.results.map(
-      ({ value }) => value as () => boolean,
-    );
+    expect(listening()).toBe(2);
 
     await unmount();
     expect(keyboardListeners()).toBe(before);
-    // 이미 지운 리스너를 다시 지우면 false 다
-    expect(unsubscribes.map(unsubscribe => unsubscribe())).toEqual([
-      false,
-      false,
-    ]);
+    expect(listening()).toBe(0);
   });
 });
