@@ -1,0 +1,174 @@
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { Dimensions, StyleSheet, type ViewStyle } from 'react-native';
+import type { HostElement } from '../shared/testing/touchTarget';
+import App from './App';
+
+// #56: 큰 화면(태블릿, 펼친 폴더블)은 방향을 고정하지 않는다. Figma 는 휴대폰 세로 디자인뿐이라
+// 넓은 창·가로에서는 본문을 읽기 좋은 폭 안에서 가운데 정렬해 깨지지 않게만 한다.
+// 테스트 렌더러에는 레이아웃이 없으므로, 요소를 감싼 뷰의 스타일로 폭이 어떻게 정해지는지 확인한다.
+
+// 창 폭의 100% 를 쓰되 600 을 넘지 않고 가운데에 둔다 (Material 3 창 크기 클래스의 Compact 상한)
+const READABLE_COLUMN = { width: '100%', maxWidth: 600, alignSelf: 'center' };
+
+// 테이블 행: [창 폭, 창 높이]. 태블릿 세로(Medium)와 가로(Expanded)
+const WIDE_WINDOWS: [number, number][] = [
+  [840, 1200],
+  [1200, 840],
+];
+
+const initial = {
+  window: Dimensions.get('window'),
+  screen: Dimensions.get('screen'),
+};
+
+// useWindowDimensions 를 쓰는 화면이 다시 그려지므로 act 로 감싼다
+async function resizeWindow(width: number, height: number) {
+  const size = { ...initial.window, width, height };
+  await act(() => Dimensions.set({ window: size, screen: size }));
+}
+
+afterEach(async () => {
+  await act(() => Dimensions.set(initial));
+});
+
+const flat = (style: unknown) =>
+  StyleSheet.flatten(style as ViewStyle | undefined) as ViewStyle | undefined;
+
+// 요소에서 루트로 올라가며 최대 폭을 정한 뷰의 스타일을 찾는다.
+// 스크롤 뷰 안의 요소는 스크롤 뷰의 contentContainerStyle 이 폭을 정한다 (jest 목은 안쪽 View 에 스타일을 넘기지 않는다)
+function columnStyleOf(element: HostElement) {
+  for (let node: HostElement | null = element; node; node = node.parent) {
+    for (const style of [node.props.style, node.props.contentContainerStyle]) {
+      const resolved = flat(style);
+      if (resolved?.maxWidth !== undefined) {
+        return resolved;
+      }
+    }
+  }
+  return undefined;
+}
+
+const expectInReadableColumn = (...elements: HostElement[]) => {
+  for (const element of elements) {
+    expect(columnStyleOf(element)).toEqual(
+      expect.objectContaining(READABLE_COLUMN),
+    );
+  }
+};
+
+const header = (name: string) => screen.getByRole('header', { name });
+const button = (name: string | RegExp) => screen.getByRole('button', { name });
+
+async function openPendingRequest() {
+  await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
+  await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+  await userEvent.press(screen.getAllByRole('button', { name: / 상세,/ })[0]);
+}
+
+describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
+  beforeEach(() => resizeWindow(width, height));
+
+  it('홈: 제목·진행 중 작업·일정 카드가 읽기 좋은 폭 안에서 가운데 정렬된다', async () => {
+    await render(<App />);
+
+    expectInReadableColumn(
+      header('내 작업'),
+      button('보일러 점검 상세 보기'),
+      button('작업 시작'),
+      screen.getAllByRole('button', { name: / · / })[0],
+    );
+  });
+
+  it('작업 상세: 헤더·본문·제출 버튼·떠 있는 "완료 보고 작성하기" 가 읽기 좋은 폭 안에 있다', async () => {
+    await render(<App />);
+    await userEvent.press(button('보일러 점검 상세 보기'));
+
+    expectInReadableColumn(
+      header('작업 상세'),
+      button('뒤로 가기'),
+      button('작업 전 사진 추가'),
+      button('완료보고 제출'),
+      button('완료 보고 작성하기'),
+    );
+  });
+
+  it('작업 상세: 떠 있는 버튼 양옆 빈 곳의 터치는 아래 스크롤 뷰로 지나간다', async () => {
+    await render(<App />);
+    await userEvent.press(button('보일러 점검 상세 보기'));
+
+    let node: HostElement | null = button('완료 보고 작성하기');
+    while (node && flat(node.props.style)?.position !== 'absolute') {
+      node = node.parent;
+    }
+    expect(node?.props.pointerEvents).toBe('box-none');
+  });
+
+  it('내 일정: 제목·하위 탭·주간 줄·달력·응답 필요 카드가 읽기 좋은 폭 안에 있다', async () => {
+    await render(<App />);
+    await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
+
+    expectInReadableColumn(
+      header('내 일정'),
+      screen.getByRole('tab', { name: /^확정 일정/ }),
+      screen.getAllByRole('button', { name: /^\d+월 \d+일 .요일$/ })[0],
+    );
+
+    await userEvent.press(button('달력 펼치기'));
+    expectInReadableColumn(button('이전 달'), button('다음 달'));
+
+    await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+    expectInReadableColumn(
+      screen.getAllByRole('button', { name: / 상세,/ })[0],
+      screen.getAllByRole('button', { name: / 수락$/ })[0],
+    );
+  });
+
+  it('요청 상세·거절 사유: 헤더·본문·하단 버튼이 읽기 좋은 폭 안에 있다', async () => {
+    await render(<App />);
+    await openPendingRequest();
+
+    expectInReadableColumn(
+      header('작업 상세'),
+      button('뒤로 가기'),
+      button('거절'),
+      button('수락'),
+    );
+
+    await userEvent.press(button('거절'));
+    expectInReadableColumn(
+      header('거절 사유'),
+      screen.getAllByRole('radio')[0],
+      button('취소'),
+      button('거절 제출'),
+    );
+  });
+
+  it('하단 탭 바는 화면 배경처럼 창 전체 폭을 쓴다', async () => {
+    await render(<App />);
+
+    expect(columnStyleOf(screen.getByRole('tab', { name: '홈' }))).toBe(
+      undefined,
+    );
+  });
+});
+
+describe('창 크기가 바뀔 때 (회전, 폴더블 접고 펴기, 분할 화면)', () => {
+  // 네이티브 화면은 받는 영역(start ≤ x ≤ end) 밖의 스와이프를 거절한다
+  const swipeEnd = (title: string) => {
+    let node: HostElement | null = header(title).parent;
+    while (node && !node.props.gestureResponseDistance) {
+      node = node.parent;
+    }
+    return node?.props.gestureResponseDistance?.end;
+  };
+
+  it('뒤로 가기 스와이프 범위(창 폭의 왼쪽 1/3)를 새 창 폭으로 다시 계산한다', async () => {
+    await resizeWindow(840, 1200);
+    await render(<App />);
+    await userEvent.press(button('보일러 점검 상세 보기'));
+    expect(swipeEnd('작업 상세')).toBe(280);
+
+    await resizeWindow(1200, 840);
+    expect(swipeEnd('작업 상세')).toBe(400);
+  });
+});
