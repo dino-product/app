@@ -5,6 +5,7 @@ React Native(순수 CLI, Expo 미사용) 크로스 플랫폼 앱. iOS 는 Xcode 
 - 작업 방식: 티켓(GitHub Issue) 기반 + TDD → [docs/workflow.md](docs/workflow.md)
 - 성능 예산 (버벅임·발열 방지) → [docs/performance.md](docs/performance.md), 값은 [`performance-budget.json`](performance-budget.json)
 - 실기기 설치 → [docs/device-build.md](docs/device-build.md)
+- TestFlight 업로드 → [docs/testflight.md](docs/testflight.md)
 
 ## 스택
 
