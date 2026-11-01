@@ -4,9 +4,11 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
 } from '@testing-library/react-native';
 import {
   AccessibilityInfo,
+  Alert,
   BackHandler,
   FlatList,
   Linking,
@@ -21,6 +23,34 @@ const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 // 탭 바(tablist)는 accessible 요소가 아니라 역할로 못 찾으므로 탭 버튼으로 확인한다
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
+
+// Android 뒤로가기: RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리(true)하면 멈춘다.
+// 아무도 처리하지 않으면(false) RN 은 앱을 나간다.
+async function renderWithBackButton() {
+  type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+  const handlers = new Set<Handler>();
+  jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, handler) => {
+      handlers.add(handler);
+      return { remove: () => handlers.delete(handler) };
+    });
+  await render(<App />);
+
+  return async () => {
+    let handled = false;
+    await act(() => {
+      // 이벤트 인자는 쓰지 않는다
+      handled = [...handlers]
+        .reverse()
+        .some(handler => handler(undefined as never) === true);
+    });
+    return handled;
+  };
+}
+
+// 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막는다
+const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 // 작업을 시작하고 상세에서 완료 보고를 채워 제출한다. 결과 모달이 열린 채로 끝난다
 async function submitReport() {
@@ -91,31 +121,6 @@ describe('App', () => {
   });
 
   describe('Android 뒤로가기', () => {
-    // RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리(true)하면 멈춘다.
-    // 아무도 처리하지 않으면(false) RN 은 앱을 나간다.
-    async function renderWithBackButton() {
-      type Handler = Parameters<typeof BackHandler.addEventListener>[1];
-      const handlers = new Set<Handler>();
-      jest
-        .spyOn(BackHandler, 'addEventListener')
-        .mockImplementation((_event, handler) => {
-          handlers.add(handler);
-          return { remove: () => handlers.delete(handler) };
-        });
-      await render(<App />);
-
-      return async () => {
-        let handled = false;
-        await act(() => {
-          // 이벤트 인자는 쓰지 않는다
-          handled = [...handlers]
-            .reverse()
-            .some(handler => handler(undefined as never) === true);
-        });
-        return handled;
-      };
-    }
-
     it('상세에서 누르면 메인화면으로 돌아온다', async () => {
       const pressBack = await renderWithBackButton();
 
@@ -156,6 +161,7 @@ describe('App', () => {
   });
 
   it('완료 보고를 제출하고 메인으로 돌아오면 다시 "작업 시작" 상태다', async () => {
+    const alert = spyAlert();
     await render(<App />);
 
     await submitReport();
@@ -165,6 +171,8 @@ describe('App', () => {
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
+    // 제출을 마친 보고는 잃을 입력이 아니라 나갈 때 묻지 않는다
+    expect(alert).not.toHaveBeenCalled();
   });
 
   it('상세에서 지금 탭("홈")을 다시 누르면 그 탭의 첫 화면으로 돌아간다', async () => {
@@ -432,6 +440,203 @@ describe('App', () => {
       expect(
         screen.getByRole('button', { name: '작업 시작' }),
       ).toBeOnTheScreen();
+    });
+  });
+
+  describe('작성 중인 완료 보고가 있으면 화면을 닫기 전에 묻는다', () => {
+    // 넘긴 버튼을 꺼내 직접 누른다
+    const pressAlertButton = (
+      alert: ReturnType<typeof spyAlert>,
+      text: string,
+    ) => {
+      const button = alert.mock.lastCall?.[2]?.find(item => item.text === text);
+      if (!button) {
+        throw new Error(`대화상자에 "${text}" 버튼이 없다`);
+      }
+      return act(() => button.onPress?.());
+    };
+    // iOS 스와이프: 막는 동안 native-stack 은 화면에 preventNativeDismiss 를 켠다.
+    // 끝까지 밀면 react-native-screens 가 빠진 화면을 다시 밀어 넣고 onNativeDismissCancelled 로,
+    // 막지 않을 때는 onDismissed 로 알린다. 테스트 환경에는 제스처가 없어 그 네이티브 이벤트를 직접 보낸다
+    const nativeScreen = (title: string) => {
+      let node = screen.getByRole('header', { name: title }).parent;
+      while (node && !node.props.onNativeDismissCancelled) {
+        node = node.parent;
+      }
+      if (!node) {
+        throw new Error(`"${title}" 화면이 네이티브 스택 화면 안에 없다`);
+      }
+      return node;
+    };
+    const swipeBack = (
+      title: string,
+      event: 'dismissed' | 'nativeDismissCancelled',
+    ) =>
+      fireEvent(nativeScreen(title), event, {
+        nativeEvent: { dismissCount: 1 },
+      });
+
+    const openDetail = () =>
+      userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+    async function openDetailWithMemo() {
+      await openDetail();
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+    }
+    const expectBackHome = () => {
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    };
+
+    it('뒤로 가기 버튼: 묻고, "계속 작성" 이면 입력을 둔 채 머문다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(alert).toHaveBeenCalledWith(
+        '작성 중인 완료 보고가 있어요',
+        '나가면 입력한 사진·메모·결제 정보가 사라집니다.',
+        [
+          expect.objectContaining({ text: '계속 작성', style: 'cancel' }),
+          expect.objectContaining({ text: '나가기', style: 'destructive' }),
+        ],
+        // Android 는 뒤로가기·바깥 탭으로 닫을 수 있고, 그러면 '계속 작성' 과 같다
+        { cancelable: true },
+      );
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '계속 작성');
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배관 교체',
+      );
+
+      // 한 번 머물렀어도 다시 나가려 하면 또 묻는다
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(alert).toHaveBeenCalledTimes(2);
+      expect(header('작업 상세')).toBeOnTheScreen();
+    });
+
+    it('뒤로 가기 버튼: "나가기" 면 메인화면으로 돌아가고, 다시 열면 빈 보고다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+
+      await openDetail();
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue('');
+    });
+
+    it('iOS 스와이프: 입력이 있는 동안 네이티브 닫기를 막고, 끝까지 밀면 묻는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetail();
+      expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBeFalsy();
+
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+      expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBe(true);
+
+      await swipeBack('작업 상세', 'nativeDismissCancelled');
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('Android 뒤로가기: 앱이 처리해(앱을 나가지 않고) 묻는다 — 사진만 넣은 경우', async () => {
+      const alert = spyAlert();
+      const pressBack = await renderWithBackButton();
+      await openDetail();
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 추가' }),
+      );
+
+      expect(await pressBack()).toBe(true);
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('VoiceOver 두 손가락 Z: 묻고, "나가기" 면 메인화면으로 돌아간다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await escapeFrom('작업 상세');
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    // 지금 탭을 다시 누르면 상세를 스택에서 빼므로 화면을 닫는 경우다
+    it('상세에서 지금 탭("홈")을 다시 눌러도 묻는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(tab('홈'));
+      await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('입력이 없거나 입력했다 지우면 묻지 않고 닫는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+
+      await openDetail();
+      await swipeBack('작업 상세', 'dismissed');
+      expectBackHome();
+
+      await openDetailWithMemo();
+      await userEvent.clear(screen.getByLabelText('수행 메모 입력'));
+      expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBeFalsy();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expectBackHome();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
+    // 제출을 마친 뒤 '메인 화면으로' 는 위 '완료 보고를 제출하고 메인으로 돌아오면…' 에서 확인한다.
+    // 결과 모달의 두 손가락 Z 도 '메인 화면으로' 와 같은 동작이라 묻지 않는다
+    it('제출 뒤 결과 모달에서 두 손가락 Z 로 나가도 묻지 않는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+
+      await submitReport();
+      await escapeFrom('제출 완료');
+
+      expectBackHome();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
+    it('다른 탭으로 옮길 때는 묻지 않는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(tab('내 일정'));
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
     });
   });
 
