@@ -46,6 +46,11 @@ export function formatMonthTitle(year: number, month: number): string {
 const addDays = (date: Date, days: number) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 
+/** delta 주 앞뒤의 같은 요일 */
+export function addWeeks(date: Date, delta: number): Date {
+  return addDays(date, delta * 7);
+}
+
 /** 그 날이 속한 주의 일요일~토요일 */
 export function weekDays(date: Date): Date[] {
   const sunday = addDays(date, -date.getDay());

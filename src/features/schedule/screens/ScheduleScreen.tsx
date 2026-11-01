@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type Ref } from 'react';
 import {
+  AccessibilityInfo,
   FlatList,
   Pressable,
   StyleSheet,
@@ -13,11 +14,13 @@ import {
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
+import { dayA11yLabel } from '../components/calendarDay';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
+  addWeeks,
   formatDateHeader,
   toDateKey,
   weekDays,
@@ -79,6 +82,15 @@ export function ScheduleScreen({
   const moveMonth = (delta: number) =>
     setViewMonth(prev => addMonths(prev.year, prev.month, delta));
 
+  // 주를 옮기면 선택 날짜도 같은 요일로 옮긴다 (iOS 캘린더 일 보기와 같다). 주간 줄은 선택 날짜의 주를 그린다.
+  // VoiceOver 동작으로 옮기면 포커스한 칸의 날짜만 바뀌므로 새로 고른 날을 읽어 준다 (VoiceOver 가 꺼져 있으면 아무 일도 없다)
+  const moveWeek = (delta: number) => {
+    const next = addWeeks(selected, delta);
+    selectDate(next);
+    AccessibilityInfo.announceForAccessibility(dayA11yLabel(next));
+  };
+  const week = useMemo(() => weekDays(selected), [selected]);
+
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
     [],
@@ -121,9 +133,11 @@ export function ScheduleScreen({
         />
       ) : (
         <WeekStrip
-          days={weekDays(selected)}
+          days={week}
           selected={selected}
           onSelect={selectDate}
+          onPrev={() => moveWeek(-1)}
+          onNext={() => moveWeek(1)}
         />
       )}
     </View>

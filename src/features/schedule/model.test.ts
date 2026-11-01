@@ -1,5 +1,6 @@
 import {
   addMonths,
+  addWeeks,
   formatDateHeader,
   formatMonthTitle,
   isSameDay,
@@ -58,6 +59,13 @@ describe('날짜 계산', () => {
   it('addMonths 는 해를 넘나든다', () => {
     expect(addMonths(2026, 11, 1)).toEqual({ year: 2027, month: 0 });
     expect(addMonths(2026, 0, -1)).toEqual({ year: 2025, month: 11 });
+  });
+
+  it('addWeeks 는 같은 요일로 주를 옮기고 달·해를 넘나든다', () => {
+    expect(toDateKey(addWeeks(new Date(2026, 11, 15), 1))).toBe('2026-12-22');
+    expect(toDateKey(addWeeks(new Date(2026, 11, 15), -1))).toBe('2026-12-08');
+    expect(toDateKey(addWeeks(new Date(2026, 11, 29), 1))).toBe('2027-01-05');
+    expect(addWeeks(new Date(2026, 11, 29), 1).getDay()).toBe(2);
   });
 
   it('isSameDay 는 시각을 무시하고 날짜만 비교한다', () => {

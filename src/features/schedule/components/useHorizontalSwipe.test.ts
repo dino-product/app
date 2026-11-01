@@ -1,0 +1,84 @@
+import { renderHook } from '@testing-library/react-native';
+import { drag } from '../../../../jest/gesture';
+import { useHorizontalSwipe } from './useHorizontalSwipe';
+
+const setup = async () => {
+  const onSwipeLeft = jest.fn();
+  const onSwipeRight = jest.fn();
+  const hook = await renderHook(
+    (props: Parameters<typeof useHorizontalSwipe>[0]) =>
+      useHorizontalSwipe(props),
+    { initialProps: { onSwipeLeft, onSwipeRight } },
+  );
+  return { onSwipeLeft, onSwipeRight, ...hook };
+};
+
+describe('useHorizontalSwipe', () => {
+  it('왼쪽으로 밀면 onSwipeLeft, 오른쪽으로 밀면 onSwipeRight 를 부른다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    await drag(result.current, { dx: -80 });
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+    expect(onSwipeRight).not.toHaveBeenCalled();
+
+    await drag(result.current, { dx: 80 });
+    expect(onSwipeRight).toHaveBeenCalledTimes(1);
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+  });
+
+  it('터치를 시작할 때는 응답자가 되지 않아 날짜 탭은 안쪽 버튼이 받는다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    const { granted } = await drag(result.current, { dx: 0, dy: 0 });
+
+    expect(granted).toBe(false);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+    expect(onSwipeRight).not.toHaveBeenCalled();
+  });
+
+  it('세로로 더 많이 움직이면 응답자가 되지 않고 리스트 스크롤에 맡긴다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    expect((await drag(result.current, { dx: 0, dy: 120 })).granted).toBe(
+      false,
+    );
+    expect((await drag(result.current, { dx: -60, dy: 90 })).granted).toBe(
+      false,
+    );
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+    expect(onSwipeRight).not.toHaveBeenCalled();
+  });
+
+  it('조금만 밀었다 놓으면 넘기지 않는다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    const { granted } = await drag(result.current, { dx: -30 });
+
+    expect(granted).toBe(true);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+    expect(onSwipeRight).not.toHaveBeenCalled();
+  });
+
+  it('밀던 중에 리스트가 스크롤하겠다고 하면 넘겨 주고 넘기지 않는다', async () => {
+    const { result, onSwipeLeft } = await setup();
+
+    const { released } = await drag(result.current, {
+      dx: -80,
+      cancel: true,
+    });
+
+    expect(released).toBe(true);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+  });
+
+  it('콜백이 바뀌면 다음 밀기부터 새 콜백을 부른다', async () => {
+    const { result, rerender, onSwipeLeft, onSwipeRight } = await setup();
+    const nextLeft = jest.fn();
+
+    await rerender({ onSwipeLeft: nextLeft, onSwipeRight });
+    await drag(result.current, { dx: -80 });
+
+    expect(nextLeft).toHaveBeenCalledTimes(1);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+  });
+});
