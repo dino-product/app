@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, Icon, Text } from '../../../shared/design-system';
+import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import {
   formatMonthTitle,
   isSameDay,
@@ -21,6 +22,7 @@ export function MonthCalendar({
   onSelect,
   onPrev,
   onNext,
+  edgeInset = 0,
 }: {
   year: number;
   month: number;
@@ -29,12 +31,17 @@ export function MonthCalendar({
   onSelect: (date: Date) => void;
   onPrev: () => void;
   onNext: () => void;
+  /** 부모가 화면 가장자리에서 들어간 거리. Android 에서 이만큼 바깥까지 가장자리 밀기를 받는다 */
+  edgeInset?: number;
 }) {
   const swipeHandlers = useHorizontalSwipe({
     onSwipeLeft: onNext,
     onSwipeRight: onPrev,
   });
   const weeks = useMemo(() => monthGrid(year, month), [year, month]);
+  const gridHeight =
+    weeks.length * styles.circle.height +
+    (weeks.length - 1) * styles.container.gap;
 
   return (
     <View
@@ -76,8 +83,13 @@ export function MonthCalendar({
         ))}
       </View>
 
-      {weeks.map(week => (
+      {weeks.map((week, row) => (
         <View key={toDateKey(week[0].date)} style={styles.week}>
+          {row === 0 && (
+            // 시스템은 한쪽 가장자리마다 세로 200dp 까지만 빼 준다. 밀기는 주로 날짜 칸에서 하고 제목 줄에는
+            // 이전·다음 달 버튼이 있으니 첫 주부터 뺀다. 어느 달이든 넷째 주까지는 있어 달을 넘겨도 같은 자리다
+            <GestureExclusionArea edgeInset={edgeInset} height={gridHeight} />
+          )}
           {week.map(({ date, inMonth }) => {
             const active = isSameDay(date, selected);
             const marked = markedKeys.has(toDateKey(date));
