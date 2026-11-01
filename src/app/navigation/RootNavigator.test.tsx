@@ -4,6 +4,7 @@ import {
   createNavigationContainerRef,
 } from '@react-navigation/native';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { escapeTarget } from '../../../jest/voiceOver';
 import { AppStateProvider } from '../AppStateProvider';
 import { RootNavigator } from './RootNavigator';
 import type { RootStackParamList } from './types';
@@ -51,14 +52,6 @@ describe('RootNavigator — 없는 요청', () => {
 });
 
 describe('RootNavigator — VoiceOver escape', () => {
-  const escapeTarget = (title: string) => {
-    let node = screen.getByRole('header', { name: title }).parent;
-    while (node && !node.props.onAccessibilityEscape) {
-      node = node.parent;
-    }
-    return node;
-  };
-
   it('아래 화면이 빠져 스택 첫 화면이 되면 escape 만 끄고 화면은 다시 만들지 않는다', async () => {
     await renderAt([
       { name: 'Main' },

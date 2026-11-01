@@ -1,5 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { escapeFrom, escapeTarget } from '../../../../jest/voiceOver';
 import { colors } from '../../../shared/design-system';
+import type { SubmitResult } from '../model';
 import { ResultModal } from './ResultModal';
 
 describe('ResultModal', () => {
@@ -53,6 +55,40 @@ describe('ResultModal', () => {
     );
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  // iOS 의 RN Modal 은 escape 를 처리하지 않아 모달 내용이 직접 받는다
+  it.each<[string, SubmitResult]>([
+    ['제출 완료', { kind: 'submitted', at: '10.01 15:15' }],
+    [
+      '작업이 취소되었습니다',
+      { kind: 'canceled', reason: '고객 요청', at: '10.01 15:15' },
+    ],
+  ])(
+    '%s: 두 손가락 Z 로 "메인 화면으로" 와 같이 닫는다',
+    async (title, result) => {
+      const onConfirm = jest.fn();
+      await render(
+        <ResultModal visible result={result} onConfirm={onConfirm} />,
+      );
+
+      await escapeFrom(title);
+
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('escape 를 받는 뷰는 iOS 뷰 평탄화로 사라지지 않는다', async () => {
+    await render(
+      <ResultModal
+        visible
+        result={{ kind: 'submitted', at: '10.01 15:15' }}
+        onConfirm={jest.fn()}
+      />,
+    );
+
+    // 지금은 배경색이 있어 네이티브 뷰가 된다. 배경색이 빠지면 escape 핸들러만 남아 Fabric 이 평탄화한다
+    expect(escapeTarget('제출 완료')?.props.collapsable).toBe(false);
   });
 
   it('visible 이 false 면 아무것도 그리지 않는다', async () => {

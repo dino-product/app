@@ -11,10 +11,6 @@ import {
 import { dayA11yLabel, weekdayColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
-const ARROW_HIT_SLOP = 12;
-// 밀기를 받는 루트는 네이티브 뷰라 그 경계 밖 터치는 자식에게 가지 않는다. 맨 위 화살표가 넘치는 만큼 넓힌다
-const SWIPE_HIT_SLOP = { top: ARROW_HIT_SLOP };
-
 // Figma 내 일정 › 달력 펼침. 선택일은 Secondary 원, 일정이 있는 날은 점으로 표시한다.
 // 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달. 이전·다음 달 버튼과 같은 콜백을 부른다.
 export function MonthCalendar({
@@ -43,7 +39,7 @@ export function MonthCalendar({
   return (
     <View
       testID="month-calendar"
-      hitSlop={SWIPE_HIT_SLOP}
+      hitSlop={ROOT_HIT_SLOP}
       style={styles.container}
       {...swipeHandlers}
     >
@@ -51,7 +47,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="이전 달"
-          hitSlop={ARROW_HIT_SLOP}
+          hitSlop={PREV_HIT_SLOP}
           onPress={onPrev}
         >
           <Icon name="chevron-left" size={16} color={colors.gray[500]} />
@@ -60,7 +56,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="다음 달"
-          hitSlop={ARROW_HIT_SLOP}
+          hitSlop={NEXT_HIT_SLOP}
           onPress={onNext}
         >
           <Icon name="chevron-right" size={16} color={colors.gray[500]} />
@@ -91,6 +87,7 @@ export function MonthCalendar({
                 accessibilityRole="button"
                 accessibilityLabel={dayA11yLabel(date)}
                 accessibilityState={{ selected: active }}
+                hitSlop={DAY_HIT_SLOP}
                 onPress={() => onSelect(date)}
                 style={styles.cell}
               >
@@ -126,6 +123,14 @@ export function MonthCalendar({
     </View>
   );
 }
+
+// 16pt 화살표를 터치 최소 44pt 로 보완한다. 제목 쪽은 간격(12)까지만 넓힌다 (제목이 먼저 받는다)
+const PREV_HIT_SLOP = { top: 14, bottom: 14, left: 16, right: 12 };
+const NEXT_HIT_SLOP = { top: 14, bottom: 14, left: 12, right: 16 };
+// 날짜 칸 높이 40 을 터치 최소 44pt 로 보완한다
+const DAY_HIT_SLOP = { top: 2, bottom: 2 };
+// 루트가 네이티브 뷰가 되어도 화살표·마지막 주가 루트 밖으로 넓힌 영역에 터치가 닿게 한다
+const ROOT_HIT_SLOP = { top: PREV_HIT_SLOP.top, bottom: DAY_HIT_SLOP.bottom };
 
 const styles = StyleSheet.create({
   container: { gap: 12 },

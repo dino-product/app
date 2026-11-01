@@ -6,6 +6,13 @@ import {
 } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import {
+  expectMinTouchTarget,
+  hitSlopOf,
+  LAYOUT_BASE_WIDTH,
+  stylePt,
+  type HostElement,
+} from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ScheduleScreen } from './ScheduleScreen';
 
@@ -309,5 +316,42 @@ describe('ScheduleScreen — 응답 필요', () => {
       ).toBeNull();
       expect(screen.getByLabelText(/^세탁기 설치, 배정됨/)).toBeOnTheScreen();
     });
+  });
+});
+
+// 주간 줄·달력의 칸 폭과 간격은 화면 폭에서 dateArea 좌우 패딩을 뺀 폭으로 정해진다
+describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
+  const contentWidth = (dateArea: HostElement) =>
+    LAYOUT_BASE_WIDTH - stylePt(dateArea, 'paddingHorizontal') * 2;
+
+  it('주간 날짜 칸이 넓힌 영역이 칸 사이 간격 안에 든다', async () => {
+    await renderSchedule();
+
+    const day = screen.getByRole('button', { name: '12월 15일 화요일' });
+    const dateArea = day.parent?.parent as HostElement;
+    // 7칸을 space-between 으로 벌리므로 칸 사이 간격은 남는 폭의 1/6 이다
+    const spacing = (contentWidth(dateArea) - stylePt(day, 'minWidth') * 7) / 6;
+    const slop = hitSlopOf(day);
+    expect(slop.left + slop.right).toBeLessThanOrEqual(spacing);
+  });
+
+  it('달력 날짜 칸 폭(달력 폭의 1/7)이 44pt 이상이다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    const day = screen.getByRole('button', { name: '12월 15일 화요일' });
+    // 날짜 칸 › 주(행) › 달력 › dateArea
+    const dateArea = day.parent?.parent?.parent as HostElement;
+    expectMinTouchTarget(day, { width: contentWidth(dateArea) / 7 });
+  });
+
+  it('탭이 위로 넓힌 영역은 화면 제목 아래 여백 안에 든다', async () => {
+    await renderSchedule();
+
+    const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
+    const title = screen.getByRole('header', { name: '내 일정' });
+    expect(hitSlopOf(tab).top).toBeLessThanOrEqual(
+      stylePt(title, 'paddingBottom'),
+    );
   });
 });

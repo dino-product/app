@@ -80,6 +80,7 @@ export function WorkInfoSections({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${work.customer.name} 고객에게 전화`}
+              hitSlop={CALL_HIT_SLOP}
               onPress={() => onCall(work.customer.phone)}
               style={styles.call}
             >
@@ -135,6 +136,9 @@ export function WorkInfoSections({
     </>
   );
 }
+
+// 전화 버튼 40×40 을 터치 최소 44pt 로 보완한다
+const CALL_HIT_SLOP = 2;
 
 const styles = StyleSheet.create({
   summary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },

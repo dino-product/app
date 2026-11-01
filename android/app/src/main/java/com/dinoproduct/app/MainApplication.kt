@@ -1,6 +1,7 @@
 package com.dinoproduct.app
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -22,6 +23,8 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    // 다크 모드 미지원(#20). 첫 Activity 전에 정해야 RN 이 보는 uiMode(내비게이션 바, Appearance)도 라이트다.
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     loadReactNative(this)
   }
 }
