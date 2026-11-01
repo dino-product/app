@@ -81,6 +81,18 @@ export function canSubmitReport(report: WorkReport): boolean {
   );
 }
 
+/** 하나라도 입력했는지 (화면을 닫으면 사라질 입력). 공백만 쓴 메모·부품은 빈 것으로 본다 */
+export function hasReportInput(report: WorkReport): boolean {
+  return (
+    report.beforePhotos.length > 0 ||
+    report.afterPhotos.length > 0 ||
+    report.memo.trim() !== '' ||
+    report.parts.trim() !== '' ||
+    report.amount !== '' ||
+    report.paymentMethod !== null
+  );
+}
+
 export function formatWon(value: number): string {
   return `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}원`;
 }

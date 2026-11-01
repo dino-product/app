@@ -3,6 +3,7 @@ import {
   emptyReport,
   formatResultTime,
   formatWon,
+  hasReportInput,
   PHOTO_LIMIT,
   type WorkReport,
 } from './model';
@@ -32,6 +33,29 @@ describe('canSubmitReport', () => {
 
   it('수행 메모와 사용 부품은 선택 항목이다', () => {
     expect(canSubmitReport({ ...filled, memo: '', parts: '' })).toBe(true);
+  });
+});
+
+describe('hasReportInput', () => {
+  it('아무것도 입력하지 않았으면 입력이 없다', () => {
+    expect(hasReportInput(emptyReport)).toBe(false);
+  });
+
+  it.each<[string, Partial<WorkReport>]>([
+    ['작업 전 사진', { beforePhotos: ['a'] }],
+    ['작업 후 사진', { afterPhotos: ['b'] }],
+    ['수행 메모', { memo: '배관 교체' }],
+    ['사용 부품', { parts: '밸브' }],
+    ['결제 금액', { amount: '75000' }],
+    ['결제 방식', { paymentMethod: 'cash' }],
+  ])('%s 하나만 있어도 입력이 있다', (_, patch) => {
+    expect(hasReportInput({ ...emptyReport, ...patch })).toBe(true);
+  });
+
+  it('공백만 쓴 메모·부품은 입력으로 보지 않는다', () => {
+    expect(hasReportInput({ ...emptyReport, memo: '  ', parts: '\n' })).toBe(
+      false,
+    );
   });
 });
 

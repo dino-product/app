@@ -238,6 +238,48 @@ describe('WorkDetailScreen', () => {
     expect(screen.getAllByText('0/5')).toHaveLength(2);
   });
 
+  describe('작성 중인 완료 보고 알림', () => {
+    it('입력하면 작성 중으로, 다 지우면 작성 중이 아니라고 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ onUnsavedReportChange });
+      expect(onUnsavedReportChange).not.toHaveBeenCalledWith(true);
+
+      await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관');
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+
+      await userEvent.clear(screen.getByLabelText('수행 메모 입력'));
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
+    });
+
+    it('입력이 바뀌어도 작성 중 여부가 같으면 다시 알리지 않는다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ onUnsavedReportChange });
+
+      await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관');
+      await userEvent.type(screen.getByLabelText('사용 부품 입력'), '밸브');
+
+      expect(
+        onUnsavedReportChange.mock.calls.filter(([unsaved]) => unsaved),
+      ).toHaveLength(1);
+    });
+
+    it('제출을 마치면 작성 중이 아니라고 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ onUnsavedReportChange });
+      await fillRequired();
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      );
+
+      expect(
+        await screen.findByRole('header', { name: '제출 완료' }),
+      ).toBeOnTheScreen();
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
   it('결제 방식 선택 버튼이 고른 값을 스크린리더에 알린다', async () => {
     await renderDetail();
 

@@ -4,9 +4,11 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
 } from '@testing-library/react-native';
 import {
   AccessibilityInfo,
+  Alert,
   BackHandler,
   FlatList,
   Linking,
@@ -20,6 +22,48 @@ const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 // 탭 바(tablist)는 accessible 요소가 아니라 역할로 못 찾으므로 탭 버튼으로 확인한다
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
+
+// Android 뒤로가기: RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리(true)하면 멈춘다.
+// 아무도 처리하지 않으면(false) RN 은 앱을 나간다.
+async function renderWithBackButton() {
+  type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+  const handlers = new Set<Handler>();
+  jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, handler) => {
+      handlers.add(handler);
+      return { remove: () => handlers.delete(handler) };
+    });
+  await render(<App />);
+
+  return async () => {
+    let handled = false;
+    await act(() => {
+      // 이벤트 인자는 쓰지 않는다
+      handled = [...handlers]
+        .reverse()
+        .some(handler => handler(undefined as never) === true);
+    });
+    return handled;
+  };
+}
+
+// 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다
+const escapeTarget = (title: string) => {
+  let node = screen.getByRole('header', { name: title }).parent;
+  while (node && !node.props.onAccessibilityEscape) {
+    node = node.parent;
+  }
+  return node;
+};
+// RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
+const escapeFrom = (title: string) => {
+  const target = escapeTarget(title);
+  if (!target) {
+    throw new Error(`"${title}" 화면은 escape 를 받지 않는다`);
+  }
+  return fireEvent(target, 'accessibilityEscape');
+};
 
 describe('App', () => {
   afterEach(() => {
@@ -73,31 +117,6 @@ describe('App', () => {
   });
 
   describe('Android 뒤로가기', () => {
-    // RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리(true)하면 멈춘다.
-    // 아무도 처리하지 않으면(false) RN 은 앱을 나간다.
-    async function renderWithBackButton() {
-      type Handler = Parameters<typeof BackHandler.addEventListener>[1];
-      const handlers = new Set<Handler>();
-      jest
-        .spyOn(BackHandler, 'addEventListener')
-        .mockImplementation((_event, handler) => {
-          handlers.add(handler);
-          return { remove: () => handlers.delete(handler) };
-        });
-      await render(<App />);
-
-      return async () => {
-        let handled = false;
-        await act(() => {
-          // 이벤트 인자는 쓰지 않는다
-          handled = [...handlers]
-            .reverse()
-            .some(handler => handler(undefined as never) === true);
-        });
-        return handled;
-      };
-    }
-
     it('상세에서 누르면 메인화면으로 돌아온다', async () => {
       const pressBack = await renderWithBackButton();
 
@@ -301,22 +320,6 @@ describe('App', () => {
     // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
     const finishTransition = (title: string) =>
       fireEvent(screen.getByRole('header', { name: title }), 'appear');
-    // 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다
-    const escapeTarget = (title: string) => {
-      let node = screen.getByRole('header', { name: title }).parent;
-      while (node && !node.props.onAccessibilityEscape) {
-        node = node.parent;
-      }
-      return node;
-    };
-    // RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
-    const escapeFrom = (title: string) => {
-      const target = escapeTarget(title);
-      if (!target) {
-        throw new Error(`"${title}" 화면은 escape 를 받지 않는다`);
-      }
-      return fireEvent(target, 'accessibilityEscape');
-    };
     // jest 프리셋이 이미 목으로 둬서 spyOn 이 같은 목을 돌려준다. 앞 테스트의 호출을 지운다
     const spyFocus = () =>
       jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockClear();
@@ -432,6 +435,208 @@ describe('App', () => {
 
       // Fabric 은 escape 핸들러만 있는 View 를 평탄화해 네이티브 뷰로 만들지 않는다
       expect(escapeTarget('작업 상세')?.props.collapsable).toBe(false);
+    });
+  });
+
+  describe('작성 중인 완료 보고가 있으면 화면을 닫기 전에 묻는다', () => {
+    // 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막고, 넘긴 버튼을 꺼내 직접 누른다
+    const spyAlert = () =>
+      jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const pressAlertButton = (
+      alert: ReturnType<typeof spyAlert>,
+      text: string,
+    ) => {
+      const button = alert.mock.lastCall?.[2]?.find(item => item.text === text);
+      if (!button) {
+        throw new Error(`대화상자에 "${text}" 버튼이 없다`);
+      }
+      return act(() => button.onPress?.());
+    };
+    // iOS 스와이프: 막는 동안 native-stack 은 화면에 preventNativeDismiss 를 켠다.
+    // 끝까지 민 스와이프를 UIKit 이 되돌린 뒤 onNativeDismissCancelled 로, 막지 않을 때는 onDismissed 로 알린다.
+    // 테스트 환경에는 제스처가 없어 그 네이티브 이벤트를 직접 보낸다
+    const nativeScreen = (title: string) => {
+      let node = screen.getByRole('header', { name: title }).parent;
+      while (node && !node.props.onNativeDismissCancelled) {
+        node = node.parent;
+      }
+      if (!node) {
+        throw new Error(`"${title}" 화면이 네이티브 스택 화면 안에 없다`);
+      }
+      return node;
+    };
+    const swipeBack = (
+      title: string,
+      event: 'dismissed' | 'nativeDismissCancelled',
+    ) =>
+      fireEvent(nativeScreen(title), event, {
+        nativeEvent: { dismissCount: 1 },
+      });
+
+    const openDetail = () =>
+      userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+    async function openDetailWithMemo() {
+      await openDetail();
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+    }
+    const expectBackHome = () => {
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    };
+
+    it('뒤로 가기 버튼: 묻고, "계속 작성" 이면 입력을 둔 채 머문다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(alert).toHaveBeenCalledWith(
+        '작성 중인 완료 보고가 있어요',
+        '나가면 입력한 사진·메모·결제 정보가 사라집니다.',
+        [
+          expect.objectContaining({ text: '계속 작성', style: 'cancel' }),
+          expect.objectContaining({ text: '나가기', style: 'destructive' }),
+        ],
+      );
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '계속 작성');
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배관 교체',
+      );
+    });
+
+    it('뒤로 가기 버튼: "나가기" 면 메인화면으로 돌아가고, 다시 열면 빈 보고다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+
+      await openDetail();
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue('');
+    });
+
+    it('iOS 스와이프: 입력이 있는 동안 네이티브 닫기를 막고, 되돌아온 스와이프에서 묻는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetail();
+      expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBeFalsy();
+
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+      expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBe(true);
+
+      await swipeBack('작업 상세', 'nativeDismissCancelled');
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('Android 뒤로가기: 앱이 처리해(앱을 나가지 않고) 묻는다', async () => {
+      const alert = spyAlert();
+      const pressBack = await renderWithBackButton();
+      await openDetailWithMemo();
+
+      expect(await pressBack()).toBe(true);
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('VoiceOver 두 손가락 Z: 묻고, "나가기" 면 메인화면으로 돌아간다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await escapeFrom('작업 상세');
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    // 지금 탭을 다시 누르면 상세를 스택에서 빼므로 화면을 닫는 경우다
+    it('상세에서 지금 탭("홈")을 다시 눌러도 묻는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(tab('홈'));
+      await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+      expectBackHome();
+    });
+
+    it('입력이 없거나 입력했다 지우면 묻지 않고 닫는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+
+      await openDetail();
+      await swipeBack('작업 상세', 'dismissed');
+      expectBackHome();
+
+      await openDetailWithMemo();
+      await userEvent.clear(screen.getByLabelText('수행 메모 입력'));
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expectBackHome();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
+    it('완료 보고를 제출한 뒤 "메인 화면으로" 는 묻지 않는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetail();
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 추가' }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 후 사진 추가' }),
+      );
+      await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
+      await userEvent.press(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '카드' }));
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      );
+      await userEvent.press(
+        await screen.findByRole('button', { name: '메인 화면으로' }),
+      );
+
+      expectBackHome();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
+    it('다른 탭으로 옮길 때는 묻지 않는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+      await openDetailWithMemo();
+
+      await userEvent.press(tab('내 일정'));
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
     });
   });
 

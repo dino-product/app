@@ -1,4 +1,10 @@
-import { useRef, useState, type ComponentRef, type Ref } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type Ref,
+} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -29,6 +35,7 @@ import { ResultModal } from '../components/ResultModal';
 import {
   canSubmitReport,
   emptyReport,
+  hasReportInput,
   PHOTO_LIMIT,
   type SubmitResult,
   type WorkDetail,
@@ -48,6 +55,8 @@ export type WorkDetailScreenProps = {
   onPickPhoto: () => Promise<string | null>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
+  /** 제출하지 않은 완료 보고 입력이 생기거나 없어질 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
+  onUnsavedReportChange?: (unsaved: boolean) => void;
 };
 
 type PhotoKey = 'beforePhotos' | 'afterPhotos';
@@ -64,6 +73,7 @@ export function WorkDetailScreen({
   onNavigate,
   onPickPhoto,
   titleRef,
+  onUnsavedReportChange,
 }: WorkDetailScreenProps) {
   const [report, setReport] = useState<WorkReport>(emptyReport);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -74,6 +84,12 @@ export function WorkDetailScreen({
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const reportY = useRef(0);
   const viewportHeight = useRef(0);
+
+  // 제출을 마친 보고는 잃을 입력이 아니다. 여부가 바뀔 때만 알린다
+  const unsavedReport = result === null && hasReportInput(report);
+  useEffect(() => {
+    onUnsavedReportChange?.(unsavedReport);
+  }, [unsavedReport, onUnsavedReportChange]);
 
   const update = (patch: Partial<WorkReport>) =>
     setReport(prev => ({ ...prev, ...patch }));
