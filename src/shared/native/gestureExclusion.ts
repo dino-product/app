@@ -1,13 +1,16 @@
 import type { ViewStyle } from 'react-native';
 
-/** 시스템이 화면 한쪽 가장자리마다 받아 주는 제외 영역의 세로 길이 (dp, View.setSystemGestureExclusionRects) */
+/**
+ * 시스템이 창의 한쪽 가장자리마다 받아 주는 제외 영역의 세로 길이 (dp, View.setSystemGestureExclusionRects).
+ * 창 안 모든 제외 영역을 합친 값이다
+ */
 const MAX_EXCLUSION_HEIGHT = 200;
 
 /**
  * 부모 안 top 에서 height 만큼의 가로 띠를 좌우로 edgeInset 만큼 바깥까지 넓힌 자리.
  * 부모가 화면 가장자리에서 edgeInset 만큼 들어가 있으면 띠가 가장자리 뒤로 가기 영역을 덮는다.
  * 200dp 를 넘는 띠는 위쪽 200dp 만 남긴다 (넘겨 주면 시스템은 아래쪽 200dp 만 받는다).
- * height 를 빼면 부모 아래 끝까지다.
+ * height 를 빼면 부모 아래 끝까지다 (이때도 200dp 까지).
  */
 export function gestureExclusionStyle({
   edgeInset,
