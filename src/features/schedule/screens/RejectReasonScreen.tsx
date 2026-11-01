@@ -16,6 +16,7 @@ import {
   Text,
   TextArea,
 } from '../../../shared/design-system';
+import { useKeyboardOverlap } from '../../../shared/keyboard/useKeyboardOverlap';
 import {
   rejectReasons,
   validateRejection,
@@ -42,6 +43,7 @@ export function RejectReasonScreen({
   const [selected, setSelected] = useState<RejectReasonKey | null>(null);
   const [otherText, setOtherText] = useState('');
   const [error, setError] = useState<keyof typeof errorMessages | null>(null);
+  const keyboard = useKeyboardOverlap();
 
   const select = (key: RejectReasonKey) => {
     setSelected(key);
@@ -81,65 +83,79 @@ export function RejectReasonScreen({
         </Text>
       </View>
 
-      <ScrollView
-        testID="reject-reason-scroll"
-        // 끌어내리면 키보드가 손가락을 따라 내려간다. Android 는 interactive 가 없어 끌기 시작할 때 내린다
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-        contentContainerStyle={styles.content}
+      <View
+        testID="reject-reason-body"
+        // Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다.
+        // 아래 버튼 줄은 iOS 처럼 키보드 뒤에 남는다
+        onLayout={keyboard.onLayout}
+        style={[styles.body, { paddingBottom: keyboard.overlap }]}
       >
-        <View style={styles.intro}>
-          <Text variant="Body/XL/Bold">작업을 거절할까요?</Text>
-          <Text variant="Caption/M/Regular" color={colors.gray[600]}>
-            거절 사유를 선택해 주세요. 사유는 등록 담당자에게 전달됩니다.
-          </Text>
-        </View>
+        <ScrollView
+          testID="reject-reason-scroll"
+          // 끌어내리면 키보드가 손가락을 따라 내려간다. Android 는 interactive 가 없어 끌기 시작할 때 내린다
+          keyboardDismissMode={
+            Platform.OS === 'ios' ? 'interactive' : 'on-drag'
+          }
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={styles.content}
+        >
+          <View style={styles.intro}>
+            <Text variant="Body/XL/Bold">작업을 거절할까요?</Text>
+            <Text variant="Caption/M/Regular" color={colors.gray[600]}>
+              거절 사유를 선택해 주세요. 사유는 등록 담당자에게 전달됩니다.
+            </Text>
+          </View>
 
-        <View accessibilityRole="radiogroup" style={styles.options}>
-          {rejectReasons.map(reason => {
-            const checked = selected === reason.key;
-            const isOther = reason.key === 'other';
-            return (
-              <Pressable
-                key={reason.key}
-                accessibilityRole="radio"
-                accessibilityLabel={isOther ? '기타 (직접 입력)' : reason.label}
-                accessibilityState={{ checked }}
-                onPress={() => select(reason.key)}
-                style={[styles.option, checked && styles.optionChecked]}
-              >
-                <Text variant="Body/XS/Medium">
-                  {reason.label}
-                  {isOther && (
-                    <Text variant="Body/XS/Medium" color={colors.gray[500]}>
-                      {' (직접 입력)'}
-                    </Text>
-                  )}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {error === 'select' && <ErrorText error={error} />}
-        </View>
+          <View accessibilityRole="radiogroup" style={styles.options}>
+            {rejectReasons.map(reason => {
+              const checked = selected === reason.key;
+              const isOther = reason.key === 'other';
+              return (
+                <Pressable
+                  key={reason.key}
+                  accessibilityRole="radio"
+                  accessibilityLabel={
+                    isOther ? '기타 (직접 입력)' : reason.label
+                  }
+                  accessibilityState={{ checked }}
+                  onPress={() => select(reason.key)}
+                  style={[styles.option, checked && styles.optionChecked]}
+                >
+                  <Text variant="Body/XS/Medium">
+                    {reason.label}
+                    {isOther && (
+                      <Text variant="Body/XS/Medium" color={colors.gray[500]}>
+                        {' (직접 입력)'}
+                      </Text>
+                    )}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            {error === 'select' && <ErrorText error={error} />}
+          </View>
 
-        <View style={styles.other}>
-          <Text variant="Body/XS/SemiBold">기타 사유를 직접 입력해 주세요</Text>
-          <TextArea
-            label="기타 거절 사유 입력"
-            placeholder="거절 사유를 입력해 주세요."
-            value={otherText}
-            onChangeText={text => {
-              setOtherText(text);
-              // 직접 쓰기 시작하면 기타 사유로 본다 (다른 선택지가 고른 채로 남아 입력이 버려지지 않게)
-              setSelected('other');
-              setError(null);
-            }}
-            error={error === 'otherText'}
-          />
-          {error === 'otherText' && <ErrorText error={error} />}
-        </View>
-      </ScrollView>
+          <View style={styles.other}>
+            <Text variant="Body/XS/SemiBold">
+              기타 사유를 직접 입력해 주세요
+            </Text>
+            <TextArea
+              label="기타 거절 사유 입력"
+              placeholder="거절 사유를 입력해 주세요."
+              value={otherText}
+              onChangeText={text => {
+                setOtherText(text);
+                // 직접 쓰기 시작하면 기타 사유로 본다 (다른 선택지가 고른 채로 남아 입력이 버려지지 않게)
+                setSelected('other');
+                setError(null);
+              }}
+              error={error === 'otherText'}
+            />
+            {error === 'otherText' && <ErrorText error={error} />}
+          </View>
+        </ScrollView>
+      </View>
 
       <View style={styles.actions}>
         <CTA
@@ -177,6 +193,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
+  body: { flex: 1 },
   content: {
     gap: 28,
     paddingHorizontal: 24,
