@@ -26,6 +26,7 @@ import {
   Text,
   TextArea,
 } from '../../../shared/design-system';
+import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { Section, SectionBand } from '../components/InfoCard';
 import { WorkInfoSections } from '../components/WorkInfoSections';
@@ -177,7 +178,8 @@ export function WorkDetailScreen({
         </Text>
       </View>
 
-      <View style={styles.body}>
+      {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다 */}
+      <KeyboardAvoidingArea testID="work-detail-body">
         <ScrollView
           ref={scrollRef}
           testID="work-detail-scroll"
@@ -275,7 +277,7 @@ export function WorkDetailScreen({
             />
           </View>
         )}
-      </View>
+      </KeyboardAvoidingArea>
 
       {result && <ResultModal visible result={result} onConfirm={onDone} />}
     </SafeAreaView>
@@ -290,7 +292,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   back: { position: 'absolute', left: 20 },
-  body: { flex: 1 },
   content: { paddingBottom: 32 },
   submit: { marginHorizontal: 24, marginTop: 32 },
   // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
