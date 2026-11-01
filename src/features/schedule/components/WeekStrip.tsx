@@ -1,19 +1,24 @@
 import {
+  AccessibilityInfo,
   Pressable,
   StyleSheet,
   View,
   type AccessibilityActionEvent,
 } from 'react-native';
 import { colors, Text } from '../../../shared/design-system';
-import { isSameDay, WEEKDAYS } from '../model';
+import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, weekdayColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
-// VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로, 날짜마다 이전·다음 주 동작을 달아 위·아래로 쓸어 고르게 한다
+// VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 고른다)
 const weekActions = [
   { name: 'prevWeek', label: '이전 주' },
   { name: 'nextWeek', label: '다음 주' },
 ];
+const weekActionDelta: Partial<Record<string, number>> = {
+  prevWeek: -1,
+  nextWeek: 1,
+};
 
 // Figma 내 일정 › 주간 날짜 줄. 선택한 날은 Primary 배경 상자.
 // 왼쪽으로 밀면 다음 주, 오른쪽으로 밀면 이전 주 (iOS 캘린더와 같은 방향).
@@ -27,22 +32,31 @@ export function WeekStrip({
   days: readonly Date[];
   selected: Date;
   onSelect: (date: Date) => void;
-  /** 이전 주로 */
+  /** 이전 주로 밀었을 때 */
   onPrev: () => void;
-  /** 다음 주로 */
+  /** 다음 주로 밀었을 때 */
   onNext: () => void;
 }) {
   const swipeHandlers = useHorizontalSwipe({
     onSwipeLeft: onNext,
     onSwipeRight: onPrev,
   });
-  const onWeekAction = ({ nativeEvent }: AccessibilityActionEvent) => {
-    if (nativeEvent.actionName === 'prevWeek') {
-      onPrev();
-    } else if (nativeEvent.actionName === 'nextWeek') {
-      onNext();
-    }
-  };
+  // 동작은 포커스한 칸 기준이다: 그 요일을 앞뒤 주에서 고른다. 칸은 그대로 남고 레이블만 바뀌므로
+  // VoiceOver 가 저절로 읽지 않는 새 날짜를 읽어 준다 (말하던 것이 끝난 뒤에)
+  const moveWeekFrom =
+    (date: Date) =>
+    ({ nativeEvent }: AccessibilityActionEvent) => {
+      const delta = weekActionDelta[nativeEvent.actionName];
+      if (delta === undefined) {
+        return;
+      }
+      const next = addWeeks(date, delta);
+      onSelect(next);
+      AccessibilityInfo.announceForAccessibilityWithOptions(
+        dayA11yLabel(next),
+        { queue: true },
+      );
+    };
 
   return (
     <View testID="week-strip" style={styles.row} {...swipeHandlers}>
@@ -57,7 +71,7 @@ export function WeekStrip({
             accessibilityLabel={dayA11yLabel(date)}
             accessibilityState={{ selected: active }}
             accessibilityActions={weekActions}
-            onAccessibilityAction={onWeekAction}
+            onAccessibilityAction={moveWeekFrom(date)}
             onPress={() => onSelect(date)}
             style={[styles.day, active && styles.dayActive]}
           >

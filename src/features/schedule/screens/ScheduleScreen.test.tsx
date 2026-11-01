@@ -179,8 +179,10 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
   });
 
-  it('VoiceOver 로 다음 주 동작을 부르면 주를 옮기고 고른 날을 읽어 준다', async () => {
-    const announce = jest.mocked(AccessibilityInfo.announceForAccessibility);
+  it('VoiceOver 로 날짜의 다음 주 동작을 부르면 그 요일을 다음 주에서 고르고 읽어 준다', async () => {
+    const announce = jest.mocked(
+      AccessibilityInfo.announceForAccessibilityWithOptions,
+    );
     announce.mockClear();
     await renderSchedule();
 
@@ -190,8 +192,23 @@ describe('ScheduleScreen — 확정 일정', () => {
       { nativeEvent: { actionName: 'nextWeek' } },
     );
 
-    expect(screen.getByText('2026년 12월 22일 (화)')).toBeOnTheScreen();
-    expect(announce).toHaveBeenCalledWith('12월 22일 화요일');
+    expect(screen.getByText('2026년 12월 23일 (수)')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: '12월 23일 수요일' }),
+    ).toBeSelected();
+    expect(announce).toHaveBeenCalledWith('12월 23일 수요일', { queue: true });
+  });
+
+  it('주간 줄을 가로로 밀 때 확정 일정 리스트가 세로로 따라 움직이지 않게 방향을 고정한다', async () => {
+    await renderSchedule();
+
+    let list = screen.getByTestId('week-strip');
+    while (list.parent && list.type !== 'RCTScrollView') {
+      list = list.parent;
+    }
+
+    expect(list.type).toBe('RCTScrollView');
+    expect(list.props.directionalLockEnabled).toBe(true);
   });
 
   it('펼친 달력을 좌우로 밀면 다음·이전 달로 간다', async () => {

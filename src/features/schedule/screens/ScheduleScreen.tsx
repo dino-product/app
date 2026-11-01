@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState, type Ref } from 'react';
 import {
-  AccessibilityInfo,
   FlatList,
   Pressable,
   StyleSheet,
@@ -14,7 +13,6 @@ import {
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
-import { dayA11yLabel } from '../components/calendarDay';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { WeekStrip } from '../components/WeekStrip';
@@ -22,6 +20,7 @@ import {
   addMonths,
   addWeeks,
   formatDateHeader,
+  startOfWeek,
   toDateKey,
   weekDays,
   type ConfirmedSchedule,
@@ -82,14 +81,10 @@ export function ScheduleScreen({
   const moveMonth = (delta: number) =>
     setViewMonth(prev => addMonths(prev.year, prev.month, delta));
 
-  // 주를 옮기면 선택 날짜도 같은 요일로 옮긴다 (iOS 캘린더 일 보기와 같다). 주간 줄은 선택 날짜의 주를 그린다.
-  // VoiceOver 동작으로 옮기면 포커스한 칸의 날짜만 바뀌므로 새로 고른 날을 읽어 준다 (VoiceOver 가 꺼져 있으면 아무 일도 없다)
-  const moveWeek = (delta: number) => {
-    const next = addWeeks(selected, delta);
-    selectDate(next);
-    AccessibilityInfo.announceForAccessibility(dayA11yLabel(next));
-  };
-  const week = useMemo(() => weekDays(selected), [selected]);
+  // 주간 줄은 선택한 날의 주를 그린다. 밀어서 주를 넘기면 같은 요일을 고른다 (iOS 캘린더 일 보기)
+  const moveWeek = (delta: number) => selectDate(addWeeks(selected, delta));
+  const weekStart = startOfWeek(selected).getTime();
+  const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
 
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
@@ -165,6 +160,8 @@ export function ScheduleScreen({
       {tab === 'confirmed' ? (
         <FlatList
           ref={listRef}
+          // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
+          directionalLockEnabled
           data={daySchedules}
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}

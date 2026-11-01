@@ -51,9 +51,14 @@ export function addWeeks(date: Date, delta: number): Date {
   return addDays(date, delta * 7);
 }
 
+/** 그 날이 속한 주의 일요일 0시 */
+export function startOfWeek(date: Date): Date {
+  return addDays(date, -date.getDay());
+}
+
 /** 그 날이 속한 주의 일요일~토요일 */
 export function weekDays(date: Date): Date[] {
-  const sunday = addDays(date, -date.getDay());
+  const sunday = startOfWeek(date);
   return Array.from({ length: 7 }, (_, i) => addDays(sunday, i));
 }
 

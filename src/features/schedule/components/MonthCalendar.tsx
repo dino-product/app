@@ -11,6 +11,10 @@ import {
 import { dayA11yLabel, weekdayColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
+const ARROW_HIT_SLOP = 12;
+// 밀기를 받는 루트는 네이티브 뷰라 그 경계 밖 터치는 자식에게 가지 않는다. 맨 위 화살표가 넘치는 만큼 넓힌다
+const SWIPE_HIT_SLOP = { top: ARROW_HIT_SLOP };
+
 // Figma 내 일정 › 달력 펼침. 선택일은 Secondary 원, 일정이 있는 날은 점으로 표시한다.
 // 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달. 이전·다음 달 버튼과 같은 콜백을 부른다.
 export function MonthCalendar({
@@ -37,12 +41,17 @@ export function MonthCalendar({
   const weeks = useMemo(() => monthGrid(year, month), [year, month]);
 
   return (
-    <View testID="month-calendar" style={styles.container} {...swipeHandlers}>
+    <View
+      testID="month-calendar"
+      hitSlop={SWIPE_HIT_SLOP}
+      style={styles.container}
+      {...swipeHandlers}
+    >
       <View style={styles.titleRow}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="이전 달"
-          hitSlop={12}
+          hitSlop={ARROW_HIT_SLOP}
           onPress={onPrev}
         >
           <Icon name="chevron-left" size={16} color={colors.gray[500]} />
@@ -51,7 +60,7 @@ export function MonthCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="다음 달"
-          hitSlop={12}
+          hitSlop={ARROW_HIT_SLOP}
           onPress={onNext}
         >
           <Icon name="chevron-right" size={16} color={colors.gray[500]} />

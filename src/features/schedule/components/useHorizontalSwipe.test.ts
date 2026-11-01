@@ -26,7 +26,7 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeLeft).toHaveBeenCalledTimes(1);
   });
 
-  it('터치를 시작할 때는 응답자가 되지 않아 날짜 탭은 안쪽 버튼이 받는다', async () => {
+  it('터치를 시작할 때는 응답자가 되지 않는다 (탭은 안쪽 날짜 버튼 몫)', async () => {
     const { result, onSwipeLeft, onSwipeRight } = await setup();
 
     const { granted } = await drag(result.current, { dx: 0, dy: 0 });
@@ -36,7 +36,7 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeRight).not.toHaveBeenCalled();
   });
 
-  it('누르다 손가락이 가로로 조금(10pt 이하) 흔들려도 응답자가 되지 않아 날짜 탭이 눌린다', async () => {
+  it('누르다 손가락이 가로로 조금(10pt 이하) 흔들려도 응답자가 되지 않는다', async () => {
     const { result } = await setup();
 
     expect((await drag(result.current, { dx: -10, dy: 2 })).granted).toBe(
@@ -58,9 +58,10 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeRight).not.toHaveBeenCalled();
   });
 
-  it('조금만 밀었다 놓으면 넘기지 않는다', async () => {
+  it('조금만 천천히 밀었다 놓으면 넘기지 않는다', async () => {
     const { result, onSwipeLeft, onSwipeRight } = await setup();
 
+    // 16ms 마다 3pt (0.19pt/ms)
     const { granted } = await drag(result.current, { dx: -30 });
 
     expect(granted).toBe(true);
@@ -68,13 +69,30 @@ describe('useHorizontalSwipe', () => {
     expect(onSwipeRight).not.toHaveBeenCalled();
   });
 
+  it('짧아도 빠르게 튕기면 넘긴다', async () => {
+    const { result, onSwipeLeft, onSwipeRight } = await setup();
+
+    // 16ms 마다 10pt (0.63pt/ms)
+    await drag(result.current, { dx: -30, steps: 3 });
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+
+    await drag(result.current, { dx: 30, steps: 3 });
+    expect(onSwipeRight).toHaveBeenCalledTimes(1);
+  });
+
+  it('두 손가락으로 밀면 응답자가 되지 않는다', async () => {
+    const { result, onSwipeLeft } = await setup();
+
+    const { granted } = await drag(result.current, { dx: -80, fingers: 2 });
+
+    expect(granted).toBe(false);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+  });
+
   it('밀던 중에 리스트가 스크롤하겠다고 하면 넘겨 주고 넘기지 않는다', async () => {
     const { result, onSwipeLeft } = await setup();
 
-    const { released } = await drag(result.current, {
-      dx: -80,
-      cancel: true,
-    });
+    const { released } = await drag(result.current, { dx: -80, cancelAt: 6 });
 
     expect(released).toBe(true);
     expect(onSwipeLeft).not.toHaveBeenCalled();
