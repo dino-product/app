@@ -615,7 +615,19 @@ describe('App', () => {
       expect(alert).not.toHaveBeenCalled();
     });
 
-    // 제출을 마친 뒤 '메인 화면으로' 는 위 '완료 보고를 제출하고 메인으로 돌아오면…' 에서 확인한다
+    // 제출을 마친 뒤 '메인 화면으로' 는 위 '완료 보고를 제출하고 메인으로 돌아오면…' 에서 확인한다.
+    // 결과 모달의 두 손가락 Z 도 '메인 화면으로' 와 같은 동작이라 묻지 않는다
+    it('제출 뒤 결과 모달에서 두 손가락 Z 로 나가도 묻지 않는다', async () => {
+      const alert = spyAlert();
+      await render(<App />);
+
+      await submitReport();
+      await escapeFrom('제출 완료');
+
+      expectBackHome();
+      expect(alert).not.toHaveBeenCalled();
+    });
+
     it('다른 탭으로 옮길 때는 묻지 않는다', async () => {
       const alert = spyAlert();
       await render(<App />);
