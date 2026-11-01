@@ -1,4 +1,4 @@
-# Dino — 에이전트 작업 규칙
+# Orbit — 에이전트 작업 규칙
 
 React Native 0.88 (순수 CLI, Expo 미사용) · TypeScript · iOS 는 Xcode 네이티브 빌드.
 

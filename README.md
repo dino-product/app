@@ -1,4 +1,4 @@
-# Dino
+# Orbit
 
 React Native(순수 CLI, Expo 미사용) 크로스 플랫폼 앱. iOS 는 Xcode 네이티브 빌드로 실기기에 설치한다.
 
