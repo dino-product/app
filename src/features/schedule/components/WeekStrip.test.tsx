@@ -4,8 +4,9 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
 import { weekDays } from '../model';
 import { WeekStrip } from './WeekStrip';
 
@@ -106,5 +107,49 @@ describe('WeekStrip', () => {
     const sameCell =
       screen.getByRole('button', { name: '12월 23일 수요일' }) === wednesday;
     expect(sameCell).toBe(true);
+  });
+});
+
+// 제스처 내비게이션에서는 가장자리에서 시작한 밀기를 시스템이 먼저 받아 뒤로 가기(홈 탭)로 쓴다 (#58)
+describe('WeekStrip Android 가장자리 밀기', () => {
+  const renderOn = async (os: 'ios' | 'android') => {
+    jest.replaceProperty(Platform, 'OS', os);
+    await render(
+      <WeekStrip
+        days={weekDays(selected)}
+        selected={selected}
+        edgeInset={24}
+        onSelect={jest.fn()}
+        onPrev={jest.fn()}
+        onNext={jest.fn()}
+      />,
+    );
+  };
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('Android 에서는 주간 줄 전체를 부모 여백까지 넓혀 시스템 제스처에서 뺀다', async () => {
+    await renderOn('android');
+
+    expect(
+      StyleSheet.flatten(screen.getByTestId('gesture-exclusion').props.style),
+    ).toEqual(gestureExclusionStyle({ edgeInset: 24 }));
+  });
+
+  // 여백에서 시작한 터치도 밀기 핸들러가 있는 루트로 올라간다. 뒤 형제인 날짜 칸이 먼저 터치를 받는다
+  it('제외 영역은 루트의 첫 자식이다', async () => {
+    await renderOn('android');
+
+    expect(screen.getByTestId('week-strip').children[0]).toBe(
+      screen.getByTestId('gesture-exclusion'),
+    );
+  });
+
+  it('iOS 에서는 제외 영역을 두지 않는다', async () => {
+    await renderOn('ios');
+
+    expect(screen.queryByTestId('gesture-exclusion')).toBeNull();
   });
 });

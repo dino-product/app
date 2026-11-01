@@ -124,6 +124,7 @@ export function ScheduleScreen({
           month={viewMonth.month}
           selected={selected}
           markedKeys={markedKeys}
+          edgeInset={styles.dateArea.paddingHorizontal}
           onSelect={selectDate}
           onPrev={() => moveMonth(-1)}
           onNext={() => moveMonth(1)}
@@ -132,6 +133,7 @@ export function ScheduleScreen({
         <WeekStrip
           days={week}
           selected={selected}
+          edgeInset={styles.dateArea.paddingHorizontal}
           onSelect={selectDate}
           onPrev={() => moveWeek(-1)}
           onNext={() => moveWeek(1)}

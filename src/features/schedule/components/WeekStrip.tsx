@@ -6,6 +6,7 @@ import {
   type AccessibilityActionEvent,
 } from 'react-native';
 import { colors, MIN_TOUCH_TARGET, Text } from '../../../shared/design-system';
+import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, weekdayColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
@@ -28,6 +29,7 @@ export function WeekStrip({
   onSelect,
   onPrev,
   onNext,
+  edgeInset = 0,
 }: {
   days: readonly Date[];
   selected: Date;
@@ -36,6 +38,8 @@ export function WeekStrip({
   onPrev: () => void;
   /** 다음 주로 밀었을 때 */
   onNext: () => void;
+  /** 부모가 화면 가장자리에서 들어간 거리. Android 에서 이만큼 바깥까지 가장자리 밀기를 받는다 */
+  edgeInset?: number;
 }) {
   const swipeHandlers = useHorizontalSwipe({
     onSwipeLeft: onNext,
@@ -65,6 +69,7 @@ export function WeekStrip({
       style={styles.row}
       {...swipeHandlers}
     >
+      <GestureExclusionArea edgeInset={edgeInset} />
       {days.map(date => {
         const active = isSameDay(date, selected);
         const color = active ? colors.white[100] : weekdayColor(date.getDay());

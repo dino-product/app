@@ -6,6 +6,8 @@ import { PanResponder, type GestureResponderHandlers } from 'react-native';
 // 날짜 탭은 안쪽 Pressable 이, 세로 끌기는 리스트가 받는다.
 // 밀던 중 리스트가 스크롤을 시작하면 iOS 는 응답자를 넘겨 주고(기본값), Android 는 취소된다. 둘 다 넘기지 않는다.
 // 스택 안쪽 화면에 두면 iOS 26 화면 전체 뒤로 가기와 오른쪽 밀기가 겹친다 (지금은 탭 첫 화면에만 있다).
+// Android 제스처 내비게이션은 어느 화면이든 가장자리에서 시작한 밀기를 먼저 가져가 뒤로 가기로 쓴다.
+// 그래서 미는 뷰 안에 GestureExclusionArea 를 둬 그 자리만 시스템 제스처에서 뺀다 (한쪽 가장자리당 세로 200dp 까지).
 
 /** 이만큼 가로로 움직이면 날짜 탭이 아니라 밀기로 본다 (pt) */
 const CLAIM_DISTANCE = 10;
