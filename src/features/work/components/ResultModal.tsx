@@ -36,7 +36,13 @@ export function ResultModal({
       visible={visible}
       onRequestClose={onConfirm}
     >
-      <View style={styles.backdrop}>
+      {/* VoiceOver 두 손가락 Z 도 "메인 화면으로" 와 같이 닫는다. iOS 의 RN Modal 은 escape 를 처리하지 않아 모달 안의 배경 View 가 받는다.
+          escape 핸들러는 Fabric 평탄화 판단에 들어가지 않아, 배경색이 빠져도 뷰가 남도록 collapsable={false} 로 둔다 */}
+      <View
+        collapsable={false}
+        onAccessibilityEscape={onConfirm}
+        style={styles.backdrop}
+      >
         <View style={styles.card}>
           <Icon name={submitted ? 'modal-check' : 'modal-x'} size={40} />
           <Text accessibilityRole="header" variant="Body/S/Bold">

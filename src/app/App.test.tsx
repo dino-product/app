@@ -13,6 +13,7 @@ import {
   FlatList,
   Linking,
 } from 'react-native';
+import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
 import App from './App';
 
@@ -48,25 +49,25 @@ async function renderWithBackButton() {
   };
 }
 
-// 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다
-const escapeTarget = (title: string) => {
-  let node = screen.getByRole('header', { name: title }).parent;
-  while (node && !node.props.onAccessibilityEscape) {
-    node = node.parent;
-  }
-  return node;
-};
-// RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
-const escapeFrom = (title: string) => {
-  const target = escapeTarget(title);
-  if (!target) {
-    throw new Error(`"${title}" 화면은 escape 를 받지 않는다`);
-  }
-  return fireEvent(target, 'accessibilityEscape');
-};
-
 // 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막는다
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+// 작업을 시작하고 상세에서 완료 보고를 채워 제출한다. 결과 모달이 열린 채로 끝난다
+async function submitReport() {
+  await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+  await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+  await userEvent.press(
+    screen.getByRole('button', { name: '작업 전 사진 추가' }),
+  );
+  await userEvent.press(
+    screen.getByRole('button', { name: '작업 후 사진 추가' }),
+  );
+  await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
+  await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
+  await userEvent.press(screen.getByRole('button', { name: '카드' }));
+  await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
+  await screen.findByRole('header', { name: '제출 완료' });
+}
 
 describe('App', () => {
   afterEach(() => {
@@ -163,24 +164,9 @@ describe('App', () => {
     const alert = spyAlert();
     await render(<App />);
 
-    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
-    await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+    await submitReport();
     await userEvent.press(
-      screen.getByRole('button', { name: '작업 전 사진 추가' }),
-    );
-    await userEvent.press(
-      screen.getByRole('button', { name: '작업 후 사진 추가' }),
-    );
-    await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
-    await userEvent.press(
-      screen.getByRole('button', { name: '결제 방식 선택' }),
-    );
-    await userEvent.press(screen.getByRole('button', { name: '카드' }));
-    await userEvent.press(
-      screen.getByRole('button', { name: '완료보고 제출' }),
-    );
-    await userEvent.press(
-      await screen.findByRole('button', { name: '메인 화면으로' }),
+      screen.getByRole('button', { name: '메인 화면으로' }),
     );
 
     expect(header('내 작업')).toBeOnTheScreen();
@@ -441,6 +427,19 @@ describe('App', () => {
 
       // Fabric 은 escape 핸들러만 있는 View 를 평탄화해 네이티브 뷰로 만들지 않는다
       expect(escapeTarget('작업 상세')?.props.collapsable).toBe(false);
+    });
+
+    it('완료 보고 제출 뒤 결과 모달에서 두 손가락 Z 로 메인화면과 "작업 시작" 상태로 돌아온다', async () => {
+      await render(<App />);
+
+      await submitReport();
+      await escapeFrom('제출 완료');
+
+      expect(header('제출 완료')).not.toBeOnTheScreen();
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '작업 시작' }),
+      ).toBeOnTheScreen();
     });
   });
 
