@@ -28,17 +28,22 @@ function plistStringArray(key) {
   );
 }
 
+// Xcode 는 영숫자가 아닌 값(zh-Hans 등)에 따옴표를 붙인다
+function unquote(value) {
+  return value.trim().replace(/^"(.*)"$/, '$1');
+}
+
 function pbxValue(key) {
-  return pbxproj.match(new RegExp(`\\b${key} = ([^;]+);`))?.[1];
+  const value = pbxproj.match(new RegExp(`\\b${key} = ([^;]+);`))?.[1];
+  return value && unquote(value);
 }
 
 function pbxList(key) {
   const body = pbxproj.match(new RegExp(`\\b${key} = \\(([^)]*)\\);`))?.[1];
-  return body
-    ?.split(',')
-    .map(item => item.trim())
-    .filter(Boolean);
+  return body?.split(',').map(unquote).filter(Boolean);
 }
+
+const isEnglish = region => /^(en|English)([-_]|$)/.test(region);
 
 describe('Info.plist 지역 설정', () => {
   it('개발 지역이 ko 다', () => {
@@ -48,6 +53,12 @@ describe('Info.plist 지역 설정', () => {
   it('코드로 처리하는 현지화로 ko 만 선언한다 (영어는 지원하지 않는다)', () => {
     expect(plistStringArray('CFBundleLocalizations')).toEqual(['ko']);
   });
+
+  it('CFBundleAllowMixedLocalizations 를 쓰지 않는다 (켜면 시스템 UI 가 기기 언어를 따른다)', () => {
+    expect(infoPlist).not.toMatch(
+      /<key>CFBundleAllowMixedLocalizations<\/key>/,
+    );
+  });
 });
 
 describe('project.pbxproj 지역 설정', () => {
@@ -55,9 +66,9 @@ describe('project.pbxproj 지역 설정', () => {
     expect(pbxValue('developmentRegion')).toBe('ko');
   });
 
-  it('knownRegions 에 ko 가 있고 en 은 없다', () => {
+  it('knownRegions 에 ko 가 있고 영어(en, en-GB 등)는 없다', () => {
     const regions = pbxList('knownRegions');
-    expect(regions).toContain('ko');
-    expect(regions).not.toContain('en');
+    expect(regions).toEqual(expect.arrayContaining(['ko']));
+    expect(regions.filter(isEnglish)).toEqual([]);
   });
 });
