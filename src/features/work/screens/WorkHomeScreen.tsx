@@ -13,6 +13,7 @@ import {
   ICON_HIT_SLOP,
   Text,
 } from '../../../shared/design-system';
+import { readableColumn } from '../../../shared/layout/readableColumn';
 import { CurrentWorkCard } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import type { CurrentWork, ScheduleItem } from '../model';
@@ -110,7 +111,7 @@ export function WorkHomeScreen({
         renderItem={renderItem}
         ListHeaderComponent={header}
         ItemSeparatorComponent={Separator}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[readableColumn, styles.content]}
       />
     </SafeAreaView>
   );
