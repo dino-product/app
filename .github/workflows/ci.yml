@@ -23,6 +23,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:coverage -- --ci
+      - run: npm run test:android -- --ci
       - run: npm run perf:bundle
 
   render-perf:

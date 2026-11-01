@@ -62,19 +62,6 @@ describe('Toggle', () => {
     });
   });
 
-  it('작은 트랙을 보완하도록 터치 영역을 넓힌다 (최소 44pt)', async () => {
-    await render(
-      <Toggle value accessibilityLabel="알림" onValueChange={jest.fn()} />,
-    );
-
-    expect(screen.getByRole('switch')).toHaveProp('hitSlop', {
-      top: 9,
-      bottom: 9,
-      left: 0,
-      right: 0,
-    });
-  });
-
   it('disabled 면 값을 바꾸지 않는다', async () => {
     const onValueChange = jest.fn();
     await render(

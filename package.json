@@ -15,11 +15,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:android": "jest -c jest.android.config.js",
     "test:perf": "reassure",
     "perf:baseline": "reassure --baseline",
     "perf:bundle": "node scripts/check-bundle-size.js",
     "perf:regression": "node scripts/check-perf-regression.js",
-    "verify": "npm run lint && npm run typecheck && npm run test:coverage && npm run test:perf && npm run perf:bundle",
+    "verify": "npm run lint && npm run typecheck && npm run test:coverage && npm run test:android && npm run test:perf && npm run perf:bundle",
     "prepare": "husky"
   },
   "dependencies": {
