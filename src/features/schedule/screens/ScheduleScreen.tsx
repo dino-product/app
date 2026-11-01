@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   Icon,
+  ICON_HIT_SLOP,
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
@@ -109,7 +110,7 @@ export function ScheduleScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
-          hitSlop={10}
+          hitSlop={ICON_HIT_SLOP}
           onPress={() => setCalendarOpen(open => !open)}
         >
           <Icon name="calendar" color={colors.gray[600]} />

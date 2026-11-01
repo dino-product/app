@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from '../tokens/colors';
+import { touchSlop } from '../tokens/touchTarget';
 
 // Figma DesignSystem › Toggle (Off / On)
 export type ToggleProps = {
@@ -38,13 +39,19 @@ export const Toggle = memo(function DesignSystemToggle({
 });
 
 const TRACK_WIDTH = 46;
+const TRACK_HEIGHT = 26;
 const KNOB_SIZE = 22;
 const INSET = 2;
-// 트랙 높이 26 을 터치 최소 44pt 로 보완한다
-const HIT_SLOP = { top: 9, bottom: 9, left: 0, right: 0 };
+// 46×26 트랙을 최소 터치 영역으로 보완한다 (폭은 Android 만 모자란다)
+const HIT_SLOP = {
+  top: touchSlop(TRACK_HEIGHT),
+  bottom: touchSlop(TRACK_HEIGHT),
+  left: touchSlop(TRACK_WIDTH),
+  right: touchSlop(TRACK_WIDTH),
+};
 
 const styles = StyleSheet.create({
-  track: { width: TRACK_WIDTH, height: 26, borderRadius: 999 },
+  track: { width: TRACK_WIDTH, height: TRACK_HEIGHT, borderRadius: 999 },
   trackOff: { backgroundColor: colors.gray[200] },
   trackOn: { backgroundColor: colors.secondary },
   knob: {

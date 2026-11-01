@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from '../tokens/colors';
+import { MIN_TOUCH_TARGET, smallestLineHeight } from '../tokens/touchTarget';
 import { Text } from './Text';
 
 // Figma 앱UI › Underline Tabs (내 일정의 확정 일정 / 응답 필요). TabBar 와 달리 탭이 라벨 폭만큼만 차지한다.
@@ -67,8 +68,21 @@ export function UnderlineTabs<K extends string>({
   );
 }
 
-// 탭 높이(가장 작은 글자 설정에서 38.4)를 터치 최소 44pt 로 보완한다. 아래 1 은 밑줄 테두리 안이다
-const TAB_HIT_SLOP = { top: 5, bottom: 1 };
+const TAB_PADDING_TOP = 8;
+const LABEL_GAP = 10;
+const INDICATOR_HEIGHT = 2;
+const BORDER_WIDTH = 1;
+// 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 38.4, Android 39.0)
+const MIN_TAB_HEIGHT =
+  TAB_PADDING_TOP +
+  smallestLineHeight('Body/XS/SemiBold') +
+  LABEL_GAP +
+  INDICATOR_HEIGHT;
+// 탭 높이를 최소 터치 영역으로 보완한다. 아래는 밑줄 테두리 안까지만 넓히고 나머지는 위로 넓힌다
+const TAB_HIT_SLOP = {
+  top: Math.ceil(MIN_TOUCH_TARGET - MIN_TAB_HEIGHT - BORDER_WIDTH),
+  bottom: BORDER_WIDTH,
+};
 // 부모 뷰 경계 밖의 터치는 자식에게 가지 않으므로, 탭이 위로 넓힌 만큼 목록도 넓힌다
 const LIST_HIT_SLOP = { top: TAB_HIT_SLOP.top };
 
@@ -77,11 +91,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 20,
     paddingHorizontal: 24,
-    borderBottomWidth: 1,
+    borderBottomWidth: BORDER_WIDTH,
     borderBottomColor: colors.gray[100],
   },
-  tab: { gap: 10, paddingTop: 8 },
+  tab: { gap: LABEL_GAP, paddingTop: TAB_PADDING_TOP },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  indicator: { height: 2, backgroundColor: 'transparent' },
+  indicator: { height: INDICATOR_HEIGHT, backgroundColor: 'transparent' },
   indicatorActive: { backgroundColor: colors.primary },
 });

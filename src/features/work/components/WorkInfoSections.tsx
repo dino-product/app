@@ -5,6 +5,7 @@ import {
   Icon,
   StatusChip,
   Text,
+  touchSlop,
 } from '../../../shared/design-system';
 import { formatWon, type WorkDetail } from '../model';
 import { InfoCard, InfoField, Section, SectionBand } from './InfoCard';
@@ -137,8 +138,9 @@ export function WorkInfoSections({
   );
 }
 
-// 전화 버튼 40×40 을 터치 최소 44pt 로 보완한다
-const CALL_HIT_SLOP = 2;
+const CALL_SIZE = 40;
+// 전화 버튼 40×40 을 최소 터치 영역으로 보완한다
+const CALL_HIT_SLOP = touchSlop(CALL_SIZE);
 
 const styles = StyleSheet.create({
   summary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },
@@ -155,11 +157,11 @@ const styles = StyleSheet.create({
   pair: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   half: { flex: 1 },
   call: {
-    width: 40,
-    height: 40,
+    width: CALL_SIZE,
+    height: CALL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: CALL_SIZE / 2,
     backgroundColor: colors.gray[50],
   },
   map: { height: 160, borderRadius: 12, backgroundColor: colors.background[1] },

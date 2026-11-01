@@ -56,6 +56,7 @@ export function PhotoUploader({
   );
 }
 
+// 24 닫기 아이콘을 48 로 넓힌다. 두 플랫폼의 최소 터치 영역(iOS 44, Android 48) 이상이다
 const REMOVE_HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
 const styles = StyleSheet.create({
