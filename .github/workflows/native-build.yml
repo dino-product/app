@@ -57,5 +57,15 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: npm ci
-      - run: ./gradlew assembleRelease --no-daemon
+      # Play 에 올리는 AAB 도 함께 만든다. 한 번에 돌려 JS 번들·컴파일 결과를 APK 와 나눠 쓴다 (#57)
+      - run: ./gradlew assembleRelease bundleRelease --no-daemon
         working-directory: android
+      # CI 에는 업로드 키 속성이 없으니 release AAB 는 debug 키로 서명돼야 한다 (#57)
+      - name: AAB 가 debug 키로 서명됐는지 확인
+        run: |
+          sha256() { awk '/SHA256:/ && !found { print $2; found = 1 }'; }
+          debug=$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | sha256)
+          aab=$(keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | sha256)
+          echo "debug.keystore  $debug"
+          echo "app-release.aab $aab"
+          test -n "$debug" && test "$debug" = "$aab"
