@@ -7,7 +7,13 @@ import {
   type TextInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, CTA, Icon, Text } from '../../../shared/design-system';
+import {
+  colors,
+  CTA,
+  Icon,
+  ICON_HIT_SLOP,
+  Text,
+} from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
 import type { WorkDetail } from '../../work/model';
@@ -38,7 +44,7 @@ export function RequestDetailScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
-          hitSlop={10}
+          hitSlop={ICON_HIT_SLOP}
           onPress={onBack}
           style={styles.back}
         >

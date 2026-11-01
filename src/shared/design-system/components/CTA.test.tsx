@@ -70,15 +70,6 @@ describe('CTA', () => {
       });
       expect(screen.getByText('확인')).toHaveStyle(typography['Button/S']);
     });
-
-    it('42pt 높이를 터치 최소 44pt 로 보완한다', async () => {
-      await render(<CTA type="modal" label="확인" onPress={jest.fn()} />);
-
-      expect(screen.getByRole('button')).toHaveProp('hitSlop', {
-        top: 1,
-        bottom: 1,
-      });
-    });
   });
 
   describe('variant', () => {

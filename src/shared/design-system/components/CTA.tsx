@@ -7,6 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { colors } from '../tokens/colors';
+import { touchSlop } from '../tokens/touchTarget';
 import { Text } from './Text';
 
 // Figma DesignSystem › CTA. state 이름 대응: Primary → primary, Secondery → secondary,
@@ -65,7 +66,7 @@ export const CTA = memo(function DesignSystemCTA({
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      hitSlop={type === 'modal' ? MODAL_HIT_SLOP : undefined}
+      hitSlop={type === 'modal' ? MODAL_HIT_SLOP : sizeHitSlops[size]}
       onPress={onPress}
       style={pressableStyle}
       testID={testID}
@@ -82,8 +83,19 @@ export const CTA = memo(function DesignSystemCTA({
   );
 });
 
-// Modal 높이 42 를 터치 최소 44pt 로 보완한다
-const MODAL_HIT_SLOP = { top: 1, bottom: 1 };
+const MODAL_MIN_HEIGHT = 42;
+const minHeights = { L: 56, M: 46 } as const;
+
+// 최소 높이가 최소 터치 영역보다 낮으면 위아래로 보완한다 (Modal 42, Android 의 M 46)
+const verticalSlop = (height: number) => {
+  const slop = touchSlop(height);
+  return { top: slop, bottom: slop };
+};
+const MODAL_HIT_SLOP = verticalSlop(MODAL_MIN_HEIGHT);
+const sizeHitSlops = {
+  L: verticalSlop(minHeights.L),
+  M: verticalSlop(minHeights.M),
+};
 
 const labelColors: Record<CTAVariant, string> = {
   primary: colors.white[100],
@@ -101,7 +113,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   modal: {
-    minHeight: 42,
+    minHeight: MODAL_MIN_HEIGHT,
     gap: 8,
     paddingHorizontal: 8,
     paddingVertical: 10,
@@ -119,8 +131,8 @@ const bottom = {
 } as const;
 
 const sizeStyles = StyleSheet.create({
-  L: { ...bottom, minHeight: 56 },
-  M: { ...bottom, minHeight: 46 },
+  L: { ...bottom, minHeight: minHeights.L },
+  M: { ...bottom, minHeight: minHeights.M },
 });
 
 const variantStyles = StyleSheet.create({

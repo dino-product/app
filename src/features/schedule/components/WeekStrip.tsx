@@ -5,7 +5,7 @@ import {
   View,
   type AccessibilityActionEvent,
 } from 'react-native';
-import { colors, Text } from '../../../shared/design-system';
+import { colors, MIN_TOUCH_TARGET, Text } from '../../../shared/design-system';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, weekdayColor } from './calendarDay';
@@ -103,16 +103,17 @@ export function WeekStrip({
   );
 }
 
-// 날짜 칸 폭 40 을 터치 최소 44pt 로 보완한다. 칸이 붙어도 겹친 곳은 뒤 칸이 먼저 받도록 뒤쪽으로만
+const DAY_MIN_WIDTH = 40;
+// 날짜 칸 폭 40 을 최소 터치 영역으로 보완한다. 칸이 붙어도 겹친 곳은 뒤 칸이 먼저 받도록 뒤쪽으로만
 // 넓히고, 루트가 네이티브 뷰가 되어도 마지막 칸에 닿도록 루트도 같이 넓힌다
-const DAY_HIT_SLOP = { right: 4 };
+const DAY_HIT_SLOP = { right: MIN_TOUCH_TARGET - DAY_MIN_WIDTH };
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   day: {
     alignItems: 'center',
     gap: 6,
-    minWidth: 40,
+    minWidth: DAY_MIN_WIDTH,
     paddingVertical: 8,
     borderRadius: 10,
   },

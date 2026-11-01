@@ -22,6 +22,7 @@ import {
   colors,
   CTA,
   Icon,
+  ICON_HIT_SLOP,
   Text,
   TextArea,
 } from '../../../shared/design-system';
@@ -161,7 +162,7 @@ export function WorkDetailScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
-          hitSlop={10}
+          hitSlop={ICON_HIT_SLOP}
           onPress={onBack}
           style={styles.back}
         >

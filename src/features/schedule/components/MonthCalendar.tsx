@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, Icon, Text } from '../../../shared/design-system';
+import {
+  colors,
+  Icon,
+  MIN_TOUCH_TARGET,
+  Text,
+  touchSlop,
+} from '../../../shared/design-system';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import {
   formatMonthTitle,
@@ -57,7 +63,11 @@ export function MonthCalendar({
           hitSlop={PREV_HIT_SLOP}
           onPress={onPrev}
         >
-          <Icon name="chevron-left" size={16} color={colors.gray[500]} />
+          <Icon
+            name="chevron-left"
+            size={ARROW_SIZE}
+            color={colors.gray[500]}
+          />
         </Pressable>
         <Text variant="Body/XS/SemiBold">{formatMonthTitle(year, month)}</Text>
         <Pressable
@@ -66,11 +76,16 @@ export function MonthCalendar({
           hitSlop={NEXT_HIT_SLOP}
           onPress={onNext}
         >
-          <Icon name="chevron-right" size={16} color={colors.gray[500]} />
+          <Icon
+            name="chevron-right"
+            size={ARROW_SIZE}
+            color={colors.gray[500]}
+          />
         </Pressable>
       </View>
 
-      <View style={styles.week}>
+      {/* 화살표가 아래로 넓힌 영역이 요일 줄에 걸친다. 뒤 형제인 요일 글자가 먼저 받지 않게 터치를 넘긴다 */}
+      <View style={[styles.week, styles.passTouches]}>
         {WEEKDAYS.map((label, day) => (
           <Text
             key={label}
@@ -136,11 +151,28 @@ export function MonthCalendar({
   );
 }
 
-// 16pt 화살표를 터치 최소 44pt 로 보완한다. 제목 쪽은 간격(12)까지만 넓힌다 (제목이 먼저 받는다)
-const PREV_HIT_SLOP = { top: 14, bottom: 14, left: 16, right: 12 };
-const NEXT_HIT_SLOP = { top: 14, bottom: 14, left: 12, right: 16 };
-// 날짜 칸 높이 40 을 터치 최소 44pt 로 보완한다
-const DAY_HIT_SLOP = { top: 2, bottom: 2 };
+const ARROW_SIZE = 16;
+const TITLE_GAP = 12;
+const CIRCLE_SIZE = 40;
+
+// 16 화살표를 최소 터치 영역으로 보완한다. 제목 쪽은 간격(12)까지만 넓히고(제목이 먼저 받는다) 나머지는 바깥쪽으로
+const ARROW_SLOP = touchSlop(ARROW_SIZE);
+const ARROW_OUTER_SLOP = MIN_TOUCH_TARGET - ARROW_SIZE - TITLE_GAP;
+const PREV_HIT_SLOP = {
+  top: ARROW_SLOP,
+  bottom: ARROW_SLOP,
+  left: ARROW_OUTER_SLOP,
+  right: TITLE_GAP,
+};
+const NEXT_HIT_SLOP = {
+  top: ARROW_SLOP,
+  bottom: ARROW_SLOP,
+  left: TITLE_GAP,
+  right: ARROW_OUTER_SLOP,
+};
+// 날짜 칸 높이 40 을 최소 터치 영역으로 보완한다. 7칸이 빈틈없이 붙어 있어 좌우로는 넓히지 않는다
+const DAY_SLOP = touchSlop(CIRCLE_SIZE);
+const DAY_HIT_SLOP = { top: DAY_SLOP, bottom: DAY_SLOP };
 // 루트가 네이티브 뷰가 되어도 화살표·마지막 주가 루트 밖으로 넓힌 영역에 터치가 닿게 한다
 const ROOT_HIT_SLOP = { top: PREV_HIT_SLOP.top, bottom: DAY_HIT_SLOP.bottom };
 
@@ -150,17 +182,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: TITLE_GAP,
   },
   week: { flexDirection: 'row' },
+  passTouches: { pointerEvents: 'none' },
   cell: { flex: 1, alignItems: 'center' },
   weekdayText: { flex: 1, textAlign: 'center' },
   circle: {
-    width: 40,
-    height: 40,
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: CIRCLE_SIZE / 2,
   },
   circleActive: { backgroundColor: colors.secondary },
   dots: { position: 'absolute', bottom: 5, flexDirection: 'row', gap: 2 },

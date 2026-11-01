@@ -4,6 +4,7 @@ import {
   expectMinTouchTarget,
   hitSlopOf,
   MIN_FONT_SCALE,
+  MIN_TOUCH_TARGET,
   minLineHeight,
   stylePt,
 } from './touchTarget';
@@ -50,13 +51,17 @@ describe('touchTarget', () => {
     expect(() => stylePt(box, 'height')).toThrow('height 가 pt 숫자가 아니다');
   });
 
-  it('크기와 hitSlop 의 합이 44 이상이면 통과하고, 모자라면 축과 내역을 알린다', async () => {
+  it('크기와 hitSlop 의 합이 최소 터치 영역 이상이면 통과하고, 모자라면 축과 내역을 알린다', async () => {
     await renderBox({ top: 2, bottom: 2, left: 1, right: 1 });
     const box = screen.getByTestId('box');
+    const size = MIN_TOUCH_TARGET - 4;
 
-    expectMinTouchTarget(box, { height: 40 });
-    expect(() => expectMinTouchTarget(box, { width: 40, height: 40 })).toThrow(
-      '터치 영역 width 42 가 44 보다 작다 (크기 40 + hitSlop 1 + 1)',
+    expectMinTouchTarget(box, { height: size });
+    expect(() =>
+      expectMinTouchTarget(box, { width: size, height: size }),
+    ).toThrow(
+      `터치 영역 width ${size + 2} 가 ${MIN_TOUCH_TARGET} 보다 작다 ` +
+        `(크기 ${size} + hitSlop 1 + 1)`,
     );
   });
 

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../tokens/colors';
+import { smallestLineHeight, touchSlop } from '../tokens/touchTarget';
 import { Text } from './Text';
 
 // Figma DesignSystem › Bottom Navigation Bar (Home / 내 일정 / 작업 이력 / 마이).
@@ -22,6 +23,14 @@ export type BottomNavigationBarProps<K extends string> = {
 // Figma 프레임(홈 인디케이터 있는 iPhone)에서 아래 여백이 33 이다. 인셋이 없는 기기도 최소 여백은 둔다.
 // 아래 안전 영역을 여기서 처리하므로, 감싸는 SafeAreaView 는 edges 에서 'bottom' 을 빼야 한다.
 const MIN_BOTTOM_PADDING = 16;
+
+const ICON_SIZE = 24;
+const ITEM_GAP = 6;
+// 탭 높이(가장 작은 글자 설정에서 iOS 47.3, Android 47.9)가 모자라면 탭 바 위아래 패딩 안에서 보완한다
+const ITEM_SLOP = touchSlop(
+  ICON_SIZE + ITEM_GAP + smallestLineHeight('Caption/M/Medium'),
+);
+const ITEM_HIT_SLOP = { top: ITEM_SLOP, bottom: ITEM_SLOP };
 
 export function BottomNavigationBar<K extends string>({
   items,
@@ -47,6 +56,7 @@ export function BottomNavigationBar<K extends string>({
             accessibilityRole="tab"
             accessibilityLabel={item.label}
             accessibilityState={{ selected: active }}
+            hitSlop={ITEM_HIT_SLOP}
             onPress={() => onChange(item.key)}
             style={styles.item}
           >
@@ -74,10 +84,10 @@ const styles = StyleSheet.create({
     borderColor: colors.inactive,
     boxShadow: '0px -4px 4px rgba(0, 0, 0, 0.03)',
   },
-  item: { flex: 1, alignItems: 'center', gap: 6 },
+  item: { flex: 1, alignItems: 'center', gap: ITEM_GAP },
   icon: {
-    width: 24,
-    height: 24,
+    width: ICON_SIZE,
+    height: ICON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -6,6 +6,11 @@ export {
   type TextStyleToken,
   type TypographyVariant,
 } from './tokens/typography';
+export {
+  ICON_HIT_SLOP,
+  MIN_TOUCH_TARGET,
+  touchSlop,
+} from './tokens/touchTarget';
 
 export { Text, type TextProps } from './components/Text';
 export { CTA, type CTAProps, type CTAVariant } from './components/CTA';

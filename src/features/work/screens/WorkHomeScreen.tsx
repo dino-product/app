@@ -7,7 +7,12 @@ import {
   type FlatListInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, Icon, Text } from '../../../shared/design-system';
+import {
+  colors,
+  Icon,
+  ICON_HIT_SLOP,
+  Text,
+} from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { CurrentWorkCard } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
@@ -58,7 +63,7 @@ export function WorkHomeScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="알림"
-            hitSlop={10}
+            hitSlop={ICON_HIT_SLOP}
             onPress={onOpenNotifications}
           >
             <Icon name="bell" />
