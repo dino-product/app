@@ -21,6 +21,23 @@ const tab = (name: string) => screen.getByRole('tab', { name });
 // 탭 바(tablist)는 accessible 요소가 아니라 역할로 못 찾으므로 탭 버튼으로 확인한다
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
 
+// 작업을 시작하고 상세에서 완료 보고를 채워 제출한다. 결과 모달이 열린 채로 끝난다
+async function submitReport() {
+  await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+  await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+  await userEvent.press(
+    screen.getByRole('button', { name: '작업 전 사진 추가' }),
+  );
+  await userEvent.press(
+    screen.getByRole('button', { name: '작업 후 사진 추가' }),
+  );
+  await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
+  await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
+  await userEvent.press(screen.getByRole('button', { name: '카드' }));
+  await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
+  await screen.findByRole('header', { name: '제출 완료' });
+}
+
 describe('App', () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -140,24 +157,9 @@ describe('App', () => {
   it('완료 보고를 제출하고 메인으로 돌아오면 다시 "작업 시작" 상태다', async () => {
     await render(<App />);
 
-    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
-    await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+    await submitReport();
     await userEvent.press(
-      screen.getByRole('button', { name: '작업 전 사진 추가' }),
-    );
-    await userEvent.press(
-      screen.getByRole('button', { name: '작업 후 사진 추가' }),
-    );
-    await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
-    await userEvent.press(
-      screen.getByRole('button', { name: '결제 방식 선택' }),
-    );
-    await userEvent.press(screen.getByRole('button', { name: '카드' }));
-    await userEvent.press(
-      screen.getByRole('button', { name: '완료보고 제출' }),
-    );
-    await userEvent.press(
-      await screen.findByRole('button', { name: '메인 화면으로' }),
+      screen.getByRole('button', { name: '메인 화면으로' }),
     );
 
     expect(header('내 작업')).toBeOnTheScreen();
@@ -301,13 +303,19 @@ describe('App', () => {
     // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
     const finishTransition = (title: string) =>
       fireEvent(screen.getByRole('header', { name: title }), 'appear');
-    // 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다
+    // 두 손가락 Z: VoiceOver 는 포커스한 요소에서 위로 올라가며 escape 를 받는 뷰를 찾는다.
+    // 모달 내용은 따로 띄운 뷰 계층이라 Modal 위(가린 화면)로는 올라가지 않는다
     const escapeTarget = (title: string) => {
-      let node = screen.getByRole('header', { name: title }).parent;
-      while (node && !node.props.onAccessibilityEscape) {
-        node = node.parent;
+      for (
+        let node = screen.getByRole('header', { name: title }).parent;
+        node && node.type !== 'Modal';
+        node = node.parent
+      ) {
+        if (node.props.onAccessibilityEscape) {
+          return node;
+        }
       }
-      return node;
+      return null;
     };
     // RN 의 escape 이벤트는 버블링하지 않으므로 받는 뷰에 직접 보낸다
     const escapeFrom = (title: string) => {
@@ -432,6 +440,19 @@ describe('App', () => {
 
       // Fabric 은 escape 핸들러만 있는 View 를 평탄화해 네이티브 뷰로 만들지 않는다
       expect(escapeTarget('작업 상세')?.props.collapsable).toBe(false);
+    });
+
+    it('완료 보고 제출 뒤 결과 모달에서 두 손가락 Z 로 메인화면과 "작업 시작" 상태로 돌아온다', async () => {
+      await render(<App />);
+
+      await submitReport();
+      await escapeFrom('제출 완료');
+
+      expect(header('제출 완료')).not.toBeOnTheScreen();
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '작업 시작' }),
+      ).toBeOnTheScreen();
     });
   });
 
