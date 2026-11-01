@@ -10,10 +10,13 @@ import {
   AccessibilityInfo,
   Alert,
   BackHandler,
+  DeviceEventEmitter,
   Dimensions,
   FlatList,
   Linking,
+  Platform,
 } from 'react-native';
+import { hideKeyboard, showKeyboard } from '../../jest/keyboard';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
 import App from './App';
@@ -230,6 +233,70 @@ describe('App', () => {
     await userEvent.press(tab('내 일정'));
 
     expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+
+  // 가려진 화면도 마운트된 채로 남으므로, 다른 화면에서 키보드를 쓸 때 다시 그리지 않게 구독을 푼다
+  describe('Android 키보드 회피는 지금 보이는 화면만 키보드를 듣는다', () => {
+    const keyboardListeners = () =>
+      DeviceEventEmitter.listenerCount('keyboardDidShow') +
+      DeviceEventEmitter.listenerCount('keyboardDidHide');
+    // 탭을 옮기면 가려진 화면은 스크린리더에서 숨는다
+    const detailBody = () =>
+      screen.getByTestId('work-detail-body', { includeHiddenElements: true });
+
+    async function openDetail() {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await render(<App />);
+      const before = keyboardListeners();
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      return before;
+    }
+
+    afterEach(async () => {
+      // Keyboard 모듈은 마지막 키보드 상태를 들고 있어 다음 테스트로 넘어가지 않게 내린다
+      await hideKeyboard();
+    });
+
+    it('다른 탭에 가면 구독을 풀고, 돌아오면 떠 있는 키보드를 반영한다', async () => {
+      const before = await openDetail();
+      expect(keyboardListeners()).toBe(before + 2);
+      // 스크롤 영역이 화면 위 100 ~ 800 이고 키보드 윗변이 500 이면 300 을 가린다
+      await fireEvent(detailBody(), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 100, width: 360, height: 700 } },
+      });
+      await showKeyboard(500);
+      expect(detailBody()).toHaveStyle({ paddingBottom: 300 });
+
+      await userEvent.press(tab('내 일정'));
+      expect(keyboardListeners()).toBe(before);
+      expect(detailBody()).toHaveStyle({ paddingBottom: 0 });
+      await showKeyboard(450);
+      expect(detailBody()).toHaveStyle({ paddingBottom: 0 });
+
+      await userEvent.press(tab('홈'));
+      expect(keyboardListeners()).toBe(before + 2);
+      expect(detailBody()).toHaveStyle({ paddingBottom: 350 });
+    });
+
+    it('탭 위 루트 스택의 거절 사유는 그 화면만 듣고, 닫고 홈에 오면 작업 상세가 다시 듣는다', async () => {
+      const before = await openDetail();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      await userEvent.press(
+        screen.getAllByRole('button', { name: / 상세,/ })[0],
+      );
+      await userEvent.press(screen.getByRole('button', { name: '거절' }));
+      expect(keyboardListeners()).toBe(before + 2);
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(keyboardListeners()).toBe(before);
+
+      await userEvent.press(tab('홈'));
+      expect(keyboardListeners()).toBe(before + 2);
+    });
   });
 
   it('홈 첫 화면에서 홈 탭을 다시 눌러도 그대로다', async () => {

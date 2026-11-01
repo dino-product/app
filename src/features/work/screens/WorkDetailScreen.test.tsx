@@ -3,8 +3,10 @@ import {
   render,
   screen,
   userEvent,
+  within,
 } from '@testing-library/react-native';
 import { Platform } from 'react-native';
+import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
 import { workDetail } from '../mockData';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -137,15 +139,17 @@ describe('WorkDetailScreen', () => {
   });
 
   describe('키보드', () => {
-    // Platform.OS 만 바꾼다. 화면이 render 안에서 Platform.OS 를 읽어야 반영된다
-    // (jest 의 Platform.select·모듈 상수는 늘 ios). prop 값 확인에만 쓴다
+    // Platform.OS 만 바꾼다. render·effect 안에서 읽는 Platform.OS 에만 반영된다
+    // (jest 의 Platform.select·모듈 상수는 늘 ios)
     const renderOn = async (os: 'ios' | 'android') => {
       jest.replaceProperty(Platform, 'OS', os);
       await renderDetail();
       return screen.getByTestId('work-detail-scroll');
     };
 
-    afterEach(() => {
+    afterEach(async () => {
+      // Keyboard 모듈은 마지막 키보드 상태를 들고 있어 다음 테스트로 넘어가지 않게 내린다
+      await hideKeyboard();
       jest.restoreAllMocks();
     });
 
@@ -162,6 +166,37 @@ describe('WorkDetailScreen', () => {
 
       expect(scroll).toHaveProp('keyboardDismissMode', 'on-drag');
       expect(scroll).toHaveProp('keyboardShouldPersistTaps', 'handled');
+    });
+
+    // 스크롤 영역이 화면 위 100 ~ 800 이고 키보드 윗변이 500 이면 300 을 가린다
+    const layoutBody = async () => {
+      const body = screen.getByTestId('work-detail-body');
+      await fireEvent(body, 'layout', {
+        nativeEvent: { layout: { x: 0, y: 100, width: 360, height: 700 } },
+      });
+      return body;
+    };
+
+    it('Android 는 키보드에 가린 만큼 스크롤 영역을 줄여 입력칸이 키보드 위에 남는다', async () => {
+      await renderOn('android');
+      const body = await layoutBody();
+
+      await showKeyboard(500);
+      // 내용 여백이 아니라 스크롤 영역을 줄여야 Android ScrollView 가 포커스된 칸을 보이게 스크롤한다
+      expect(body).toHaveStyle({ paddingBottom: 300 });
+      expect(within(body).getByTestId('work-detail-scroll')).toBeOnTheScreen();
+
+      await hideKeyboard();
+      expect(body).toHaveStyle({ paddingBottom: 0 });
+    });
+
+    it('iOS 는 키보드가 떠도 스크롤 영역을 줄이지 않는다', async () => {
+      await renderOn('ios');
+      const body = await layoutBody();
+
+      await showKeyboard(500);
+
+      expect(body).toHaveStyle({ paddingBottom: 0 });
     });
   });
 
