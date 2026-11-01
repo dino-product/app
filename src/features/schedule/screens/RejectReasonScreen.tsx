@@ -17,6 +17,7 @@ import {
   TextArea,
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
+import { readableColumn } from '../../../shared/layout/readableColumn';
 import {
   rejectReasons,
   validateRejection,
@@ -62,7 +63,7 @@ export function RejectReasonScreen({
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
@@ -93,7 +94,7 @@ export function RejectReasonScreen({
           }
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[readableColumn, styles.content]}
         >
           <View style={styles.intro}>
             <Text variant="Body/XL/Bold">작업을 거절할까요?</Text>
@@ -152,7 +153,7 @@ export function RejectReasonScreen({
         </ScrollView>
       </KeyboardAvoidingArea>
 
-      <View style={styles.actions}>
+      <View style={[readableColumn, styles.actions]}>
         <CTA
           size="M"
           variant="outline"

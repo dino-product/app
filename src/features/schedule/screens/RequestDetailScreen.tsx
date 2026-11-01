@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
+import { readableColumn } from '../../../shared/layout/readableColumn';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
 import type { WorkDetail } from '../../work/model';
 
@@ -33,7 +34,7 @@ export function RequestDetailScreen({
 }) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
@@ -52,10 +53,10 @@ export function RequestDetailScreen({
           작업 상세
         </Text>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
         <WorkInfoSections work={work} onCall={onCall} onNavigate={onNavigate} />
       </ScrollView>
-      <View style={styles.actions}>
+      <View style={[readableColumn, styles.actions]}>
         <CTA
           size="M"
           variant="outline"

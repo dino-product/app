@@ -26,6 +26,7 @@ import {
   TextArea,
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
+import { readableColumn } from '../../../shared/layout/readableColumn';
 import { Section, SectionBand } from '../components/InfoCard';
 import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
@@ -156,7 +157,7 @@ export function WorkDetailScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
@@ -192,7 +193,7 @@ export function WorkDetailScreen({
           }}
           onScroll={handleScroll}
           scrollEventThrottle={16}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[readableColumn, styles.content]}
         >
           <WorkInfoSections
             work={work}
@@ -259,7 +260,8 @@ export function WorkDetailScreen({
         </ScrollView>
 
         {showJump && (
-          <View style={styles.jump}>
+          // 버튼 양옆 여백까지 덮으므로 그 터치는 아래 스크롤 뷰로 넘긴다
+          <View pointerEvents="box-none" style={[readableColumn, styles.jump]}>
             <CTA
               variant="brand"
               icon={
@@ -291,5 +293,6 @@ const styles = StyleSheet.create({
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 32 },
   submit: { marginHorizontal: 24, marginTop: 32 },
-  jump: { position: 'absolute', left: 24, right: 24, bottom: 16 },
+  // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
+  jump: { position: 'absolute', bottom: 16, paddingHorizontal: 24 },
 });
