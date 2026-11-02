@@ -1,6 +1,22 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, CTA, Icon, Text } from '../../../shared/design-system';
+import {
+  colors,
+  CTA,
+  Icon,
+  ShadowView,
+  Text,
+  type DropShadow,
+} from '../../../shared/design-system';
 import type { CurrentWork } from '../model';
+
+// 작업이 있을 때와 없을 때 같은 Figma 프레임의 드롭 섀도
+const CARD_SHADOW: DropShadow = {
+  x: 0,
+  y: 1,
+  blur: 18,
+  color: '#776BA8',
+  opacity: 0.12,
+};
 
 // 메인화면 상단의 오늘 진행할 작업 카드. 시작 전 "작업 시작"(Secondary), 시작 후 "작업 수행중"(Primary).
 export function CurrentWorkCard({
@@ -15,7 +31,7 @@ export function CurrentWorkCard({
   onOpen: () => void;
 }) {
   return (
-    <View style={[styles.frame, styles.card]}>
+    <ShadowView shadow={CARD_SHADOW} style={[styles.frame, styles.card]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${work.title} 상세 보기`}
@@ -53,29 +69,24 @@ export function CurrentWorkCard({
         onPress={started ? onOpen : onStart}
         style={styles.cta}
       />
-    </View>
+    </ShadowView>
   );
 }
 
 // 진행할 작업이 없을 때 같은 자리의 카드. 누를 수 없는 안내라 글자로만 읽힌다
 export function NoCurrentWorkCard() {
   return (
-    <View style={[styles.frame, styles.empty]}>
+    <ShadowView shadow={CARD_SHADOW} style={[styles.frame, styles.empty]}>
       <Text variant="Caption/M/SemiBold" color={colors.white[60]}>
         현재 진행 중인 작업이 없습니다
       </Text>
-    </View>
+    </ShadowView>
   );
 }
 
 const styles = StyleSheet.create({
-  // 작업이 있을 때와 없을 때 같은 Figma 프레임. 그림자는 #776BA8 12%
-  frame: {
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 18,
-    boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.12)',
-  },
+  // 작업이 있을 때와 없을 때 같은 Figma 프레임
+  frame: { paddingVertical: 24, paddingHorizontal: 20, borderRadius: 18 },
   card: { gap: 22, backgroundColor: colors.white[100] },
   empty: { backgroundColor: colors.primary },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },

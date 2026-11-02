@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { colors, fonts } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { currentWork } from '../mockData';
@@ -13,6 +14,10 @@ const cardFrame = {
 };
 
 describe('CurrentWorkCard', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('작업명, 시간, 고객·주소를 보여준다', async () => {
     await render(
       <CurrentWorkCard
@@ -102,6 +107,26 @@ describe('CurrentWorkCard', () => {
     });
   });
 
+  it('boxShadow 를 못 그리는 Android 8.1 이하에서는 같은 그림자를 겹친 사각형으로 깐다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'Version', 'get').mockReturnValue(27);
+    await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    const card = screen.getByRole('button', {
+      name: '보일러 점검 상세 보기',
+    }).parent;
+    expect(card).toHaveStyle({ borderRadius: 18 });
+    expect(StyleSheet.flatten(card?.props.style).boxShadow).toBeUndefined();
+    expect(card?.parent?.children.length).toBeGreaterThan(1);
+  });
+
   it('시작 전이면 Secondary "작업 시작" CTA 로 onStart 를 호출한다', async () => {
     const onStart = jest.fn();
     await render(
@@ -158,6 +183,10 @@ describe('CurrentWorkCard', () => {
 });
 
 describe('NoCurrentWorkCard', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('같은 틀의 Primary 카드에 흐린 글씨로 안내하고, 누를 수 없다', async () => {
     await render(<NoCurrentWorkCard />);
 
@@ -168,5 +197,16 @@ describe('NoCurrentWorkCard', () => {
       backgroundColor: colors.primary,
     });
     expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('boxShadow 를 못 그리는 Android 8.1 이하에서도 같은 그림자를 겹친 사각형으로 깐다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'Version', 'get').mockReturnValue(27);
+    await render(<NoCurrentWorkCard />);
+
+    const card = screen.getByText('현재 진행 중인 작업이 없습니다').parent;
+    expect(card).toHaveStyle({ borderRadius: 18 });
+    expect(StyleSheet.flatten(card?.props.style).boxShadow).toBeUndefined();
+    expect(card?.parent?.children.length).toBeGreaterThan(1);
   });
 });
