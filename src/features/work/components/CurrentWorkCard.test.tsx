@@ -63,7 +63,7 @@ describe('CurrentWorkCard', () => {
     ).toEqual(pathsOf(iconSvgs['chevron-right'].xml));
   });
 
-  it('고객·주소 줄은 Figma 대로 14pt 행간 140% 이고 고객은 Medium, 주소는 Regular 다', async () => {
+  it('고객·주소 줄은 Figma 대로 14pt 행간 140% 이고 고객은 Medium, 주소는 Regular, 사이 구분선은 Gray400 이다', async () => {
     await render(
       <CurrentWorkCard
         work={currentWork}
@@ -84,6 +84,11 @@ describe('CurrentWorkCard', () => {
       fontSize: 14,
       lineHeight: 19.6,
       color: colors.gray[800],
+    });
+    expect(screen.getByText('이수연').parent?.children[1]).toHaveStyle({
+      width: 1,
+      height: 12,
+      backgroundColor: colors.gray[400],
     });
   });
 

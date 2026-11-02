@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   info: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
+  divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
   // Figma 의 고객·주소 줄은 텍스트 스타일 없이 14pt 행간 140% 다 (Caption/M 은 150%)
   metaText: { lineHeight: 19.6 },
   address: { flexShrink: 1 },

@@ -8,7 +8,7 @@ import {
 } from '../../../shared/design-system';
 import type { ScheduleItem } from '../model';
 
-// 메인화면 주간 일정 카드
+// 메인화면 주간 일정 카드. 칩은 제목·시간 묶음 오른쪽 위에 붙는다
 export const ScheduleCard = memo(function ScheduleCardView({
   item,
   onPress,
@@ -28,16 +28,18 @@ export const ScheduleCard = memo(function ScheduleCardView({
       style={styles.card}
     >
       <View style={styles.titleRow}>
-        <Text variant="Body/S/Bold" style={styles.title} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <StatusChip status={item.status} size="S" style={styles.chip} />
-      </View>
-      <View style={styles.row}>
-        <Text variant="Caption/M/SemiBold">{item.timeRange}</Text>
-        <Text variant="Caption/M/Regular" color={colors.gray[600]}>
-          {item.dayLabel}
-        </Text>
+        <View style={styles.summary}>
+          <Text variant="Body/S/SemiBold" numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text variant="Caption/M/Medium">
+            {item.timeRange}{' '}
+            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+              {item.dayLabel}
+            </Text>
+          </Text>
+        </View>
+        <StatusChip status={item.status} size="S" />
       </View>
       <View style={styles.row}>
         <Text variant="Caption/M/Medium" color={colors.gray[800]}>
@@ -45,7 +47,7 @@ export const ScheduleCard = memo(function ScheduleCardView({
         </Text>
         <View style={styles.divider} />
         <Text
-          variant="Caption/M/Regular"
+          variant="Caption/M/Medium"
           color={colors.gray[600]}
           numberOfLines={1}
           style={styles.shrink}
@@ -66,13 +68,12 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
   },
-  title: { flexShrink: 1 },
-  chip: { alignSelf: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
+  summary: { flexShrink: 1, gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
   shrink: { flexShrink: 1 },
 });

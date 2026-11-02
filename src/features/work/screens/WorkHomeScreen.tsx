@@ -12,6 +12,7 @@ import {
   Icon,
   ICON_HIT_SLOP,
   Text,
+  withOpacity,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import {
@@ -90,7 +91,7 @@ export function WorkHomeScreen({
           <Text accessibilityRole="header" variant="Body/M/SemiBold">
             일정
           </Text>
-          <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+          <Text variant="Caption/M/Medium" color={colors.gray[700]}>
             {weekLabel}
           </Text>
         </View>
@@ -119,6 +120,16 @@ export function WorkHomeScreen({
         ItemSeparatorComponent={Separator}
         contentContainerStyle={[readableColumn, styles.content]}
       />
+      {/* 탭 바 바로 위에서 목록이 배경색으로 흐려진다. 터치는 아래 목록으로 간다.
+          일정이 없으면 깔지 않는다 (작은 화면에서 빈 상태 안내가 흐려지지 않게) */}
+      {schedule.length > 0 && (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.bottomFade}
+          testID="home-bottom-fade"
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -159,26 +170,48 @@ function EmptySchedule() {
   );
 }
 
-const HEADER_PADDING_BOTTOM = 16;
+// Figma 에서 '일정' 줄과 첫 일정 카드 사이
+const HEADER_PADDING_BOTTOM = 12;
+// Figma 에서 목록이 흐려지는 탭 바 위 높이
+const BOTTOM_FADE_HEIGHT = 83;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
-  content: { paddingHorizontal: 20, paddingBottom: 24 },
-  header: { gap: 20, paddingTop: 16, paddingBottom: HEADER_PADDING_BOTTOM },
+  // 마지막 카드는 흐려지는 곳 위에서 끝난다
+  content: { paddingHorizontal: 24, paddingBottom: BOTTOM_FADE_HEIGHT },
+  // 제목 줄은 상태 표시줄(안전 영역) 아래 12 에서 시작한다 (Figma: 상태 표시줄 60, 제목 줄 72)
+  header: { gap: 20, paddingTop: 12, paddingBottom: HEADER_PADDING_BOTTOM },
+  // 제목 줄·일정 줄은 Figma 에서 카드보다 조금 안쪽에서 시작하고 오른쪽 끝은 카드와 같다
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginLeft: 3.91,
   },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
+    marginLeft: 6.84,
   },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewToggle: { flexDirection: 'row', gap: 4 },
   separator: { height: 12 },
+  // 진하기는 추정값이다. Figma 패널에 정지점 위치가 나오지 않아, 흐려진 글자 픽셀을 재서
+  // 위 20% 까지 투명, 탭 바와 닿는 곳에서 0.65 로 잡았다 (메인화면 - 시작 가능 3255:17530)
+  bottomFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: BOTTOM_FADE_HEIGHT,
+    pointerEvents: 'none',
+    backgroundImage: `linear-gradient(to bottom, ${withOpacity(
+      colors.background[3],
+      0,
+    )} 20%, ${withOpacity(colors.background[3], 0.65)} 100%)`,
+  },
   // Figma 에서 '일정' 줄 아래 118pt
   emptySchedule: {
     alignItems: 'center',

@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { currentWork, weeklySchedule } from '../mockData';
@@ -150,5 +151,87 @@ describe('WorkHomeScreen', () => {
         name: '세탁기 설치, 작업전, 11:00 – 12:00 오늘 · 9. 19. (토), 한빛 설비 정다은 · 서울 용산구 이태원로 202',
       }),
     ).toHaveLength(3);
+  });
+});
+
+describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)', () => {
+  it('본문은 좌우 24 여백이고, 목록 끝은 아래 흐림(83) 위에서 끝난다', async () => {
+    await renderHome();
+
+    // 본문 여백은 스크롤 뷰의 contentContainerStyle 로 준다
+    let list = screen.getAllByRole('button', { name: /세탁기 설치/ })[0].parent;
+    while (list && list.type !== 'RCTScrollView') {
+      list = list.parent;
+    }
+    expect(StyleSheet.flatten(list?.props.contentContainerStyle)).toMatchObject(
+      { paddingHorizontal: 24, paddingBottom: 83 },
+    );
+  });
+
+  it('제목 줄은 상태 표시줄 아래 12 에서, 카드보다 3.91 안쪽에서 시작한다', async () => {
+    await renderHome();
+
+    const titleRow = screen.getByRole('header', { name: '내 작업' }).parent;
+    expect(titleRow).toHaveStyle({ marginLeft: 3.91 });
+    expect(titleRow?.parent).toHaveStyle({ paddingTop: 12 });
+  });
+
+  it('일정 줄은 카드보다 6.84 안쪽에서 시작하고, 첫 일정 카드는 그 아래 12 에서 시작한다', async () => {
+    await renderHome();
+
+    const sectionRow = screen.getByRole('header', { name: '일정' }).parent
+      ?.parent;
+    expect(sectionRow).toHaveStyle({ marginLeft: 6.84 });
+    expect(sectionRow?.parent).toHaveStyle({ paddingBottom: 12 });
+  });
+
+  it('주 표시는 Gray700 이다', async () => {
+    await renderHome();
+
+    expect(screen.getByText('9. 14. – 9. 20.')).toHaveStyle({
+      color: colors.gray[700],
+    });
+  });
+
+  it('탭 바 위 83pt 에서 목록이 배경색으로 흐려지고, 터치는 그대로 아래로 간다', async () => {
+    await renderHome();
+
+    const fade = screen.getByTestId('home-bottom-fade', {
+      includeHiddenElements: true,
+    });
+    expect(fade).toHaveStyle({
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 83,
+      pointerEvents: 'none',
+      backgroundImage:
+        'linear-gradient(to bottom, rgba(245, 246, 248, 0) 20%, rgba(245, 246, 248, 0.65) 100%)',
+    });
+    // 스크린리더에서는 숨는다 (기본 쿼리는 숨은 요소를 찾지 않는다)
+    expect(screen.queryByTestId('home-bottom-fade')).not.toBeOnTheScreen();
+  });
+
+  it('일정이 없으면 흐림을 깔지 않는다 (작은 화면에서 빈 상태 안내가 흐려지지 않게)', async () => {
+    await renderHome({ schedule: [] });
+
+    expect(
+      screen.queryByTestId('home-bottom-fade', { includeHiddenElements: true }),
+    ).not.toBeOnTheScreen();
+  });
+
+  it('일정 빈 상태는 일정 줄 아래 118 에서 시작한다 (메인화면 - 일정(무) 3278:23276)', async () => {
+    await renderHome({ currentWork: null, schedule: [] });
+
+    const header = screen.getByRole('header', { name: '일정' }).parent?.parent
+      ?.parent;
+    const empty = screen.getByTestId('empty-schedule-icon', {
+      includeHiddenElements: true,
+    }).parent;
+    expect(
+      Number(StyleSheet.flatten(header?.props.style).paddingBottom) +
+        Number(StyleSheet.flatten(empty?.props.style).paddingTop),
+    ).toBe(118);
   });
 });
