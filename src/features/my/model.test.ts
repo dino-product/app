@@ -4,7 +4,9 @@ import {
   formatJoinDate,
   formatPhoneNumber,
   formatRelativeTime,
+  rejectedRequestOf,
   withdrawalBlockCards,
+  type AppNotification,
   type WithdrawalEligibility,
 } from './model';
 
@@ -190,5 +192,34 @@ describe('withdrawalBlockCards', () => {
         { reason: 'WORK_PENDING_ACCEPT', count: 2 },
       ]).map(card => card.reason),
     ).toEqual(['WORK_PENDING_ACCEPT']);
+  });
+});
+
+describe('rejectedRequestOf', () => {
+  const notification = (patch: Partial<AppNotification>): AppNotification => ({
+    id: 'n',
+    type: 'PARTICIPATION_REQUEST_REJECTED',
+    message: '',
+    read: false,
+    createdAt: '2026-11-02T00:00:00Z',
+    ...patch,
+  });
+
+  // 참여 거절 알림을 누르면 거절 화면으로 간다 (#73). 승인 결과 화면은 아직 없다
+  it('참여 거절 알림이면 그 참여 요청 id 를 준다', () => {
+    expect(
+      rejectedRequestOf(notification({ participationRequestId: 'request-3' })),
+    ).toBe('request-3');
+  });
+
+  it.each<[string, Partial<AppNotification>]>([
+    ['참여 요청 id 가 없으면', {}],
+    [
+      '참여 승인 알림이면',
+      { type: 'PARTICIPATION_REQUEST_APPROVED', participationRequestId: 'r' },
+    ],
+    ['작업 알림이면', { type: 'WORK_ASSIGNED' }],
+  ])('%s 열 곳이 없다', (_, patch) => {
+    expect(rejectedRequestOf(notification(patch))).toBeNull();
   });
 });

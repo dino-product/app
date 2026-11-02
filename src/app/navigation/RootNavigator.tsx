@@ -23,6 +23,13 @@ import {
   WithdrawalRoute,
 } from './myRoutes';
 import {
+  JoinRejectedRoute,
+  JoinRequestedRoute,
+  JoinRequestsRoute,
+  OrgJoinRoute,
+  RoleSelectRoute,
+} from './orgRoutes';
+import {
   RejectReasonRoute,
   RequestDetailRoute,
   ScheduleRoute,
@@ -100,6 +107,10 @@ const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 const byId = ({ params }: { params: { id: string } }) => params.id;
 // 항목이 없는 화면은 하나만 쌓는다 (전환 중에 연달아 눌러도)
 const once = () => 'once';
+const byOrganization = ({ params }: { params: { organizationId: string } }) =>
+  params.organizationId;
+const byRequest = ({ params }: { params: { requestId: string } }) =>
+  params.requestId;
 
 function HomeTab() {
   const stackOptions = useStackOptions();
@@ -155,6 +166,28 @@ function MyTab() {
         <MyStack.Screen
           name="WithdrawalBlocked"
           component={WithdrawalBlockedRoute}
+          getId={once}
+        />
+        {/* 조직 참여 (#73) */}
+        <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
+        <MyStack.Screen
+          name="OrgRoleSelect"
+          component={RoleSelectRoute}
+          getId={byOrganization}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequested"
+          component={JoinRequestedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRejected"
+          component={JoinRejectedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequests"
+          component={JoinRequestsRoute}
           getId={once}
         />
       </MyStack.Navigator>
