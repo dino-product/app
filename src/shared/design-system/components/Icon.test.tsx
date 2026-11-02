@@ -37,7 +37,7 @@ describe('Icon', () => {
     expect(svgOf('default').props.color).toBe('#32303A');
   });
 
-  it('채운 달력(App Icon · Calendar · Active)은 탭에서는 Primary, 빈 일정에서는 회색으로 칠한다', () => {
+  it('채운 달력(App Icon · Calendar · Active)은 색을 바꿀 수 있고 기본색은 탭의 Primary 다', () => {
     expect(iconSvgs['tab-calendar-active']).toMatchObject({
       tint: true,
       color: '#1C1B2A',

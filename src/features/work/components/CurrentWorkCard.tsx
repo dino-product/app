@@ -15,7 +15,7 @@ export function CurrentWorkCard({
   onOpen: () => void;
 }) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.frame, styles.card]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${work.title} 상세 보기`}
@@ -53,13 +53,27 @@ export function CurrentWorkCard({
   );
 }
 
+// 진행할 작업이 없을 때 같은 자리의 카드. 누를 수 없는 안내라 글자로만 읽힌다
+export function NoCurrentWorkCard() {
+  return (
+    <View style={[styles.frame, styles.empty]}>
+      <Text variant="Caption/M/SemiBold" color={colors.white[60]}>
+        현재 진행 중인 작업이 없습니다
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  card: {
-    gap: 20,
-    padding: 20,
-    borderRadius: 20,
-    backgroundColor: colors.white[100],
+  // 작업이 있을 때와 없을 때 같은 Figma 프레임. 그림자는 #776BA8 12%
+  frame: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.12)',
   },
+  card: { gap: 22, backgroundColor: colors.white[100] },
+  empty: { backgroundColor: colors.primary },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   info: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },

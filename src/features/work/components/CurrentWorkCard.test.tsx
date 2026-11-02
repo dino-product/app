@@ -1,7 +1,15 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import { currentWork } from '../mockData';
-import { CurrentWorkCard } from './CurrentWorkCard';
+import { CurrentWorkCard, NoCurrentWorkCard } from './CurrentWorkCard';
+
+// Figma 메인화면의 진행 작업 카드 틀. 작업이 있을 때와 없을 때 같은 프레임이다
+const cardFrame = {
+  paddingVertical: 24,
+  paddingHorizontal: 20,
+  borderRadius: 18,
+  boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.12)',
+};
 
 describe('CurrentWorkCard', () => {
   it('작업명, 시간, 고객·주소를 보여준다', async () => {
@@ -34,8 +42,27 @@ describe('CurrentWorkCard', () => {
     const [first] = screen.getByRole('button', {
       name: '보일러 점검 상세 보기',
     }).children;
-    expect(typeof first === 'string' ? first : first.type).toBe('View');
     expect(first).toHaveTextContent(/^보일러 점검/);
+  });
+
+  it('카드 틀은 Figma 대로 위아래 24·좌우 20 여백, 모서리 18, 보랏빛 그림자다', async () => {
+    await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    const card = screen.getByRole('button', {
+      name: '보일러 점검 상세 보기',
+    }).parent;
+    expect(card).toHaveStyle({
+      ...cardFrame,
+      gap: 22,
+      backgroundColor: colors.white[100],
+    });
   });
 
   it('시작 전이면 Secondary "작업 시작" CTA 로 onStart 를 호출한다', async () => {
@@ -90,5 +117,19 @@ describe('CurrentWorkCard', () => {
     );
 
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NoCurrentWorkCard', () => {
+  it('같은 틀의 Primary 카드에 흐린 글씨로 안내하고, 누를 수 없다', async () => {
+    await render(<NoCurrentWorkCard />);
+
+    const text = screen.getByText('현재 진행 중인 작업이 없습니다');
+    expect(text).toHaveStyle({ color: colors.white[60] });
+    expect(text.parent).toHaveStyle({
+      ...cardFrame,
+      backgroundColor: colors.primary,
+    });
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 });

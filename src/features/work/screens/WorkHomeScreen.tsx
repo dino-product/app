@@ -14,7 +14,10 @@ import {
   Text,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
-import { CurrentWorkCard } from '../components/CurrentWorkCard';
+import {
+  CurrentWorkCard,
+  NoCurrentWorkCard,
+} from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import type { CurrentWork, ScheduleItem } from '../model';
 
@@ -80,7 +83,7 @@ export function WorkHomeScreen({
           onOpen={() => onOpenWork(currentWork.id)}
         />
       ) : (
-        <NoCurrentWork />
+        <NoCurrentWorkCard />
       )}
       <View style={styles.sectionRow}>
         <View style={styles.sectionTitle}>
@@ -126,17 +129,6 @@ function Separator() {
   return <View style={styles.separator} />;
 }
 
-// 진행(무): 진행할 작업 카드 자리. 누를 수 없는 안내라 글자로만 읽힌다
-function NoCurrentWork() {
-  return (
-    <View style={styles.noCurrentWork}>
-      <Text variant="Caption/M/SemiBold" color={colors.white[60]}>
-        현재 진행 중인 작업이 없습니다
-      </Text>
-    </View>
-  );
-}
-
 // 일정(무): 아이콘은 Figma App Icon · Calendar · Active 를 회색으로 칠한 것
 function EmptySchedule() {
   return (
@@ -167,10 +159,12 @@ function EmptySchedule() {
   );
 }
 
+const HEADER_PADDING_BOTTOM = 16;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
   content: { paddingHorizontal: 20, paddingBottom: 24 },
-  header: { gap: 20, paddingTop: 16, paddingBottom: 16 },
+  header: { gap: 20, paddingTop: 16, paddingBottom: HEADER_PADDING_BOTTOM },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -185,14 +179,13 @@ const styles = StyleSheet.create({
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewToggle: { flexDirection: 'row', gap: 4 },
   separator: { height: 12 },
-  noCurrentWork: {
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+  // Figma 에서 '일정' 줄 아래 118pt
+  emptySchedule: {
+    alignItems: 'center',
+    gap: 24,
+    paddingTop: 118 - HEADER_PADDING_BOTTOM,
   },
-  // Figma 에서 '일정' 줄 아래 118pt. 헤더 아래 여백 16 을 뺀 값
-  emptySchedule: { alignItems: 'center', gap: 24, paddingTop: 102 },
-  emptyScheduleText: { alignItems: 'center', gap: 12 },
+  // 문구 줄바꿈 폭도 Figma 의 304
+  emptyScheduleText: { alignItems: 'center', gap: 12, maxWidth: 304 },
   centered: { textAlign: 'center' },
 });

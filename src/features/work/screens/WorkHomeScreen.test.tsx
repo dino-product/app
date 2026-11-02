@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { currentWork, weeklySchedule } from '../mockData';
 import { WorkHomeScreen } from './WorkHomeScreen';
 
@@ -76,13 +77,23 @@ describe('WorkHomeScreen', () => {
   it('진행할 작업은 없고 이번 주 일정은 있으면 빈 상태 카드 아래에 일정 목록을 그린다', async () => {
     await renderHome({ currentWork: null });
 
-    expect(
-      screen.getByText('현재 진행 중인 작업이 없습니다'),
-    ).toBeOnTheScreen();
-    expect(screen.getAllByRole('button', { name: /세탁기 설치/ })).toHaveLength(
-      weeklySchedule.length,
+    // 찾은 순서가 화면 위→아래 순서다
+    const [top, ...rest] = screen.getAllByText(
+      /^(현재 진행 중인 작업이 없습니다|일정|세탁기 설치)$/,
     );
+    expect(top).toHaveTextContent('현재 진행 중인 작업이 없습니다');
+    expect(rest.map(node => node.props.children)).toEqual([
+      '일정',
+      ...weeklySchedule.map(item => item.title),
+    ]);
     expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
+  });
+
+  it('진행할 작업은 있고 이번 주 일정만 없으면 작업 카드 아래에 일정 빈 상태를 보여 준다', async () => {
+    await renderHome({ schedule: [] });
+
+    expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
+    expect(screen.getByText('이번 주 일정이 없어요')).toBeOnTheScreen();
   });
 
   it('이번 주 일정이 없으면 일정 자리에 회색 달력 아이콘과 안내 문구를 보여 준다', async () => {
@@ -101,6 +112,13 @@ describe('WorkHomeScreen', () => {
     expect(typeof svg === 'string' ? svg : svg.props.color).toBe(
       colors.gray[300],
     );
+    const pathsOf = (xml: string) =>
+      [...xml.matchAll(/ d="([^"]+)"/g)].map(([, d]) => d);
+    expect(
+      icon
+        .queryAll(node => typeof node.props.d === 'string')
+        .map(node => node.props.d),
+    ).toEqual(pathsOf(iconSvgs['tab-calendar-active'].xml));
   });
 
   it('빈 상태 문구는 스크린리더에 글자로 읽히고 버튼으로 읽히지 않는다', async () => {
