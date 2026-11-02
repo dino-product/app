@@ -50,7 +50,7 @@ export function UnderlineTabs<K extends string>({
               </Text>
               {item.count != null && (
                 <Text
-                  variant="Body/XS/SemiBold"
+                  variant="Caption/M/Medium"
                   color={selected ? colors.accepted[1] : colors.gray[500]}
                 >
                   {item.count}
@@ -69,7 +69,7 @@ export function UnderlineTabs<K extends string>({
 }
 
 const TAB_PADDING_TOP = 8;
-const LABEL_GAP = 10;
+const LABEL_GAP = 12;
 const INDICATOR_HEIGHT = 2;
 const BORDER_WIDTH = 1;
 // 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 38.4, Android 39.0)
@@ -92,10 +92,10 @@ const styles = StyleSheet.create({
     gap: 20,
     paddingHorizontal: 24,
     borderBottomWidth: BORDER_WIDTH,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: colors.gray[200],
   },
   tab: { gap: LABEL_GAP, paddingTop: TAB_PADDING_TOP },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   indicator: { height: INDICATOR_HEIGHT, backgroundColor: 'transparent' },
   indicatorActive: { backgroundColor: colors.primary },
 });

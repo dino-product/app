@@ -69,7 +69,9 @@ export function MonthCalendar({
             color={colors.gray[300]}
           />
         </Pressable>
-        <Text variant="Body/XS/SemiBold">{formatMonthTitle(year, month)}</Text>
+        <Text variant="Body/S/SemiBold" color={colors.gray[800]}>
+          {formatMonthTitle(year, month)}
+        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="다음 달"
@@ -84,75 +86,81 @@ export function MonthCalendar({
         </Pressable>
       </View>
 
-      {/* 화살표가 아래로 넓힌 영역은 Android 에서 요일 줄 바로 위까지 온다. 간격이 줄어 겹치더라도 뒤 형제인 요일 글자가
-          먼저 받지 않도록 터치를 넘겨 둔다 */}
-      <View style={[styles.week, styles.passTouches]}>
-        {WEEKDAYS.map((label, day) => (
-          <Text
-            key={label}
-            variant="Body/XS/Medium"
-            color={weekdayHeaderColor(day)}
-            style={styles.weekdayText}
-          >
-            {label}
-          </Text>
-        ))}
-      </View>
+      {/* Figma 는 요일 줄(높이 34, 글자 가운데) 바로 아래에 날짜 칸이 붙는다 */}
+      <View>
+        {/* 화살표가 아래로 넓힌 영역은 Android 에서 요일 줄 바로 위까지 온다. 간격이 줄어 겹치더라도 뒤 형제인 요일 글자가
+            먼저 받지 않도록 터치를 넘겨 둔다 */}
+        <View style={[styles.week, styles.weekdays, styles.passTouches]}>
+          {WEEKDAYS.map((label, day) => (
+            <Text
+              key={label}
+              variant="Body/XS/Medium"
+              color={weekdayHeaderColor(day)}
+              style={styles.weekdayText}
+            >
+              {label}
+            </Text>
+          ))}
+        </View>
 
-      <View style={styles.weeks}>
-        {weeks.map((week, row) => (
-          <View key={toDateKey(week[0].date)} style={styles.week}>
-            {row === 0 && (
-              // 시스템은 한쪽 가장자리마다 세로 200dp 까지만 빼 준다. 밀기는 주로 날짜 칸에서 하고 제목 줄에는
-              // 이전·다음 달 버튼이 있으니 첫 주부터 뺀다. 칸이 69 라 셋째 주 위쪽까지만 덮고(넷째 주부터는 가장자리 밀기가
-              // 뒤로 가기다), 어느 달이든 셋째 주에서 200dp 를 넘어 달을 넘겨도 같은 자리다
-              <GestureExclusionArea edgeInset={edgeInset} height={gridHeight} />
-            )}
-            {week.map(({ date, inMonth }) => {
-              const active = isSameDay(date, selected);
-              const count = eventCounts.get(toDateKey(date)) ?? 0;
-              return (
-                <Pressable
-                  key={date.getTime()}
-                  accessibilityRole="button"
-                  accessibilityLabel={dayA11yLabel(date)}
-                  accessibilityState={{ selected: active }}
-                  // 점은 보이기만 하므로 건수는 값으로 읽어 준다. 레이블은 주간 줄과 같다
-                  accessibilityValue={
-                    count > 0 ? { text: `일정 ${count}건` } : undefined
-                  }
-                  hitSlop={DAY_HIT_SLOP}
-                  onPress={() => onSelect(date)}
-                  style={[styles.cell, active && styles.cellActive]}
-                >
-                  <Text
-                    variant="Body/XS/Medium"
-                    color={
-                      active
-                        ? colors.white[100]
-                        : inMonth
-                        ? dayColor(date.getDay(), 'month')
-                        : colors.gray[400]
+        <View style={styles.weeks}>
+          {weeks.map((week, row) => (
+            <View key={toDateKey(week[0].date)} style={styles.week}>
+              {row === 0 && (
+                // 시스템은 한쪽 가장자리마다 세로 200dp 까지만 빼 준다. 밀기는 주로 날짜 칸에서 하고 제목 줄에는
+                // 이전·다음 달 버튼이 있으니 첫 주부터 뺀다. 칸이 69 라 셋째 주 위쪽까지만 덮고(넷째 주부터는 가장자리 밀기가
+                // 뒤로 가기다), 어느 달이든 셋째 주에서 200dp 를 넘어 달을 넘겨도 같은 자리다
+                <GestureExclusionArea
+                  edgeInset={edgeInset}
+                  height={gridHeight}
+                />
+              )}
+              {week.map(({ date, inMonth }) => {
+                const active = isSameDay(date, selected);
+                const count = eventCounts.get(toDateKey(date)) ?? 0;
+                return (
+                  <Pressable
+                    key={date.getTime()}
+                    accessibilityRole="button"
+                    accessibilityLabel={dayA11yLabel(date)}
+                    accessibilityState={{ selected: active }}
+                    // 점은 보이기만 하므로 건수는 값으로 읽어 준다. 레이블은 주간 줄과 같다
+                    accessibilityValue={
+                      count > 0 ? { text: `일정 ${count}건` } : undefined
                     }
+                    hitSlop={DAY_HIT_SLOP}
+                    onPress={() => onSelect(date)}
+                    style={[styles.cell, active && styles.cellActive]}
                   >
-                    {date.getDate()}
-                  </Text>
-                  {count > 0 && (
-                    <View style={styles.dots}>
-                      {DOT_SLOTS.slice(0, count).map(i => (
-                        <View
-                          key={i}
-                          testID="event-dot"
-                          style={[styles.dot, active && styles.dotActive]}
-                        />
-                      ))}
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+                    <Text
+                      variant="Body/XS/Medium"
+                      color={
+                        active
+                          ? colors.white[100]
+                          : inMonth
+                          ? dayColor(date.getDay(), 'month')
+                          : colors.gray[400]
+                      }
+                    >
+                      {date.getDate()}
+                    </Text>
+                    {count > 0 && (
+                      <View style={styles.dots}>
+                        {DOT_SLOTS.slice(0, count).map(i => (
+                          <View
+                            key={i}
+                            testID="event-dot"
+                            style={[styles.dot, active && styles.dotActive]}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -199,6 +207,7 @@ const styles = StyleSheet.create({
   },
   weeks: { gap: 4 },
   week: { flexDirection: 'row' },
+  weekdays: { height: 34, alignItems: 'center' },
   passTouches: { pointerEvents: 'none' },
   weekdayText: { flex: 1, textAlign: 'center' },
   // 주간 줄의 선택 칸처럼 칸 전체가 선택 배경이다

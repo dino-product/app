@@ -165,6 +165,26 @@ describe('MonthCalendar 표시', () => {
     });
   });
 
+  it('월 제목은 Body/S/SemiBold, Gray800 이다', async () => {
+    await renderDecember();
+
+    expect(screen.getByText('2026년 12월')).toHaveStyle({
+      fontSize: typography['Body/S/SemiBold'].fontSize,
+      fontFamily: typography['Body/S/SemiBold'].fontFamily,
+      color: colors.gray[800],
+    });
+  });
+
+  // Figma 요일 줄은 높이 34 안 가운데에 글자가 있고, 바로 아래에 날짜 칸이 붙는다
+  it('요일 줄은 높이 34 가운데 정렬이고 날짜 칸과 사이 간격이 없다', async () => {
+    await renderDecember();
+
+    const weekdays = screen.getByText('일').parent as HostElement;
+    expect(weekdays).toHaveStyle({ height: 34, alignItems: 'center' });
+    const grid = weekdays.parent as HostElement;
+    expect(StyleSheet.flatten(grid.props.style)?.gap).toBeUndefined();
+  });
+
   // Figma 요일 줄은 날짜 칸과 다른 Type Color 를 쓴다
   it('요일 줄은 Body/XS/Medium 이고 일 Type Color/Red, 토 Type Color/Blue, 평일 Gray800 이다', async () => {
     await renderDecember();

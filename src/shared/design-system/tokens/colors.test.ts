@@ -28,4 +28,9 @@ describe('colors', () => {
   it('Figma 변수 Accents/Blue 를 갖는다', () => {
     expect(colors.accents.blue).toBe('#0088FF');
   });
+
+  // 응답 필요 카드 제목 (#77)
+  it('Figma 변수 P/T/01 을 갖는다', () => {
+    expect(colors.pt01).toBe('#32303A');
+  });
 });

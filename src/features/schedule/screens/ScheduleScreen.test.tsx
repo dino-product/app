@@ -248,6 +248,33 @@ describe('ScheduleScreen — 확정 일정', () => {
     });
   });
 
+  // Figma: 제목은 상태 막대 아래 8, 제목과 탭 사이 24. 머리말 아래에 그림자가 리스트 위로 드리운다
+  it('머리말은 제목 위 8, 제목과 탭 사이 24 이고 아래에 그림자가 있다', async () => {
+    await renderSchedule();
+
+    const title = screen.getByRole('header', { name: '내 일정' });
+    const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
+    expect(title).toHaveStyle({ paddingTop: 8 });
+    expect(stylePt(title, 'paddingBottom') + stylePt(tab, 'paddingTop')).toBe(
+      24,
+    );
+    expect(title.parent?.parent).toHaveStyle({
+      boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
+      zIndex: 1,
+    });
+  });
+
+  it('주간 줄 위 구분선은 화면 가장자리에서 24 안쪽이다', async () => {
+    await renderSchedule();
+
+    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
+    const rule = weekArea.children[0] as HostElement;
+    expect(
+      stylePt(weekArea, 'paddingHorizontal') +
+        stylePt(rule, 'marginHorizontal'),
+    ).toBe(24);
+  });
+
   // Figma: 날짜 줄 좌우 24, 주간 줄은 좌우 10·위아래 20 (구분선 포함), 펼친 달력은 좌우·위아래 24 (구분선 없음)
   it('주간 줄과 펼친 달력은 Figma 여백 안에 놓인다', async () => {
     await renderSchedule();

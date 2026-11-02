@@ -152,27 +152,30 @@ export function ScheduleScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={readableColumn}>
-        <Text
-          accessibilityRole="header"
-          variant="Body/XL/SemiBold"
-          color={colors.black}
-          style={styles.title}
-        >
-          내 일정
-        </Text>
-        <UnderlineTabs
-          items={[
-            {
-              key: 'confirmed',
-              label: '확정 일정',
-              count: daySchedules.length,
-            },
-            { key: 'pending', label: '응답 필요', count: pending.length },
-          ]}
-          selectedKey={tab}
-          onChange={setTab}
-        />
+      {/* 머리말 그림자가 아래 리스트 위로 드리우도록 앞에 그린다 */}
+      <View style={styles.header}>
+        <View style={readableColumn}>
+          <Text
+            accessibilityRole="header"
+            variant="Body/XL/SemiBold"
+            color={colors.black}
+            style={styles.title}
+          >
+            내 일정
+          </Text>
+          <UnderlineTabs
+            items={[
+              {
+                key: 'confirmed',
+                label: '확정 일정',
+                count: daySchedules.length,
+              },
+              { key: 'pending', label: '응답 필요', count: pending.length },
+            ]}
+            selectedKey={tab}
+            onChange={setTab}
+          />
+        </View>
       </View>
       {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
       {tab === 'confirmed' ? (
@@ -217,9 +220,19 @@ function Empty({ text }: { text: string }) {
   );
 }
 
+// Figma: 날짜 줄·달력·구분선은 화면 가장자리에서 24, 주간 줄은 10 안쪽이다
+const DATE_INSET = 24;
+const WEEK_INSET = 10;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
-  title: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
+  header: {
+    zIndex: 1,
+    backgroundColor: colors.white[100],
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
+  },
+  // 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
+  title: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
   list: { flex: 1 },
   dateArea: {
     paddingTop: 24,
@@ -230,15 +243,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: DATE_INSET,
   },
   weekArea: {
     gap: 20,
-    paddingHorizontal: 10,
+    paddingHorizontal: WEEK_INSET,
     paddingTop: 20,
     paddingBottom: 20,
   },
-  monthArea: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 },
-  rule: { height: 1, backgroundColor: colors.gray[100] },
+  monthArea: {
+    paddingHorizontal: DATE_INSET,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
+  rule: {
+    height: 1,
+    marginHorizontal: DATE_INSET - WEEK_INSET,
+    backgroundColor: colors.gray[100],
+  },
   empty: { textAlign: 'center', paddingVertical: 40 },
 });
