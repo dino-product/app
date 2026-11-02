@@ -68,9 +68,14 @@ function useFocusTitleOnOpen(
 }
 
 export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
-  const { started, setStarted } = useWorkSession();
+  const { started, setStarted, clearSubmission } = useWorkSession();
   const listRef = useTabScrollToTop();
-  const startWork = useCallback(() => setStarted(true), [setStarted]);
+  // 목 데이터는 끝낸 작업도 계속 진행할 작업으로 보여 준다. 다시 시작하면 새 작업처럼 제출 기록을 지워
+  // 읽기 전용 상세에 갇혀 '작업 수행중' 을 끝낼 수 없게 되지 않게 한다 (API 연동 때 지운다)
+  const startWork = useCallback(() => {
+    clearSubmission(currentWork.id);
+    setStarted(true);
+  }, [clearSubmission, setStarted]);
   const openWork = useCallback(
     (id: string) => navigation.navigate('WorkDetail', { id }),
     [navigation],
@@ -141,7 +146,7 @@ export function WorkDetailRoute({
         navigation.goBack();
       }}
       onSubmitReport={report => {
-        // 서버가 받은 셈으로 앱 상태에 둔다. API 연동 때 제출 응답·상세 조회로 바꾼다
+        // 서버가 받은 셈으로 앱 상태에 둔다. API 연동 때는 제출 응답이 submitted 일 때만 저장하거나 상세 조회로 바꾼다
         const now = new Date();
         saveSubmission(workId, { submittedAt: formatSubmittedAt(now), report });
         return { kind: 'submitted', at: formatResultTime(now) };

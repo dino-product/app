@@ -1,4 +1,9 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { useState } from 'react';
 import { colors } from '../../../shared/design-system';
 import type { HostElement } from '../../../shared/testing/touchTarget';
@@ -51,6 +56,32 @@ describe('AmountInput', () => {
     await userEvent.type(screen.getByLabelText('결제 금액 입력'), '5');
 
     expect(onChange).toHaveBeenLastCalledWith('12005');
+  });
+
+  // 쉼표만 지우면 숫자가 그대로라 쉼표가 다시 붙어 백스페이스가 먹지 않는다. 그 앞 숫자를 지운다
+  it.each([
+    ['12,|000', '12000', '12000', '1000'],
+    ['1,|200,000', '1200000', '1200,000', '200000'],
+    ['1,200,|000', '1200000', '1,200000', '120000'],
+  ])(
+    '%s 에서 백스페이스로 쉼표를 지우면 그 앞 숫자를 지운다',
+    async (_, value, text, expected) => {
+      const onChange = jest.fn();
+      await render(<AmountInput value={value} onChange={onChange} />);
+
+      await fireEvent.changeText(screen.getByLabelText('결제 금액 입력'), text);
+
+      expect(onChange).toHaveBeenLastCalledWith(expected);
+    },
+  );
+
+  it('맨 앞 숫자만 남기고 지우면 0 이 된다', async () => {
+    const onChange = jest.fn();
+    await render(<AmountInput value="1000" onChange={onChange} />);
+
+    await fireEvent.changeText(screen.getByLabelText('결제 금액 입력'), '1000');
+
+    expect(onChange).toHaveBeenLastCalledWith('0');
   });
 
   it('흰 배경에 Gray200 테두리다', async () => {

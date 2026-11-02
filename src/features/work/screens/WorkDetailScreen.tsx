@@ -222,14 +222,14 @@ export function WorkDetailScreen({
                 photos={shown.beforePhotos}
                 onAdd={() => addPhoto('beforePhotos')}
                 onRemove={index => removePhoto('beforePhotos', index)}
-                disabled={readOnly}
+                readOnly={readOnly}
               />
               <PhotoUploader
                 title="작업 후"
                 photos={shown.afterPhotos}
                 onAdd={() => addPhoto('afterPhotos')}
                 onRemove={index => removePhoto('afterPhotos', index)}
-                disabled={readOnly}
+                readOnly={readOnly}
               />
             </Section>
             <Section title="수행 메모" optional>

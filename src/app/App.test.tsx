@@ -200,6 +200,24 @@ describe('App', () => {
     );
   });
 
+  // 목 데이터는 같은 작업을 계속 진행할 작업으로 보여 주므로, 다시 시작하면 새 작업처럼 연다
+  it('제출한 진행 작업을 다시 시작하면 빈 보고로 열어 다시 끝낼 수 있다', async () => {
+    await render(<App />);
+
+    await submitReport();
+    await userEvent.press(
+      screen.getByRole('button', { name: '메인 화면으로' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+    await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('');
+  });
+
   it('제출하지 않은 다른 작업은 비어 있는 보고로 연다', async () => {
     await render(<App />);
 

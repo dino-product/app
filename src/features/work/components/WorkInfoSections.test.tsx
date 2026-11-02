@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { workDetail } from '../mockData';
 import type { WorkDetail } from '../model';
@@ -15,7 +16,7 @@ describe('WorkInfoSections', () => {
 
     const card = screen.getByTestId('work-content-card');
     expect(card).toHaveStyle({ backgroundColor: colors.gray[50] });
-    expect(card).not.toHaveStyle({ borderWidth: 1 });
+    expect(StyleSheet.flatten(card.props.style).borderWidth ?? 0).toBe(0);
   });
 
   it('가격을 천 단위 쉼표와 "원" 으로 보여준다', async () => {

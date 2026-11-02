@@ -281,6 +281,32 @@ describe('WorkDetailScreen', () => {
       expect(onUnsavedReportChange).not.toHaveBeenCalledWith(true);
     });
 
+    it('작성하던 보고가 제출되면 작성 중이 아니라고 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      const props = {
+        onBack: jest.fn(),
+        onSubmitReport: jest.fn(() => ({
+          kind: 'submitted' as const,
+          at: '10.01 15:15',
+        })),
+        onDone: jest.fn(),
+        onCall: jest.fn(),
+        onNavigate: jest.fn(),
+        onPickPhoto: jest.fn(async () => null),
+        onUnsavedReportChange,
+      };
+      await render(<WorkDetailScreen work={workDetail} {...props} />);
+      await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관');
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+
+      // 입력은 화면에 남아 있지만 제출 정보가 들어오면 잃을 입력이 아니다
+      await screen.rerender(
+        <WorkDetailScreen work={submittedWork} {...props} />,
+      );
+
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
+    });
+
     it('"완료 보고 작성하기" 버튼을 띄우지 않는다', async () => {
       await renderDetail({ work: submittedWork });
 

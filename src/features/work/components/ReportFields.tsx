@@ -52,6 +52,27 @@ export function LineInput({
 const onlyDigits = (text: string) =>
   text.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
 
+// 보이는 값(쉼표 포함)에서 바뀐 글자로 새 저장 값을 만든다.
+// 쉼표만 지웠으면 숫자가 그대로라 쉼표가 다시 붙고 백스페이스가 먹지 않으므로, 그 쉼표 앞 숫자를 지운다
+function nextAmount(digits: string, text: string): string {
+  const shown = formatAmount(digits);
+  const next = onlyDigits(text);
+  if (next !== digits || text.length !== shown.length - 1) {
+    return next;
+  }
+  let removed = 0;
+  while (removed < text.length && text[removed] === shown[removed]) {
+    removed += 1;
+  }
+  const digitsBefore = shown.slice(0, removed).replace(/\D/g, '').length;
+  if (digitsBefore === 0) {
+    return next;
+  }
+  return onlyDigits(
+    digits.slice(0, digitsBefore - 1) + digits.slice(digitsBefore),
+  );
+}
+
 export function AmountInput({
   value,
   onChange,
@@ -71,7 +92,7 @@ export function AmountInput({
         placeholder="0"
         placeholderTextColor={colors.gray[400]}
         value={formatAmount(value)}
-        onChangeText={text => onChange(onlyDigits(text))}
+        onChangeText={text => onChange(nextAmount(value, text))}
         style={[styles.boxInput, typography['Body/XS/Regular']]}
       />
       <Text variant="Body/XS/Regular" color={colors.gray[500]}>

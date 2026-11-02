@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { PhotoUploader } from './PhotoUploader';
 
@@ -29,7 +30,7 @@ describe('PhotoUploader', () => {
 
     const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
     expect(add).toHaveStyle({ backgroundColor: colors.gray[50] });
-    expect(add).not.toHaveStyle({ borderWidth: 1 });
+    expect(StyleSheet.flatten(add.props.style).borderWidth ?? 0).toBe(0);
     expect(screen.getByText('0/6')).toBeOnTheScreen();
   });
 
@@ -88,7 +89,7 @@ describe('PhotoUploader', () => {
   });
 
   // 제출을 마친 보고. 추가 칸·삭제 버튼을 숨길지는 디자이너 확인 전이라 Figma 대로 두고 누를 수만 없게 한다
-  it('disabled 면 추가·삭제를 막는다', async () => {
+  it('readOnly 면 추가·삭제를 막는다', async () => {
     const onAdd = jest.fn();
     const onRemove = jest.fn();
     await render(
@@ -97,7 +98,7 @@ describe('PhotoUploader', () => {
         photos={['p1']}
         onAdd={onAdd}
         onRemove={onRemove}
-        disabled
+        readOnly
       />,
     );
 

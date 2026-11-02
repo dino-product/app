@@ -5,21 +5,21 @@ import { InfoCard } from './InfoCard';
 import { PhotoThumb, THUMB_SIZE } from './PhotoThumb';
 
 // 현장 사진 등록 (작업 전 / 작업 후). 촬영·앨범 연동은 onAdd 를 넘기는 쪽에서 한다.
-// disabled 는 제출을 마친 보고다. Figma 제출 후 화면에도 추가 칸·삭제 버튼이 있어 숨기지 않고 누를 수만 없게 한다
+// readOnly 는 제출을 마친 보고다. Figma 제출 후 화면에도 추가 칸·삭제 버튼이 있어 숨기지 않고 누를 수만 없게 한다
 export function PhotoUploader({
   title,
   photos,
   onAdd,
   onRemove,
-  disabled = false,
+  readOnly = false,
 }: {
   title: string;
   photos: readonly string[];
   onAdd: () => void;
   onRemove: (index: number) => void;
-  disabled?: boolean;
+  readOnly?: boolean;
 }) {
-  const addDisabled = disabled || photos.length >= PHOTO_LIMIT;
+  const addDisabled = readOnly || photos.length >= PHOTO_LIMIT;
 
   return (
     <InfoCard style={styles.card}>
@@ -46,8 +46,8 @@ export function PhotoUploader({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${title} 사진 ${index + 1} 삭제`}
-              accessibilityState={{ disabled }}
-              disabled={disabled}
+              accessibilityState={{ disabled: readOnly }}
+              disabled={readOnly}
               hitSlop={REMOVE_HIT_SLOP}
               onPress={() => onRemove(index)}
               style={styles.remove}
