@@ -9,7 +9,7 @@ export type IconName = SvgIconName | 'wrench';
 
 export type IconProps = {
   name: IconName;
-  /** 기본값은 Figma 프레임 크기 */
+  /** 폭. 기본값은 Figma 프레임 크기. 세로가 다른 아이콘은 높이가 비율대로 정해진다 */
   size?: number;
   /** 단색 아이콘(tint)에만 적용된다. 기본값은 Figma 색 */
   color?: string;
@@ -29,11 +29,14 @@ export const Icon = memo(function DesignSystemIcon({
   style,
   testID,
 }: IconProps) {
-  const svg: { xml: string; size: number; color?: string } | undefined =
-    name === 'wrench' ? undefined : iconSvgs[name];
-  // 기본 크기·색은 Figma 값 (icons/svgs.ts)
-  const dimension = size ?? svg?.size ?? WRENCH_SIZE;
-  const box = { width: dimension, height: dimension };
+  const svg:
+    | { xml: string; size: number; height?: number; color?: string }
+    | undefined = name === 'wrench' ? undefined : iconSvgs[name];
+  // 기본 크기·색은 Figma 값 (icons/svgs.ts). size 는 폭이고, 세로가 다른 아이콘은 Figma 비율대로 높이를 잡는다
+  const width = size ?? svg?.size ?? WRENCH_SIZE;
+  const height =
+    svg?.height === undefined ? width : (width * svg.height) / svg.size;
+  const box = { width, height };
   return (
     <View
       accessibilityElementsHidden
@@ -50,8 +53,8 @@ export const Icon = memo(function DesignSystemIcon({
       ) : (
         <SvgXml
           xml={svg.xml}
-          width={dimension}
-          height={dimension}
+          width={width}
+          height={height}
           color={color ?? svg.color ?? colors.gray[900]}
         />
       )}

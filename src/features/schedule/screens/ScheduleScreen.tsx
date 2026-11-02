@@ -21,6 +21,7 @@ import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
   addWeeks,
+  countByDate,
   formatDateHeader,
   startOfWeek,
   toDateKey,
@@ -70,10 +71,7 @@ export function ScheduleScreen({
         .sort((a, b) => a.timeRange.localeCompare(b.timeRange)),
     [confirmed, selectedKey],
   );
-  const markedKeys = useMemo(
-    () => new Set(confirmed.map(item => item.dateKey)),
-    [confirmed],
-  );
+  const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
   const selectDate = useCallback((date: Date) => {
     setSelected(date);
@@ -114,7 +112,12 @@ export function ScheduleScreen({
           hitSlop={ICON_HIT_SLOP}
           onPress={() => setCalendarOpen(open => !open)}
         >
-          <Icon name="calendar" color={colors.gray[600]} />
+          {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
+          {calendarOpen ? (
+            <Icon name="calendar-switch-open" color={colors.gray[800]} />
+          ) : (
+            <Icon name="calendar-switch" color={colors.gray[500]} />
+          )}
         </Pressable>
       </View>
       <View style={styles.rule} />
@@ -123,7 +126,7 @@ export function ScheduleScreen({
           year={viewMonth.year}
           month={viewMonth.month}
           selected={selected}
-          markedKeys={markedKeys}
+          eventCounts={eventCounts}
           edgeInset={styles.dateArea.paddingHorizontal}
           onSelect={selectDate}
           onPrev={() => moveMonth(-1)}

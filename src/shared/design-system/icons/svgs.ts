@@ -1,6 +1,7 @@
 // Figma Design.v0 에서 내보낸 SVG (App Icon 세트·화면 아이콘). 직접 고치지 말고 다시 내보내 교체한다.
 // tint: true 면 색을 currentColor 로 바꿔 Icon 의 color 를 따르고, color 는 그 Figma 원래 색(기본값)이다.
 // false 는 Figma 색·배경 그대로. size 는 Figma 프레임 크기(= SVG width)로 Icon 의 기본 크기다.
+// height 는 세로가 다른 아이콘에만 둔다 (= SVG height).
 export const iconSvgs = {
   bell: {
     tint: true,
@@ -55,6 +56,33 @@ export const iconSvgs = {
     xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.99993 6H17.9999C18.9467 6 19.7142 6.76751 19.7142 7.71429V18C19.7142 18.9468 18.9467 19.7143 17.9999 19.7143H5.99993C5.05316 19.7143 4.28564 18.9468 4.28564 18V7.71429C4.28564 6.76751 5.05316 6 5.99993 6Z" stroke-width="1.71429" stroke-linecap="round" stroke="currentColor"/><path d="M4.28564 10.2856H19.7142M8.57136 4.28564V7.71422M15.4285 4.28564V7.71422" stroke-width="1.71429" stroke-linecap="round" stroke="currentColor"/></svg>',
     size: 24,
     color: '#767676',
+  },
+  // 날짜 줄의 달력 전환. Figma 에서 주간 줄(접힘)과 달력 펼침의 모양이 좌우로 뒤집혀 있고 색도 다르다
+  'calendar-switch': {
+    tint: true,
+    xml: '<svg width="24" height="28" viewBox="0 0 24 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.62488 13.4442L1.62488 7.11075C1.62488 5.97549 2.54519 5.05518 3.68045 5.05518L20.3194 5.05518C21.4547 5.05518 22.375 5.97549 22.375 7.11075L22.375 22.4442C22.375 23.5794 21.4547 24.4997 20.3194 24.4997L16.1249 24.4997" stroke-width="2.02919" stroke-linecap="round" stroke="currentColor"/><path d="M1.62488 10.5L21.125 10.5M6.7638 3L6.7638 7.11114M16.9861 3V7.11114" stroke-width="2.02919" stroke-linecap="round" stroke="currentColor"/><path d="M3 16.9779H12M5 19L3 16.9779L5 15" stroke-width="2.03" stroke-linecap="round" stroke="currentColor"/><path d="M12 22.9779H3M10 25L12 22.9779L10 21" stroke-width="2.03" stroke-linecap="round" stroke="currentColor"/></svg>',
+    size: 24,
+    height: 28,
+    color: '#9B9B9B',
+  },
+  'calendar-switch-open': {
+    tint: true,
+    xml: '<svg width="24" height="28" viewBox="0 0 24 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.3751 13.4442V7.11075C22.3751 5.97549 21.4548 5.05518 20.3195 5.05518L3.6805 5.05518C2.54524 5.05518 1.62493 5.97549 1.62493 7.11075L1.62493 22.4442C1.62493 23.5794 2.54524 24.4997 3.6805 24.4997L7.875 24.4997" stroke-width="2.02919" stroke-linecap="round" stroke="currentColor"/><path d="M22.3751 10.5L2.87493 10.5M17.2361 3V7.11114M7.01386 3V7.11114" stroke-width="2.02919" stroke-linecap="round" stroke="currentColor"/><path d="M21 16.9779H12M19 19L21 16.9779L19 15" stroke-width="2.03" stroke-linecap="round" stroke="currentColor"/><path d="M12 22.9779H21M14 25L12 22.9779L14 21" stroke-width="2.03" stroke-linecap="round" stroke="currentColor"/></svg>',
+    size: 24,
+    height: 28,
+    color: '#404040',
+  },
+  'triangle-left': {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.46972 12.6736C7.84343 12.2819 7.84343 11.3697 8.46972 10.978L14.5839 7.15378C15.25 6.7372 16.1142 7.21602 16.1142 8.0016L16.1142 15.65C16.1142 16.4356 15.25 16.9144 14.5839 16.4978L8.46972 12.6736Z" fill="currentColor"/></svg>',
+    size: 24,
+    color: '#CECECE',
+  },
+  'triangle-right': {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.5303 12.6736C16.1566 12.2819 16.1566 11.3697 15.5303 10.978L9.41607 7.15378C8.75003 6.7372 7.88579 7.21602 7.88579 8.0016L7.88579 15.65C7.88579 16.4356 8.75004 16.9144 9.41607 16.4978L15.5303 12.6736Z" fill="currentColor"/></svg>',
+    size: 24,
+    color: '#CECECE',
   },
   close: {
     tint: false,

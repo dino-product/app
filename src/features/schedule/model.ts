@@ -79,6 +79,17 @@ export function monthGrid(year: number, month: number): MonthCell[][] {
   );
 }
 
+/** 날짜(YYYY-MM-DD)별 일정 개수. 달력의 일정 점 개수에 쓴다 */
+export function countByDate(
+  items: readonly { dateKey: string }[],
+): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  for (const { dateKey } of items) {
+    counts.set(dateKey, (counts.get(dateKey) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export function addMonths(
   year: number,
   month: number,

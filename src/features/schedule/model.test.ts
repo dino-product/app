@@ -1,6 +1,7 @@
 import {
   addMonths,
   addWeeks,
+  countByDate,
   formatDateHeader,
   formatMonthTitle,
   isSameDay,
@@ -84,6 +85,18 @@ describe('날짜 계산', () => {
     expect(isSameDay(new Date(2026, 11, 15), new Date(2026, 11, 16))).toBe(
       false,
     );
+  });
+
+  it('countByDate 는 날짜별 일정 개수를 센다', () => {
+    const counts = countByDate([
+      { dateKey: '2026-12-15' },
+      { dateKey: '2026-12-16' },
+      { dateKey: '2026-12-15' },
+    ]);
+
+    expect(counts.get('2026-12-15')).toBe(2);
+    expect(counts.get('2026-12-16')).toBe(1);
+    expect(counts.has('2026-12-17')).toBe(false);
   });
 });
 

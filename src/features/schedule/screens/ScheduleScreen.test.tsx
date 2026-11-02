@@ -3,9 +3,11 @@ import {
   render,
   screen,
   userEvent,
+  within,
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ScheduleScreen } from './ScheduleScreen';
@@ -68,6 +70,9 @@ const renderSchedule = (
   );
 
 const weekStrip = () => screen.getByTestId('week-strip').props;
+// 버튼 안 아이콘이 그리는 SVG 마크업 (Icon › react-native-svg 뷰)
+const iconXmlOf = (button: HostElement) =>
+  ((button.children[0] as HostElement).children[0] as HostElement).props.xml;
 
 describe('ScheduleScreen — 확정 일정', () => {
   it('헤더와 탭(선택한 날의 확정 건수, 응답 필요 건수)을 보여준다', async () => {
@@ -224,6 +229,30 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByText('2026년 11월')).toBeOnTheScreen();
     // 달을 넘겨 보기만 하고 고른 날은 그대로다
     expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+  });
+
+  it('날짜 줄 오른쪽 버튼은 주간·달력 모두 Figma 의 달력 전환 아이콘이다', async () => {
+    await renderSchedule();
+
+    const toggle = () =>
+      screen.getByRole('button', { name: /^달력 (펼치기|접기)$/ });
+    expect(iconXmlOf(toggle())).toBe(iconSvgs['calendar-switch'].xml);
+
+    await userEvent.press(toggle());
+    expect(iconXmlOf(toggle())).toBe(iconSvgs['calendar-switch-open'].xml);
+  });
+
+  it('펼친 달력에 확정 일정의 날짜별 개수만큼 점을 찍는다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    const dotsOf = (name: string) =>
+      within(screen.getByRole('button', { name })).queryAllByTestId(
+        'event-dot',
+      );
+    expect(dotsOf('12월 15일 화요일')).toHaveLength(2);
+    expect(dotsOf('12월 16일 수요일')).toHaveLength(1);
+    expect(dotsOf('12월 17일 목요일')).toHaveLength(0);
   });
 
   it('달력을 접으면 주간 줄로 돌아온다', async () => {

@@ -56,8 +56,8 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
       );
 
       const day = screen.getByRole('button', { name: '12월 15일 화요일' });
-      // 날짜 칸 › 주(행) › 달력 › dateArea
-      const dateArea = day.parent?.parent?.parent as HostElement;
+      const dateArea = screen.getByTestId('month-calendar')
+        .parent as HostElement;
       expectMinTouchTarget(day, { width: contentWidth(dateArea) / 7 });
     },
   );
