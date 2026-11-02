@@ -20,6 +20,24 @@ describe('CurrentWorkCard', () => {
     expect(screen.getByText('서울 송파구 올림픽로 88')).toBeOnTheScreen();
   });
 
+  it('렌치 아이콘 없이 작업명 줄이 카드 머리의 왼쪽부터 시작한다', async () => {
+    const { container } = await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    expect(container.queryAll(node => node.type === 'Image')).toHaveLength(0);
+    const [first] = screen.getByRole('button', {
+      name: '보일러 점검 상세 보기',
+    }).children;
+    expect(typeof first === 'string' ? first : first.type).toBe('View');
+    expect(first).toHaveTextContent(/^보일러 점검/);
+  });
+
   it('시작 전이면 Secondary "작업 시작" CTA 로 onStart 를 호출한다', async () => {
     const onStart = jest.fn();
     await render(

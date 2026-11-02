@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { colors } from '../../../shared/design-system';
 import { currentWork, weeklySchedule } from '../mockData';
 import { WorkHomeScreen } from './WorkHomeScreen';
 
@@ -61,12 +62,58 @@ describe('WorkHomeScreen', () => {
     expect(onOpenWork).toHaveBeenCalledWith(first.id);
   });
 
-  it('진행할 작업이 없으면 작업 카드를 그리지 않는다', async () => {
+  it('진행할 작업이 없으면 작업 카드 대신 "현재 진행 중인 작업이 없습니다" 카드를 보여 준다', async () => {
     await renderHome({ currentWork: null });
 
     expect(
       screen.queryByRole('button', { name: '작업 시작' }),
     ).not.toBeOnTheScreen();
+    expect(screen.getByText('현재 진행 중인 작업이 없습니다')).toHaveStyle({
+      color: colors.white[60],
+    });
+  });
+
+  it('진행할 작업은 없고 이번 주 일정은 있으면 빈 상태 카드 아래에 일정 목록을 그린다', async () => {
+    await renderHome({ currentWork: null });
+
+    expect(
+      screen.getByText('현재 진행 중인 작업이 없습니다'),
+    ).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /세탁기 설치/ })).toHaveLength(
+      weeklySchedule.length,
+    );
+    expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
+  });
+
+  it('이번 주 일정이 없으면 일정 자리에 회색 달력 아이콘과 안내 문구를 보여 준다', async () => {
+    await renderHome({ currentWork: null, schedule: [] });
+
+    expect(screen.getByText('이번 주 일정이 없어요')).toBeOnTheScreen();
+    expect(
+      screen.getByText('새 작업이 배정되면 여기에 표시돼요'),
+    ).toBeOnTheScreen();
+    // Figma App Icon · Calendar · Active 를 40pt, Gray300 으로 쓴다
+    const icon = screen.getByTestId('empty-schedule-icon', {
+      includeHiddenElements: true,
+    });
+    expect(icon).toHaveStyle({ width: 40, height: 40 });
+    const [svg] = icon.children;
+    expect(typeof svg === 'string' ? svg : svg.props.color).toBe(
+      colors.gray[300],
+    );
+  });
+
+  it('빈 상태 문구는 스크린리더에 글자로 읽히고 버튼으로 읽히지 않는다', async () => {
+    await renderHome({ currentWork: null, schedule: [] });
+
+    for (const text of [
+      '현재 진행 중인 작업이 없습니다',
+      '이번 주 일정이 없어요',
+      '새 작업이 배정되면 여기에 표시돼요',
+    ]) {
+      expect(screen.getByText(text)).toBeOnTheScreen();
+    }
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
   it('일정 카드는 상태와 주소까지 스크린리더에 읽힌다', async () => {

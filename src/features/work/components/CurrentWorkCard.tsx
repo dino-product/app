@@ -22,7 +22,6 @@ export function CurrentWorkCard({
         onPress={onOpen}
         style={styles.header}
       >
-        <Icon name="wrench" size={32} />
         <View style={styles.info}>
           <Text variant="Body/S/Bold">{work.title}</Text>
           <Text variant="Caption/M/Medium">{work.timeRange}</Text>

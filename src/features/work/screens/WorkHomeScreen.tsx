@@ -18,7 +18,7 @@ import { CurrentWorkCard } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import type { CurrentWork, ScheduleItem } from '../model';
 
-// Figma 작업 수행 › 메인화면 - 시작 가능 (작업 시작 / 작업 수행중)
+// Figma 작업 수행 › 메인화면 - 시작 가능 (작업 시작 / 작업 수행중), 진행(무), 일정(무)
 export type WorkHomeScreenProps = {
   currentWork: CurrentWork | null;
   schedule: readonly ScheduleItem[];
@@ -72,13 +72,15 @@ export function WorkHomeScreen({
           <Icon name="bell" />
         )}
       </View>
-      {currentWork && (
+      {currentWork ? (
         <CurrentWorkCard
           work={currentWork}
           started={started}
           onStart={onStartWork}
           onOpen={() => onOpenWork(currentWork.id)}
         />
+      ) : (
+        <NoCurrentWork />
       )}
       <View style={styles.sectionRow}>
         <View style={styles.sectionTitle}>
@@ -110,6 +112,7 @@ export function WorkHomeScreen({
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={header}
+        ListEmptyComponent={EmptySchedule}
         ItemSeparatorComponent={Separator}
         contentContainerStyle={[readableColumn, styles.content]}
       />
@@ -121,6 +124,47 @@ const keyExtractor = (item: ScheduleItem) => item.id;
 
 function Separator() {
   return <View style={styles.separator} />;
+}
+
+// 진행(무): 진행할 작업 카드 자리. 누를 수 없는 안내라 글자로만 읽힌다
+function NoCurrentWork() {
+  return (
+    <View style={styles.noCurrentWork}>
+      <Text variant="Caption/M/SemiBold" color={colors.white[60]}>
+        현재 진행 중인 작업이 없습니다
+      </Text>
+    </View>
+  );
+}
+
+// 일정(무): 아이콘은 Figma App Icon · Calendar · Active 를 회색으로 칠한 것
+function EmptySchedule() {
+  return (
+    <View style={styles.emptySchedule}>
+      <Icon
+        name="tab-calendar-active"
+        size={40}
+        color={colors.gray[300]}
+        testID="empty-schedule-icon"
+      />
+      <View style={styles.emptyScheduleText}>
+        <Text
+          variant="Body/M/SemiBold"
+          color={colors.primary}
+          style={styles.centered}
+        >
+          이번 주 일정이 없어요
+        </Text>
+        <Text
+          variant="Caption/M/Medium"
+          color={colors.gray[600]}
+          style={styles.centered}
+        >
+          새 작업이 배정되면 여기에 표시돼요
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -141,4 +185,14 @@ const styles = StyleSheet.create({
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewToggle: { flexDirection: 'row', gap: 4 },
   separator: { height: 12 },
+  noCurrentWork: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+  },
+  // Figma 에서 '일정' 줄 아래 118pt. 헤더 아래 여백 16 을 뺀 값
+  emptySchedule: { alignItems: 'center', gap: 24, paddingTop: 102 },
+  emptyScheduleText: { alignItems: 'center', gap: 12 },
+  centered: { textAlign: 'center' },
 });

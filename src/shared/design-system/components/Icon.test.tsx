@@ -37,12 +37,10 @@ describe('Icon', () => {
     expect(svgOf('default').props.color).toBe('#32303A');
   });
 
-  it('렌치는 Figma 일러스트 PNG 로 그린다', async () => {
-    await render(<Icon name="wrench" size={32} testID="icon" />);
-
-    expect(screen.getByTestId('icon-image', hidden)).toHaveStyle({
-      width: 32,
-      height: 32,
+  it('채운 달력(App Icon · Calendar · Active)은 탭에서는 Primary, 빈 일정에서는 회색으로 칠한다', () => {
+    expect(iconSvgs['tab-calendar-active']).toMatchObject({
+      tint: true,
+      color: '#1C1B2A',
     });
   });
 
