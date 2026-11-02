@@ -78,14 +78,16 @@ describe('WorkHomeScreen', () => {
     await renderHome({ currentWork: null });
 
     // 찾은 순서가 화면 위→아래 순서다
+    const titles = weeklySchedule.map(item => item.title);
     const [top, ...rest] = screen.getAllByText(
-      /^(현재 진행 중인 작업이 없습니다|일정|세탁기 설치)$/,
+      new RegExp(
+        `^(현재 진행 중인 작업이 없습니다|일정|${[...new Set(titles)].join(
+          '|',
+        )})$`,
+      ),
     );
     expect(top).toHaveTextContent('현재 진행 중인 작업이 없습니다');
-    expect(rest.map(node => node.props.children)).toEqual([
-      '일정',
-      ...weeklySchedule.map(item => item.title),
-    ]);
+    expect(rest.map(node => node.props.children)).toEqual(['일정', ...titles]);
     expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
   });
 
@@ -99,10 +101,16 @@ describe('WorkHomeScreen', () => {
   it('이번 주 일정이 없으면 일정 자리에 회색 달력 아이콘과 안내 문구를 보여 준다', async () => {
     await renderHome({ currentWork: null, schedule: [] });
 
-    expect(screen.getByText('이번 주 일정이 없어요')).toBeOnTheScreen();
-    expect(
-      screen.getByText('새 작업이 배정되면 여기에 표시돼요'),
-    ).toBeOnTheScreen();
+    expect(screen.getByText('이번 주 일정이 없어요')).toHaveStyle({
+      fontSize: 20,
+      color: colors.primary,
+      textAlign: 'center',
+    });
+    expect(screen.getByText('새 작업이 배정되면 여기에 표시돼요')).toHaveStyle({
+      fontSize: 14,
+      color: colors.gray[600],
+      textAlign: 'center',
+    });
     // Figma App Icon · Calendar · Active 를 40pt, Gray300 으로 쓴다
     const icon = screen.getByTestId('empty-schedule-icon', {
       includeHiddenElements: true,

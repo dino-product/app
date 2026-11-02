@@ -26,15 +26,19 @@ export function CurrentWorkCard({
           <Text variant="Body/S/Bold">{work.title}</Text>
           <Text variant="Caption/M/Medium">{work.timeRange}</Text>
           <View style={styles.meta}>
-            <Text variant="Caption/M/Medium" color={colors.gray[800]}>
+            <Text
+              variant="Caption/M/Medium"
+              color={colors.gray[800]}
+              style={styles.metaText}
+            >
               {work.customerName}
             </Text>
             <View style={styles.divider} />
             <Text
-              variant="Caption/M/Medium"
+              variant="Caption/M/Regular"
               color={colors.gray[800]}
               numberOfLines={1}
-              style={styles.address}
+              style={[styles.metaText, styles.address]}
             >
               {work.address}
             </Text>
@@ -78,6 +82,8 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
+  // Figma 의 고객·주소 줄은 텍스트 스타일 없이 14pt 행간 140% 다 (Caption/M 은 150%)
+  metaText: { lineHeight: 19.6 },
   address: { flexShrink: 1 },
   // 카드 안 CTA 는 Figma 에서 48pt
   cta: { minHeight: 48 },

@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
-import { colors } from '../../../shared/design-system';
+import { colors, fonts } from '../../../shared/design-system';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { currentWork } from '../mockData';
 import { CurrentWorkCard, NoCurrentWorkCard } from './CurrentWorkCard';
 
@@ -28,7 +29,7 @@ describe('CurrentWorkCard', () => {
     expect(screen.getByText('서울 송파구 올림픽로 88')).toBeOnTheScreen();
   });
 
-  it('렌치 아이콘 없이 작업명 줄이 카드 머리의 왼쪽부터 시작한다', async () => {
+  it('렌치 아이콘 없이 작업명 줄이 카드 머리의 왼쪽부터 시작하고 오른쪽 끝에 > 가 있다', async () => {
     const { container } = await render(
       <CurrentWorkCard
         work={currentWork}
@@ -39,10 +40,46 @@ describe('CurrentWorkCard', () => {
     );
 
     expect(container.queryAll(node => node.type === 'Image')).toHaveLength(0);
-    const [first] = screen.getByRole('button', {
+    const header = screen.getByRole('button', {
       name: '보일러 점검 상세 보기',
-    }).children;
+    });
+    expect(header).toHaveStyle({ flexDirection: 'row' });
+    const first = header.children[0];
+    const last = header.children[header.children.length - 1];
     expect(first).toHaveTextContent(/^보일러 점검/);
+    const pathsOf = (xml: string) =>
+      [...xml.matchAll(/ d="([^"]+)"/g)].map(([, d]) => d);
+    expect(
+      typeof last === 'string'
+        ? last
+        : last
+            .queryAll(node => typeof node.props.d === 'string')
+            .map(node => node.props.d),
+    ).toEqual(pathsOf(iconSvgs['chevron-right'].xml));
+  });
+
+  it('고객·주소 줄은 Figma 대로 14pt 행간 140% 이고 고객은 Medium, 주소는 Regular 다', async () => {
+    await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('이수연')).toHaveStyle({
+      fontFamily: fonts.medium,
+      fontSize: 14,
+      lineHeight: 19.6,
+      color: colors.gray[800],
+    });
+    expect(screen.getByText('서울 송파구 올림픽로 88')).toHaveStyle({
+      fontFamily: fonts.regular,
+      fontSize: 14,
+      lineHeight: 19.6,
+      color: colors.gray[800],
+    });
   });
 
   it('카드 틀은 Figma 대로 위아래 24·좌우 20 여백, 모서리 18, 보랏빛 그림자다', async () => {
