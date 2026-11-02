@@ -56,7 +56,10 @@ export function ScheduleScreen({
   requestedTab,
   listRef,
 }: ScheduleScreenProps) {
-  const [tab, setTab] = useState<ScheduleTab>('confirmed');
+  // 처음 열 때 요청이 있으면 바로 그 탭으로 그린다 (확정 일정을 먼저 그렸다 바꾸지 않게)
+  const [tab, setTab] = useState<ScheduleTab>(
+    () => requestedTab ?? 'confirmed',
+  );
   useEffect(() => {
     if (requestedTab) {
       setTab(requestedTab);

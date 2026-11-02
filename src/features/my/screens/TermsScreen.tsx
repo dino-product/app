@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import { memo, type Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
@@ -28,15 +28,6 @@ export function TermsScreen({
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  const row = (label: string, url: string) => (
-    <MenuRow
-      label={label}
-      tone="muted"
-      disabled={url === ''}
-      onPress={() => onOpenLink(url)}
-    />
-  );
-
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SubScreenHeader
@@ -49,9 +40,21 @@ export function TermsScreen({
           <Text accessibilityRole="header" variant="Body/S/SemiBold">
             약관 및 정책
           </Text>
-          {row('서비스 이용약관', links.terms)}
-          {row('개인정보 처리방침', links.privacy)}
-          {row('오픈소스 라이선스', links.openSource)}
+          <LinkRow
+            label="서비스 이용약관"
+            url={links.terms}
+            onOpenLink={onOpenLink}
+          />
+          <LinkRow
+            label="개인정보 처리방침"
+            url={links.privacy}
+            onOpenLink={onOpenLink}
+          />
+          <LinkRow
+            label="오픈소스 라이선스"
+            url={links.openSource}
+            onOpenLink={onOpenLink}
+          />
         </View>
 
         <View style={styles.band} />
@@ -74,6 +77,26 @@ export function TermsScreen({
     </SafeAreaView>
   );
 }
+
+// 주소가 비어 있으면(아직 정해지지 않음) 비활성 행이다
+const LinkRow = memo(function MyLinkRow({
+  label,
+  url,
+  onOpenLink,
+}: {
+  label: string;
+  url: string;
+  onOpenLink: (url: string) => void;
+}) {
+  return (
+    <MenuRow
+      label={label}
+      tone="muted"
+      disabled={url === ''}
+      onPress={() => onOpenLink(url)}
+    />
+  );
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },

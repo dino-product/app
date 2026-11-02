@@ -50,11 +50,22 @@ export function WithdrawalBlockedScreen({
             현재 다음 사유로 인해 탈퇴가 불가능합니다
           </Text>
         </View>
-        <View style={styles.cards}>
-          {cards.map(card => (
-            <BlockCard key={card.reason} card={card} onOpen={onOpenBlock} />
-          ))}
-        </View>
+        {cards.length > 0 ? (
+          <View style={styles.cards}>
+            {cards.map(card => (
+              <BlockCard key={card.reason} card={card} onOpen={onOpenBlock} />
+            ))}
+          </View>
+        ) : (
+          // 사유를 다 정리하고 돌아왔거나, 서버가 사유 없이 탈퇴 불가를 준 경우 (문구는 기본안)
+          <Text
+            variant="Caption/M/Medium"
+            color={colors.gray[600]}
+            style={styles.center}
+          >
+            지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.
+          </Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -82,6 +93,14 @@ const tones: Record<
   },
 };
 
+const cardBackgrounds = StyleSheet.create({
+  WORK_IN_PROGRESS: { backgroundColor: tones.WORK_IN_PROGRESS.background },
+  WORK_PENDING_ACCEPT: {
+    backgroundColor: tones.WORK_PENDING_ACCEPT.background,
+  },
+  SOLE_OWNER: { backgroundColor: tones.SOLE_OWNER.background },
+});
+
 const OPEN_BUTTON_SIZE = 32;
 const OPEN_HIT_SLOP = touchSlop(OPEN_BUTTON_SIZE);
 
@@ -95,7 +114,7 @@ const BlockCard = memo(function MyBlockCard({
   const tone = tones[card.reason];
   return (
     <View
-      style={[styles.card, { backgroundColor: tone.background }]}
+      style={[styles.card, cardBackgrounds[card.reason]]}
       testID={`withdrawal-block-${card.reason}`}
     >
       <View style={styles.cardText}>

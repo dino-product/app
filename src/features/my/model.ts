@@ -149,9 +149,15 @@ export function canSaveProfile(
   );
 }
 
-/** 서버가 withdrawable 과 막는 사유를 함께 주므로, 둘이 어긋나면 막힌 쪽으로 본다 */
+/**
+ * 서버가 withdrawable 과 막는 사유를 함께 주므로, 둘이 어긋나면 막힌 쪽으로 본다.
+ * 사유는 탈퇴 불가 화면의 카드와 같은 기준(건수가 있는 사유)으로 센다
+ */
 export function canWithdraw(eligibility: WithdrawalEligibility): boolean {
-  return eligibility.withdrawable && eligibility.blocks.length === 0;
+  return (
+    eligibility.withdrawable &&
+    withdrawalBlockCards(eligibility.blocks).length === 0
+  );
 }
 
 // Figma(탈퇴 불가)에는 작업 두 가지만 있다. 유일한 총관리자는 서버에만 있는 사유라 문구가 기본안이다

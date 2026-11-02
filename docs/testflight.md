@@ -81,6 +81,8 @@ App Store Connect › 앱 › ＋ › 신규 앱
   - 그래서 저장소의 빌드 번호(`CURRENT_PROJECT_VERSION`, 지금 1)는 그대로 둔다.
   - TestFlight 에 보이는 번호와 저장소 값이 달라도 된다.
 - **버전:** 새 버전을 낼 때는 Xcode › `DinoApp` 타깃 › General › Identity 의 **Version**(`MARKETING_VERSION`, 지금 1.0)을 올리고 커밋한다.
+  - 같은 커밋에서 Android `versionName` 과 화면에 보이는 버전 `src/app/appVersion.ts` 의 `APP_VERSION` 도 같은 값으로 바꾼다.
+  - 셋이 다르면 `scripts/lib/__tests__/app-version.test.js` 가 실패한다.
 
 ## 막힐 때
 

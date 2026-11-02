@@ -74,43 +74,32 @@ const NotificationRow = memo(function MyNotificationRow({
   const label = notificationTypeLabels[item.type];
   const time = formatRelativeTime(item.createdAt, now);
   const description = `${label}, ${item.message}, ${time}`;
-  const content = (
-    <View style={[readableColumn, styles.rowContent]}>
-      <View style={styles.rowTop}>
-        <Text variant="Caption/S/Medium" color={typeColor(item.type)}>
-          {label}
-        </Text>
-        <Text variant="Caption/S/Medium" color={colors.gray[500]}>
-          {time}
-        </Text>
-      </View>
-      <Text variant="Caption/M/Medium" color={colors.gray[800]}>
-        {item.message}
-      </Text>
-      <View style={styles.rule} />
-    </View>
-  );
-
-  // 읽은 알림은 눌러도 할 일이 없어 버튼이 아닌 정보 행이다
-  return item.read ? (
-    <View
-      accessible
-      accessibilityLabel={description}
-      style={[styles.row, styles.read]}
-      testID={`notification-${item.id}`}
-    >
-      {content}
-    </View>
-  ) : (
+  // 읽으면 같은 행(Pressable)에서 역할·동작만 뺀다. 다른 컴포넌트로 바꿔 그리면 행이 새로 만들어져
+  // 방금 누른 스크린리더 포커스가 사라진다. 읽은 알림은 눌러도 할 일이 없어 버튼이 아닌 정보 행이다
+  return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`읽지 않음, ${description}`}
-      accessibilityHint="읽음으로 표시합니다"
-      onPress={() => onRead(item.id)}
-      style={[styles.row, styles.unread]}
+      accessible
+      accessibilityRole={item.read ? undefined : 'button'}
+      accessibilityLabel={item.read ? description : `읽지 않음, ${description}`}
+      accessibilityHint={item.read ? undefined : '읽음으로 표시합니다'}
+      onPress={item.read ? undefined : () => onRead(item.id)}
+      style={[styles.row, item.read ? styles.read : styles.unread]}
       testID={`notification-${item.id}`}
     >
-      {content}
+      <View style={[readableColumn, styles.rowContent]}>
+        <View style={styles.rowTop}>
+          <Text variant="Caption/S/Medium" color={typeColor(item.type)}>
+            {label}
+          </Text>
+          <Text variant="Caption/S/Medium" color={colors.gray[500]}>
+            {time}
+          </Text>
+        </View>
+        <Text variant="Caption/M/Medium" color={colors.gray[800]}>
+          {item.message}
+        </Text>
+        <View style={styles.rule} />
+      </View>
     </Pressable>
   );
 });

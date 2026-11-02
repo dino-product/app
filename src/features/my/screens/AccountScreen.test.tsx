@@ -138,6 +138,24 @@ describe('AccountScreen', () => {
     expect(row).toBeEnabled();
   });
 
+  it('확인하는 동안 화면을 떠나면 늦게 온 결과로 이동하지 않는다', async () => {
+    let resolve: (value: WithdrawalEligibility) => void = () => {};
+    const props = await renderAccount({
+      checkWithdrawal: jest.fn(
+        () =>
+          new Promise<WithdrawalEligibility>(done => {
+            resolve = done;
+          }),
+      ),
+    });
+
+    await userEvent.press(screen.getByRole('button', { name: '계정 탈퇴' }));
+    await screen.unmount();
+    await act(async () => resolve({ withdrawable: true, blocks: [] }));
+
+    expect(props.onOpenWithdrawal).not.toHaveBeenCalled();
+  });
+
   it('확인에 실패하면 알리고 다시 누를 수 있다', async () => {
     const alert = spyAlert();
     const props = await renderAccount({

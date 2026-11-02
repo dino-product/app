@@ -177,12 +177,44 @@ describe('App — 마이 탭', () => {
       expect(
         await screen.findByRole('header', { name: '계정 탈퇴 불가' }),
       ).toBeOnTheScreen();
-      expect(screen.queryByText('진행 중인 작업')).toBeNull();
+      // 있는 사유만 카드로 보인다 (작업을 시작하지 않았다)
+      expect(
+        screen.queryByTestId('withdrawal-block-WORK_IN_PROGRESS'),
+      ).toBeNull();
+      expect(
+        screen.getByTestId('withdrawal-block-WORK_PENDING_ACCEPT'),
+      ).toBeOnTheScreen();
       await userEvent.press(button(/^미완료 작업 배정 \d+건 보기$/));
 
       expect(header('내 일정')).toBeOnTheScreen();
       expect(tab('내 일정')).toBeSelected();
       expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+    });
+
+    it('응답 필요를 정리하고 돌아오면 탈퇴 불가 화면의 사유도 바뀐다', async () => {
+      await openMyPage();
+      await userEvent.press(button('계정 관리'));
+      await userEvent.press(button('계정 탈퇴'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^미완료 작업 배정/ }),
+      );
+
+      while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
+        await userEvent.press(
+          screen.getAllByRole('button', { name: /수락$/ })[0],
+        );
+      }
+      await userEvent.press(tab('마이'));
+
+      expect(header('계정 탈퇴 불가')).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('withdrawal-block-WORK_PENDING_ACCEPT'),
+      ).toBeNull();
+      expect(
+        screen.getByText(
+          '지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.',
+        ),
+      ).toBeOnTheScreen();
     });
 
     it('진행 중인 작업이 있으면 그 사유도 보이고, > 를 누르면 홈으로 간다', async () => {
@@ -321,6 +353,57 @@ describe('App — 마이 탭', () => {
       await waitFor(() => expect(tab('홈')).toBeSelected());
       expect(header('내 작업')).toBeOnTheScreen();
     });
+
+    // 계정 관리 아래의 두 화면도 같은 스택 설정을 쓴다
+    const deepScreens = [
+      ['계정 탈퇴', '정말 Orbit을 탈퇴하시겠습니까?'],
+      ['계정 탈퇴 불가', '계정 탈퇴 불가'],
+    ] as const;
+    // 응답 필요 요청을 모두 수락했는지에 따라 계정 탈퇴·탈퇴 불가로 간다
+    async function openDeep(name: (typeof deepScreens)[number][0]) {
+      await render(<App />);
+      if (name === '계정 탈퇴') {
+        await userEvent.press(tab('내 일정'));
+        await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+        while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
+          await userEvent.press(
+            screen.getAllByRole('button', { name: /수락$/ })[0],
+          );
+        }
+      }
+      await userEvent.press(tab('마이'));
+      await userEvent.press(button('계정 관리'));
+      await userEvent.press(button('계정 탈퇴'));
+    }
+
+    it.each(deepScreens)(
+      '%s 도 스와이프는 왼쪽 1/3, 열리면 제목 포커스, 두 손가락 Z 로 계정 관리에 돌아온다',
+      async (name, title) => {
+        const focus = jest
+          .spyOn(AccessibilityInfo, 'sendAccessibilityEvent')
+          .mockClear();
+        await openDeep(name);
+        const opened = await screen.findByRole('header', { name: title });
+
+        expect(swipeArea(title)).toEqual(
+          expect.objectContaining({
+            start: -1,
+            end: Dimensions.get('window').width / 3,
+          }),
+        );
+        await fireEvent(opened, 'appear');
+        expect(focus).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            props: expect.objectContaining({ accessibilityRole: 'header' }),
+          }),
+          'focus',
+        );
+
+        await escapeFrom(title);
+        expect(header('계정 관리')).toBeOnTheScreen();
+        expect(header(title)).not.toBeOnTheScreen();
+      },
+    );
 
     it('하위 화면에서 마이 탭을 다시 누르면 마이페이지로 돌아간다', async () => {
       await openMyPage();

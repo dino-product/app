@@ -55,7 +55,9 @@ describe('WithdrawalBlockedScreen', () => {
     await renderBlocked([{ reason: 'WORK_PENDING_ACCEPT', count: 2 }]);
 
     expect(screen.getAllByTestId(/^withdrawal-block-[A-Z_]+$/)).toHaveLength(1);
-    expect(screen.queryByText('진행 중인 작업')).toBeNull();
+    expect(
+      screen.queryByTestId('withdrawal-block-WORK_IN_PROGRESS'),
+    ).toBeNull();
   });
 
   it('카드의 > 버튼을 누르면 그 사유를 정리할 곳으로 간다', async () => {
@@ -71,6 +73,19 @@ describe('WithdrawalBlockedScreen', () => {
 
     expect(onOpenBlock).toHaveBeenNthCalledWith(1, 'WORK_IN_PROGRESS');
     expect(onOpenBlock).toHaveBeenNthCalledWith(2, 'WORK_PENDING_ACCEPT');
+  });
+
+  it('보일 사유가 없으면 카드 대신 다시 시도하라는 안내를 보여준다', async () => {
+    await renderBlocked([{ reason: 'WORK_IN_PROGRESS', count: 0 }]);
+
+    expect(screen.queryAllByTestId(/^withdrawal-block-[A-Z_]+$/)).toHaveLength(
+      0,
+    );
+    expect(
+      screen.getByText(
+        '지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.',
+      ),
+    ).toBeOnTheScreen();
   });
 
   // 총관리자 넘기기는 웹 관리자에서 하므로 앱 안에 갈 곳이 없다

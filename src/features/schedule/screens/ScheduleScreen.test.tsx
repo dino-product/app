@@ -364,5 +364,25 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
     await rerender(<ScheduleScreen {...props} />);
     await userEvent.press(screen.getByRole('tab', { name: /^확정 일정/ }));
     expect(screen.getByRole('tab', { name: /^확정 일정/ })).toBeSelected();
+
+    // 지운 뒤 같은 요청이 다시 오면 다시 옮긴다
+    await rerender(<ScheduleScreen {...props} requestedTab="pending" />);
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+
+  it('처음 열 때 요청이 있으면 확정 일정을 거치지 않고 그 탭으로 그린다', async () => {
+    await render(
+      <ScheduleScreen
+        today={today}
+        confirmed={confirmed}
+        pending={pending}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+        onOpenRequest={jest.fn()}
+        requestedTab="pending"
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
   });
 });

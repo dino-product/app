@@ -1,4 +1,4 @@
-import { useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import {
   Alert,
   ScrollView,
@@ -38,6 +38,14 @@ export function AccountScreen({
   const [checking, setChecking] = useState(false);
   // 다시 그리기 전에 연달아 눌러도 한 번만 묻는다
   const checkingRef = useRef(false);
+  // 확인하는 동안 화면을 떠났으면(뒤로 가기) 늦게 온 결과로 이동하지 않는다
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const confirmLogout = () =>
     Alert.alert(
@@ -58,12 +66,18 @@ export function AccountScreen({
     setChecking(true);
     try {
       const eligibility = await checkWithdrawal();
+      if (!mounted.current) {
+        return;
+      }
       if (canWithdraw(eligibility)) {
         onOpenWithdrawal();
       } else {
         onOpenWithdrawalBlocked(eligibility.blocks);
       }
     } catch {
+      if (!mounted.current) {
+        return;
+      }
       Alert.alert(
         '탈퇴할 수 있는지 확인하지 못했어요',
         '잠시 후 다시 시도해 주세요.',

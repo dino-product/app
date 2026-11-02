@@ -4,7 +4,6 @@ import type {
   NavigatorScreenParams,
 } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { WithdrawalBlock } from '../../features/my/model';
 
 // 탭 바가 없는 화면(요청 상세·거절 사유)은 탭 위의 루트 스택에 둔다
 export type RootStackParamList = {
@@ -38,7 +37,7 @@ export type MyStackParamList = {
   Terms: undefined;
   Account: undefined;
   Withdrawal: undefined;
-  WithdrawalBlocked: { blocks: readonly WithdrawalBlock[] };
+  WithdrawalBlocked: undefined;
 };
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;

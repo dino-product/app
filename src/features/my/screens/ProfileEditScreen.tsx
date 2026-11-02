@@ -1,4 +1,4 @@
-import { useState, type Ref } from 'react';
+import { useCallback, useState, type Ref } from 'react';
 import {
   Platform,
   ScrollView,
@@ -31,6 +31,11 @@ export function ProfileEditScreen({
   const [name, setName] = useState(profile.name);
   const [phone, setPhone] = useState(() =>
     formatPhoneNumber(profile.phoneNumber),
+  );
+  // FormField 가 memo 라 입력 처리 함수를 렌더마다 새로 만들지 않는다
+  const changePhone = useCallback(
+    (text: string) => setPhone(formatPhoneNumber(text)),
+    [],
   );
   const input = { name, phoneNumber: phone };
   const canSave = canSaveProfile(profile, input);
@@ -67,7 +72,7 @@ export function ProfileEditScreen({
           <FormField
             label="연락처"
             value={phone}
-            onChangeText={text => setPhone(formatPhoneNumber(text))}
+            onChangeText={changePhone}
             placeholder="000-0000-0000"
             keyboardType="number-pad"
             // 010-0000-0000 (숫자 11자리 + 하이픈 2개)

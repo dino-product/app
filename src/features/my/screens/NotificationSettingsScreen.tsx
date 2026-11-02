@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import { memo, type Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text, Toggle } from '../../../shared/design-system';
@@ -46,25 +46,49 @@ export function NotificationSettingsScreen({
       <SubScreenHeader title="알림 설정" onBack={onBack} titleRef={titleRef} />
       <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
         {items.map(item => (
-          <View key={item.key} style={styles.card}>
-            <View style={styles.text}>
-              <Text variant="Body/S/SemiBold">{item.title}</Text>
-              <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-                {item.description}
-              </Text>
-            </View>
-            {/* 스크린리더는 "작업 배정 알림, 스위치, 켬" 으로 읽는다 */}
-            <Toggle
-              value={settings[item.key]}
-              onValueChange={value => onChange(item.key, value)}
-              accessibilityLabel={item.title}
-            />
-          </View>
+          <SettingCard
+            key={item.key}
+            item={item}
+            value={settings[item.key]}
+            onChange={onChange}
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// 제목·설명 글자는 스크린리더에서 빼고 스위치 하나로 읽는다: "작업 배정 알림, 스위치, 켬" + 힌트(설명)
+const SettingCard = memo(function MySettingCard({
+  item,
+  value,
+  onChange,
+}: {
+  item: (typeof items)[number];
+  value: boolean;
+  onChange: (key: keyof NotificationSettings, value: boolean) => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={styles.text}
+      >
+        <Text variant="Body/S/SemiBold">{item.title}</Text>
+        <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+          {item.description}
+        </Text>
+      </View>
+      <Toggle
+        value={value}
+        onValueChange={next => onChange(item.key, next)}
+        accessibilityLabel={item.title}
+        accessibilityHint={item.description}
+      />
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },

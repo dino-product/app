@@ -21,15 +21,28 @@ describe('NotificationSettingsScreen', () => {
 
     expect(screen.getByRole('header', { name: '알림 설정' })).toBeOnTheScreen();
     expect(screen.getAllByRole('switch')).toHaveLength(3);
+    const hidden = { includeHiddenElements: true };
+    for (const text of [
+      '새로운 작업이 배정되었을 때 알려드려요',
+      '작업 일정이 변경되었을 때 알려드려요',
+      '배정된 작업이 취소되었을 때 알려드려요',
+    ]) {
+      expect(screen.getByText(text, hidden)).toBeOnTheScreen();
+    }
+  });
+
+  // 같은 이름을 글자로 한 번, 스위치로 한 번 읽지 않는다. 설명은 스위치 힌트로 읽는다
+  it('스크린리더는 카드마다 스위치 하나만 읽고 설명을 힌트로 붙인다', async () => {
+    await renderSettings();
+
+    expect(screen.queryByText('작업 배정 알림')).toBeNull();
     expect(
-      screen.getByText('새로운 작업이 배정되었을 때 알려드려요'),
-    ).toBeOnTheScreen();
-    expect(
-      screen.getByText('작업 일정이 변경되었을 때 알려드려요'),
-    ).toBeOnTheScreen();
-    expect(
-      screen.getByText('배정된 작업이 취소되었을 때 알려드려요'),
-    ).toBeOnTheScreen();
+      screen.queryByText('새로운 작업이 배정되었을 때 알려드려요'),
+    ).toBeNull();
+    expect(screen.getByRole('switch', { name: '작업 배정 알림' })).toHaveProp(
+      'accessibilityHint',
+      '새로운 작업이 배정되었을 때 알려드려요',
+    );
   });
 
   // 스크린리더는 "작업 배정 알림, 스위치, 켬" 처럼 읽는다 (이름·역할·상태)

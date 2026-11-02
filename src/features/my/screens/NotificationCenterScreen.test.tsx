@@ -87,6 +87,27 @@ describe('NotificationCenterScreen', () => {
     });
   });
 
+  // 다른 컴포넌트로 바꿔 그리면 행이 새로 만들어져 방금 누른 스크린리더 포커스가 사라진다
+  it('읽음이 되어도 같은 행을 그대로 두고 버튼 역할만 뺀다', async () => {
+    const { rerender } = await renderCenter();
+    const before = row('notification-1');
+    expect(before).toHaveProp('accessibilityRole', 'button');
+
+    await rerender(
+      <NotificationCenterScreen
+        notifications={notifications.map(item =>
+          item.id === 'notification-1' ? { ...item, read: true } : item,
+        )}
+        now={now}
+        onRead={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    expect(row('notification-1')).toBe(before);
+    expect(row('notification-1')).not.toHaveProp('accessibilityRole', 'button');
+  });
+
   it('이미 읽은 알림은 눌러도 다시 읽음 처리하지 않는다', async () => {
     const onRead = jest.fn();
     await renderCenter(notifications, onRead);

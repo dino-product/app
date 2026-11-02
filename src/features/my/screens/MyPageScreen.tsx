@@ -212,6 +212,11 @@ const statusSpec = {
   },
 } as const;
 
+const chipBackgrounds = StyleSheet.create({
+  ACTIVE: { backgroundColor: statusSpec.ACTIVE.background },
+  DEACTIVATED: { backgroundColor: statusSpec.DEACTIVATED.background },
+});
+
 // Figma 에 누르는 동작이 없어 정보 행이다. 스크린리더는 한 줄로 읽는다
 const MembershipRow = memo(function MyMembershipRow({
   membership,
@@ -235,7 +240,7 @@ const MembershipRow = memo(function MyMembershipRow({
         </Text>
       </View>
       <View
-        style={[styles.chip, { backgroundColor: spec.background }]}
+        style={[styles.chip, chipBackgrounds[status]]}
         testID={`membership-${organizationId}-status`}
       >
         <Text variant="Caption/S/Medium" color={spec.foreground}>

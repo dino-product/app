@@ -142,6 +142,15 @@ describe('탈퇴 가능 여부', () => {
   it('withdrawable 이 false 면 사유가 비어 있어도 탈퇴할 수 없다', () => {
     expect(canWithdraw(eligibility({ withdrawable: false }))).toBe(false);
   });
+
+  // 탈퇴 불가 화면은 건수가 있는 사유만 카드로 보이므로 판정도 같은 기준이다
+  it('건수가 0 인 사유만 있으면 막는 사유가 없는 것으로 본다', () => {
+    expect(
+      canWithdraw(
+        eligibility({ blocks: [{ reason: 'WORK_IN_PROGRESS', count: 0 }] }),
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('withdrawalBlockCards', () => {
