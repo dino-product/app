@@ -23,4 +23,8 @@ describe('colors', () => {
     expect(colors.white[60]).toBe('rgba(255, 255, 255, 0.6)');
     expect(colors.typeColor.purple).toBe('#7244D8');
   });
+
+  it('Figma 변수 Disabled(Primary 50%) 를 갖는다', () => {
+    expect(colors.disabled).toBe('rgba(28, 27, 42, 0.5)');
+  });
 });

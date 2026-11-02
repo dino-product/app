@@ -1,5 +1,5 @@
-import { memo, type Ref } from 'react';
-import { StyleSheet, TextInput, type TextInputInstance } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, TextInput } from 'react-native';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 
@@ -11,11 +11,6 @@ export type TextAreaProps = {
   value: string;
   onChangeText: (text: string) => void;
   error?: boolean;
-  /** 나타나자마자 포커스하고 키보드를 올린다 (펼쳐서 보여 줄 때) */
-  autoFocus?: boolean;
-  onFocus?: () => void;
-  /** RN TextInput 에 그대로 넘어간다 (React 19 는 ref 도 prop) */
-  ref?: Ref<TextInputInstance>;
 };
 
 export const TextArea = memo(function DesignSystemTextArea({
@@ -24,21 +19,15 @@ export const TextArea = memo(function DesignSystemTextArea({
   value,
   onChangeText,
   error = false,
-  autoFocus,
-  onFocus,
-  ref,
 }: TextAreaProps) {
   return (
     <TextInput
-      ref={ref}
       accessibilityLabel={label}
-      autoFocus={autoFocus}
       multiline
       placeholder={placeholder}
       placeholderTextColor={colors.gray[400]}
       value={value}
       onChangeText={onChangeText}
-      onFocus={onFocus}
       style={[styles.input, error && styles.error]}
     />
   );
