@@ -86,7 +86,7 @@ describe('iconSvgs', () => {
     }
   });
 
-  it('height 는 세로가 다른 아이콘에만 두고 SVG 의 height 와 같다', () => {
+  it('height 를 둔 아이콘은 SVG 의 height 와 같고 폭과 다르다', () => {
     for (const [name, icon] of Object.entries(iconSvgs)) {
       if ('height' in icon) {
         const height = Number(

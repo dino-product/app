@@ -7,7 +7,9 @@ import {
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { iconSvgIn } from '../../../shared/testing/icon';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ScheduleScreen } from './ScheduleScreen';
@@ -70,9 +72,6 @@ const renderSchedule = (
   );
 
 const weekStrip = () => screen.getByTestId('week-strip').props;
-// 버튼 안 아이콘이 그리는 SVG 마크업 (Icon › react-native-svg 뷰)
-const iconXmlOf = (button: HostElement) =>
-  ((button.children[0] as HostElement).children[0] as HostElement).props.xml;
 
 describe('ScheduleScreen — 확정 일정', () => {
   it('헤더와 탭(선택한 날의 확정 건수, 응답 필요 건수)을 보여준다', async () => {
@@ -231,15 +230,22 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
   });
 
+  // Figma 는 접힘·펼침에서 모양이 좌우로 뒤집혀 있고 색도 다르다
   it('날짜 줄 오른쪽 버튼은 주간·달력 모두 Figma 의 달력 전환 아이콘이다', async () => {
     await renderSchedule();
 
-    const toggle = () =>
-      screen.getByRole('button', { name: /^달력 (펼치기|접기)$/ });
-    expect(iconXmlOf(toggle())).toBe(iconSvgs['calendar-switch'].xml);
+    const toggleSvg = () =>
+      iconSvgIn(screen.getByRole('button', { name: /^달력 (펼치기|접기)$/ }));
+    expect(toggleSvg().props).toMatchObject({
+      xml: iconSvgs['calendar-switch'].xml,
+      color: colors.gray[500],
+    });
 
-    await userEvent.press(toggle());
-    expect(iconXmlOf(toggle())).toBe(iconSvgs['calendar-switch-open'].xml);
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    expect(toggleSvg().props).toMatchObject({
+      xml: iconSvgs['calendar-switch-open'].xml,
+      color: colors.gray[800],
+    });
   });
 
   it('펼친 달력에 확정 일정의 날짜별 개수만큼 점을 찍는다', async () => {

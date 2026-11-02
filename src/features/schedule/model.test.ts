@@ -86,7 +86,9 @@ describe('날짜 계산', () => {
       false,
     );
   });
+});
 
+describe('일정 집계', () => {
   it('countByDate 는 날짜별 일정 개수를 센다', () => {
     const counts = countByDate([
       { dateKey: '2026-12-15' },

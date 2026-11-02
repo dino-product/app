@@ -76,7 +76,7 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
 describe('ScheduleScreen — 달력 펼치기·접기 버튼 터치 영역', () => {
   const getToggle = () => screen.getByRole('button', { name: '달력 펼치기' });
 
-  it('24 아이콘 그대로 최소 터치 영역으로 넓힌다', async () => {
+  it('24×28 아이콘 그대로 최소 터치 영역으로 넓힌다', async () => {
     await renderSchedule();
 
     expectIconButtonTouchTarget(getToggle());

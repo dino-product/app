@@ -9,8 +9,8 @@ import { drag } from '../../../../jest/gesture';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
+import { iconSvgIn } from '../../../shared/testing/icon';
 import type { HostElement } from '../../../shared/testing/touchTarget';
-import { weekdayColor } from './calendarDay';
 import { MonthCalendar } from './MonthCalendar';
 
 const renderCalendar = async () => {
@@ -65,19 +65,19 @@ describe('MonthCalendar', () => {
 // 날짜 칸 버튼 안의 일정 점
 const dotsOf = (name: string) =>
   within(screen.getByRole('button', { name })).queryAllByTestId('event-dot');
-// 버튼 안 아이콘이 그리는 SVG 마크업 (Icon › react-native-svg 뷰)
-const iconXmlOf = (button: HostElement) =>
-  ((button.children[0] as HostElement).children[0] as HostElement).props.xml;
 
 // Figma 내 일정 › 달력 펼침 (2714:13093) 의 Calendar Contents 칸
 describe('MonthCalendar 표시', () => {
   // 2026년 12월: 11월 29일(일) ~ 1월 2일(토) 5주
-  const renderDecember = (eventCounts = new Map<string, number>()) =>
+  const renderDecember = (
+    eventCounts = new Map<string, number>(),
+    selected = new Date(2026, 11, 15),
+  ) =>
     render(
       <MonthCalendar
         year={2026}
         month={11}
-        selected={new Date(2026, 11, 15)}
+        selected={selected}
         eventCounts={eventCounts}
         onSelect={jest.fn()}
         onPrev={jest.fn()}
@@ -132,19 +132,29 @@ describe('MonthCalendar 표시', () => {
     ).not.toHaveStyle({ backgroundColor: colors.primary });
   });
 
-  it('이번 달은 주간 줄과 같은 요일 색이고, 다른 달은 회색이다', async () => {
+  it('선택한 날은 일·토요일이어도 숫자가 흰색이다', async () => {
+    await renderDecember(new Map(), new Date(2026, 11, 6));
+
+    const sunday = screen.getByRole('button', { name: '12월 6일 일요일' });
+    expect(within(sunday).getByText('6')).toHaveStyle({
+      color: colors.white[100],
+    });
+  });
+
+  // 주간 줄(weekdayColor)과 같은 규칙: 일요일 빨강, 토요일 파랑, 평일 Gray900
+  it('이번 달은 일요일 빨강·토요일 파랑이고, 다른 달은 회색이다', async () => {
     await renderDecember();
 
     const dateText = (name: string, date: string) =>
       within(screen.getByRole('button', { name })).getByText(date);
     expect(dateText('12월 6일 일요일', '6')).toHaveStyle({
-      color: weekdayColor(0),
+      color: colors.warning[1],
     });
     expect(dateText('12월 5일 토요일', '5')).toHaveStyle({
-      color: weekdayColor(6),
+      color: colors.inspection[1],
     });
     expect(dateText('12월 9일 수요일', '9')).toHaveStyle({
-      color: weekdayColor(3),
+      color: colors.gray[900],
     });
     // 다른 달은 일·토요일도 회색이다
     expect(dateText('11월 29일 일요일', '29')).toHaveStyle({
@@ -167,15 +177,15 @@ describe('MonthCalendar 표시', () => {
     ).toBeUndefined();
   });
 
-  it('이전·다음 달 버튼은 Figma 의 채운 삼각형이다', async () => {
+  it('이전·다음 달 버튼은 Figma 의 회색 채운 삼각형이다', async () => {
     await renderDecember();
 
-    expect(iconXmlOf(screen.getByRole('button', { name: '이전 달' }))).toBe(
-      iconSvgs['triangle-left'].xml,
-    );
-    expect(iconXmlOf(screen.getByRole('button', { name: '다음 달' }))).toBe(
-      iconSvgs['triangle-right'].xml,
-    );
+    const prev = iconSvgIn(screen.getByRole('button', { name: '이전 달' }));
+    const next = iconSvgIn(screen.getByRole('button', { name: '다음 달' }));
+    expect(prev.props.xml).toBe(iconSvgs['triangle-left'].xml);
+    expect(next.props.xml).toBe(iconSvgs['triangle-right'].xml);
+    expect(prev.props.color).toBe(colors.gray[300]);
+    expect(next.props.color).toBe(colors.gray[300]);
   });
 });
 

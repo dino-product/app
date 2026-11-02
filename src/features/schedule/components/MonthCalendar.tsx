@@ -84,7 +84,8 @@ export function MonthCalendar({
         </Pressable>
       </View>
 
-      {/* 화살표가 아래로 넓힌 영역(Android)이 요일 줄 바로 위까지 온다. 뒤 형제인 요일 글자가 먼저 받지 않게 터치를 넘긴다 */}
+      {/* 화살표가 아래로 넓힌 영역은 Android 에서 요일 줄 바로 위까지 온다. 간격이 줄어 겹치더라도 뒤 형제인 요일 글자가
+          먼저 받지 않도록 터치를 넘겨 둔다 */}
       <View style={[styles.week, styles.passTouches]}>
         {WEEKDAYS.map((label, day) => (
           <Text
@@ -103,7 +104,8 @@ export function MonthCalendar({
           <View key={toDateKey(week[0].date)} style={styles.week}>
             {row === 0 && (
               // 시스템은 한쪽 가장자리마다 세로 200dp 까지만 빼 준다. 밀기는 주로 날짜 칸에서 하고 제목 줄에는
-              // 이전·다음 달 버튼이 있으니 첫 주부터 뺀다. 어느 달이든 셋째 주에서 200dp 를 넘어 달을 넘겨도 같은 자리다
+              // 이전·다음 달 버튼이 있으니 첫 주부터 뺀다. 칸이 69 라 셋째 주 위쪽까지만 덮고(넷째 주부터는 가장자리 밀기가
+              // 뒤로 가기다), 어느 달이든 셋째 주에서 200dp 를 넘어 달을 넘겨도 같은 자리다
               <GestureExclusionArea edgeInset={edgeInset} height={gridHeight} />
             )}
             {week.map(({ date, inMonth }) => {
@@ -163,6 +165,7 @@ const TITLE_GAP = 6;
 const CELL_HEIGHT = 69;
 // Figma 점 5.18, 간격 1.73 을 반올림했다 (점 묶음 폭 19 는 같다)
 const DOT_SIZE = 5;
+const DOT_GAP = 2;
 
 // 24 화살표를 최소 터치 영역으로 보완한다. 제목 쪽은 간격(6)까지만 넓히고(제목이 먼저 받는다) 나머지는 바깥쪽으로
 const ARROW_SLOP = touchSlop(ARROW_SIZE);
@@ -179,11 +182,11 @@ const NEXT_HIT_SLOP = {
   left: TITLE_GAP,
   right: ARROW_OUTER_SLOP,
 };
-// 날짜 칸 높이를 최소 터치 영역으로 보완한다. Figma 칸(69)은 이미 넉넉해 0 이다.
+// 날짜 칸 높이를 최소 터치 영역으로 보완한다. Figma 칸(69)은 이미 넉넉해 지금은 0 이고, 칸이 작아지면 다시 넓힌다.
 // 7칸이 빈틈없이 붙어 있어 좌우로는 넓히지 않는다
 const DAY_SLOP = touchSlop(CELL_HEIGHT);
 const DAY_HIT_SLOP = { top: DAY_SLOP, bottom: DAY_SLOP };
-// 루트가 네이티브 뷰가 되어도 화살표·마지막 주가 루트 밖으로 넓힌 영역에 터치가 닿게 한다
+// 루트가 네이티브 뷰가 되어도 화살표·마지막 주가 루트 밖으로 넓힌 영역에 터치가 닿게 한다 (마지막 주는 지금 0)
 const ROOT_HIT_SLOP = { top: PREV_HIT_SLOP.top, bottom: DAY_HIT_SLOP.bottom };
 
 const styles = StyleSheet.create({
@@ -207,7 +210,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   cellActive: { backgroundColor: colors.primary },
-  dots: { position: 'absolute', bottom: 15, flexDirection: 'row', gap: 2 },
+  dots: {
+    position: 'absolute',
+    bottom: 15,
+    flexDirection: 'row',
+    gap: DOT_GAP,
+  },
   dot: {
     width: DOT_SIZE,
     height: DOT_SIZE,
