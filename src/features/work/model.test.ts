@@ -1,9 +1,13 @@
 import {
   canSubmitReport,
   emptyReport,
+  formatAmount,
+  formatPrice,
   formatResultTime,
+  formatSubmittedAt,
   formatWon,
   hasReportInput,
+  paymentMethodLabels,
   PHOTO_LIMIT,
   type WorkReport,
 } from './model';
@@ -67,8 +71,49 @@ describe('formatWon', () => {
   });
 });
 
-it('현장 사진은 단계별 최대 5장이다', () => {
-  expect(PHOTO_LIMIT).toBe(5);
+describe('formatAmount', () => {
+  it('입력한 숫자에 천 단위 쉼표만 넣는다 (formatWon 과 같은 규칙)', () => {
+    expect(formatAmount('120000')).toBe('120,000');
+    expect(formatAmount('1234567')).toBe('1,234,567');
+    expect(formatAmount('750')).toBe('750');
+  });
+
+  it('비어 있으면 그대로 비워 placeholder 가 보이게 한다', () => {
+    expect(formatAmount('')).toBe('');
+  });
+});
+
+describe('formatPrice', () => {
+  it('가격이 있으면 formatWon 으로 보여준다', () => {
+    expect(formatPrice(75000)).toBe('75,000원');
+  });
+
+  it('가격이 정해지지 않았으면 "- 원" 이다', () => {
+    expect(formatPrice(null)).toBe('- 원');
+  });
+});
+
+it('현장 사진은 단계별 최대 6장이다 (백엔드 CompletionReport 와 같다)', () => {
+  expect(PHOTO_LIMIT).toBe(6);
+});
+
+it('결제 방식 이름은 Figma 의 "카드결제" 표기를 따른다', () => {
+  expect(paymentMethodLabels).toEqual({
+    card: '카드결제',
+    cash: '현금결제',
+    transfer: '계좌이체',
+  });
+});
+
+describe('formatSubmittedAt', () => {
+  it('"YYYY-MM-DD HH:mm" 로 표기한다', () => {
+    expect(formatSubmittedAt(new Date(2026, 11, 19, 11, 32))).toBe(
+      '2026-12-19 11:32',
+    );
+    expect(formatSubmittedAt(new Date(2026, 0, 5, 9, 7))).toBe(
+      '2026-01-05 09:07',
+    );
+  });
 });
 
 describe('formatResultTime', () => {

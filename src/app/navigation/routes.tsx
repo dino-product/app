@@ -5,7 +5,7 @@ import {
   type ParamListBase,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
@@ -21,7 +21,7 @@ import {
   weeklySchedule,
   workDetail,
 } from '../../features/work/mockData';
-import { formatResultTime } from '../../features/work/model';
+import { formatResultTime, formatSubmittedAt } from '../../features/work/model';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
 import { useSchedule, useWorkSession } from '../AppStateProvider';
@@ -102,8 +102,18 @@ function confirmDiscardReport(onDiscard: () => void) {
   );
 }
 
-export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
-  const { setStarted } = useWorkSession();
+export function WorkDetailRoute({
+  navigation,
+  route,
+}: HomeScreenProps<'WorkDetail'>) {
+  const { setStarted, submissions, saveSubmission } = useWorkSession();
+  const workId = route.params.id;
+  const submission = submissions[workId];
+  // 목 데이터라 어떤 작업을 열어도 같은 상세를 보여준다. 제출 여부만 작업마다 다르다
+  const work = useMemo(
+    () => (submission ? { ...workDetail, submission } : workDetail),
+    [submission],
+  );
   const titleRef = useFocusTitleOnOpen(navigation);
   const [hasUnsavedReport, setHasUnsavedReport] = useState(false);
 
@@ -120,9 +130,8 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
   );
 
   return (
-    // 목 데이터라 어떤 작업을 열어도 같은 상세를 보여준다
     <WorkDetailScreen
-      work={workDetail}
+      work={work}
       titleRef={titleRef}
       onUnsavedReportChange={setHasUnsavedReport}
       onBack={() => navigation.goBack()}
@@ -131,10 +140,12 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
         setStarted(false);
         navigation.goBack();
       }}
-      onSubmitReport={() => ({
-        kind: 'submitted',
-        at: formatResultTime(new Date()),
-      })}
+      onSubmitReport={report => {
+        // 서버가 받은 셈으로 앱 상태에 둔다. API 연동 때 제출 응답·상세 조회로 바꾼다
+        const now = new Date();
+        saveSubmission(workId, { submittedAt: formatSubmittedAt(now), report });
+        return { kind: 'submitted', at: formatResultTime(now) };
+      }}
       onCall={callPhone}
       onNavigate={openDirections}
       // 카메라·앨범 연동 전까지 회색 자리 사진을 넣는다

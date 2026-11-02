@@ -33,18 +33,22 @@ export type WorkDetail = {
   customer: { name: string; phone: string };
   address: string;
   memo: string;
-  price: number;
+  /** 정해지지 않았으면 null */
+  price: number | null;
   requestImages: string[];
+  /** 완료 보고를 제출했으면 그 내용. 있으면 보고 영역을 읽기 전용으로 그린다 */
+  submission?: ReportSubmission;
 };
 
-export const PHOTO_LIMIT = 5;
+/** 작업 전·후 단계별 최대 장수. 백엔드 CompletionReport 의 MAX_PHOTO_COUNT 와 같다 */
+export const PHOTO_LIMIT = 6;
 
 export type PaymentMethod = 'card' | 'cash' | 'transfer';
 
-// Figma 에는 선택 박스만 있어 선택지는 임시값이다 (API 스펙 확정 시 교체)
+// Figma 에는 고른 값 "카드결제" 만 있어 현금·계좌이체 이름은 같은 표기에 맞춘 임시값이다 (API 스펙 확정 시 교체)
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
-  card: '카드',
-  cash: '현금',
+  card: '카드결제',
+  cash: '현금결제',
   transfer: '계좌이체',
 };
 
@@ -65,6 +69,12 @@ export const emptyReport: WorkReport = {
   parts: '',
   amount: '',
   paymentMethod: null,
+};
+
+export type ReportSubmission = {
+  /** "YYYY-MM-DD HH:mm" */
+  submittedAt: string;
+  report: WorkReport;
 };
 
 export type SubmitResult =
@@ -93,8 +103,20 @@ export function hasReportInput(report: WorkReport): boolean {
   );
 }
 
+const groupThousands = (digits: string) =>
+  digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
 export function formatWon(value: number): string {
-  return `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}원`;
+  return `${groupThousands(String(value))}원`;
+}
+
+/** 결제 금액 입력칸에 보일 값. 저장 값(숫자만)에 쉼표만 넣는다 */
+export function formatAmount(digits: string): string {
+  return groupThousands(digits);
+}
+
+export function formatPrice(price: number | null): string {
+  return price === null ? '- 원' : formatWon(price);
 }
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -104,4 +126,11 @@ export function formatResultTime(date: Date): string {
   return `${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${pad2(
     date.getHours(),
   )}:${pad2(date.getMinutes())}`;
+}
+
+/** 제출 후 상세의 제출 시각 표기 (예: 2026-12-19 11:32) */
+export function formatSubmittedAt(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
+    date.getDate(),
+  )} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }

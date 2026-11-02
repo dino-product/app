@@ -34,6 +34,7 @@ import { PhotoUploader } from '../components/PhotoUploader';
 import {
   AmountInput,
   FieldLabel,
+  LineInput,
   PaymentMethodSelect,
 } from '../components/ReportFields';
 import { ResultModal } from '../components/ResultModal';
@@ -47,8 +48,9 @@ import {
   type WorkReport,
 } from '../model';
 
-// Figma 작업 수행 › 작업수행-상세, 작업수행-상세/보고제출 활성 (제출 완료·작업 취소 모달 포함)
+// Figma 작업 수행 › 작업수행-상세, 작업수행-상세/보고제출 활성 (입력 전·입력 완료·제출 후, 제출 완료·작업 취소 모달 포함)
 export type WorkDetailScreenProps = {
+  /** submission 이 있으면 제출을 마친 작업이라 보고 영역을 읽기 전용으로 그린다 */
   work: WorkDetail;
   onBack: () => void;
   onSubmitReport: (report: WorkReport) => SubmitResult | Promise<SubmitResult>;
@@ -90,9 +92,14 @@ export function WorkDetailScreen({
   const reportY = useRef(0);
   const viewportHeight = useRef(0);
 
+  // 제출을 마친 작업은 제출한 내용을 그대로 보여주고 고칠 수 없다
+  const submission = work.submission;
+  const readOnly = submission !== undefined;
+  const shown = submission?.report ?? report;
+
   // 제출을 마친 보고는 잃을 입력이 아니다. 제출 중에는 아직 결과가 없어 작성 중이다 (API 연동 때 다시 본다).
   // 글자마다가 아니라 여부가 바뀔 때만 알린다. 콜백이 바뀌어도 다시 부르지 않는다
-  const unsaved = result === null && hasReportInput(report);
+  const unsaved = !readOnly && result === null && hasReportInput(report);
   const notifyUnsaved = useEffectEvent((value: boolean) =>
     onUnsavedReportChange?.(value),
   );
@@ -212,55 +219,72 @@ export function WorkDetailScreen({
             <Section title="현장 사진 등록">
               <PhotoUploader
                 title="작업 전"
-                photos={report.beforePhotos}
+                photos={shown.beforePhotos}
                 onAdd={() => addPhoto('beforePhotos')}
                 onRemove={index => removePhoto('beforePhotos', index)}
+                disabled={readOnly}
               />
               <PhotoUploader
                 title="작업 후"
-                photos={report.afterPhotos}
+                photos={shown.afterPhotos}
                 onAdd={() => addPhoto('afterPhotos')}
                 onRemove={index => removePhoto('afterPhotos', index)}
+                disabled={readOnly}
               />
             </Section>
-            <Section title="수행 메모">
+            <Section title="수행 메모" optional>
               <TextArea
                 label="수행 메모 입력"
                 placeholder="수행 메모 작성"
-                value={report.memo}
+                value={shown.memo}
                 onChangeText={memo => update({ memo })}
+                readOnly={readOnly}
               />
             </Section>
-            <Section title="사용 부품">
-              <TextArea
+            <Section title="사용 부품" optional>
+              <LineInput
                 label="사용 부품 입력"
                 placeholder="사용 부품 작성"
-                value={report.parts}
+                value={shown.parts}
                 onChangeText={parts => update({ parts })}
+                readOnly={readOnly}
               />
             </Section>
             <Section title="결제 정보">
               <FieldLabel>결제 금액</FieldLabel>
               <AmountInput
-                value={report.amount}
+                value={shown.amount}
                 onChange={amount => update({ amount })}
+                readOnly={readOnly}
               />
               <FieldLabel>결제 방식</FieldLabel>
               <PaymentMethodSelect
-                value={report.paymentMethod}
+                value={shown.paymentMethod}
                 onChange={paymentMethod => update({ paymentMethod })}
+                readOnly={readOnly}
               />
             </Section>
+            {/* 스크린리더가 버튼보다 먼저 읽도록 버튼 앞에 둔다 */}
+            <Text
+              variant="Caption/S/Medium"
+              color={colors.gray[500]}
+              style={styles.notice}
+            >
+              {submission
+                ? `제출 시각 ${submission.submittedAt}`
+                : '제출 후 수정 불가'}
+            </Text>
             <CTA
-              label="완료보고 제출"
-              disabled={submitting || !canSubmitReport(report)}
+              label={readOnly ? '제출 완료' : '완료보고 제출'}
+              disabled={readOnly || submitting || !canSubmitReport(report)}
               onPress={submit}
               style={styles.submit}
             />
           </View>
         </ScrollView>
 
-        {showJump && (
+        {/* 제출을 마친 작업은 작성할 보고가 없다 */}
+        {showJump && !readOnly && (
           // 버튼 양옆 여백까지 덮으므로 그 터치는 아래 스크롤 뷰로 넘긴다
           <View pointerEvents="box-none" style={[readableColumn, styles.jump]}>
             <CTA
@@ -293,7 +317,8 @@ const styles = StyleSheet.create({
   },
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 32 },
-  submit: { marginHorizontal: 24, marginTop: 32 },
+  notice: { marginTop: 24, textAlign: 'center' },
+  submit: { marginHorizontal: 24, marginTop: 40 },
   // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
   jump: { position: 'absolute', bottom: 16, paddingHorizontal: 24 },
 });
