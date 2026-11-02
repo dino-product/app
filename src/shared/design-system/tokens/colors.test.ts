@@ -23,4 +23,9 @@ describe('colors', () => {
     expect(colors.white[60]).toBe('rgba(255, 255, 255, 0.6)');
     expect(colors.typeColor.purple).toBe('#7244D8');
   });
+
+  // DesignSystem › Calendar Contents 의 토요일 날짜 (#77)
+  it('Figma 변수 Accents/Blue 를 갖는다', () => {
+    expect(colors.accents.blue).toBe('#0088FF');
+  });
 });

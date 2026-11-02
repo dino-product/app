@@ -22,29 +22,29 @@ const renderSchedule = () =>
     />,
   );
 
-// Android 는 아래 두 검사를 건너뛴다. 붙어 있는 칸이 48dp 를 다 받지 못한다.
-// - 주간 칸: 칸 사이 간격이 넓힌 폭 8 보다 좁다. 실제로 눌리는 폭이 375 에서 47.8, 360dp 에서 45.3 이다.
-//   376dp 부터 48 이다.
-// - 달력 칸: 칸 폭이 375 에서 46.7, 360dp 에서 44.6 이다. 384dp 부터 48 이다.
+// Android 는 달력 칸 검사를 건너뛴다. 붙어 있는 칸이 48dp 를 다 받지 못한다.
+// 달력 칸 폭이 375 에서 46.7, 360dp 에서 44.6 이다. 384dp 부터 48 이다.
 // 칸이 붙어 있어 hitSlop 으로는 넓힐 수 없다. 겹친 곳은 옆 칸이 먼저 받는다. 레이아웃을 바꾸는 디자인 결정으로 남긴다.
-// 두 플랫폼이 같은 레이아웃이라 iOS 쪽 검사가 좌우 패딩이 크게 늘어나는 회귀는 잡는다 (주간 35.5, 달력 33.5 초과).
+// 두 플랫폼이 같은 레이아웃이라 iOS 쪽 검사가 좌우 패딩이 크게 늘어나는 회귀는 잡는다 (33.5 초과).
 // 그보다 작게 늘어 Android 폭만 더 줄어드는 회귀는 잡지 못한다
 const itOnIOS = Platform.OS === 'ios' ? it : it.skip;
 
-// 주간 줄·달력의 칸 폭과 간격은 화면 폭에서 dateArea 좌우 패딩을 뺀 폭으로 정해진다
+// 주간 줄·달력의 칸 폭은 화면 폭에서 감싸는 영역의 좌우 패딩을 뺀 폭으로 정해진다
 describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
-  const contentWidth = (dateArea: HostElement) =>
-    LAYOUT_BASE_WIDTH - stylePt(dateArea, 'paddingHorizontal') * 2;
+  const contentWidth = (area: HostElement) =>
+    LAYOUT_BASE_WIDTH - stylePt(area, 'paddingHorizontal') * 2;
 
-  itOnIOS('주간 날짜 칸이 넓힌 영역이 칸 사이 간격 안에 든다', async () => {
+  // 7칸 사이에 간격이 6개다. 넓힌 영역(칸 사이 간격)까지 더하면 360dp 에서도 43.4 + 6 = 49.4 다
+  it('주간 날짜 칸은 칸 사이 간격까지 넓혀 최소 터치 영역을 채운다', async () => {
     await renderSchedule();
 
     const day = screen.getByRole('button', { name: '12월 15일 화요일' });
-    const dateArea = day.parent?.parent as HostElement;
-    // 7칸을 space-between 으로 벌리므로 칸 사이 간격은 남는 폭의 1/6 이다
-    const spacing = (contentWidth(dateArea) - stylePt(day, 'minWidth') * 7) / 6;
+    const row = day.parent as HostElement;
+    const gap = stylePt(row, 'gap');
+    const width = (contentWidth(row.parent as HostElement) - gap * 6) / 7;
+    expectMinTouchTarget(day, { width });
     const slop = hitSlopOf(day);
-    expect(slop.left + slop.right).toBeLessThanOrEqual(spacing);
+    expect(slop.left + slop.right).toBeLessThanOrEqual(gap);
   });
 
   itOnIOS(
@@ -56,9 +56,9 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
       );
 
       const day = screen.getByRole('button', { name: '12월 15일 화요일' });
-      const dateArea = screen.getByTestId('month-calendar')
+      const monthArea = screen.getByTestId('month-calendar')
         .parent as HostElement;
-      expectMinTouchTarget(day, { width: contentWidth(dateArea) / 7 });
+      expectMinTouchTarget(day, { width: contentWidth(monthArea) / 7 });
     },
   );
 
@@ -84,16 +84,23 @@ describe('ScheduleScreen — 달력 펼치기·접기 버튼 터치 영역', () 
 
   // dateArea 는 테두리가 있어 네이티브 뷰다. 그 경계 밖의 터치는 자식에게 가지 않는다.
   // 글자가 가장 작으면 날짜 줄 높이가 아이콘 높이와 같아 아이콘 위아래로 남는 여백이 없다
-  it('넓힌 영역이 dateArea 의 여백 안에 들고, 아래 주간 줄·달력과의 간격을 넘지 않는다', async () => {
+  it('넓힌 영역이 dateArea 의 여백 안에 들고, 아래 주간 줄·달력 영역의 위 여백을 넘지 않는다', async () => {
     await renderSchedule();
 
     const toggle = getToggle();
-    const dateArea = toggle.parent?.parent as HostElement;
+    const dateRow = toggle.parent as HostElement;
+    const dateArea = dateRow.parent as HostElement;
     const slop = hitSlopOf(toggle);
     expect(slop.top).toBeLessThanOrEqual(stylePt(dateArea, 'paddingTop'));
     expect(slop.right).toBeLessThanOrEqual(
-      stylePt(dateArea, 'paddingHorizontal'),
+      stylePt(dateRow, 'paddingHorizontal'),
     );
-    expect(slop.bottom).toBeLessThanOrEqual(stylePt(dateArea, 'gap'));
+    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
+    expect(slop.bottom).toBeLessThanOrEqual(stylePt(weekArea, 'paddingTop'));
+
+    await userEvent.press(toggle);
+    const monthArea = screen.getByTestId('month-calendar')
+      .parent as HostElement;
+    expect(slop.bottom).toBeLessThanOrEqual(stylePt(monthArea, 'paddingTop'));
   });
 });

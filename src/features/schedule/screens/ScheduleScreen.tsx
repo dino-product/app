@@ -120,27 +120,32 @@ export function ScheduleScreen({
           )}
         </Pressable>
       </View>
-      <View style={styles.rule} />
+      {/* Figma 는 주간 줄과 펼친 달력의 여백이 다르고, 구분선은 주간 줄에만 있다 */}
       {calendarOpen ? (
-        <MonthCalendar
-          year={viewMonth.year}
-          month={viewMonth.month}
-          selected={selected}
-          eventCounts={eventCounts}
-          edgeInset={styles.dateArea.paddingHorizontal}
-          onSelect={selectDate}
-          onPrev={() => moveMonth(-1)}
-          onNext={() => moveMonth(1)}
-        />
+        <View style={styles.monthArea}>
+          <MonthCalendar
+            year={viewMonth.year}
+            month={viewMonth.month}
+            selected={selected}
+            eventCounts={eventCounts}
+            edgeInset={styles.monthArea.paddingHorizontal}
+            onSelect={selectDate}
+            onPrev={() => moveMonth(-1)}
+            onNext={() => moveMonth(1)}
+          />
+        </View>
       ) : (
-        <WeekStrip
-          days={week}
-          selected={selected}
-          edgeInset={styles.dateArea.paddingHorizontal}
-          onSelect={selectDate}
-          onPrev={() => moveWeek(-1)}
-          onNext={() => moveWeek(1)}
-        />
+        <View style={styles.weekArea}>
+          <View style={styles.rule} />
+          <WeekStrip
+            days={week}
+            selected={selected}
+            edgeInset={styles.weekArea.paddingHorizontal}
+            onSelect={selectDate}
+            onPrev={() => moveWeek(-1)}
+            onNext={() => moveWeek(1)}
+          />
+        </View>
       )}
     </View>
   );
@@ -217,10 +222,7 @@ const styles = StyleSheet.create({
   title: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
   list: { flex: 1 },
   dateArea: {
-    gap: 16,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 24,
     borderBottomWidth: 12,
     borderBottomColor: colors.background[3],
   },
@@ -228,7 +230,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 24,
   },
+  weekArea: {
+    gap: 20,
+    paddingHorizontal: 10,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  monthArea: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 },
   rule: { height: 1, backgroundColor: colors.gray[100] },
   empty: { textAlign: 'center', paddingVertical: 40 },
 });

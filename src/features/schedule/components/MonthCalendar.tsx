@@ -15,7 +15,7 @@ import {
   toDateKey,
   WEEKDAYS,
 } from '../model';
-import { dayA11yLabel, weekdayColor } from './calendarDay';
+import { dayA11yLabel, dayColor, weekdayHeaderColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
 // Figma 내 일정 › 달력 펼침 (Calendar Contents). 선택일은 Primary 둥근 사각형, 일정은 날짜 아래 점 1~3개로 표시한다.
@@ -90,8 +90,8 @@ export function MonthCalendar({
         {WEEKDAYS.map((label, day) => (
           <Text
             key={label}
-            variant="Caption/M/Medium"
-            color={weekdayColor(day)}
+            variant="Body/XS/Medium"
+            color={weekdayHeaderColor(day)}
             style={styles.weekdayText}
           >
             {label}
@@ -131,7 +131,7 @@ export function MonthCalendar({
                       active
                         ? colors.white[100]
                         : inMonth
-                        ? weekdayColor(date.getDay())
+                        ? dayColor(date.getDay(), 'month')
                         : colors.gray[400]
                     }
                   >

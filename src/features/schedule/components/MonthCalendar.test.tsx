@@ -6,7 +6,7 @@ import {
 } from '@testing-library/react-native';
 import { Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
 import { iconSvgIn } from '../../../shared/testing/icon';
@@ -141,8 +141,8 @@ describe('MonthCalendar 표시', () => {
     });
   });
 
-  // 주간 줄(weekdayColor)과 같은 규칙: 일요일 빨강, 토요일 파랑, 평일 Gray900
-  it('이번 달은 일요일 빨강·토요일 파랑이고, 다른 달은 회색이다', async () => {
+  // DesignSystem › Calendar Contents (View=Month): 일요일 Warning1, 토요일 Accents/Blue, 평일 Gray800 (#77)
+  it('이번 달은 일요일 빨강·토요일 파랑·평일 Gray800 이고, 다른 달은 회색이다', async () => {
     await renderDecember();
 
     const dateText = (name: string, date: string) =>
@@ -151,10 +151,10 @@ describe('MonthCalendar 표시', () => {
       color: colors.warning[1],
     });
     expect(dateText('12월 5일 토요일', '5')).toHaveStyle({
-      color: colors.inspection[1],
+      color: colors.accents.blue,
     });
     expect(dateText('12월 9일 수요일', '9')).toHaveStyle({
-      color: colors.gray[900],
+      color: colors.gray[800],
     });
     // 다른 달은 일·토요일도 회색이다
     expect(dateText('11월 29일 일요일', '29')).toHaveStyle({
@@ -163,6 +163,20 @@ describe('MonthCalendar 표시', () => {
     expect(dateText('1월 2일 토요일', '2')).toHaveStyle({
       color: colors.gray[400],
     });
+  });
+
+  // Figma 요일 줄은 날짜 칸과 다른 Type Color 를 쓴다
+  it('요일 줄은 Body/XS/Medium 이고 일 Type Color/Red, 토 Type Color/Blue, 평일 Gray800 이다', async () => {
+    await renderDecember();
+
+    expect(screen.getByText('일')).toHaveStyle({
+      color: colors.typeColor.red,
+      fontSize: typography['Body/XS/Medium'].fontSize,
+    });
+    expect(screen.getByText('토')).toHaveStyle({
+      color: colors.typeColor.blue,
+    });
+    expect(screen.getByText('수')).toHaveStyle({ color: colors.gray[800] });
   });
 
   it('스크린리더는 날짜 레이블 그대로 읽고, 일정이 있으면 건수를 값으로 읽는다', async () => {

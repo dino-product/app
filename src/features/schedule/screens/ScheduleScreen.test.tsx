@@ -248,6 +248,29 @@ describe('ScheduleScreen — 확정 일정', () => {
     });
   });
 
+  // Figma: 날짜 줄 좌우 24, 주간 줄은 좌우 10·위아래 20 (구분선 포함), 펼친 달력은 좌우·위아래 24 (구분선 없음)
+  it('주간 줄과 펼친 달력은 Figma 여백 안에 놓인다', async () => {
+    await renderSchedule();
+
+    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
+    expect(weekArea).toHaveStyle({
+      paddingHorizontal: 10,
+      paddingTop: 20,
+      paddingBottom: 20,
+      gap: 20,
+    });
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    const monthArea = screen.getByTestId('month-calendar')
+      .parent as HostElement;
+    expect(monthArea).toHaveStyle({
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 24,
+    });
+    expect(monthArea.children).toHaveLength(1);
+  });
+
   it('펼친 달력에 확정 일정의 날짜별 개수만큼 점을 찍는다', async () => {
     await renderSchedule();
     await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));

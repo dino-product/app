@@ -3,9 +3,11 @@ import {
   render,
   screen,
   userEvent,
+  within,
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { colors, typography } from '../../../shared/design-system';
 import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
 import { weekDays } from '../model';
 import { WeekStrip } from './WeekStrip';
@@ -107,6 +109,43 @@ describe('WeekStrip', () => {
     const sameCell =
       screen.getByRole('button', { name: '12월 23일 수요일' }) === wednesday;
     expect(sameCell).toBe(true);
+  });
+});
+
+// Figma DesignSystem › Calendar Contents (View=Week). 12월 13일(일) ~ 19일(토), 15일(화) 선택 (#77)
+describe('WeekStrip 표시', () => {
+  const textIn = (name: string, text: string) =>
+    within(screen.getByRole('button', { name })).getByText(text);
+
+  it('일요일은 Warning1, 토요일은 Accents/Blue, 평일은 Gray900 이고 요일 글자도 같은 색이다', async () => {
+    await renderStrip();
+
+    for (const [name, date, weekday, color] of [
+      ['12월 13일 일요일', '13', '일', colors.warning[1]],
+      ['12월 19일 토요일', '19', '토', colors.accents.blue],
+      ['12월 16일 수요일', '16', '수', colors.gray[900]],
+    ]) {
+      expect(textIn(name, date)).toHaveStyle({ color });
+      expect(textIn(name, weekday)).toHaveStyle({ color, opacity: 0.6 });
+    }
+  });
+
+  it('칸은 높이 69, 반경 10 이고 선택한 날은 Primary 배경에 흰 SemiBold 숫자다', async () => {
+    await renderStrip();
+
+    const day = screen.getByRole('button', { name: '12월 15일 화요일' });
+    expect(day).toHaveStyle({
+      height: 69,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+    });
+    expect(textIn('12월 15일 화요일', '15')).toHaveStyle({
+      color: colors.white[100],
+      fontFamily: typography['Body/XS/SemiBold'].fontFamily,
+    });
+    expect(textIn('12월 16일 수요일', '16')).toHaveStyle({
+      fontFamily: typography['Body/XS/Medium'].fontFamily,
+    });
   });
 });
 
