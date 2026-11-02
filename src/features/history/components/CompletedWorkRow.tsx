@@ -23,13 +23,13 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
       style={styles.row}
     >
       <View style={styles.titleRow}>
-        <Text variant="Body/S/Bold" numberOfLines={1} style={styles.shrink}>
+        <Text variant="Body/M/SemiBold" numberOfLines={1} style={styles.shrink}>
           {item.title}
         </Text>
         <StatusChip status="completed" size="S" style={styles.chip} />
       </View>
       <View style={styles.time}>
-        <Icon name="calendar" size={20} color={colors.gray[600]} />
+        <Icon name="calendar" color={colors.gray[600]} />
         <Text variant="Body/XS/Medium" color={colors.gray[600]}>
           {formatWorkTime(item)}
         </Text>
@@ -40,7 +40,7 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
         </Text>
         <View style={styles.divider} />
         <Text
-          variant="Caption/M/Regular"
+          variant="Caption/M/Medium"
           color={colors.gray[600]}
           numberOfLines={1}
           style={styles.shrink}
@@ -54,11 +54,10 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
 
 const styles = StyleSheet.create({
   row: {
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+    gap: 10,
+    padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: colors.gray[200],
   },
   titleRow: {
     flexDirection: 'row',
@@ -68,7 +67,7 @@ const styles = StyleSheet.create({
   },
   chip: { alignSelf: 'center' },
   shrink: { flexShrink: 1 },
-  time: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
+  time: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
 });

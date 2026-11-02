@@ -51,7 +51,7 @@ export function MonthSwitcher({
 }
 
 const ARROW_SIZE = 24;
-const TITLE_GAP = 8;
+const TITLE_GAP = 6;
 
 // 24 화살표를 최소 터치 영역으로 보완한다. 제목 쪽은 간격까지만 넓히고(제목이 먼저 받는다) 나머지는 바깥쪽으로
 const ARROW_SLOP = touchSlop(ARROW_SIZE);

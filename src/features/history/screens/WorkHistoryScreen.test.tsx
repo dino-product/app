@@ -1,5 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
+import { colors, typography } from '../../../shared/design-system';
+import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
 import { WorkHistoryScreen } from './WorkHistoryScreen';
 
@@ -188,5 +190,69 @@ describe('WorkHistoryScreen — 스크린리더', () => {
       const card = screen.getByLabelText(label);
       expect(card).toHaveProp('accessible', true);
     }
+  });
+});
+
+// Figma 작업이력 (기본) 2751:6982 의 패널 값
+describe('WorkHistoryScreen — Figma 값', () => {
+  const parentOf = (element: HostElement) => element.parent as HostElement;
+
+  it('제목과 월 선택 사이 14, 월 제목과 화살표 사이 6', async () => {
+    await renderHistory();
+
+    const monthRow = parentOf(prevMonth());
+    expect(monthRow).toHaveStyle({ gap: 6 });
+    expect(parentOf(monthRow)).toHaveStyle({ paddingTop: 14 });
+  });
+
+  it('요약 카드는 모서리 16, 카드 사이 10, 설명은 Gray700', async () => {
+    await renderHistory();
+
+    const card = screen.getByLabelText('누적 완료 4건');
+    expect(card).toHaveStyle({ borderRadius: 16 });
+    expect(parentOf(card)).toHaveStyle({ gap: 10 });
+    expect(screen.getByText('누적 완료')).toHaveStyle({
+      color: colors.gray[700],
+    });
+  });
+
+  it('행은 줄 사이 10, 아래 구분선 Gray200, 제목 Body/M/SemiBold', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    expect(rows()[0]).toHaveStyle({
+      gap: 10,
+      borderBottomColor: colors.gray[200],
+    });
+    expect(screen.getByText('세탁기 설치')).toHaveStyle({
+      ...typography['Body/M/SemiBold'],
+      color: colors.gray[900],
+    });
+  });
+
+  it('날짜 줄은 달력 아이콘 24 와 글자 사이 5', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    const timeRow = parentOf(screen.getByText('2026.09.26 (토) 08:00 - 09:00'));
+    expect(timeRow).toHaveStyle({ gap: 5 });
+    expect(timeRow.children[0] as HostElement).toHaveStyle({
+      width: 24,
+      height: 24,
+    });
+  });
+
+  it('발주사 줄은 사이 8, 구분선 Gray400, 고객 · 주소는 Caption/M/Medium Gray600', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    const metaRow = parentOf(screen.getByText('한빛 설비'));
+    expect(metaRow).toHaveStyle({ gap: 8 });
+    expect(metaRow.children[1] as HostElement).toHaveStyle({
+      width: 1,
+      height: 12,
+      backgroundColor: colors.gray[400],
+    });
+    expect(screen.getByText('정다은 · 서울 용산구 이태원로 202')).toHaveStyle({
+      ...typography['Caption/M/Medium'],
+      color: colors.gray[600],
+    });
   });
 });

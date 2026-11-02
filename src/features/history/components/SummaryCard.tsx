@@ -20,7 +20,7 @@ export const SummaryCard = memo(function SummaryCardView({
       <Text variant="Body/XL/Bold" color={colors.gray[900]}>
         {`${count}건`}
       </Text>
-      <Text variant="Body/XS/Medium" color={colors.gray[600]}>
+      <Text variant="Body/XS/Medium" color={colors.gray[700]}>
         {label}
       </Text>
     </View>
@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 20,
     paddingVertical: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: colors.background[3],
   },
 });
