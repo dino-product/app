@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
@@ -17,7 +18,7 @@ import {
   type WithdrawalEligibility,
 } from '../model';
 
-// Figma 마이페이지-계정 관리 화면 (2889:14188). 확인 알림창 문구는 Figma 에 없어 기본안이다
+// Figma 마이페이지-계정 관리 화면 (2889:14188). 탈퇴 확인 실패 알림창 문구는 Figma 에 없어 기본안이다
 export function AccountScreen({
   onBack,
   onLogout,
@@ -47,16 +48,8 @@ export function AccountScreen({
     };
   }, []);
 
-  const confirmLogout = () =>
-    Alert.alert(
-      '로그아웃할까요?',
-      undefined,
-      [
-        { text: '취소', style: 'cancel' },
-        { text: '로그아웃', onPress: onLogout },
-      ],
-      { cancelable: true },
-    );
+  // Figma 로그아웃 확인 모달 (2975:16358)
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   const withdraw = async () => {
     if (checkingRef.current) {
@@ -101,7 +94,7 @@ export function AccountScreen({
           계정 관리
         </Text>
         <View style={styles.rows}>
-          <MenuRow label="로그아웃" onPress={confirmLogout} />
+          <MenuRow label="로그아웃" onPress={() => setConfirmingLogout(true)} />
           <MenuRow
             label="계정 탈퇴"
             tone="danger"
@@ -110,6 +103,16 @@ export function AccountScreen({
           />
         </View>
       </ScrollView>
+
+      <ConfirmModal
+        visible={confirmingLogout}
+        title="로그아웃 할까요?"
+        onCancel={() => setConfirmingLogout(false)}
+        onConfirm={() => {
+          setConfirmingLogout(false);
+          onLogout();
+        }}
+      />
     </SafeAreaView>
   );
 }

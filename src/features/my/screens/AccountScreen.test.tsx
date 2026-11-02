@@ -5,26 +5,14 @@ import {
   userEvent,
   waitFor,
 } from '@testing-library/react-native';
-import { Alert, type AlertButton } from 'react-native';
+import { Alert } from 'react-native';
+import { escapeFrom } from '../../../../jest/voiceOver';
 import { colors } from '../../../shared/design-system';
 import type { WithdrawalEligibility } from '../model';
 import { AccountScreen } from './AccountScreen';
 
 // 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막는다
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-
-// 넘긴 버튼을 꺼내 직접 누른다
-const pressAlertButton = async (
-  alert: ReturnType<typeof spyAlert>,
-  text: string,
-) => {
-  const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
-  const button = buttons.find(item => item.text === text);
-  if (!button) {
-    throw new Error(`알림창에 "${text}" 버튼이 없다`);
-  }
-  await act(() => button.onPress?.());
-};
 
 const renderAccount = (
   overrides: Partial<Parameters<typeof AccountScreen>[0]> = {},
@@ -66,30 +54,49 @@ describe('AccountScreen', () => {
     });
   });
 
-  it('로그아웃을 누르면 확인 알림창을 띄우고, 확인하면 로그아웃한다', async () => {
+  // Figma 마이페이지 섹션의 로그아웃 확인 모달 (2975:16358)
+  const logoutTitle = () =>
+    screen.queryByRole('header', { name: '로그아웃 할까요?' });
+
+  it('로그아웃을 누르면 확인 모달을 띄우고, 확인하면 로그아웃한다', async () => {
     const alert = spyAlert();
     const props = await renderAccount();
 
     await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
-    expect(alert).toHaveBeenCalledWith(
-      '로그아웃할까요?',
-      undefined,
-      expect.any(Array),
-      { cancelable: true },
-    );
+    expect(logoutTitle()).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '취소' })).toBeOnTheScreen();
+    expect(alert).not.toHaveBeenCalled();
     expect(props.onLogout).not.toHaveBeenCalled();
 
-    await pressAlertButton(alert, '로그아웃');
+    await userEvent.press(screen.getByRole('button', { name: '확인' }));
     expect(props.onLogout).toHaveBeenCalledTimes(1);
+    expect(logoutTitle()).toBeNull();
   });
 
-  it('로그아웃 확인창에서 취소하면 로그아웃하지 않는다', async () => {
-    const alert = spyAlert();
+  it('로그아웃 모달에서 취소하면 닫고 로그아웃하지 않는다', async () => {
     const props = await renderAccount();
 
     await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
-    await pressAlertButton(alert, '취소');
+    await userEvent.press(screen.getByRole('button', { name: '취소' }));
 
+    expect(logoutTitle()).toBeNull();
+    expect(props.onLogout).not.toHaveBeenCalled();
+  });
+
+  it('로그아웃 모달은 Android 뒤로가기·두 손가락 Z 로도 취소된다', async () => {
+    const props = await renderAccount();
+
+    await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+    await escapeFrom('로그아웃 할까요?');
+    expect(logoutTitle()).toBeNull();
+
+    await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+    let modal = screen.getByRole('header', { name: '로그아웃 할까요?' }).parent;
+    while (modal && modal.type !== 'Modal') {
+      modal = modal.parent;
+    }
+    await act(() => modal?.props.onRequestClose());
+    expect(logoutTitle()).toBeNull();
     expect(props.onLogout).not.toHaveBeenCalled();
   });
 

@@ -155,12 +155,11 @@ describe('App — 마이 탭', () => {
   });
 
   it('로그아웃을 확인하면 첫 화면(홈)으로 돌아간다', async () => {
-    const alert = spyAlert();
     await openMyPage();
 
     await userEvent.press(button('계정 관리'));
     await userEvent.press(button('로그아웃'));
-    await pressAlertButton(alert, '로그아웃');
+    await userEvent.press(button('확인'));
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(tab('홈')).toBeSelected();
