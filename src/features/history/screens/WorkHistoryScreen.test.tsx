@@ -1,0 +1,192 @@
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
+import type { CompletedWork } from '../model';
+import { WorkHistoryScreen } from './WorkHistoryScreen';
+
+const today = new Date(2026, 8, 28); // 월요일
+
+const base = {
+  start: '08:00',
+  end: '09:00',
+  company: '한빛 설비',
+  customerName: '정다은',
+  address: '서울 용산구 이태원로 202',
+};
+
+const works: CompletedWork[] = [
+  { ...base, id: 's1', dateKey: '2026-09-26', title: '세탁기 설치' },
+  {
+    ...base,
+    id: 's2',
+    dateKey: '2026-09-26',
+    title: '에어컨 청소',
+    start: '13:00',
+    end: '14:00',
+  },
+  { ...base, id: 's3', dateKey: '2026-09-03', title: '보일러 점검' },
+  { ...base, id: 'a1', dateKey: '2026-08-20', title: '도어록 교체' },
+];
+
+const renderHistory = (
+  overrides: Partial<Parameters<typeof WorkHistoryScreen>[0]> = {},
+) =>
+  render(
+    <WorkHistoryScreen
+      today={today}
+      works={works}
+      onOpenWork={jest.fn()}
+      {...overrides}
+    />,
+  );
+
+const rows = () => screen.getAllByRole('button', { name: /, 완료, / });
+const rowTitles = () =>
+  rows().map(row => row.props.accessibilityLabel.split(',')[0]);
+const prevMonth = () => screen.getByRole('button', { name: '이전 달' });
+const nextMonth = () => screen.getByRole('button', { name: '다음 달' });
+
+describe('WorkHistoryScreen — 화면 구성', () => {
+  it('제목, 오늘이 속한 달, 요약 카드(누적·이번 달 완료)를 보여준다', async () => {
+    await renderHistory();
+
+    expect(screen.getByRole('header', { name: '작업 이력' })).toBeOnTheScreen();
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+    expect(screen.getByText('4건')).toBeOnTheScreen();
+    expect(screen.getByText('누적 완료')).toBeOnTheScreen();
+    expect(screen.getByText('3건')).toBeOnTheScreen();
+    expect(screen.getByText('이번 달 완료')).toBeOnTheScreen();
+  });
+
+  it('고른 달의 완료 작업을 최근 순으로 보여준다', async () => {
+    await renderHistory();
+
+    expect(rowTitles()).toEqual(['에어컨 청소', '세탁기 설치', '보일러 점검']);
+  });
+
+  it('행에 제목, 완료 칩, 날짜·시간, 발주사 | 고객 · 주소가 보인다', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+    expect(screen.getByText('완료')).toBeOnTheScreen();
+    expect(screen.getByText('2026.09.26 (토) 08:00 - 09:00')).toBeOnTheScreen();
+    expect(screen.getByText('한빛 설비')).toBeOnTheScreen();
+    expect(
+      screen.getByText('정다은 · 서울 용산구 이태원로 202'),
+    ).toBeOnTheScreen();
+  });
+});
+
+describe('WorkHistoryScreen — 월 이동', () => {
+  it('◀ 를 누르면 이전 달로 바뀌고 목록과 이번 달 완료 숫자가 그 달 기준이 된다', async () => {
+    await renderHistory();
+
+    await userEvent.press(prevMonth());
+
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+    expect(rowTitles()).toEqual(['도어록 교체']);
+    expect(screen.getByLabelText('이번 달 완료 1건')).toBeOnTheScreen();
+    // 누적은 달과 상관없다
+    expect(screen.getByLabelText('누적 완료 4건')).toBeOnTheScreen();
+  });
+
+  it('이번 달에서는 ▶ 가 비활성이고, 지난달에서는 ▶ 로 다음 달에 간다', async () => {
+    await renderHistory();
+    expect(nextMonth()).toBeDisabled();
+
+    await userEvent.press(prevMonth());
+    expect(nextMonth()).toBeEnabled();
+
+    await userEvent.press(nextMonth());
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+    expect(nextMonth()).toBeDisabled();
+  });
+
+  it('12월에서 ▶ 를 누르면 다음 해 1월이 된다', async () => {
+    await renderHistory({
+      today: new Date(2027, 0, 10),
+      works: [
+        { ...base, id: 'd1', dateKey: '2026-12-31', title: '수전 교체' },
+        { ...base, id: 'j1', dateKey: '2027-01-02', title: '에어컨 청소' },
+      ],
+    });
+
+    await userEvent.press(prevMonth());
+    expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+    expect(rowTitles()).toEqual(['수전 교체']);
+
+    await userEvent.press(nextMonth());
+    expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+    expect(rowTitles()).toEqual(['에어컨 청소']);
+  });
+
+  it('고른 달에 완료 작업이 없으면 빈 상태를 보여준다', async () => {
+    await renderHistory();
+    expect(
+      screen.queryByText('이 달에 완료한 작업이 없어요'),
+    ).not.toBeOnTheScreen();
+
+    await userEvent.press(prevMonth());
+    await userEvent.press(prevMonth());
+
+    expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
+    expect(screen.getByText('이 달에 완료한 작업이 없어요')).toBeOnTheScreen();
+    expect(screen.getByLabelText('이번 달 완료 0건')).toBeOnTheScreen();
+  });
+});
+
+describe('WorkHistoryScreen — 상세 열기', () => {
+  it('행을 누르면 그 작업 id 로 onOpenWork 를 부른다', async () => {
+    const onOpenWork = jest.fn();
+    await renderHistory({ onOpenWork });
+
+    await userEvent.press(rows()[1]);
+
+    expect(onOpenWork).toHaveBeenCalledWith('s1');
+  });
+});
+
+describe('WorkHistoryScreen — 스크린리더', () => {
+  it('행은 버튼 하나로 제목, 완료, 날짜·시간, 발주사, 고객, 주소를 읽는다', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    expect(
+      screen.getByRole('button', {
+        name: '세탁기 설치, 완료, 2026년 9월 26일 토요일 오전 8시부터 9시, 한빛 설비, 정다은, 서울 용산구 이태원로 202',
+      }),
+    ).toBeOnTheScreen();
+  });
+
+  it('월 화살표는 "이전 달", "다음 달" 버튼이다', async () => {
+    await renderHistory();
+
+    expect(prevMonth()).toBeOnTheScreen();
+    expect(nextMonth()).toBeOnTheScreen();
+  });
+
+  // 포커스는 누른 화살표에 남아 바뀐 제목을 읽지 않는다
+  it('달을 바꾸면 바뀐 달과 그 달 완료 건수를 알려 준다', async () => {
+    const announce = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {});
+    await renderHistory();
+
+    await userEvent.press(prevMonth());
+    expect(announce).toHaveBeenLastCalledWith('2026년 8월, 완료 1건');
+
+    await userEvent.press(prevMonth());
+    expect(announce).toHaveBeenLastCalledWith('2026년 7월, 완료 0건');
+
+    await userEvent.press(nextMonth());
+    expect(announce).toHaveBeenLastCalledWith('2026년 8월, 완료 1건');
+    announce.mockRestore();
+  });
+
+  it('요약 카드는 카드 하나로 "누적 완료 4건" 처럼 읽는다', async () => {
+    await renderHistory();
+
+    for (const label of ['누적 완료 4건', '이번 달 완료 3건']) {
+      const card = screen.getByLabelText(label);
+      expect(card).toHaveProp('accessible', true);
+    }
+  });
+});

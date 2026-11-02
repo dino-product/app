@@ -30,15 +30,18 @@ import {
   RoleSelectRoute,
 } from './orgRoutes';
 import {
+  CompletedWorkDetailRoute,
   RejectReasonRoute,
   RequestDetailRoute,
   ScheduleRoute,
   WorkDetailRoute,
+  WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
+  type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
   type MyStackParamList,
@@ -48,6 +51,7 @@ import {
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const MyStack = createNativeStackNavigator<MyStackParamList>();
 
 // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
@@ -130,6 +134,23 @@ function HomeTab() {
   );
 }
 
+function HistoryTab() {
+  const stackOptions = useStackOptions();
+  return (
+    <HistoryStack.Navigator
+      screenOptions={stackOptions}
+      screenLayout={stackScreenLayout}
+    >
+      <HistoryStack.Screen name="WorkHistory" component={WorkHistoryRoute} />
+      <HistoryStack.Screen
+        name="CompletedWorkDetail"
+        component={CompletedWorkDetailRoute}
+        getId={byId}
+      />
+    </HistoryStack.Navigator>
+  );
+}
+
 // 마이 탭 (#72). 하위 화면 상태는 이 탭 안에서만 쓰므로 탭 스택을 감싼다
 function MyTab() {
   const stackOptions = useStackOptions();
@@ -205,6 +226,7 @@ function MainTabs() {
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
+      <Tab.Screen name="history" component={HistoryTab} />
       <Tab.Screen name="my" component={MyTab} />
     </Tab.Navigator>
   );
