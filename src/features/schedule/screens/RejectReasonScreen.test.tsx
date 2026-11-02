@@ -13,10 +13,11 @@ import {
   NativeModules,
   Platform,
   ScrollView,
+  StyleSheet,
   TextInput,
 } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
 import { RejectReasonScreen } from './RejectReasonScreen';
 
 const renderReject = (
@@ -333,6 +334,123 @@ describe('RejectReasonScreen', () => {
 
     expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
     expect(onBack).toHaveBeenCalledTimes(2);
+  });
+
+  // Figma 스케줄 › 거절 사유: 처음 3239:9164, 선택 2714:12181, 기타 펼침 3227:8674, 입력 중 3239:9238
+  describe('Figma 값', () => {
+    it('소개는 제목·안내 문구 사이 12, 안내 문구 Caption/M/Medium Gray600 이고, 선택지와 48 떨어진다', async () => {
+      await renderReject();
+
+      const title = screen.getByText('작업을 거절할까요?');
+      expect(title).toHaveStyle({
+        ...typography['Body/XL/Bold'],
+        color: colors.gray[900],
+      });
+      expect(
+        screen.getByText(
+          '거절 사유를 선택해 주세요. 사유는 등록 담당자에게 전달됩니다.',
+        ),
+      ).toHaveStyle({
+        ...typography['Caption/M/Medium'],
+        color: colors.gray[600],
+      });
+      expect(title.parent).toHaveStyle({ gap: 12 });
+      // 소개 묶음 아래 여백 24 + 묶음 사이 24
+      expect(
+        StyleSheet.flatten(
+          screen.getByTestId('reject-reason-scroll').props
+            .contentContainerStyle,
+        ),
+      ).toEqual(
+        expect.objectContaining({
+          gap: 48,
+          paddingHorizontal: 24,
+          paddingTop: 24,
+        }),
+      );
+    });
+
+    it('선택지는 여백 20(높이 64)·모서리 12·Gray200 테두리로 8 씩 떨어지고, 글자는 Body/XS/SemiBold Gray800 이다', async () => {
+      await renderReject();
+
+      const radios = screen.getAllByRole('radio');
+      expect(radios[0].parent).toHaveStyle({ gap: 8 });
+      radios.forEach(radio =>
+        expect(radio).toHaveStyle({
+          padding: 20,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.gray[200],
+        }),
+      );
+      expect(screen.getByText('일정이 맞지 않습니다')).toHaveStyle({
+        ...typography['Body/XS/SemiBold'],
+        color: colors.gray[800],
+      });
+      expect(screen.getByText('(직접 입력)')).toHaveStyle({
+        ...typography['Body/XS/SemiBold'],
+        color: colors.gray[500],
+      });
+    });
+
+    it('직접 입력 섹션은 선택지와 24 떨어지고, 제목 Body/XS/Medium Gray900 과 입력란이 12 떨어진다', async () => {
+      await renderReject();
+
+      await userEvent.press(otherOption());
+
+      const sectionTitle = screen.getByText('기타 사유를 직접 입력해 주세요');
+      expect(sectionTitle).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[900],
+      });
+      expect(sectionTitle.parent).toHaveStyle({ gap: 12, paddingTop: 24 });
+    });
+
+    it('입력란은 높이 136·여백 16·모서리 12·Gray200 테두리, 글자 Body/XS/Medium Gray800, placeholder Gray600 이고, 비어서 제출하면 테두리가 Warning 이다', async () => {
+      await renderReject();
+
+      await userEvent.press(otherOption());
+
+      const input = otherInput();
+      expect(input).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[800],
+        height: 136,
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.gray[200],
+      });
+      expect(input).toHaveProp('placeholder', '거절 사유를 입력해 주세요.');
+      expect(input).toHaveProp('placeholderTextColor', colors.gray[600]);
+
+      await userEvent.press(submitButton());
+      expect(otherInput()).toHaveStyle({ borderColor: colors.warning[1] });
+    });
+
+    it('아래 버튼은 CTA L(56) 두 개가 10 떨어지고, 위 여백 14, 아래는 안전 영역과 32 중 큰 값이다', async () => {
+      await renderReject();
+
+      const cancel = screen.getByRole('button', { name: '취소' });
+      expect(cancel).toHaveStyle({ minHeight: 56 });
+      expect(submitButton()).toHaveStyle({ minHeight: 56 });
+      expect(cancel.parent).toHaveStyle({
+        gap: 10,
+        paddingTop: 14,
+        paddingHorizontal: 24,
+      });
+      // 버튼 아래 32 는 홈 인디케이터 자리다. 안전 영역이 더 크면 그만큼, 없는 기기는 32 를 둔다
+      expect(screen.root?.props.edges).toEqual(
+        expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+      );
+      expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+    });
+
+    it('사유를 고르기 전 거절 제출은 Disabled 변수(Primary 50%) 채움이다', async () => {
+      await renderReject();
+
+      expect(submitButton()).toHaveStyle({ backgroundColor: colors.disabled });
+    });
   });
 
   describe('동작 줄이기', () => {

@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
   type LayoutChangeEvent,
   type ScrollViewInstance,
@@ -22,7 +23,7 @@ import {
   Icon,
   ICON_HIT_SLOP,
   Text,
-  TextArea,
+  typography,
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -32,7 +33,7 @@ import {
   type RejectReasonKey,
 } from '../model';
 
-// Figma 스케줄 › 거절 사유
+// Figma 스케줄 › 거절 사유: 처음 3239:9164, 선택 2714:12181, 기타 펼침 3227:8674, 입력 중 3239:9238
 const OTHER_TEXT_ERROR = '기타 사유를 입력해 주세요.';
 // 기타 직접 입력 섹션을 펼치고 접는 시간
 const EXPAND_MS = 220;
@@ -134,7 +135,7 @@ export function RejectReasonScreen({
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+    <SafeAreaView edges={SCREEN_EDGES} style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -171,7 +172,7 @@ export function RejectReasonScreen({
         >
           <View style={styles.intro}>
             <Text variant="Body/XL/Bold">작업을 거절할까요?</Text>
-            <Text variant="Caption/M/Regular" color={colors.gray[600]}>
+            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
               거절 사유를 선택해 주세요. 사유는 등록 담당자에게 전달됩니다.
             </Text>
           </View>
@@ -195,10 +196,13 @@ export function RejectReasonScreen({
                     onPress={() => select(reason.key)}
                     style={[styles.option, checked && styles.optionChecked]}
                   >
-                    <Text variant="Body/XS/Medium">
+                    <Text variant="Body/XS/SemiBold" color={colors.gray[800]}>
                       {reason.label}
                       {isOther && (
-                        <Text variant="Body/XS/Medium" color={colors.gray[500]}>
+                        <Text
+                          variant="Body/XS/SemiBold"
+                          color={colors.gray[500]}
+                        >
                           {' (직접 입력)'}
                         </Text>
                       )}
@@ -241,14 +245,12 @@ export function RejectReasonScreen({
 
       <View style={[readableColumn, styles.actions]}>
         <CTA
-          size="M"
           variant="outline"
           label="취소"
           onPress={onBack}
           style={styles.action}
         />
         <CTA
-          size="M"
           label="거절 제출"
           onPress={submit}
           disabled={selected === null}
@@ -275,16 +277,19 @@ function OtherReason({
 }) {
   return (
     <View style={styles.other}>
-      <Text variant="Body/XS/SemiBold">기타 사유를 직접 입력해 주세요</Text>
-      <TextArea
+      <Text variant="Body/XS/Medium">기타 사유를 직접 입력해 주세요</Text>
+      {/* Figma 에서 디자인 시스템 TextArea 가 아닌 이 화면의 입력칸이라 값을 그대로 둔다 */}
+      <TextInput
         ref={inputRef}
-        label="기타 거절 사유 입력"
+        accessibilityLabel="기타 거절 사유 입력"
+        autoFocus
+        multiline
         placeholder="거절 사유를 입력해 주세요."
+        placeholderTextColor={colors.gray[600]}
         value={value}
         onChangeText={onChangeText}
         onFocus={onFocus}
-        error={error}
-        autoFocus
+        style={[styles.input, error && styles.inputError]}
       />
       {error && (
         <Text
@@ -335,21 +340,24 @@ function useReveal() {
   return reveal;
 }
 
+// 아래 버튼 밑 32 는 홈 인디케이터 자리다. 안전 영역이 더 크면 그만큼, 없는 기기도 32 를 둔다 (styles.screen)
+const SCREEN_EDGES = { top: 'additive', bottom: 'maximum' } as const;
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
+  screen: { flex: 1, paddingBottom: 32, backgroundColor: colors.white[100] },
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
+  // 소개 묶음(위아래 여백 24)과 선택지 사이 24 를 합쳐 48 이다
   content: {
-    gap: 28,
+    gap: 48,
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 24,
   },
-  intro: { gap: 8 },
-  options: { gap: 10 },
+  intro: { gap: 12 },
+  options: { gap: 8 },
   option: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    padding: 20,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.gray[200],
@@ -359,15 +367,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.select[1],
   },
   otherClip: { overflow: 'hidden' },
-  // 선택지와의 간격(28)도 섹션에 넣어, 접히면 간격까지 함께 사라진다
-  other: { gap: 12, paddingTop: 28 },
+  // 선택지와의 간격(24)도 섹션에 넣어, 접히면 간격까지 함께 사라진다
+  other: { gap: 12, paddingTop: 24 },
+  input: {
+    ...typography['Body/XS/Medium'],
+    height: 136,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    color: colors.gray[800],
+    textAlignVertical: 'top',
+  },
+  inputError: { borderColor: colors.warning[1] },
   error: { textAlign: 'center' },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 14,
   },
   action: { flex: 1 },
 });
