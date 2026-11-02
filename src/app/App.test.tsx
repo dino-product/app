@@ -751,17 +751,17 @@ describe('App', () => {
     });
   });
 
-  it('작업 이력·마이는 화면이 없어 눌러도 지금 탭에 머문다', async () => {
+  it('작업 이력은 화면이 없어 눌러도 지금 탭에 머문다', async () => {
     await render(<App />);
 
     await userEvent.press(tab('작업 이력'));
-    await userEvent.press(tab('마이'));
 
     expect(tab('홈')).toBeSelected();
     expect(header('내 작업')).toBeOnTheScreen();
   });
 
-  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인만 회색)', async () => {
+  // 마이페이지도 회색이다 (App.my.test)
+  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인은 회색)', async () => {
     await render(<App />);
     const backdrop = () => screen.getByTestId('main-tab-bar');
 

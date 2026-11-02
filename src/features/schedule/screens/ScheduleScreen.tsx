@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Ref } from 'react';
 import {
   FlatList,
   Pressable,
@@ -38,11 +38,13 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
+  /** 바깥에서 하위 탭을 고를 때 (탈퇴 불가 → 응답 필요). 값이 들어올 때마다 그 탭으로 옮긴다 */
+  requestedTab?: ScheduleTab;
   /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
 };
 
-type ScheduleTab = 'confirmed' | 'pending';
+export type ScheduleTab = 'confirmed' | 'pending';
 
 export function ScheduleScreen({
   today,
@@ -51,9 +53,15 @@ export function ScheduleScreen({
   onAccept,
   onReject,
   onOpenRequest,
+  requestedTab,
   listRef,
 }: ScheduleScreenProps) {
   const [tab, setTab] = useState<ScheduleTab>('confirmed');
+  useEffect(() => {
+    if (requestedTab) {
+      setTab(requestedTab);
+    }
+  }, [requestedTab]);
   const [selected, setSelected] = useState(today);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState({
