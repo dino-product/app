@@ -21,7 +21,8 @@ describe('RejectReasonScreen 렌더 예산', () => {
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
     );
-  });
+    // 10회 반복 측정이 로컬에서도 6초 남짓이라 CI 러너에서는 기본 5초를 넘긴다
+  }, 30_000);
 
   it('기타를 펼칠 때 한 번, 접을 때 두 번(선택·섹션 내리기)만 다시 그린다', async () => {
     const result = await measureRenders(
