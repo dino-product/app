@@ -197,6 +197,8 @@ describe('MyPageScreen', () => {
       expect(
         screen.queryByRole('button', { name: /^오빗 서비스/ }),
       ).not.toBeOnTheScreen();
+      // Pressable 은 기본으로 Android 에서 클릭할 수 있는 뷰가 되어 TalkBack 이 '두 번 탭하여 활성화' 를 읽는다
+      expect(row).toHaveProp('focusable', false);
     });
 
     // 회색은 카드 안쪽에 둥근 사각형으로 칠한다. 여백 일부를 행 안으로 옮겨 글자 자리는 그대로다

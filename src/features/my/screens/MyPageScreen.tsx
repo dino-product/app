@@ -218,6 +218,8 @@ const MembershipRow = memo(function MyMembershipRow({
     <Pressable
       accessible
       accessibilityLabel={`${organizationName}, ${roleLabel}, ${spec.label}`}
+      // 누를 동작이 없으니 Android 에서 클릭할 수 있는 뷰로 만들지 않는다 (TalkBack 이 활성화하라고 읽지 않게)
+      focusable={false}
       style={membershipRowStyle}
       testID={`membership-${organizationId}`}
     >
