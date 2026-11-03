@@ -45,7 +45,8 @@ describe('colors', () => {
     expect(colors.libraryGray[500]).toBe('#7F7F7F');
   });
 
-  it('카카오 로그인 버튼 노랑을 갖는다', () => {
+  it('카카오 로그인 버튼 노랑, 역할 선택 카드 설명 회색을 갖는다', () => {
     expect(colors.kakao).toBe('#FEE500');
+    expect(colors.optionDescription).toBe('#6B7280');
   });
 });

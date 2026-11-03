@@ -11,6 +11,7 @@ import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
+import { InfoNotice } from '../components/InfoNotice';
 import {
   participationTypeLabels,
   type JoinFlow,
@@ -47,6 +48,7 @@ export function RoleSelectScreen({
   const [selected, setSelected] = useState<ParticipationType | null>(null);
   // 요청 완료로 넘어가기 전에 연달아 눌러도 같은 회사에 한 번만 요청한다
   const submitted = useRef(false);
+  const look = looks[flow];
   const submit = () => {
     if (selected === null || submitted.current) {
       return;
@@ -65,31 +67,31 @@ export function RoleSelectScreen({
         onBack={onBack}
         titleRef={titleRef}
       />
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
-        <View style={styles.intro}>
-          <Text accessibilityRole="header" variant="Body/XL/Bold">
+      <ScrollView contentContainerStyle={[readableColumn, look.styles.content]}>
+        <View style={look.styles.intro}>
+          <Text accessibilityRole="header" variant={look.title}>
             역할을 선택해주세요
           </Text>
-          <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+          <Text variant={look.description} color={colors.gray[600]}>
             참여할 회사와 유형을 확인해 주세요.
           </Text>
         </View>
 
-        <View accessible style={styles.company}>
-          <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+        <View accessible style={look.styles.company}>
+          <Text variant="Caption/M/Medium" color={look.companyLabelColor}>
             회사명
           </Text>
-          <Text variant="Body/XL/Bold" color={colors.gray[800]}>
+          <Text variant={look.companyName} color={colors.gray[800]}>
             {organizationName}
           </Text>
         </View>
 
-        <View style={styles.types}>
+        <View style={look.styles.types}>
           <Text
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            variant="Caption/M/SemiBold"
-            color={colors.gray[800]}
+            variant={look.label}
+            color={look.labelColor}
           >
             참여 유형
           </Text>
@@ -97,7 +99,7 @@ export function RoleSelectScreen({
           <View
             accessibilityRole="radiogroup"
             accessibilityLabel="참여 유형"
-            style={styles.options}
+            style={look.styles.options}
           >
             {options.map((option, index) => {
               const checked = selected === option.type;
@@ -113,11 +115,23 @@ export function RoleSelectScreen({
                   }번째`}
                   accessibilityState={{ checked }}
                   onPress={() => setSelected(option.type)}
-                  style={[styles.option, checked && styles.optionChecked]}
+                  style={[
+                    styles.option,
+                    look.styles.option,
+                    checked && styles.optionChecked,
+                  ]}
                 >
                   <View style={styles.optionText}>
-                    <Text variant="Body/XS/SemiBold">{label}</Text>
-                    <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+                    <Text
+                      variant="Body/XS/SemiBold"
+                      color={look.optionTitleColor}
+                    >
+                      {label}
+                    </Text>
+                    <Text
+                      variant={look.optionDescription}
+                      color={look.optionDescriptionColor}
+                    >
                       {option.description}
                     </Text>
                   </View>
@@ -130,17 +144,20 @@ export function RoleSelectScreen({
           </View>
         </View>
 
-        <View style={styles.hint}>
-          <Icon name="info-circle" size={16} color={colors.gray[600]} />
-          <Text
-            variant="Caption/S/Medium"
-            color={colors.gray[600]}
-            style={styles.hintText}
-          >
-            선택한 유형은 희망 유형이에요. 최종 유형은 사무실에서 승인할 때
-            확정돼요.
-          </Text>
-        </View>
+        {flow === 'onboarding' ? (
+          <InfoNotice message={HINT} />
+        ) : (
+          <View style={styles.hint}>
+            <Icon name="info-circle" size={16} color={colors.gray[600]} />
+            <Text
+              variant="Caption/S/Medium"
+              color={colors.gray[600]}
+              style={styles.hintText}
+            >
+              {HINT}
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={[readableColumn, flowLayouts[flow].actions]}>
@@ -154,30 +171,16 @@ export function RoleSelectScreen({
   );
 }
 
+const HINT =
+  '선택한 유형은 희망 유형이에요. 최종 유형은 사무실에서 승인할 때 확정돼요.';
+
 const RADIO_SIZE = 22;
 
 const styles = StyleSheet.create({
-  content: {
-    gap: 24,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 24,
-  },
-  intro: { gap: 8 },
-  company: {
-    gap: 8,
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: colors.background[3],
-  },
-  types: { gap: 12 },
-  options: { gap: 12 },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 20,
-    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.gray[200],
   },
@@ -211,3 +214,71 @@ const styles = StyleSheet.create({
   },
   hintText: { flex: 1 },
 });
+
+// 마이(3278:20936 / 3278:20974)와 온보딩(3255:18530 / 3255:19213)의 Figma 값이 자리마다 다르다
+const myStyles = StyleSheet.create({
+  content: {
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
+  intro: { gap: 8 },
+  company: {
+    gap: 8,
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: colors.background[3],
+  },
+  types: { gap: 12 },
+  options: { gap: 12 },
+  option: { padding: 20, borderRadius: 16 },
+});
+
+const onboardingStyles = StyleSheet.create({
+  // 머리 아래 22 (Figma 위치 132)
+  content: {
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
+  intro: { gap: 6 },
+  company: {
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: colors.background[3],
+  },
+  types: { gap: 8 },
+  options: { gap: 10 },
+  option: { paddingHorizontal: 20, paddingVertical: 16, borderRadius: 12 },
+});
+
+const looks = {
+  my: {
+    styles: myStyles,
+    title: 'Body/XL/Bold',
+    description: 'Caption/M/Medium',
+    companyLabelColor: colors.gray[600],
+    companyName: 'Body/XL/Bold',
+    label: 'Caption/M/SemiBold',
+    labelColor: colors.gray[800],
+    optionTitleColor: colors.gray[900],
+    optionDescription: 'Caption/M/Medium',
+    optionDescriptionColor: colors.gray[600],
+  },
+  onboarding: {
+    styles: onboardingStyles,
+    title: 'Body/L/Bold',
+    description: 'Body/XS/Medium',
+    companyLabelColor: colors.gray[700],
+    companyName: 'Body/L/Bold',
+    label: 'Caption/M/Medium',
+    labelColor: colors.gray[700],
+    optionTitleColor: colors.gray[800],
+    optionDescription: 'Caption/M/Regular',
+    optionDescriptionColor: colors.optionDescription,
+  },
+} as const satisfies Record<JoinFlow, unknown>;

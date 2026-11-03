@@ -98,4 +98,5 @@ export const colors = {
   inactive: '#F0F0F0', // "비활성화 색" — Bottom Navigation Bar 테두리
   toggleKnob: '#F2F2F2', // 라이브러리 "Gray100" (로컬 Gray100 #E9E9EA 와 다름) — Toggle Off 노브
   kakao: '#FEE500', // 카카오 로그인 버튼 채움 (Figma 로그인 3284:21451, 변수 없음)
+  optionDescription: '#6B7280', // 온보딩 역할 선택 카드 설명 (Figma 3255:19213, 변수 없음)
 } as const;
