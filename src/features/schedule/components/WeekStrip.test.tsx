@@ -5,11 +5,14 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
+import { useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors, typography } from '../../../shared/design-system';
 import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
-import { weekDays } from '../model';
+import type { HostElement } from '../../../shared/testing/touchTarget';
+import { addWeeks, weekDays } from '../model';
 import { WeekStrip } from './WeekStrip';
 
 const selected = new Date(2026, 11, 15); // 화요일
@@ -106,6 +109,82 @@ describe('WeekStrip', () => {
     );
 
     // 실패 메시지가 순환 구조인 요소 전체를 찍지 않게 같은 요소인지만 비교한다
+    const sameCell =
+      screen.getByRole('button', { name: '12월 23일 수요일' }) === wednesday;
+    expect(sameCell).toBe(true);
+  });
+});
+
+// 밀면 손가락을 따라 옆 주가 드러나고, 다 넘어간 뒤에 주가 바뀐다 (#65)
+describe('WeekStrip 넘김', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const hidden = { includeHiddenElements: true };
+  /** 날짜 칸이 든 페이지 (칸 › 주 줄 › 페이지) */
+  const pageOf = (day: HostElement) => day.parent?.parent as HostElement;
+  const layoutTrack = () =>
+    fireEvent(screen.getByTestId('week-strip-track'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 69 } },
+    });
+
+  // ScheduleScreen 처럼 밀어 넘기면 같은 요일을 앞뒤 주에서 고른다
+  function StatefulStrip() {
+    const [date, setDate] = useState(selected);
+    return (
+      <WeekStrip
+        days={weekDays(date)}
+        selected={date}
+        onSelect={setDate}
+        onPrev={() => setDate(addWeeks(date, -1))}
+        onNext={() => setDate(addWeeks(date, 1))}
+      />
+    );
+  }
+
+  it('앞뒤 주를 옆 페이지로 그려 두지만 스크린리더는 읽지 않고 누를 수도 없다', async () => {
+    await renderStrip();
+
+    for (const name of ['12월 8일 화요일', '12월 22일 화요일']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+      const page = pageOf(screen.getByRole('button', { name, ...hidden }));
+      expect(page.props).toMatchObject({
+        accessibilityElementsHidden: true,
+        importantForAccessibility: 'no-hide-descendants',
+      });
+      expect(page).toHaveStyle({ pointerEvents: 'none' });
+    }
+  });
+
+  // 밀어 넘기면 같은 요일을 고르므로 넘어간 뒤의 모습과 같다
+  it('옆 주는 같은 요일을 고른 모습으로 그린다', async () => {
+    await renderStrip();
+
+    expect(
+      screen.getByRole('button', { name: '12월 22일 화요일', ...hidden }),
+    ).toBeSelected();
+    expect(
+      screen.getByRole('button', { name: '12월 23일 수요일', ...hidden }),
+    ).not.toBeSelected();
+  });
+
+  it('밀어서 넘긴 뒤에도 요일 칸이 그대로 남아 포커스가 같은 요일에 머문다', async () => {
+    const { finish } = holdNativeAnimations();
+    await render(<StatefulStrip />);
+    await layoutTrack();
+    const wednesday = screen.getByRole('button', { name: '12월 16일 수요일' });
+
+    await drag(screen.getByTestId('week-strip').props, { dx: -80 });
+    // 다 넘어가기 전에는 주가 그대로다
+    expect(
+      screen.getByRole('button', { name: '12월 15일 화요일' }),
+    ).toBeSelected();
+    await finish();
+
+    expect(
+      screen.getByRole('button', { name: '12월 22일 화요일' }),
+    ).toBeSelected();
     const sameCell =
       screen.getByRole('button', { name: '12월 23일 수요일' }) === wednesday;
     expect(sameCell).toBe(true);

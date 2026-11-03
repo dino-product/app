@@ -1,17 +1,28 @@
 import {
+  act,
+  fireEvent,
   render,
   screen,
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Platform,
+  StyleSheet,
+} from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { gestureExclusionStyle } from '../../../shared/native/gestureExclusion';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import type { HostElement } from '../../../shared/testing/touchTarget';
+import { addMonths } from '../model';
 import { MonthCalendar } from './MonthCalendar';
+import { SLIDE_MS } from './useHorizontalSwipe';
 
 const renderCalendar = async () => {
   const props = { onSelect: jest.fn(), onPrev: jest.fn(), onNext: jest.fn() };
@@ -59,6 +70,146 @@ describe('MonthCalendar', () => {
 
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onPrev).toHaveBeenCalledTimes(1);
+  });
+});
+
+// 밀면 날짜 격자가 손가락을 따라 옆 달을 드러내고, 버튼은 미끄러지듯 넘긴다 (#65)
+describe('MonthCalendar 넘김', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const TRACK_WIDTH = 375;
+  const hidden = { includeHiddenElements: true };
+  const track = () => screen.getByTestId('month-calendar-track');
+  const layoutTrack = () =>
+    fireEvent(track(), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: TRACK_WIDTH, height: 365 } },
+    });
+  const isInTrack = (element: HostElement) => {
+    for (let node = element.parent; node; node = node.parent) {
+      if (node === track()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // ScheduleScreen 처럼 넘기면 보이는 달만 바꾼다
+  function StatefulCalendar() {
+    const [view, setView] = useState({ year: 2026, month: 11 });
+    return (
+      <MonthCalendar
+        {...view}
+        selected={new Date(2026, 11, 15)}
+        eventCounts={new Map()}
+        onSelect={jest.fn()}
+        onPrev={() => setView(addMonths(view.year, view.month, -1))}
+        onNext={() => setView(addMonths(view.year, view.month, 1))}
+      />
+    );
+  }
+
+  it('<·> 를 누르면 격자가 네이티브 드라이버로 옆 달까지 미끄러진 뒤 콜백을 부른다', async () => {
+    const { finish } = holdNativeAnimations();
+    const timing = jest.spyOn(Animated, 'timing');
+    const { onPrev, onNext } = await renderCalendar();
+    await layoutTrack();
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    expect(timing).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        toValue: -TRACK_WIDTH,
+        duration: SLIDE_MS,
+        useNativeDriver: true,
+      }),
+    );
+    expect(onNext).not.toHaveBeenCalled();
+    await finish();
+    expect(onNext).toHaveBeenCalledTimes(1);
+
+    await userEvent.press(screen.getByRole('button', { name: '이전 달' }));
+    await finish();
+    expect(onPrev).toHaveBeenCalledTimes(1);
+  });
+
+  it('넘기는 중에 버튼을 또 누르면 누른 횟수만큼 넘어간다', async () => {
+    const { finish } = holdNativeAnimations();
+    await render(<StatefulCalendar />);
+    await layoutTrack();
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await finish();
+
+    expect(screen.getByText('2027년 3월')).toBeOnTheScreen();
+  });
+
+  // 날짜를 key 로 두면 넘길 때마다 세 격자의 칸을 거의 다 지우고 새로 만든다 (네이티브 뷰 생성)
+  it('달을 넘겨도 날짜 칸을 다시 만들지 않고 내용만 바꾼다', async () => {
+    const { finish } = holdNativeAnimations();
+    await render(<StatefulCalendar />);
+    await layoutTrack();
+    // 12월 격자 둘째 주 첫 칸 (1월 3일은 12월 격자에 없다)
+    const cell = screen.getByRole('button', { name: '12월 6일 일요일' });
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await finish();
+
+    const sameCell =
+      screen.getByRole('button', { name: '1월 3일 일요일' }) === cell;
+    expect(sameCell).toBe(true);
+  });
+
+  it('동작 줄이기가 켜져 있으면 애니메이션 없이 바로 넘긴다', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValueOnce(true);
+    const timing = jest.spyOn(Animated, 'timing');
+    const { onNext } = await renderCalendar();
+    await layoutTrack();
+    // 설정을 읽은 뒤에 누른다
+    await act(async () => {});
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(timing).not.toHaveBeenCalled();
+  });
+
+  it('끄는 동안 날짜 격자만 움직이고, 제목은 다 넘어간 뒤에 바뀐다', async () => {
+    const { finish } = holdNativeAnimations();
+    await render(<StatefulCalendar />);
+    await layoutTrack();
+
+    expect(isInTrack(screen.getByText('2026년 12월'))).toBe(false);
+    expect(isInTrack(screen.getByText('일'))).toBe(false);
+    expect(
+      isInTrack(screen.getByRole('button', { name: '12월 15일 화요일' })),
+    ).toBe(true);
+
+    await drag(calendar(), { dx: -80 });
+    expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+    await finish();
+    expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+  });
+
+  it('앞뒤 달 격자는 옆 페이지로 그려 두지만 스크린리더는 읽지 않고 누를 수도 없다', async () => {
+    await renderCalendar();
+
+    for (const name of ['11월 18일 수요일', '1월 15일 금요일']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+      // 날짜 칸 › 주 › 격자 › 페이지
+      const page = screen.getByRole('button', { name, ...hidden }).parent
+        ?.parent?.parent as HostElement;
+      expect(page.props).toMatchObject({
+        accessibilityElementsHidden: true,
+        importantForAccessibility: 'no-hide-descendants',
+      });
+      expect(page).toHaveStyle({ pointerEvents: 'none' });
+    }
   });
 });
 
@@ -267,13 +418,19 @@ describe('MonthCalendar Android 가장자리 밀기', () => {
     },
   );
 
-  // 제목 줄에는 이전·다음 달 버튼이 있다. 날짜 칸은 같은 주의 뒤 형제라 제외 영역보다 먼저 터치를 받는다
-  it('제외 영역은 첫 주의 첫 자식이라 제목·요일 줄은 빼지 않는다', async () => {
+  // 제목 줄에는 이전·다음 달 버튼이 있다. 날짜 칸은 뒤 형제인 넘김 창 안에 있어 제외 영역보다 먼저 터치를 받는다
+  it('제외 영역은 날짜 격자 자리의 첫 자식이라 제목·요일 줄은 빼지 않고, 끄는 동안 따라 움직이지 않는다', async () => {
     await renderMonthOn('android');
 
-    const firstWeek = screen.getByRole('button', { name: '9월 27일 일요일' })
-      .parent as HostElement;
-    expect(firstWeek.children[0]).toBe(area());
+    const gridSlot = area().parent as HostElement;
+    expect(gridSlot.children[0]).toBe(area());
+    expect(within(gridSlot).queryByText('일')).toBeNull();
+    const swipeWindow = gridSlot.children[1] as HostElement;
+    expect(swipeWindow).toHaveStyle({ overflow: 'hidden' });
+    expect(
+      within(swipeWindow).getByRole('button', { name: '9월 27일 일요일' }),
+    ).toBeOnTheScreen();
+    expect(within(swipeWindow).queryByTestId('gesture-exclusion')).toBeNull();
   });
 
   it('iOS 에서는 제외 영역을 두지 않는다', async () => {

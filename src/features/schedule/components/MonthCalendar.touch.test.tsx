@@ -81,13 +81,27 @@ describe('MonthCalendar 터치 영역', () => {
     expect(weekdays).toHaveStyle({ pointerEvents: 'none' });
   });
 
+  // 넘김 창은 옆 달을 자르려고 overflow hidden 이다. 그 밖의 터치는 안쪽 칸에 가지 않는다 (Android).
+  // 창은 지금 달 격자 높이 그대로라 첫 주 위·마지막 주 아래로 넓힌 영역은 잘린다
+  it('날짜 칸이 위아래로 넓힌 영역은 넘김 창 안에 든다', async () => {
+    await renderTouchCalendar();
+
+    const day = getDay();
+    // 칸 › 주 › 격자 › 페이지 › 트랙 › 넘김 창
+    const swipeWindow = weeksOf(day).parent?.parent?.parent as HostElement;
+    expect(swipeWindow).toHaveStyle({ overflow: 'hidden' });
+    const slop = hitSlopOf(day);
+    expect(slop.top).toBeLessThanOrEqual(stylePt(swipeWindow, 'paddingTop'));
+    expect(slop.bottom).toBeLessThanOrEqual(
+      stylePt(swipeWindow, 'paddingBottom'),
+    );
+  });
+
   // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
-  it('루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
+  it('화살표가 루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
     await renderTouchCalendar();
 
     const rootSlop = hitSlopOf(getRoot());
-    // 마지막 주 날짜 칸의 아래쪽
-    expect(hitSlopOf(getDay()).bottom).toBeLessThanOrEqual(rootSlop.bottom);
     // 맨 위 제목 줄의 화살표 위쪽. 제목 줄 높이는 글자가 가장 작을 때 가장 낮고,
     // 화살표보다 낮아지면 화살표가 제목 줄을 채워 위 여백이 없다
     const prev = getArrow('이전 달');
