@@ -87,19 +87,21 @@ export function TermsSheet({
       visible={visible}
       onClose={onClose}
       variant="document"
+      // 끌어 닫기는 제목 줄에서만 받는다. 본문 상자·목록을 끄는 손가락은 스크롤 몫이다 (#93)
+      header={
+        <View style={styles.titleRow}>
+          <Text
+            accessibilityRole="header"
+            variant="Body/S/SemiBold"
+            color={colors.gray[900]}
+            style={styles.title}
+          >
+            약관 동의
+          </Text>
+        </View>
+      }
       testID="terms-sheet"
     >
-      <View style={styles.titleRow}>
-        <Text
-          accessibilityRole="header"
-          variant="Body/S/SemiBold"
-          color={colors.gray[900]}
-          style={styles.title}
-        >
-          약관 동의
-        </Text>
-      </View>
-
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
@@ -175,9 +177,9 @@ export function TermsSheet({
 const styles = StyleSheet.create({
   // 라이브러리 텍스트 스타일 Body L/SemiBold 는 18·행간 140% 에 자간 0 이다 (로컬 Body/S/SemiBold 는 자간 -2.5%)
   title: { letterSpacing: 0 },
-  titleRow: { alignItems: 'center', paddingHorizontal: 16 },
-  // 시트 칸 사이 12 (Figma Bottom Sheet gap). 내용은 369 높이에서 스크롤한다
-  scroll: { height: 369, marginTop: 12 },
+  // 시트 칸 사이 12 (Figma Bottom Sheet gap). 제목 아래 12 는 끌기 자리에 넣는다. 내용은 369 높이에서 스크롤한다
+  titleRow: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12 },
+  scroll: { height: 369 },
   content: { gap: 16, paddingHorizontal: 24 },
   allRow: { paddingRight: 12 },
   items: { gap: 12 },

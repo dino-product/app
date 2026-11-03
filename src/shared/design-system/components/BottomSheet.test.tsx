@@ -1,6 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, Animated, NativeModules, Text } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  NativeModules,
+  ScrollView,
+  Text,
+} from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { dragFrom } from '../../../../jest/responder';
 import { BottomSheet } from './BottomSheet';
 
 // jest 프리셋의 네이티브 애니메이션 목은 16ms 뒤에 저절로 끝난다. 끝내는 시점을 테스트가 정한다
@@ -242,6 +249,73 @@ describe('BottomSheet', () => {
       expect((await drag(handlers, { dy: -120 })).granted).toBe(false);
       expect((await drag(handlers, { dx: 120, dy: 20 })).granted).toBe(false);
       expect(onClose).not.toHaveBeenCalled();
+    });
+
+    // 신청 취소 시트(2889:13197)처럼 스크롤이 없는 시트
+    it('header 가 없으면 시트 내용 어디서 끌어도 닫기를 요청한다', async () => {
+      const onClose = jest.fn();
+      await render(sheet(true, onClose));
+
+      const result = await dragFrom(screen.getByText('시트 내용'), {
+        dy: 160,
+      });
+
+      expect(result.granted).toBe(true);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // 약관 동의 시트(#93): 안쪽 ScrollView 를 아래로 끄는 손가락(위 내용 보기)을 시트가 가져가면 안 된다
+    describe('header 를 주면 끌기는 header(제목 줄)에서만 받는다', () => {
+      const withHeader = (onClose = jest.fn()) => (
+        <BottomSheet
+          visible
+          onClose={onClose}
+          variant="document"
+          header={<Text>제목 줄</Text>}
+          testID="sheet"
+        >
+          <ScrollView>
+            <Text>스크롤 내용</Text>
+          </ScrollView>
+          <Text>아래 버튼 줄</Text>
+        </BottomSheet>
+      );
+
+      it('스크롤 영역에서 시작한 위·아래 끌기는 시트 응답자가 되지 않는다', async () => {
+        const onClose = jest.fn();
+        await render(withHeader(onClose));
+
+        for (const dy of [160, -160]) {
+          const result = await dragFrom(screen.getByText('스크롤 내용'), {
+            dy,
+          });
+          expect(result.granted).toBe(false);
+        }
+        expect(onClose).not.toHaveBeenCalled();
+      });
+
+      it('header 에서 시작한 아래 끌기는 닫기를 요청한다', async () => {
+        const onClose = jest.fn();
+        await render(withHeader(onClose));
+
+        const result = await dragFrom(screen.getByText('제목 줄'), {
+          dy: 160,
+        });
+
+        expect(result.granted).toBe(true);
+        expect(onClose).toHaveBeenCalledTimes(1);
+      });
+
+      // 위 여백(24)도 끌기 영역이다. 손가락은 시트 위 끝을 잡기 쉽다
+      it('끌기 영역은 시트 위 여백까지 덮는다', async () => {
+        await render(withHeader());
+
+        const area = screen.getByTestId('sheet-drag-area');
+        expect(area).toHaveStyle({ marginTop: -24, paddingTop: 24 });
+        expect(screen.getByTestId('sheet-content')).toHaveStyle({
+          paddingTop: 24,
+        });
+      });
     });
   });
   describe('모양 (Figma 시트마다 다르다)', () => {

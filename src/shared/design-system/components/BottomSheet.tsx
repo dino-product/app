@@ -18,6 +18,7 @@ import { colors, withOpacity } from '../tokens/colors';
 // confirm: 마이페이지-신청 취소 (2889:13197) — 손잡이, 위 모서리 24, 좌우 여백 24
 // document: 온보딩 약관 동의 (3569:7702) — 손잡이 없음, 위 모서리 28, 좌우 여백은 내용이 정한다 (제목 16, 본문 24)
 // 닫기 요청(onClose)은 배경 누르기, 아래로 끌기, Android 뒤로가기, VoiceOver 두 손가락 Z 로 온다.
+// 아래로 끌기는 시트 내용 전체에서 받는다. 안쪽에 스크롤이 있는 시트는 header 를 주어 끌기 자리를 제목 줄로 좁힌다
 // 바깥이 visible 을 false 로 바꾸면 내려가는 애니메이션이 끝난 뒤 모달을 내린다.
 // RN Modal 이라 열려 있는 동안 스크린리더 포커스는 시트 안에 머문다 (iOS 는 모달 화면, Android 는 별도 창)
 // 동작 줄이기 설정은 마운트한 뒤 비동기로 읽는다. 처음부터 visible 로 마운트하면 설정을 읽기 전이라
@@ -27,6 +28,12 @@ export type BottomSheetProps = {
   onClose: () => void;
   /** 다 내려가 모달을 내린 뒤. 화면을 옮기거나 스크린리더 포커스를 옮기는 일은 여기서 한다 */
   onClosed?: () => void;
+  /**
+   * 끌어 닫는 자리 (제목 줄 등). 주면 아래로 끌기는 여기(와 손잡이·위 여백)에서만 받고 children 은 받지 않는다.
+   * 안쪽에 스크롤이 있는 시트는 꼭 준다. 시트 전체가 끌기를 받으면 스크롤을 아래로 끄는 손가락도 시트를 끌어
+   * 닫아 버린다 (#93). 응답자가 되면 네이티브 스크롤을 막기 때문이다
+   */
+  header?: ReactNode;
   children: ReactNode;
   variant?: 'confirm' | 'document';
   testID?: string;
@@ -44,6 +51,7 @@ export function BottomSheet({
   visible,
   onClose,
   onClosed,
+  header,
   children,
   variant = 'confirm',
   testID,
@@ -156,6 +164,12 @@ export function BottomSheet({
   // 내려가는 동안에는 누르지 못하게 한다 ('닫기' 뒤 '취소', 같은 버튼 두 번 누르기)
   const touchable = visible ? 'auto' : 'none';
   const shape = shapes[variant];
+  const handle = shape.handle && (
+    <View style={styles.handle} testID={testID && `${testID}-handle`} />
+  );
+  // header 가 있으면 끌기는 그 자리만 받는다
+  const dragHandlers = panResponder.panHandlers;
+  const contentDrag = header === undefined ? dragHandlers : undefined;
 
   return (
     <Modal
@@ -202,13 +216,21 @@ export function BottomSheet({
               { paddingBottom: shape.bottomPadding(insets.bottom) },
             ]}
             testID={testID && `${testID}-content`}
-            {...panResponder.panHandlers}
+            {...contentDrag}
           >
-            {shape.handle && (
+            {header === undefined ? (
+              handle
+            ) : (
+              // 위 여백의 터치도 받도록 네이티브 뷰로 남긴다 (평탄화되면 여백 터치는 바깥 뷰로 간다)
               <View
-                style={styles.handle}
-                testID={testID && `${testID}-handle`}
-              />
+                collapsable={false}
+                style={shape.dragArea}
+                testID={testID && `${testID}-drag-area`}
+                {...dragHandlers}
+              >
+                {handle}
+                {header}
+              </View>
             )}
             {children}
           </View>
@@ -236,11 +258,17 @@ const styles = StyleSheet.create({
   },
 });
 
+const CONFIRM_TOP = 12;
+const DOCUMENT_TOP = 24;
+
+// 끌기 자리(header)는 위 여백까지 덮는다 (손가락은 시트 위 끝을 잡기 쉽다)
 const shapeStyles = StyleSheet.create({
   confirmSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  confirmContent: { paddingHorizontal: 24, paddingTop: 12 },
+  confirmContent: { paddingHorizontal: 24, paddingTop: CONFIRM_TOP },
+  confirmDragArea: { marginTop: -CONFIRM_TOP, paddingTop: CONFIRM_TOP },
   documentSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
-  documentContent: { paddingHorizontal: 0, paddingTop: 24 },
+  documentContent: { paddingHorizontal: 0, paddingTop: DOCUMENT_TOP },
+  documentDragArea: { marginTop: -DOCUMENT_TOP, paddingTop: DOCUMENT_TOP },
 });
 
 // 아래 여백: confirm 은 안전 영역 위로 16 을 더 띄운다. document 는 Figma 의 36(홈 인디케이터 포함)이고 안전 영역이 더 크면 그만큼 둔다
@@ -248,12 +276,14 @@ const shapes = {
   confirm: {
     sheet: shapeStyles.confirmSheet,
     content: shapeStyles.confirmContent,
+    dragArea: shapeStyles.confirmDragArea,
     handle: true,
     bottomPadding: (inset: number) => inset + 16,
   },
   document: {
     sheet: shapeStyles.documentSheet,
     content: shapeStyles.documentContent,
+    dragArea: shapeStyles.documentDragArea,
     handle: false,
     bottomPadding: (inset: number) => Math.max(inset, 36),
   },
