@@ -1,9 +1,10 @@
 module.exports = {
   preset: '@react-native/jest-preset',
   setupFiles: ['<rootDir>/jest/setup.js'],
-  // 프리셋 기본값 + React Navigation (ESM 으로만 배포돼 변환이 필요하다)
+  setupFilesAfterEnv: ['<rootDir>/jest/setupAfterEnv.js'],
+  // 프리셋 기본값 + React Navigation·MMKV·Nitro (ESM 으로만 배포돼 변환이 필요하다)
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@react-navigation)/)',
+    'node_modules/(?!((jest-)?react-native(-mmkv|-nitro-modules)?|@react-native(-community)?|@react-navigation)/)',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',

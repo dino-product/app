@@ -30,6 +30,8 @@
     "@react-navigation/native-stack": "7.21.0",
     "react": "19.3.0",
     "react-native": "0.88.0",
+    "react-native-mmkv": "4.3.2",
+    "react-native-nitro-modules": "0.37.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "4.30.0",
     "react-native-svg": "^15.16.0"
