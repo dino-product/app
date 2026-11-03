@@ -10,6 +10,7 @@ import type { AuthState } from '../features/onboarding/model';
 import { useFrameMonitor } from '../shared/perf/useFrameMonitor';
 import { AppStateProvider } from './AppStateProvider';
 import { AuthProvider } from './AuthProvider';
+import { useNavigationPersistence } from './navigation/persistence';
 import { RootNavigator } from './navigation/RootNavigator';
 
 // 전환 중 화면 뒤가 기본 테마의 회색으로 비치지 않게 흰 배경을 쓴다
@@ -27,13 +28,21 @@ export default function App({
   initialAuth?: AuthState;
 }) {
   useFrameMonitor();
+  // 앱이 백그라운드에서 종료돼도 보던 화면으로 다시 연다 (#34)
+  const persistence = useNavigationPersistence();
 
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
       <AuthProvider initialState={initialAuth}>
         <AppStateProvider>
-          <NavigationContainer theme={navigationTheme}>
+          <NavigationContainer
+            ref={persistence.ref}
+            theme={navigationTheme}
+            initialState={persistence.initialState}
+            onReady={persistence.onReady}
+            onStateChange={persistence.onStateChange}
+          >
             <RootNavigator />
           </NavigationContainer>
         </AppStateProvider>

@@ -115,6 +115,12 @@ export const rejectReasons: readonly { key: RejectReasonKey; label: string }[] =
     { key: 'other', label: '기타' },
   ];
 
+/** 거절 사유 화면에서 고르고 쓴 것. 기타 글은 다른 사유로 바꿔도 남긴다 */
+export type RejectReasonDraft = {
+  selected: RejectReasonKey | null;
+  otherText: string;
+};
+
 export type RejectionValidation =
   | { ok: true; reason: string }
   | { ok: false; error: 'select' | 'otherText' };
