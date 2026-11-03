@@ -13,7 +13,7 @@ import { Text } from './Text';
 // Figma DesignSystem › CTA. state 이름 대응: Primary → primary, Secondery → secondary,
 // Default → outline, Reject → reject, Hover → 눌림(opacity 0.8).
 // brand(Secondary) 는 컴포넌트 세트에는 없지만 화면 CTA(작업 시작, 완료 보고 작성하기)가 쓰는 색이다.
-// disabled 는 완료보고 제출 비활성 화면의 회색을 따른다.
+// disabled 는 State Disabled 의 Disabled 변수(Primary 50%) 채움에 흰 글자다 (L 3101:5510, M 3101:5522).
 // 너비는 Figma 에서 고정값이지만 실제로는 부모 폭을 채운다 (Modal S 는 두 개를 flex: 1 로 나란히 둔다).
 // 높이는 글꼴 확대 시 라벨이 잘리지 않도록 최소값으로만 건다.
 export type CTAVariant =
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pressed: { opacity: 0.8 },
-  disabled: { backgroundColor: colors.gray[400] },
+  disabled: { backgroundColor: colors.disabled },
 });
 
 const bottom = {

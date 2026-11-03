@@ -128,10 +128,11 @@ describe('CTA', () => {
     });
   });
 
-  it('disabled 면 variant 와 관계없이 회색으로 그린다', async () => {
+  // DesignSystem › CTA Disabled (L 3101:5510, M 3101:5522)
+  it('disabled 면 variant 와 관계없이 Disabled 변수(Primary 50%) 채움에 흰 글자다', async () => {
     await render(
       <CTA
-        variant="primary"
+        variant="outline"
         label="완료보고 제출"
         onPress={jest.fn()}
         disabled
@@ -139,7 +140,7 @@ describe('CTA', () => {
     );
 
     expect(screen.getByRole('button')).toHaveStyle({
-      backgroundColor: colors.gray[400],
+      backgroundColor: colors.disabled,
     });
     expect(screen.getByText('완료보고 제출')).toHaveStyle({
       color: colors.white[100],
