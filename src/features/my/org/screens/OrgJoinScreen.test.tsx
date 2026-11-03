@@ -45,14 +45,67 @@ describe('OrgJoinScreen', () => {
     ).toBeOnTheScreen();
   });
 
-  it('코드가 비어 있으면 회사 확인이 비활성이고, 입력하면 활성이 된다', async () => {
-    await renderJoin();
+  // 서버 규칙 (Dino CompanyCode): Crockford Base32 대문자 6자 (#97)
+  describe('회사 코드 규칙', () => {
+    it('회사 확인은 정확히 6자일 때만 켜진다 (0~5자는 비활성)', async () => {
+      await renderJoin();
 
-    expect(checkButton()).toBeDisabled();
-    await userEvent.type(codeInput(), '   ');
-    expect(checkButton()).toBeDisabled();
-    await userEvent.type(codeInput(), 'Orbit1245');
-    expect(checkButton()).toBeEnabled();
+      expect(checkButton()).toBeDisabled();
+      await userEvent.type(codeInput(), '   ');
+      expect(checkButton()).toBeDisabled();
+      for (const char of 'AB123') {
+        await userEvent.type(codeInput(), char);
+        expect(checkButton()).toBeDisabled();
+      }
+      await userEvent.type(codeInput(), 'C');
+      expect(checkButton()).toBeEnabled();
+    });
+
+    it('입력하는 글자는 대문자로 바뀌고, 허용 밖 문자(한글·특수문자·I·L·O·U)는 들어가지 않고, 6자를 넘지 않는다', async () => {
+      await renderJoin();
+
+      await userEvent.type(codeInput(), 'a가b!-o c1i2l3u4567');
+
+      expect(codeInput()).toHaveDisplayValue('ABC123');
+    });
+
+    it('붙여넣은 ab-12 3c 는 AB123C 가 된다', async () => {
+      await renderJoin();
+
+      await userEvent.paste(codeInput(), 'ab-12 3c');
+
+      expect(codeInput()).toHaveDisplayValue('AB123C');
+      expect(checkButton()).toBeEnabled();
+    });
+
+    it('키보드 완료도 6자가 아니면 찾지 않는다', async () => {
+      const props = await renderJoin();
+
+      await userEvent.type(codeInput(), 'AB123', { submitEditing: true });
+      expect(props.lookup).not.toHaveBeenCalled();
+
+      await userEvent.type(codeInput(), 'C', { submitEditing: true });
+      expect(props.lookup).toHaveBeenCalledWith('AB123C');
+    });
+
+    // 영문이 섞여 숫자 키패드는 쓰지 않는다. 한글 IME·추천·자동 수정이 끼어들지 않게 한다
+    it('iOS 는 영문·숫자 자판(ascii-capable)으로 열고 자동 대문자, 자동 수정은 끈다', async () => {
+      await renderJoin();
+
+      expect(codeInput()).toHaveProp('keyboardType', 'ascii-capable');
+      expect(codeInput()).toHaveProp('autoCapitalize', 'characters');
+      expect(codeInput()).toHaveProp('autoCorrect', false);
+      expect(codeInput()).toHaveProp('autoComplete', 'off');
+    });
+
+    it('Android 는 한글 IME·추천이 뜨지 않는 자판(visible-password)으로 연다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await renderJoin();
+
+      expect(codeInput()).toHaveProp('keyboardType', 'visible-password');
+      expect(codeInput()).toHaveProp('autoCapitalize', 'characters');
+      expect(codeInput()).toHaveProp('autoCorrect', false);
+    });
   });
 
   // 카메라 네이티브 모듈과 권한 문구가 필요해 별도 티켓이다
@@ -65,12 +118,12 @@ describe('OrgJoinScreen', () => {
   it('찾은 회사면 입력한 코드와 함께 역할 선택으로 넘긴다', async () => {
     const props = await renderJoin();
 
-    await userEvent.type(codeInput(), 'Orbit1245');
+    await userEvent.type(codeInput(), 'rbt124');
     await userEvent.press(checkButton());
 
-    expect(props.lookup).toHaveBeenCalledWith('Orbit1245');
+    expect(props.lookup).toHaveBeenCalledWith('RBT124');
     await waitFor(() =>
-      expect(props.onFound).toHaveBeenCalledWith(orbit, 'Orbit1245'),
+      expect(props.onFound).toHaveBeenCalledWith(orbit, 'RBT124'),
     );
   });
 
@@ -80,7 +133,7 @@ describe('OrgJoinScreen', () => {
       .mockClear();
     const props = await renderJoin({ kind: 'invalid' });
 
-    await userEvent.type(codeInput(), 'WRONG');
+    await userEvent.type(codeInput(), 'WRNG99');
     await userEvent.press(checkButton());
 
     expect(
@@ -97,7 +150,7 @@ describe('OrgJoinScreen', () => {
     expect(announce).toHaveBeenCalledWith(
       '유효하지 않은 회사 코드입니다. 회사에서 코드를 변경해 이전 참여 경로를 사용할 수 없습니다.',
     );
-    expect(codeInput()).toHaveDisplayValue('WRONG');
+    expect(codeInput()).toHaveDisplayValue('WRNG99');
     expect(props.onFound).not.toHaveBeenCalled();
   });
 
@@ -109,7 +162,7 @@ describe('OrgJoinScreen', () => {
       .mockClear();
     await renderJoin({ kind: 'invalid' });
 
-    await userEvent.type(codeInput(), 'WRONG');
+    await userEvent.type(codeInput(), 'WRNG99');
     await userEvent.press(checkButton());
 
     expect(
@@ -128,7 +181,7 @@ describe('OrgJoinScreen', () => {
     };
     await render(<OrgJoinScreen {...props} />);
 
-    await userEvent.type(codeInput(), 'Orbit1245');
+    await userEvent.type(codeInput(), 'RBT124');
     await userEvent.press(checkButton());
 
     expect(
@@ -149,7 +202,7 @@ describe('OrgJoinScreen', () => {
       },
     });
 
-    await userEvent.type(codeInput(), 'OBS0001');
+    await userEvent.type(codeInput(), 'BS0001');
     await userEvent.press(checkButton());
 
     expect(
@@ -164,7 +217,7 @@ describe('OrgJoinScreen', () => {
     await userEvent.press(screen.getByRole('button', { name: '확인' }));
 
     expect(header('이미 참여 중인 회사예요')).toBeNull();
-    expect(codeInput()).toHaveDisplayValue('OBS0001');
+    expect(codeInput()).toHaveDisplayValue('BS0001');
     expect(props.onFound).not.toHaveBeenCalled();
   });
 
@@ -174,7 +227,7 @@ describe('OrgJoinScreen', () => {
       organization: { organizationId: 'org-10', organizationName: '한빛 설비' },
     });
 
-    await userEvent.type(codeInput(), 'HANBIT10');
+    await userEvent.type(codeInput(), 'HB0010');
     await userEvent.press(checkButton());
 
     expect(
@@ -199,7 +252,7 @@ describe('OrgJoinScreen', () => {
       <OrgJoinScreen onBack={jest.fn()} lookup={lookup} onFound={jest.fn()} />,
     );
 
-    await userEvent.type(codeInput(), 'Orbit1245');
+    await userEvent.type(codeInput(), 'RBT124');
     await userEvent.press(checkButton());
     expect(checkButton()).toBeDisabled();
     await act(async () => resolve({ kind: 'invalid' }));
@@ -221,6 +274,17 @@ describe('OrgJoinScreen', () => {
         () => props,
       );
     };
+
+    it('회사 코드 규칙은 마이와 같다 (6자일 때만 회사 확인, 허용 문자만)', async () => {
+      await renderOnboarding({ kind: 'found', organization: orbit });
+
+      await userEvent.type(codeInput(), '12345');
+      expect(checkButton()).toBeDisabled();
+      await userEvent.type(codeInput(), '6-7o');
+      expect(codeInput()).toHaveDisplayValue('123456');
+      expect(checkButton()).toBeEnabled();
+      expect(codeInput()).toHaveProp('keyboardType', 'ascii-capable');
+    });
 
     it('머리 제목은 늘 회사 참여다', async () => {
       await renderOnboarding({ kind: 'found', organization: orbit });

@@ -62,6 +62,31 @@ export function normalizeCompanyCode(input: string): string {
   return input.replace(/[\s-]/g, '').toUpperCase();
 }
 
+// 회사 코드 규칙 (Dino CompanyCode, #97). 마이·온보딩 회사 찾기가 같이 쓴다.
+// Crockford Base32 대문자 6자: 헷갈리는 I·L·O·U 는 쓰지 않는다
+export const COMPANY_CODE_LENGTH = 6;
+export const COMPANY_CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+const notInAlphabet = new RegExp(`[^${COMPANY_CODE_ALPHABET}]`, 'g');
+const completeCode = new RegExp(
+  `^[${COMPANY_CODE_ALPHABET}]{${COMPANY_CODE_LENGTH}}$`,
+);
+
+/**
+ * 입력칸에 들어갈 회사 코드. 대문자로 바꾸고 공백·하이픈을 지운 뒤(서버와 같다)
+ * 허용 밖 문자(한글·특수문자·I·L·O·U 등)는 빼고 6자까지만 둔다. 붙여넣기 ab-12 3c → AB123C
+ */
+export function sanitizeCompanyCodeInput(input: string): string {
+  return normalizeCompanyCode(input)
+    .replace(notInAlphabet, '')
+    .slice(0, COMPANY_CODE_LENGTH);
+}
+
+/** 서버 규칙을 채운 코드인지 (허용 문자로 정확히 6자). 그때만 회사를 찾는다 */
+export function isCompanyCodeComplete(code: string): boolean {
+  return completeCode.test(code);
+}
+
 /** 회사 확인 결과를 화면이 나눌 네 갈래로 바꾼다 */
 export function lookupOutcome(lookup: CompanyLookup | null): LookupOutcome {
   if (lookup === null) {
