@@ -189,6 +189,7 @@ const refreshable: [string, ReactElement][] = [
     <WorkHomeScreen
       currentWork={currentWork}
       schedule={weeklySchedule}
+      today={today}
       weekLabel="9. 14. – 9. 20."
       started={false}
       onStartWork={noop}

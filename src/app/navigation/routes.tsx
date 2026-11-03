@@ -25,6 +25,7 @@ import { RequestDetailScreen } from '../../features/schedule/screens/RequestDeta
 import { ScheduleScreen } from '../../features/schedule/screens/ScheduleScreen';
 import {
   currentWork,
+  homeToday,
   weeklySchedule,
   workDetail,
 } from '../../features/work/mockData';
@@ -103,6 +104,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
     <WorkHomeScreen
       currentWork={currentWork}
       schedule={weeklySchedule}
+      today={homeToday}
       weekLabel="9. 14. – 9. 20."
       started={started}
       onStartWork={startWork}

@@ -7,10 +7,45 @@ import {
   formatSubmittedAt,
   formatWon,
   hasReportInput,
+  mondayWeek,
   paymentMethodLabels,
   PHOTO_LIMIT,
   type WorkReport,
 } from './model';
+
+// #94: 내 작업 블록 보기는 Figma 대로 월요일부터 일요일까지다 (내 일정 주간 줄은 일요일 시작)
+describe('mondayWeek', () => {
+  const dates = (days: Date[]) =>
+    days.map(day => `${day.getMonth() + 1}/${day.getDate()}(${day.getDay()})`);
+
+  it.each([
+    ['월요일', new Date(2026, 8, 14)],
+    ['토요일', new Date(2026, 8, 19)],
+    ['일요일', new Date(2026, 8, 20)],
+  ])('%s 이 속한 주는 그 주 월요일부터 일요일까지 7일이다', (_, date) => {
+    expect(dates(mondayWeek(date))).toEqual([
+      '9/14(1)',
+      '9/15(2)',
+      '9/16(3)',
+      '9/17(4)',
+      '9/18(5)',
+      '9/19(6)',
+      '9/20(0)',
+    ]);
+  });
+
+  it('달이 바뀌는 주도 이어진다', () => {
+    expect(dates(mondayWeek(new Date(2026, 9, 1)))).toEqual([
+      '9/28(1)',
+      '9/29(2)',
+      '9/30(3)',
+      '10/1(4)',
+      '10/2(5)',
+      '10/3(6)',
+      '10/4(0)',
+    ]);
+  });
+});
 
 const filled: WorkReport = {
   ...emptyReport,

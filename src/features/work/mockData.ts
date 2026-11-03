@@ -10,8 +10,12 @@ export const currentWork: CurrentWork = {
   address: '서울 송파구 올림픽로 88',
 };
 
+/** 목 데이터의 오늘 (일정 카드의 '오늘 · 9. 19. (토)'). 블록 보기는 이 날의 주를 보여 주고 이 날을 먼저 고른다 (#94) */
+export const homeToday = new Date(2026, 8, 19);
+
 export const weeklySchedule: ScheduleItem[] = ['1', '2', '3'].map(n => ({
   id: `schedule-${n}`,
+  dateKey: '2026-09-19',
   title: '세탁기 설치',
   status: 'beforeWork',
   timeRange: '11:00 – 12:00',
