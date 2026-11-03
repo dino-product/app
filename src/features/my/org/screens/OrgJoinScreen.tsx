@@ -189,7 +189,11 @@ export function OrgJoinScreen({
                   accessibilityLabel="회사 코드 입력"
                   value={code}
                   // 허용 밖 문자는 들어가지 않는다. 붙여넣기는 정리한 뒤 6자로 자르므로 maxLength 는 두지 않는다
-                  onChangeText={text => setCode(sanitizeCompanyCodeInput(text))}
+                  onChangeText={text =>
+                    setCode(previous =>
+                      sanitizeCompanyCodeInput(text, previous),
+                    )
+                  }
                   placeholder="회사 코드 입력"
                   placeholderTextColor={look.placeholderColor}
                   // 영문이 섞여 숫자 키패드는 쓰지 않는다. iOS 는 영문·숫자 자판, Android 는 한글 IME·추천이 뜨지 않는 자판

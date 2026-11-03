@@ -1,5 +1,6 @@
 import {
   act,
+  fireEvent,
   render,
   screen,
   userEvent,
@@ -67,6 +68,16 @@ describe('OrgJoinScreen', () => {
       await userEvent.type(codeInput(), 'a가b!-o c1i2l3u4567');
 
       expect(codeInput()).toHaveDisplayValue('ABC123');
+    });
+
+    it('6자가 찬 칸에 끼워 넣은 글자는 들어가지 않고 끝 글자도 지워지지 않는다', async () => {
+      await renderJoin();
+      await userEvent.type(codeInput(), 'AB123C');
+
+      // 맨 앞에 커서를 두고 X 를 입력한 경우
+      await fireEvent.changeText(codeInput(), 'XAB123C');
+
+      expect(codeInput()).toHaveDisplayValue('AB123C');
     });
 
     it('붙여넣은 ab-12 3c 는 AB123C 가 된다', async () => {

@@ -74,12 +74,31 @@ const completeCode = new RegExp(
 
 /**
  * 입력칸에 들어갈 회사 코드. 대문자로 바꾸고 공백·하이픈을 지운 뒤(서버와 같다)
- * 허용 밖 문자(한글·특수문자·I·L·O·U 등)는 빼고 6자까지만 둔다. 붙여넣기 ab-12 3c → AB123C
+ * 허용 밖 문자(한글·특수문자·I·L·O·U 등)는 빼고 6자까지만 둔다. 붙여넣기 ab-12 3c → AB123C.
+ * previous(지금 칸의 값)가 이미 6자인데 그 값에 글자를 더한 입력이면 받지 않는다
+ * (maxLength 처럼. 가운데 끼워 넣어도 끝 글자가 밀려나지 않게). 모두 골라 바꿔 붙여넣은 값은 받는다
  */
-export function sanitizeCompanyCodeInput(input: string): string {
-  return normalizeCompanyCode(input)
-    .replace(notInAlphabet, '')
-    .slice(0, COMPANY_CODE_LENGTH);
+export function sanitizeCompanyCodeInput(input: string, previous = ''): string {
+  const code = normalizeCompanyCode(input).replace(notInAlphabet, '');
+  if (
+    code.length > COMPANY_CODE_LENGTH &&
+    previous.length >= COMPANY_CODE_LENGTH &&
+    keepsInOrder(code, previous)
+  ) {
+    return previous;
+  }
+  return code.slice(0, COMPANY_CODE_LENGTH);
+}
+
+/** text 가 part 의 글자를 순서대로 모두 담고 있는지 (part 에 글자를 끼워 넣은 값인지) */
+function keepsInOrder(text: string, part: string): boolean {
+  let index = 0;
+  for (const char of text) {
+    if (char === part[index]) {
+      index += 1;
+    }
+  }
+  return index === part.length;
 }
 
 /** 서버 규칙을 채운 코드인지 (허용 문자로 정확히 6자). 그때만 회사를 찾는다 */

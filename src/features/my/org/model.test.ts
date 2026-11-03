@@ -43,6 +43,24 @@ describe('회사 코드 규칙', () => {
       expect(sanitizeCompanyCodeInput(input)).toBe(expected);
     });
 
+    // maxLength 처럼: 다 찬 칸의 가운데에 끼워 넣어도 맨 끝 글자가 밀려 지워지지 않는다
+    it('이미 6자가 찼으면 더 입력해도 그대로다 (끼워 넣기·뒤에 붙여넣기 포함)', () => {
+      expect(sanitizeCompanyCodeInput('XAB123C', 'AB123C')).toBe('AB123C');
+      expect(sanitizeCompanyCodeInput('AB1Z23C', 'AB123C')).toBe('AB123C');
+      expect(sanitizeCompanyCodeInput('AB123Cxy', 'AB123C')).toBe('AB123C');
+    });
+
+    it('다 찬 칸이라도 지우거나 바꾼 글자는 반영한다', () => {
+      expect(sanitizeCompanyCodeInput('AB123', 'AB123C')).toBe('AB123');
+      expect(sanitizeCompanyCodeInput('ZZZZZZ', 'AB123C')).toBe('ZZZZZZ');
+      // 허용 밖 글자만 더한 경우는 6자 그대로다
+      expect(sanitizeCompanyCodeInput('AB1-23C', 'AB123C')).toBe('AB123C');
+    });
+
+    it('다 찬 칸을 모두 골라 더 긴 코드를 붙여넣으면 새 코드의 앞 6자다', () => {
+      expect(sanitizeCompanyCodeInput('zx-98 7wq', 'AB123C')).toBe('ZX987W');
+    });
+
     it('허용 문자는 모두 그대로 들어간다', () => {
       for (const char of COMPANY_CODE_ALPHABET) {
         expect(sanitizeCompanyCodeInput(char)).toBe(char);
