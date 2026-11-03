@@ -25,7 +25,8 @@ export type WorkHomeScreenProps = {
   started: boolean;
   onStartWork: () => void;
   onOpenWork: (id: string) => void;
-  onOpenNotifications?: () => void;
+  /** 종(Figma 메인화면에 늘 있다)을 눌렀을 때. 알림센터를 연다 (#96) */
+  onOpenNotifications: () => void;
   /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
 };

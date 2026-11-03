@@ -70,6 +70,7 @@ const nested = (navigator: NavigatorSchema): ScreenSchema => ({
 const homeStack = {
   WorkHome: once,
   WorkDetail: byId,
+  NotificationCenter: once,
 } satisfies Record<keyof HomeStackParamList, ScreenSchema>;
 const historyStack = {
   WorkHistory: once,

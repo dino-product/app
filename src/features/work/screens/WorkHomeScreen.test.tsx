@@ -17,11 +17,22 @@ const renderHome = (
       started={false}
       onStartWork={jest.fn()}
       onOpenWork={jest.fn()}
+      onOpenNotifications={jest.fn()}
       {...overrides}
     />,
   );
 
 describe('WorkHomeScreen', () => {
+  // #96: Figma 메인화면에는 늘 종이 있고, 알림센터로 가는 버튼이다
+  it('종은 알림센터 버튼이고 누르면 알림센터를 연다', async () => {
+    const onOpenNotifications = jest.fn();
+    await renderHome({ onOpenNotifications });
+
+    await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+
+    expect(onOpenNotifications).toHaveBeenCalledTimes(1);
+  });
+
   it('"내 작업" 헤더와 주간 일정 제목을 보여준다', async () => {
     await renderHome();
 
@@ -141,7 +152,12 @@ describe('WorkHomeScreen', () => {
     ]) {
       expect(screen.getByText(text)).toBeOnTheScreen();
     }
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    // 버튼은 상단 바의 종뿐이다
+    expect(
+      screen
+        .queryAllByRole('button')
+        .map(button => button.props.accessibilityLabel),
+    ).toEqual(['알림센터']);
   });
 
   it('일정 카드는 상태와 주소까지 스크린리더에 읽힌다', async () => {

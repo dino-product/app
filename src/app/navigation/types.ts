@@ -40,10 +40,12 @@ export type MainTabParamList = {
   my: NavigatorScreenParams<MyStackParamList> | undefined;
 };
 
-// 작업 상세는 Figma 에서 하단 탭이 보이므로 홈 탭 안에 쌓는다
+// 작업 상세는 Figma 에서 하단 탭이 보이므로 홈 탭 안에 쌓는다.
+// 홈의 종으로 여는 알림센터도 홈 탭 안에 쌓아, 뒤로 가면 내 작업 홈으로 돌아온다 (#96)
 export type HomeStackParamList = {
   WorkHome: undefined;
   WorkDetail: { id: string };
+  NotificationCenter: undefined;
 };
 
 export const HOME_INITIAL_ROUTE = 'WorkHome' satisfies keyof HomeStackParamList;

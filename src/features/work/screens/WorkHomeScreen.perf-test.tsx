@@ -13,6 +13,7 @@ describe('WorkHomeScreen 렌더 예산', () => {
         started={false}
         onStartWork={() => {}}
         onOpenWork={() => {}}
+        onOpenNotifications={() => {}}
       />,
     );
 
@@ -34,6 +35,7 @@ describe('WorkHomeScreen 렌더 예산', () => {
         started={false}
         onStartWork={() => {}}
         onOpenWork={() => {}}
+        onOpenNotifications={() => {}}
       />,
     );
 
