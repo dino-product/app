@@ -234,7 +234,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginLeft: 6,
   },
-  sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // 큰 글자에서는 줄어들고 줄바꿈되어 보기 버튼이 화면 밖으로 밀리지 않는다
+  sectionTitle: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flexShrink: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
   viewToggle: { flexDirection: 'row', gap: TOGGLE_GAP },
   separator: { height: 12 },
   // Figma 에서 '일정' 줄 아래 118pt

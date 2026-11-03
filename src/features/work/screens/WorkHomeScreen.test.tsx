@@ -344,6 +344,16 @@ describe('WorkHomeScreen 블록 보기', () => {
       );
     });
 
+    // 글자 크기 설정을 크게 해도 보기 전환 버튼이 화면 밖으로 밀리지 않도록 '일정'·주 표시 묶음이 줄어들고 줄바꿈된다
+    it('큰 글자에서는 일정 제목 묶음이 줄어들어 보기 버튼 자리를 남긴다', async () => {
+      await renderHome();
+
+      expect(screen.getByRole('header', { name: '일정' }).parent).toHaveStyle({
+        flexShrink: 1,
+        flexWrap: 'wrap',
+      });
+    });
+
     it('보기 아이콘의 채움·그림 색은 Figma 값이다', () => {
       const fills = (xml: string) =>
         [...xml.matchAll(/<(?:rect|path)[^>]* fill="([^"]+)"/g)].map(
