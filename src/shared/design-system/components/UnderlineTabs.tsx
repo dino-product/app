@@ -89,7 +89,7 @@ const LIST_HIT_SLOP = { top: TAB_HIT_SLOP.top };
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 24,
     paddingHorizontal: 24,
     borderBottomWidth: BORDER_WIDTH,
     borderBottomColor: colors.gray[200],

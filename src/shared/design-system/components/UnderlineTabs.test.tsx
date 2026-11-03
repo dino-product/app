@@ -45,7 +45,7 @@ describe('UnderlineTabs', () => {
   });
 
   // Figma 내 일정 › 확정 일정 (2714:12918) 의 Underline Tabs (#77)
-  it('건수는 Caption/M/Medium 으로 라벨과 6, 밑줄은 라벨에서 12 떨어지고 아래 선은 Gray200 이다', async () => {
+  it('건수는 Caption/M/Medium 으로 라벨과 6, 밑줄은 라벨에서 12 떨어지고, 탭 사이 24, 아래 선은 Gray200 이다', async () => {
     await render(
       <UnderlineTabs
         items={items}
@@ -61,8 +61,11 @@ describe('UnderlineTabs', () => {
     expect(screen.getByText('확정 일정').parent).toHaveStyle({ gap: 6 });
     const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
     expect(tab).toHaveStyle({ gap: 12 });
-    // 탭 목록은 접근성 요소가 아니라 역할로 찾지 않는다
-    expect(tab.parent).toHaveStyle({ borderBottomColor: colors.gray[200] });
+    // 탭 목록은 접근성 요소가 아니라 역할로 찾지 않는다. 탭 사이는 확정 일정 프레임의 24 다
+    expect(tab.parent).toHaveStyle({
+      gap: 24,
+      borderBottomColor: colors.gray[200],
+    });
   });
 
   it('선택된 탭에만 밑줄을 칠한다', async () => {
