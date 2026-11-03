@@ -32,6 +32,33 @@ export const iconSvgs = {
     size: 24,
     color: '#FFFFFF',
   },
+  // 마이 탭 아이콘. Figma 에서 SVG 를 내보내지 못해(MCP 좌석 한도) 크기·선 굵기를 보고 같은 모양으로 그렸다.
+  // user 는 tab-user 의 경로에 색만 currentColor 로, document 는 Figma 가 쓴 famicons:document(Ionicons) 경로다.
+  // 내보낼 수 있게 되면 교체한다
+  'chevron-right-line': {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 5.5L15 12L9 18.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 24,
+    color: '#A1A1AA',
+  },
+  user: {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16.0346 6.32626C16.0346 8.69252 14.1164 10.6108 11.7501 10.6108C9.38382 10.6108 7.46558 8.69252 7.46558 6.32626C7.46558 3.95999 9.38382 2.04175 11.7501 2.04175C14.1164 2.04175 16.0346 3.95999 16.0346 6.32626Z" stroke-width="2.3" stroke-linecap="round" stroke="currentColor"/><path d="M3.71655 20.2891C4.78768 16.2189 8.00106 14.3979 11.75 14.3979C15.4989 14.3979 18.7123 16.2189 19.7835 20.2891" stroke-width="2.3" stroke-linecap="round" stroke="currentColor"/></svg>',
+    size: 24,
+    color: '#585858',
+  },
+  document: {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M416 221.25V416a48 48 0 01-48 48H144a48 48 0 01-48-48V96a48 48 0 0148-48h98.75a32 32 0 0122.62 9.37l141.26 141.26a32 32 0 019.37 22.62z" stroke-width="32" stroke-linejoin="round" stroke="currentColor"/><path d="M256 56v120a32 32 0 0032 32h120M176 288h160M176 368h160" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 24,
+    color: '#585858',
+  },
+  'info-circle': {
+    tint: true,
+    xml: '<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="17" stroke-width="2" stroke="currentColor"/><path d="M20 18V27" stroke-width="2.5" stroke-linecap="round" stroke="currentColor"/><circle cx="20" cy="12.75" r="1.75" fill="currentColor"/></svg>',
+    size: 40,
+    color: '#D71A29',
+  },
   phone: {
     tint: true,
     xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 19V17.3541C21 16.5363 20.5021 15.8008 19.7428 15.4971L17.7086 14.6835C16.7429 14.2971 15.6422 14.7156 15.177 15.646L15 16C15 16 12.5 15.5 10.5 13.5C8.5 11.5 8 9 8 9L8.35402 8.82299C9.28438 8.35781 9.70285 7.25714 9.31654 6.29136L8.50289 4.25722C8.19916 3.4979 7.46374 3 6.64593 3H5C3.89543 3 3 3.89543 3 5C3 13.8366 10.1634 21 19 21C20.1046 21 21 20.1046 21 19Z" fill="currentColor"/></svg>',

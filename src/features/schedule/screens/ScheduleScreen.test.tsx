@@ -342,3 +342,47 @@ describe('ScheduleScreen — Android 가장자리 밀기', () => {
     },
   );
 });
+
+// 마이 › 탈퇴 불가의 '미완료 작업 배정' 에서 응답 필요로 올 때 (#72)
+describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
+  it('requestedTab 이 오면 그 하위 탭으로 옮기고, 직접 고른 탭은 그대로 둔다', async () => {
+    const props = {
+      today,
+      confirmed,
+      pending,
+      onAccept: jest.fn(),
+      onReject: jest.fn(),
+      onOpenRequest: jest.fn(),
+    };
+    const { rerender } = await render(<ScheduleScreen {...props} />);
+    expect(screen.getByRole('tab', { name: /^확정 일정/ })).toBeSelected();
+
+    await rerender(<ScheduleScreen {...props} requestedTab="pending" />);
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+
+    // 화면이 요청을 받은 뒤(지움) 사용자가 다른 탭을 고르면 그대로 남는다
+    await rerender(<ScheduleScreen {...props} />);
+    await userEvent.press(screen.getByRole('tab', { name: /^확정 일정/ }));
+    expect(screen.getByRole('tab', { name: /^확정 일정/ })).toBeSelected();
+
+    // 지운 뒤 같은 요청이 다시 오면 다시 옮긴다
+    await rerender(<ScheduleScreen {...props} requestedTab="pending" />);
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+
+  it('처음 열 때 요청이 있으면 확정 일정을 거치지 않고 그 탭으로 그린다', async () => {
+    await render(
+      <ScheduleScreen
+        today={today}
+        confirmed={confirmed}
+        pending={pending}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+        onOpenRequest={jest.fn()}
+        requestedTab="pending"
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+});

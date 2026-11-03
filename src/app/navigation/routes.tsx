@@ -46,7 +46,7 @@ function useTabScrollToTop() {
 // 전환이 끝난 뒤(transitionEnd)에 옮겨야 플랫폼이 다시 덮어쓰지 않는다.
 // 처음 보일 때 한 번만 옮기고, 위 화면을 닫고 돌아왔을 때는 플랫폼의 포커스 복원에 맡긴다.
 // 다시 구독해도(navigation 이 바뀜) 한 번만이 유지되게 ref 에 둔다
-function useFocusTitleOnOpen(
+export function useFocusTitleOnOpen(
   navigation: Pick<NativeStackNavigationProp<ParamListBase>, 'addListener'>,
 ) {
   const titleRef = useRef<TextInstance>(null);
@@ -143,9 +143,19 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
   );
 }
 
-export function ScheduleRoute({ navigation }: MainTabScreenProps<'schedule'>) {
+export function ScheduleRoute({
+  navigation,
+  route,
+}: MainTabScreenProps<'schedule'>) {
   const { today, confirmed, pending, accept } = useSchedule();
   const listRef = useTabScrollToTop();
+  // 바깥에서 고른 하위 탭(탈퇴 불가 → 응답 필요). 화면이 옮긴 뒤 지워야 같은 요청이 다시 와도 옮긴다
+  const requestedTab = route.params?.tab;
+  useEffect(() => {
+    if (requestedTab) {
+      navigation.setParams({ tab: undefined });
+    }
+  }, [requestedTab, navigation]);
   const openRequest = useCallback(
     (id: string) => navigation.navigate('RequestDetail', { id }),
     [navigation],
@@ -163,6 +173,7 @@ export function ScheduleRoute({ navigation }: MainTabScreenProps<'schedule'>) {
       onAccept={accept}
       onReject={openReject}
       onOpenRequest={openRequest}
+      requestedTab={requestedTab}
       listRef={listRef}
     />
   );

@@ -158,6 +158,7 @@ Play Console › 모든 앱 › 앱 만들기
   - 최대값은 2100000000 이다.
   - CI 에서 직접 업로드하게 되면 그때 CI 실행 번호로 바꾼다.
 - **버전 이름:** 새 버전을 낼 때 `versionName` 을 iOS `MARKETING_VERSION` 과 같은 값으로 올린다.
+  - 화면에 보이는 버전 `src/app/appVersion.ts` 의 `APP_VERSION` 도 같이 바꾼다. 셋이 다르면 `scripts/lib/__tests__/app-version.test.js` 가 실패한다.
 - **R8 축소:** 꺼져 있다 (`enableProguardInReleaseBuilds = false`). 켜려면 Release 실기기에서 화면을 한 번씩 열어 확인해야 한다. 검토 결과와 켤 때 할 일은 #57 댓글에 있다.
 
 ## 막힐 때
