@@ -24,6 +24,10 @@ describe('colors', () => {
     expect(colors.typeColor.purple).toBe('#7244D8');
   });
 
+  it('Figma 변수 Disabled(Primary 50%) 를 갖는다', () => {
+    expect(colors.disabled).toBe('rgba(28, 27, 42, 0.5)');
+  });
+
   // DesignSystem › Calendar Contents 의 토요일 날짜 (#77)
   it('Figma 변수 Accents/Blue 를 갖는다', () => {
     expect(colors.accents.blue).toBe('#0088FF');

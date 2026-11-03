@@ -16,6 +16,8 @@ export const colors = {
   primary: '#1C1B2A',
   primary100: '#A99FFF',
   secondary: '#6452FD',
+  // Figma 변수 Disabled — CTA 비활성 채움 (Primary 50%)
+  disabled: withOpacity('#1C1B2A', 0.5),
 
   gray: {
     0: '#FFFFFF',
