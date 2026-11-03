@@ -5,8 +5,12 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { NativeModules } from 'react-native';
-import { colors, typography } from '../../../../shared/design-system';
+import { escapeFrom } from '../../../../../jest/voiceOver';
+import {
+  colors,
+  typography,
+  withOpacity,
+} from '../../../../shared/design-system';
 import type { ParticipationRequest } from '../model';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 
@@ -20,28 +24,21 @@ const request: ParticipationRequest = {
   requestedAt: new Date(2026, 8, 23, 10, 24).toISOString(),
 };
 
-// 바텀시트 애니메이션(프리셋의 네이티브 애니메이션 목)은 테스트가 끝낸다
-let runningAnimations: Array<(result: { finished: boolean }) => void> = [];
-const finishAnimations = () =>
-  act(() => {
-    runningAnimations.splice(0).forEach(end => end({ finished: true }));
-  });
-beforeEach(() => {
-  runningAnimations = [];
-  jest
-    .spyOn(NativeModules.NativeAnimatedModule, 'startAnimatingNode')
-    .mockImplementation((...args: unknown[]) => {
-      runningAnimations.push(
-        args[3] as (result: { finished: boolean }) => void,
-      );
-    });
-});
-afterEach(() => {
-  jest.restoreAllMocks();
-});
-
-const sheetTitle = () =>
-  screen.queryByRole('header', { name: 'Orbit 참여 신청을 취소할까요?' });
+const CANCEL_TITLE = 'Orbit 참여 신청을 취소할까요?';
+const cancelTitle = () => screen.queryByRole('header', { name: CANCEL_TITLE });
+// 모달을 감싼 RN Modal (호스트 요소 이름이 Modal 이다)
+const modalHost = () => {
+  let node = screen.getByTestId('cancel-request-modal').parent;
+  while (node && node.type !== 'Modal') {
+    node = node.parent;
+  }
+  if (!node) {
+    throw new Error('신청 취소 모달이 Modal 안에 있지 않다');
+  }
+  return node;
+};
+const openCancel = () =>
+  userEvent.press(screen.getByRole('button', { name: '신청 취소' }));
 
 const renderRequested = () => {
   const props = {
@@ -94,29 +91,128 @@ describe('JoinRequestedScreen', () => {
     expect(props.onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it('신청 취소를 누르면 바텀시트가 뜨고, 시트의 취소로 이 신청을 취소한다', async () => {
-    const props = await renderRequested();
+  // 신청 취소 확인은 바텀 시트가 아니라 화면 가운데 모달이다 (#98). 신청 현황의 시트(2889:13197)는 그대로다
+  describe('신청 취소 모달', () => {
+    it('신청 취소를 누르면 화면 가운데 모달이 뜨고 문구는 그대로다 (바텀 시트가 아니다)', async () => {
+      await renderRequested();
 
-    await userEvent.press(screen.getByRole('button', { name: '신청 취소' }));
-    expect(sheetTitle()).toBeOnTheScreen();
+      await openCancel();
 
-    await userEvent.press(screen.getByRole('button', { name: '취소' }));
-    // 시트가 다 내려간 뒤에 취소·이동한다 (모달 아래에서 화면 전환이 일어나지 않게)
-    expect(props.onCancel).not.toHaveBeenCalled();
-    await finishAnimations();
-    expect(props.onCancel).toHaveBeenCalledWith('request-9');
-    expect(sheetTitle()).toBeNull();
-  });
+      expect(cancelTitle()).toBeOnTheScreen();
+      expect(
+        screen.getByText('Orbit 참여 신청을\n취소할까요?'),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByText(
+          '취소하면 사무실의 승인 대기 목록에서도 사라져요.\n같은 회사 코드로 언제든 다시 신청할 수 있어요.',
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: '취소' })).toBeOnTheScreen();
+      expect(screen.queryByTestId('cancel-request-sheet')).toBeNull();
+      expect(modalHost().props).toMatchObject({
+        visible: true,
+        transparent: true,
+        animationType: 'fade',
+      });
+      expect(screen.getByTestId('cancel-request-modal-backdrop')).toHaveStyle({
+        justifyContent: 'center',
+        alignItems: 'center',
+      });
+    });
 
-  it('시트의 닫기는 아무것도 바꾸지 않고 닫는다', async () => {
-    const props = await renderRequested();
+    // ConfirmModal·NoticeModal 과 같은 계열 (카드 반경 20, 위 28·옆 20 여백, 배경 검정 40%)
+    it('모양은 앱의 다른 가운데 모달(NoticeModal)과 같은 계열이다', async () => {
+      await renderRequested();
+      await openCancel();
 
-    await userEvent.press(screen.getByRole('button', { name: '신청 취소' }));
-    await userEvent.press(screen.getByRole('button', { name: '닫기' }));
-    await finishAnimations();
+      expect(screen.getByTestId('cancel-request-modal-backdrop')).toHaveStyle({
+        backgroundColor: withOpacity('#000000', 0.4),
+      });
+      expect(screen.getByTestId('cancel-request-modal')).toHaveStyle({
+        borderRadius: 20,
+        paddingTop: 28,
+        paddingHorizontal: 20,
+        backgroundColor: colors.white[100],
+      });
+    });
 
-    expect(props.onCancel).not.toHaveBeenCalled();
-    expect(sheetTitle()).toBeNull();
+    it('취소를 누르면 이 신청을 취소한다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      await userEvent.press(screen.getByRole('button', { name: '취소' }));
+
+      expect(props.onCancel).toHaveBeenCalledWith('request-9');
+      expect(cancelTitle()).toBeNull();
+    });
+
+    it('취소를 연달아 눌러도 한 번만 취소한다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      // 다시 그리기 전(같은 프레임)에 두 번 눌린 경우
+      const confirm = screen.getByRole('button', { name: '취소' });
+      await act(async () => {
+        await fireEvent.press(confirm);
+        await fireEvent.press(confirm);
+      });
+
+      expect(props.onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('오른쪽 위 X 는 스크린리더에서 닫기 버튼이고, 누르면 신청은 그대로 닫힌다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      const close = screen.getByTestId('cancel-request-modal-close');
+      expect(close).toHaveAccessibleName('닫기');
+      expect(close).toHaveProp('accessibilityRole', 'button');
+      await userEvent.press(close);
+
+      expect(cancelTitle()).toBeNull();
+      expect(props.onCancel).not.toHaveBeenCalled();
+    });
+
+    it('닫기 버튼은 신청을 그대로 두고 닫는다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      const [, closeButton] = screen.getAllByRole('button', { name: '닫기' });
+      await userEvent.press(closeButton);
+
+      expect(cancelTitle()).toBeNull();
+      expect(props.onCancel).not.toHaveBeenCalled();
+    });
+
+    it('Android 뒤로가기로 닫히고 신청은 그대로다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      await act(() => modalHost().props.onRequestClose());
+
+      expect(cancelTitle()).toBeNull();
+      expect(props.onCancel).not.toHaveBeenCalled();
+    });
+
+    it('VoiceOver 두 손가락 Z 로 닫히고 신청은 그대로다', async () => {
+      const props = await renderRequested();
+      await openCancel();
+
+      await escapeFrom(CANCEL_TITLE);
+
+      expect(cancelTitle()).toBeNull();
+      expect(props.onCancel).not.toHaveBeenCalled();
+    });
+
+    it('닫은 뒤 다시 열 수 있다', async () => {
+      await renderRequested();
+      await openCancel();
+      await userEvent.press(screen.getByTestId('cancel-request-modal-close'));
+
+      await openCancel();
+
+      expect(cancelTitle()).toBeOnTheScreen();
+    });
   });
   it('확인을 연달아 눌러도 한 번만 알린다 (온보딩은 확인으로 사무실 결정을 흉내 낸다)', async () => {
     const { onConfirm } = await renderRequested();

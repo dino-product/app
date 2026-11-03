@@ -11,7 +11,6 @@ import {
   AccessibilityInfo,
   Alert,
   BackHandler,
-  NativeModules,
   Platform,
   StatusBar,
   type AlertButton,
@@ -25,13 +24,6 @@ jest.setTimeout(20_000);
 const header = (name: string) => screen.queryByRole('header', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
-
-// 바텀시트 애니메이션(프리셋의 네이티브 애니메이션 목)은 테스트가 끝낸다
-let runningAnimations: Array<(result: { finished: boolean }) => void> = [];
-const finishAnimations = () =>
-  act(() => {
-    runningAnimations.splice(0).forEach(end => end({ finished: true }));
-  });
 
 // Android 뒤로가기: 등록된 핸들러를 최근 것부터 부른다. 아무도 처리하지 않으면 앱을 나간다
 type Handler = Parameters<typeof BackHandler.addEventListener>[1];
@@ -47,14 +39,6 @@ const pressBack = async () => {
 };
 
 beforeEach(() => {
-  runningAnimations = [];
-  jest
-    .spyOn(NativeModules.NativeAnimatedModule, 'startAnimatingNode')
-    .mockImplementation((...args: unknown[]) => {
-      runningAnimations.push(
-        args[3] as (result: { finished: boolean }) => void,
-      );
-    });
   backHandlers = new Set();
   jest
     .spyOn(BackHandler, 'addEventListener')
@@ -365,13 +349,11 @@ describe('App — 온보딩', () => {
       await requestToJoin();
 
       await userEvent.press(button('신청 취소'));
-      await finishAnimations();
       await userEvent.press(
-        within(screen.getByTestId('cancel-request-sheet')).getByRole('button', {
+        within(screen.getByTestId('cancel-request-modal')).getByRole('button', {
           name: '취소',
         }),
       );
-      await finishAnimations();
 
       expect(header('회사 찾기')).toBeOnTheScreen();
       await findCompany('123456');
