@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag } from '../../../../jest/gesture';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
@@ -170,6 +171,26 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(
       screen.queryByRole('button', { name: '12월 13일 일요일' }),
     ).not.toBeOnTheScreen();
+  });
+
+  it('주간 줄을 끌어 넘기면 다 넘어간 뒤에 날짜와 일정이 바뀐다', async () => {
+    const { finish } = holdNativeAnimations();
+    try {
+      await renderSchedule();
+      await fireEvent(screen.getByTestId('week-strip-track'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 69 } },
+      });
+
+      await drag(weekStrip(), { dx: -80 });
+      expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+      expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+
+      await finish();
+      expect(screen.getByText('2026년 12월 22일 (화)')).toBeOnTheScreen();
+      expect(screen.getByText('예정된 일정이 없습니다')).toBeOnTheScreen();
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 
   it('주를 넘겨 달이 바뀌면 달력도 그 달을 펼친다', async () => {
