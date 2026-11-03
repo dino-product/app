@@ -53,6 +53,18 @@ export const iconSvgs = {
     size: 24,
     color: '#585858',
   },
+  check: {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12.5L10 16.5L18 8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 24,
+    color: '#FFFFFF',
+  },
+  qr: {
+    tint: true,
+    xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3.75" y="3.75" width="6.5" height="6.5" rx="1" stroke-width="1.5" stroke="currentColor"/><rect x="13.75" y="3.75" width="6.5" height="6.5" rx="1" stroke-width="1.5" stroke="currentColor"/><rect x="3.75" y="13.75" width="6.5" height="6.5" rx="1" stroke-width="1.5" stroke="currentColor"/><path d="M13 13H16V16H13V13ZM17 17H20V20H17V17ZM17 13H20V15H17V13ZM13 17H15V20H13V17Z" fill="currentColor"/></svg>',
+    size: 24,
+    color: '#FFFFFF',
+  },
   'info-circle': {
     tint: true,
     xml: '<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="17" stroke-width="2" stroke="currentColor"/><path d="M20 18V27" stroke-width="2.5" stroke-linecap="round" stroke="currentColor"/><circle cx="20" cy="12.75" r="1.75" fill="currentColor"/></svg>',

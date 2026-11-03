@@ -123,3 +123,48 @@ describe('NotificationCenterScreen', () => {
     expect(screen.getByText('새 알림이 없어요')).toBeOnTheScreen();
   });
 });
+
+// 참여 거절 알림은 거절 화면을 연다 (#73). 읽은 뒤에도 다시 열 수 있다
+describe('NotificationCenterScreen — 열 곳이 있는 알림', () => {
+  const rejected: AppNotification = {
+    id: 'notification-9',
+    type: 'PARTICIPATION_REQUEST_REJECTED',
+    message: '[스마트 홈케어] 참여 요청이 거절되었습니다.',
+    read: true,
+    createdAt: new Date(now.getTime() - 60 * 60_000).toISOString(),
+    participationRequestId: 'request-3',
+  };
+
+  const renderWith = (items: AppNotification[]) => {
+    const props = { onRead: jest.fn(), onOpen: jest.fn() };
+    return render(
+      <NotificationCenterScreen
+        notifications={items}
+        now={now}
+        onBack={jest.fn()}
+        {...props}
+      />,
+    ).then(() => props);
+  };
+
+  it('읽은 알림이어도 버튼이고 누르면 그 참여 요청을 연다', async () => {
+    const props = await renderWith([rejected]);
+
+    const item = row('notification-9');
+    expect(item).toHaveProp('accessibilityRole', 'button');
+    expect(item).toHaveProp('accessibilityHint', '참여 요청 결과를 엽니다');
+    await userEvent.press(item);
+
+    expect(props.onOpen).toHaveBeenCalledWith('request-3');
+    expect(props.onRead).not.toHaveBeenCalled();
+  });
+
+  it('읽지 않았으면 읽음으로 바꾸고 연다', async () => {
+    const props = await renderWith([{ ...rejected, read: false }]);
+
+    await userEvent.press(row('notification-9'));
+
+    expect(props.onRead).toHaveBeenCalledWith('notification-9');
+    expect(props.onOpen).toHaveBeenCalledWith('request-3');
+  });
+});

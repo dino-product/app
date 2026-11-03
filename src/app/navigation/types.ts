@@ -38,6 +38,12 @@ export type MyStackParamList = {
   Account: undefined;
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;
+  // 조직 참여 (#73)
+  OrgJoin: undefined;
+  OrgRoleSelect: { organizationId: string; organizationName: string };
+  OrgJoinRequested: { requestId: string };
+  OrgJoinRejected: { requestId: string };
+  OrgJoinRequests: undefined;
 };
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;

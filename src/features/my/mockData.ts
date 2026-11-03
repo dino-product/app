@@ -36,9 +36,6 @@ export const membershipsMock: readonly Membership[] = [
   },
 ];
 
-/** 아직 결과가 나오지 않은 조직 참여 신청 수 ('신청 현황' 배지) */
-export const pendingParticipationRequestsMock = 3;
-
 export const notificationSettingsMock: NotificationSettings = {
   workAssignmentEnabled: true,
   scheduleChangeEnabled: true,
@@ -52,6 +49,15 @@ export function makeNotificationsMock(now: Date): AppNotification[] {
   const hoursAgo = (hours: number) =>
     new Date(now.getTime() - hours * HOUR).toISOString();
   return [
+    // 신청 현황(org/mockData)의 거절된 요청. 누르면 거절 화면을 연다 (#73)
+    {
+      id: 'notification-0',
+      type: 'PARTICIPATION_REQUEST_REJECTED',
+      message: '[스마트 홈케어] 참여 요청이 거절되었습니다.',
+      read: false,
+      createdAt: hoursAgo(1),
+      participationRequestId: 'request-3',
+    },
     {
       id: 'notification-1',
       type: 'WORK_CANCELED',
