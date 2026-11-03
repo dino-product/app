@@ -539,6 +539,79 @@ describe('WorkDetailScreen', () => {
     });
   });
 
+  // 앱이 종료됐다가 다시 열리면 기기에 남긴 초안으로 이어 쓴다 (#34)
+  describe('작성하던 보고 이어 쓰기', () => {
+    const draft = {
+      beforePhotos: ['mock://before-1'],
+      afterPhotos: ['mock://after-1', 'mock://after-2'],
+      memo: '배관 누수',
+      parts: '밸브',
+      amount: '75000',
+      paymentMethod: 'cash' as const,
+    };
+
+    it('처음 입력값을 받으면 그 값으로 열리고 이어서 제출할 수 있다', async () => {
+      await renderDetail({ initialReport: draft });
+
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배관 누수',
+      );
+      expect(screen.getByLabelText('사용 부품 입력')).toHaveDisplayValue(
+        '밸브',
+      );
+      expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
+        '75,000',
+      );
+      expect(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      ).toHaveAccessibilityValue({ text: '현장 현금' });
+      expect(
+        screen.getByRole('button', { name: '작업 후 사진 추가' }),
+      ).toHaveAccessibilityValue({ text: '2/6' });
+      expect(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      ).toBeEnabled();
+    });
+
+    it('이어 쓰는 보고는 처음부터 작성 중이라고 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ initialReport: draft, onUnsavedReportChange });
+
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+    });
+
+    it('입력·사진이 바뀔 때마다 지금 보고를 넘긴다', async () => {
+      const onReportChange = jest.fn();
+      await renderDetail({ onReportChange });
+
+      await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관');
+      expect(onReportChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ memo: '배관' }),
+      );
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 추가' }),
+      );
+      expect(onReportChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ beforePhotos: ['mock://photo'] }),
+      );
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 1 삭제' }),
+      );
+      expect(onReportChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ beforePhotos: [], memo: '배관' }),
+      );
+    });
+
+    it('제출을 마친 작업은 넘길 보고가 없다', async () => {
+      const onReportChange = jest.fn();
+      await renderDetail({ work: submittedWork, onReportChange });
+
+      expect(onReportChange).not.toHaveBeenCalled();
+    });
+  });
+
   it('결제 방식 선택 버튼이 고른 값을 스크린리더에 알린다', async () => {
     await renderDetail();
 

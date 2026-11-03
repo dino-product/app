@@ -1,0 +1,57 @@
+import { appStorage, writeJson } from '../../shared/storage/appStorage';
+import {
+  clearRejectDraft,
+  loadRejectDraft,
+  saveRejectDraft,
+} from './rejectDraft';
+
+describe('거절 사유 초안', () => {
+  it('고른 사유와 직접 입력한 글을 같은 요청으로 다시 읽는다', () => {
+    saveRejectDraft('request-1', { selected: 'other', otherText: '차량 고장' });
+
+    expect(loadRejectDraft('request-1')).toEqual({
+      selected: 'other',
+      otherText: '차량 고장',
+    });
+    expect(loadRejectDraft('request-2')).toBeUndefined();
+  });
+
+  it('다른 사유로 바꿔도 직접 입력한 글은 남긴다 (화면과 같다)', () => {
+    saveRejectDraft('request-1', {
+      selected: 'distance',
+      otherText: '차량 고장',
+    });
+
+    expect(loadRejectDraft('request-1')).toEqual({
+      selected: 'distance',
+      otherText: '차량 고장',
+    });
+  });
+
+  it('아무것도 고르거나 쓰지 않았으면 지운다', () => {
+    saveRejectDraft('request-1', { selected: 'schedule', otherText: '' });
+    saveRejectDraft('request-1', { selected: null, otherText: '' });
+
+    expect(loadRejectDraft('request-1')).toBeUndefined();
+    expect(appStorage.getAllKeys()).toEqual([]);
+  });
+
+  it('제출하거나 화면을 나가면 지운다', () => {
+    saveRejectDraft('request-1', { selected: 'schedule', otherText: '' });
+    clearRejectDraft('request-1');
+
+    expect(loadRejectDraft('request-1')).toBeUndefined();
+  });
+
+  it.each([
+    ['없는 사유', { selected: 'weather', otherText: '' }],
+    ['글이 문자열이 아님', { selected: 'other', otherText: 3 }],
+    ['사유가 없음', { otherText: '' }],
+    ['객체가 아님', 'other'],
+  ])('모양이 다른 초안은 버린다: %s', (_name, value) => {
+    writeJson('schedule.rejectDraft.request-1', value);
+
+    expect(loadRejectDraft('request-1')).toBeUndefined();
+    expect(appStorage.getAllKeys()).toEqual([]);
+  });
+});

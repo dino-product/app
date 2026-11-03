@@ -64,6 +64,10 @@ export type WorkDetailScreenProps = {
   titleRef?: Ref<TextInstance>;
   /** 제출하지 않은 완료 보고 입력이 있는지 처음과 바뀔 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
   onUnsavedReportChange?: (unsaved: boolean) => void;
+  /** 이어 쓸 보고 (앱이 종료되기 전에 쓰던 초안). 처음 열 때만 쓴다 */
+  initialReport?: WorkReport;
+  /** 작성 중인 보고가 바뀔 때마다 알린다. 바깥에서 초안으로 남길 때 쓴다. 제출을 마친 작업은 부르지 않는다 */
+  onReportChange?: (report: WorkReport) => void;
 };
 
 type PhotoKey = 'beforePhotos' | 'afterPhotos';
@@ -81,8 +85,12 @@ export function WorkDetailScreen({
   onPickPhoto,
   titleRef,
   onUnsavedReportChange,
+  initialReport,
+  onReportChange,
 }: WorkDetailScreenProps) {
-  const [report, setReport] = useState<WorkReport>(emptyReport);
+  const [report, setReport] = useState<WorkReport>(
+    initialReport ?? emptyReport,
+  );
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showJump, setShowJump] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -106,6 +114,16 @@ export function WorkDetailScreen({
   useEffect(() => {
     notifyUnsaved(unsaved);
   }, [unsaved]);
+
+  // 입력은 여러 곳(입력칸·사진·결제 방식)에서 바뀌므로 바뀐 결과를 한곳에서 알린다
+  const notifyReport = useEffectEvent((value: WorkReport) =>
+    onReportChange?.(value),
+  );
+  useEffect(() => {
+    if (!readOnly) {
+      notifyReport(report);
+    }
+  }, [readOnly, report]);
 
   const update = (patch: Partial<WorkReport>) =>
     setReport(prev => ({ ...prev, ...patch }));

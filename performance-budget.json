@@ -37,7 +37,15 @@
   },
   "render": {
     "maxInitialUpdateCount": 0,
-    "maxRedundantUpdates": 0
+    "maxRedundantUpdates": 0,
+    "exceptions": [
+      {
+        "scenario": "App 렌더 예산 작성하던 완료 보고로 다시 열 때는 나갈 때 묻기를 켜는 갱신만 더해진다",
+        "maxInitialUpdateCount": 4,
+        "ticket": 92,
+        "reason": "이어 쓰는 보고는 열자마자 나갈 때 묻기(usePreventRemove)가 켜져 React Navigation 이 루트·탭·홈 스택의 PreventRemoveProvider 상태를 갱신한다"
+      }
+    ]
   },
   "devMonitor": {
     "windowMs": 2000,

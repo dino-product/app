@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -30,6 +30,7 @@ import { readableColumn } from '../../../shared/layout/readableColumn';
 import {
   rejectReasons,
   validateRejection,
+  type RejectReasonDraft,
   type RejectReasonKey,
 } from '../model';
 
@@ -42,24 +43,43 @@ export function RejectReasonScreen({
   onBack,
   onSubmit,
   titleRef,
+  initialDraft,
+  onDraftChange,
 }: {
   /** 뒤로 가기·취소 */
   onBack: () => void;
   onSubmit: (reason: string) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
+  /** 이어 고를 사유 (앱이 종료되기 전에 고르던 초안). 처음 열 때만 쓴다 */
+  initialDraft?: RejectReasonDraft;
+  /** 고른 사유나 쓴 글이 바뀔 때마다 알린다. 바깥에서 초안으로 남길 때 쓴다 */
+  onDraftChange?: (draft: RejectReasonDraft) => void;
 }) {
-  const [selected, setSelected] = useState<RejectReasonKey | null>(null);
+  const [selected, setSelected] = useState<RejectReasonKey | null>(
+    initialDraft?.selected ?? null,
+  );
   // 다른 선택지로 바꿔 섹션을 접어도 남겨 둔다. 다시 기타를 고르면 그대로 보인다
-  const [otherText, setOtherText] = useState('');
+  const [otherText, setOtherText] = useState(initialDraft?.otherText ?? '');
   const [otherTextError, setOtherTextError] = useState(false);
+  // 기타를 고른 초안이면 처음부터 펼쳐 둔다
+  const restoredExpanded = initialDraft?.selected === 'other';
   // 접히는 애니메이션이 끝날 때까지 섹션을 남겨 둔다
-  const [otherMounted, setOtherMounted] = useState(false);
+  const [otherMounted, setOtherMounted] = useState(restoredExpanded);
+  // 사용자가 펼칠 때만 입력란이 포커스를 받아 키보드가 올라온다. 이어 고르는 화면은 열자마자 키보드를 올리지 않는다
+  const [focusOnOpen, setFocusOnOpen] = useState(!restoredExpanded);
   const reduceMotion = useReduceMotion();
-  const reveal = useReveal();
+  const reveal = useReveal(restoredExpanded);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const otherInputRef = useRef<TextInputInstance>(null);
   const expanded = selected === 'other';
+
+  const notifyDraft = useEffectEvent((draft: RejectReasonDraft) =>
+    onDraftChange?.(draft),
+  );
+  useEffect(() => {
+    notifyDraft({ selected, otherText });
+  }, [selected, otherText]);
 
   const animateOther = (expand: boolean) => {
     // 동작 줄이기면 바로 끝 값으로 그리고, 끝났다는 알림만 다음 프레임에 받는다
@@ -96,6 +116,7 @@ export function RejectReasonScreen({
     const expand = key === 'other';
     if (expand !== expanded) {
       if (expand) {
+        setFocusOnOpen(true);
         // 접히는 중이면 입력란이 남아 있어 autoFocus 가 다시 돌지 않으므로 직접 포커스한다.
         // 새로 그릴 때는 아직 ref 가 비어 있고 autoFocus 가 맡는다
         otherInputRef.current?.focus();
@@ -231,6 +252,7 @@ export function RejectReasonScreen({
                 >
                   <OtherReason
                     inputRef={otherInputRef}
+                    autoFocus={focusOnOpen}
                     value={otherText}
                     onChangeText={changeOtherText}
                     onFocus={revealOtherInput}
@@ -261,15 +283,17 @@ export function RejectReasonScreen({
   );
 }
 
-// 기타 직접 입력 섹션. 펼칠 때 새로 마운트되어 입력란이 포커스를 받고 키보드가 올라온다
+// 기타 직접 입력 섹션. 펼칠 때 새로 마운트되어 입력란이 포커스를 받고(autoFocus) 키보드가 올라온다
 function OtherReason({
   inputRef,
+  autoFocus,
   value,
   onChangeText,
   onFocus,
   error,
 }: {
   inputRef: Ref<TextInputInstance>;
+  autoFocus: boolean;
   value: string;
   onChangeText: (text: string) => void;
   onFocus?: () => void;
@@ -282,7 +306,7 @@ function OtherReason({
       <TextInput
         ref={inputRef}
         accessibilityLabel="기타 거절 사유 입력"
-        autoFocus
+        autoFocus={autoFocus}
         multiline
         placeholder="거절 사유를 입력해 주세요."
         placeholderTextColor={colors.gray[600]}
@@ -308,10 +332,10 @@ function OtherReason({
 // 섹션을 위에서부터 드러낸다 (progress 0 → 1). 네이티브 드라이버는 높이를 바꾸지 못하므로
 // 잘라 내는 View 는 내용 높이만큼 위로, 내용은 같은 만큼 아래로 옮겨 내용은 제자리에 두고 보이는 영역만 자라게 한다.
 // 섹션이 스크롤 내용의 맨 끝이라 레이아웃 높이는 한 번에 바뀌어도 밀려나는 내용이 없다.
-// 높이도 Animated.Value 로 두어 재도 다시 그리지 않는다
-function useReveal() {
+// 높이도 Animated.Value 로 두어 재도 다시 그리지 않는다. 펼친 채로 열면 1 에서 시작한다
+function useReveal(initiallyExpanded: boolean) {
   const [reveal] = useState(() => {
-    const progress = new Animated.Value(0);
+    const progress = new Animated.Value(initiallyExpanded ? 1 : 0);
     const height = new Animated.Value(0);
     return {
       progress,
