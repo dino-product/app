@@ -59,6 +59,19 @@ describe('Icon', () => {
     });
   });
 
+  it('선택된 작업 이력 탭은 화살표가 있는 채운 시계(history-clock)이고 기본색은 탭의 Primary 다', () => {
+    const active = iconSvgs['tab-history-active'];
+    expect(active).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
+    expect(active.xml).toContain('M5 2.667V6.167H8.5'); // 도는 화살표
+    expect(active.xml).toContain('M2.736 10.863A9.333 9.333 0 1 0 6.781 4.262');
+  });
+
+  it('작업 이력 빈 상태 시계(history-empty)는 화살표 없는 채운 시계를 유지한다', () => {
+    const empty = iconSvgs['history-empty'];
+    expect(empty).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
+    expect(empty.xml).not.toContain('M5 2.667V6.167H8.5');
+  });
+
   it('장식용이라 스크린리더에서 숨긴다', async () => {
     await render(<Icon name="phone" testID="icon" />);
 

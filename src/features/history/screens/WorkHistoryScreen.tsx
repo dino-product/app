@@ -108,11 +108,16 @@ export function WorkHistoryScreen({
 
 const keyExtractor = (item: CompletedWork) => item.id;
 
-// Figma 에 없어 메인화면 일정(무)과 같은 모양으로 둔다 (기본안). 아이콘은 작업 이력 탭 아이콘을 회색으로 칠한 것
+// Figma 에 없어 메인화면 일정(무)과 같은 모양으로 둔다 (기본안). 아이콘은 화살표 없는 채운 시계를 회색으로 칠한 것 (탭 아이콘과는 따로 둔다)
 function EmptyMonth() {
   return (
     <View style={styles.empty}>
-      <Icon name="tab-history-active" size={40} color={colors.gray[300]} />
+      <Icon
+        name="history-empty"
+        size={40}
+        color={colors.gray[300]}
+        testID="history-empty-icon"
+      />
       <View style={styles.emptyText}>
         <Text
           variant="Body/M/SemiBold"
