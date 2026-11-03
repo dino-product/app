@@ -132,6 +132,19 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
     );
   });
 
+  it('작업 이력: 제목·월 화살표·요약 카드·완료 작업 행이 읽기 좋은 폭 안에 있다', async () => {
+    await render(<App />);
+    await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
+
+    expectInReadableColumn(
+      header('작업 이력'),
+      button('이전 달'),
+      button('다음 달'),
+      screen.getByLabelText(/^누적 완료 /),
+      screen.getAllByRole('button', { name: /, 완료, / })[0],
+    );
+  });
+
   it('요청 상세·거절 사유: 헤더·본문·하단 버튼이 읽기 좋은 폭 안에 있다', async () => {
     await render(<App />);
     await openPendingRequest();

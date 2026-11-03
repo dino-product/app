@@ -11,7 +11,9 @@ import {
   useMyNotifications,
   useMyNotificationSettings,
   useMyProfile,
+  useParticipation,
 } from '../../features/my/MyStateProvider';
+import { pendingRequests } from '../../features/my/org/model';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
 import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
 import { NotificationCenterScreen } from '../../features/my/screens/NotificationCenterScreen';
@@ -66,12 +68,16 @@ function useWithdrawalEligibility() {
 }
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
-  const { profile, memberships, pendingRequestCount } = useMyProfile();
+  const { profile, memberships } = useMyProfile();
+  const { requests } = useParticipation();
+  // '신청 현황' 배지는 승인 대기 건수다
+  const pendingRequestCount = useMemo(
+    () => pendingRequests(requests).length,
+    [requests],
+  );
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
-  // 조직 참여·참여 신청 현황 화면은 #73 에서 잇는다
-  const openOrganization = useCallback(() => {}, []);
 
   return (
     <MyPageScreen
@@ -80,8 +86,8 @@ export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
       pendingRequestCount={pendingRequestCount}
       onOpenNotifications={() => navigation.navigate('NotificationCenter')}
       onEditProfile={() => navigation.navigate('ProfileEdit')}
-      onOpenRequestStatus={openOrganization}
-      onJoinOrganization={openOrganization}
+      onOpenRequestStatus={() => navigation.navigate('OrgJoinRequests')}
+      onJoinOrganization={() => navigation.navigate('OrgJoin')}
       onOpenNotificationSettings={() =>
         navigation.navigate('NotificationSettings')
       }
@@ -134,6 +140,12 @@ export function NotificationCenterRoute({
   const titleRef = useFocusTitleOnOpen(navigation);
   // 화면을 연 시각 기준의 상대 시간. 열어 둔 동안 시간이 흘러도 다시 그리지 않는다 (유휴 상태 = 0 작업)
   const [now] = useState(() => new Date());
+  // 참여 거절 알림은 거절 화면을 연다 (#73). 행이 memo 라 함수를 렌더마다 새로 만들지 않는다
+  const openRejected = useCallback(
+    (requestId: string) =>
+      navigation.navigate('OrgJoinRejected', { requestId }),
+    [navigation],
+  );
 
   return (
     <NotificationCenterScreen
@@ -141,6 +153,7 @@ export function NotificationCenterRoute({
       now={now}
       titleRef={titleRef}
       onRead={markNotificationRead}
+      onOpen={openRejected}
       onBack={() => navigation.goBack()}
     />
   );

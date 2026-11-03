@@ -60,7 +60,18 @@ export type AppNotification = {
   read: boolean;
   /** 알림 시각 (ISO, UTC) */
   createdAt: string;
+  /** 참여 요청 결과 알림이면 그 요청 (눌렀을 때 열 화면의 대상) */
+  participationRequestId?: string;
 };
+
+/** 눌렀을 때 거절 화면(#73)을 열 참여 요청 id. 승인 결과 화면은 아직 없어 거절만 연다 */
+export function rejectedRequestOf(
+  notification: AppNotification,
+): string | null {
+  return notification.type === 'PARTICIPATION_REQUEST_REJECTED'
+    ? notification.participationRequestId ?? null
+    : null;
+}
 
 export type WithdrawalBlockReason =
   | 'SOLE_OWNER'

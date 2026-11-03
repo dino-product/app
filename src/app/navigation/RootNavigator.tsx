@@ -23,15 +23,25 @@ import {
   WithdrawalRoute,
 } from './myRoutes';
 import {
+  JoinRejectedRoute,
+  JoinRequestedRoute,
+  JoinRequestsRoute,
+  OrgJoinRoute,
+  RoleSelectRoute,
+} from './orgRoutes';
+import {
+  CompletedWorkDetailRoute,
   RejectReasonRoute,
   RequestDetailRoute,
   ScheduleRoute,
   WorkDetailRoute,
+  WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
+  type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
   type MyStackParamList,
@@ -41,6 +51,7 @@ import {
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const MyStack = createNativeStackNavigator<MyStackParamList>();
 
 // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
@@ -100,6 +111,10 @@ const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 const byId = ({ params }: { params: { id: string } }) => params.id;
 // 항목이 없는 화면은 하나만 쌓는다 (전환 중에 연달아 눌러도)
 const once = () => 'once';
+const byOrganization = ({ params }: { params: { organizationId: string } }) =>
+  params.organizationId;
+const byRequest = ({ params }: { params: { requestId: string } }) =>
+  params.requestId;
 
 function HomeTab() {
   const stackOptions = useStackOptions();
@@ -116,6 +131,23 @@ function HomeTab() {
         getId={byId}
       />
     </HomeStack.Navigator>
+  );
+}
+
+function HistoryTab() {
+  const stackOptions = useStackOptions();
+  return (
+    <HistoryStack.Navigator
+      screenOptions={stackOptions}
+      screenLayout={stackScreenLayout}
+    >
+      <HistoryStack.Screen name="WorkHistory" component={WorkHistoryRoute} />
+      <HistoryStack.Screen
+        name="CompletedWorkDetail"
+        component={CompletedWorkDetailRoute}
+        getId={byId}
+      />
+    </HistoryStack.Navigator>
   );
 }
 
@@ -157,6 +189,28 @@ function MyTab() {
           component={WithdrawalBlockedRoute}
           getId={once}
         />
+        {/* 조직 참여 (#73) */}
+        <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
+        <MyStack.Screen
+          name="OrgRoleSelect"
+          component={RoleSelectRoute}
+          getId={byOrganization}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequested"
+          component={JoinRequestedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRejected"
+          component={JoinRejectedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequests"
+          component={JoinRequestsRoute}
+          getId={once}
+        />
       </MyStack.Navigator>
     </MyStateProvider>
   );
@@ -172,6 +226,7 @@ function MainTabs() {
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
+      <Tab.Screen name="history" component={HistoryTab} />
       <Tab.Screen name="my" component={MyTab} />
     </Tab.Navigator>
   );

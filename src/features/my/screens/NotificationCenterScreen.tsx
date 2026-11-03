@@ -13,6 +13,7 @@ import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
   formatRelativeTime,
   notificationTypeLabels,
+  rejectedRequestOf,
   type AppNotification,
   type NotificationType,
 } from '../model';
@@ -23,6 +24,7 @@ export function NotificationCenterScreen({
   notifications,
   now,
   onRead,
+  onOpen,
   onBack,
   titleRef,
 }: {
@@ -30,15 +32,17 @@ export function NotificationCenterScreen({
   /** 상대 시간(3시간 전)의 기준 */
   now: Date;
   onRead: (id: string) => void;
+  /** 참여 거절 알림을 누르면 그 참여 요청의 거절 화면을 연다 */
+  onOpen?: (participationRequestId: string) => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => (
-      <NotificationRow item={item} now={now} onRead={onRead} />
+      <NotificationRow item={item} now={now} onRead={onRead} onOpen={onOpen} />
     ),
-    [now, onRead],
+    [now, onRead, onOpen],
   );
 
   return (
@@ -66,23 +70,41 @@ const NotificationRow = memo(function MyNotificationRow({
   item,
   now,
   onRead,
+  onOpen,
 }: {
   item: AppNotification;
   now: Date;
   onRead: (id: string) => void;
+  onOpen?: (participationRequestId: string) => void;
 }) {
   const label = notificationTypeLabels[item.type];
   const time = formatRelativeTime(item.createdAt, now);
   const description = `${label}, ${item.message}, ${time}`;
   // 읽으면 같은 행(Pressable)에서 역할·동작만 뺀다. 다른 컴포넌트로 바꿔 그리면 행이 새로 만들어져
-  // 방금 누른 스크린리더 포커스가 사라진다. 읽은 알림은 눌러도 할 일이 없어 버튼이 아닌 정보 행이다
+  // 방금 누른 스크린리더 포커스가 사라진다. 읽었고 열 곳도 없는 알림은 버튼이 아닌 정보 행이다
+  const requestId = onOpen ? rejectedRequestOf(item) : null;
+  const pressable = !item.read || requestId !== null;
+  const press = () => {
+    if (!item.read) {
+      onRead(item.id);
+    }
+    if (requestId !== null) {
+      onOpen?.(requestId);
+    }
+  };
   return (
     <Pressable
       accessible
-      accessibilityRole={item.read ? undefined : 'button'}
+      accessibilityRole={pressable ? 'button' : undefined}
       accessibilityLabel={item.read ? description : `읽지 않음, ${description}`}
-      accessibilityHint={item.read ? undefined : '읽음으로 표시합니다'}
-      onPress={item.read ? undefined : () => onRead(item.id)}
+      accessibilityHint={
+        requestId !== null
+          ? '참여 요청 결과를 엽니다'
+          : item.read
+          ? undefined
+          : '읽음으로 표시합니다'
+      }
+      onPress={pressable ? press : undefined}
       style={[styles.row, item.read ? styles.read : styles.unread]}
       testID={`notification-${item.id}`}
     >

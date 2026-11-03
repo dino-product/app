@@ -5,13 +5,15 @@ import {
   type ParamListBase,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
   type FlatListInstance,
   type TextInstance,
 } from 'react-native';
+import { completedToWorkDetail } from '../../features/history/mockData';
+import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
 import { requestToWorkDetail } from '../../features/schedule/mockData';
 import { RejectReasonScreen } from '../../features/schedule/screens/RejectReasonScreen';
 import { RequestDetailScreen } from '../../features/schedule/screens/RequestDetailScreen';
@@ -21,12 +23,13 @@ import {
   weeklySchedule,
   workDetail,
 } from '../../features/work/mockData';
-import { formatResultTime } from '../../features/work/model';
+import { formatResultTime, formatSubmittedAt } from '../../features/work/model';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
-import { useSchedule, useWorkSession } from '../AppStateProvider';
+import { useHistory, useSchedule, useWorkSession } from '../AppStateProvider';
 import { callPhone, openDirections } from '../externalLinks';
 import type {
+  HistoryScreenProps,
   HomeScreenProps,
   MainTabScreenProps,
   RootScreenProps,
@@ -68,9 +71,14 @@ export function useFocusTitleOnOpen(
 }
 
 export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
-  const { started, setStarted } = useWorkSession();
+  const { started, setStarted, clearSubmission } = useWorkSession();
   const listRef = useTabScrollToTop();
-  const startWork = useCallback(() => setStarted(true), [setStarted]);
+  // 목 데이터는 끝낸 작업도 계속 진행할 작업으로 보여 준다. 다시 시작하면 새 작업처럼 제출 기록을 지워
+  // 읽기 전용 상세에 갇혀 '작업 수행중' 을 끝낼 수 없게 되지 않게 한다 (API 연동 때 지운다)
+  const startWork = useCallback(() => {
+    clearSubmission(currentWork.id);
+    setStarted(true);
+  }, [clearSubmission, setStarted]);
   const openWork = useCallback(
     (id: string) => navigation.navigate('WorkDetail', { id }),
     [navigation],
@@ -102,8 +110,18 @@ function confirmDiscardReport(onDiscard: () => void) {
   );
 }
 
-export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
-  const { setStarted } = useWorkSession();
+export function WorkDetailRoute({
+  navigation,
+  route,
+}: HomeScreenProps<'WorkDetail'>) {
+  const { setStarted, submissions, saveSubmission } = useWorkSession();
+  const workId = route.params.id;
+  const submission = submissions[workId];
+  // 목 데이터라 어떤 작업을 열어도 같은 상세를 보여준다. 제출 여부만 작업마다 다르다
+  const work = useMemo(
+    () => (submission ? { ...workDetail, submission } : workDetail),
+    [submission],
+  );
   const titleRef = useFocusTitleOnOpen(navigation);
   const [hasUnsavedReport, setHasUnsavedReport] = useState(false);
 
@@ -120,9 +138,8 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
   );
 
   return (
-    // 목 데이터라 어떤 작업을 열어도 같은 상세를 보여준다
     <WorkDetailScreen
-      work={workDetail}
+      work={work}
       titleRef={titleRef}
       onUnsavedReportChange={setHasUnsavedReport}
       onBack={() => navigation.goBack()}
@@ -131,10 +148,12 @@ export function WorkDetailRoute({ navigation }: HomeScreenProps<'WorkDetail'>) {
         setStarted(false);
         navigation.goBack();
       }}
-      onSubmitReport={() => ({
-        kind: 'submitted',
-        at: formatResultTime(new Date()),
-      })}
+      onSubmitReport={report => {
+        // 서버가 받은 셈으로 앱 상태에 둔다. API 연동 때는 제출 응답이 submitted 일 때만 저장하거나 상세 조회로 바꾼다
+        const now = new Date();
+        saveSubmission(workId, { submittedAt: formatSubmittedAt(now), report });
+        return { kind: 'submitted', at: formatResultTime(now) };
+      }}
       onCall={callPhone}
       onNavigate={openDirections}
       // 카메라·앨범 연동 전까지 회색 자리 사진을 넣는다
@@ -249,6 +268,75 @@ export function RejectReasonRoute({
         reject(request.id);
         navigation.popTo('Main');
       }}
+    />
+  );
+}
+
+export function WorkHistoryRoute({
+  navigation,
+}: HistoryScreenProps<'WorkHistory'>) {
+  const { today, works } = useHistory();
+  const listRef = useTabScrollToTop();
+  const openWork = useCallback(
+    (id: string) => navigation.navigate('CompletedWorkDetail', { id }),
+    [navigation],
+  );
+
+  return (
+    <WorkHistoryScreen
+      today={today}
+      works={works}
+      onOpenWork={openWork}
+      listRef={listRef}
+    />
+  );
+}
+
+// 완료한 작업의 상세. 목록에 없는 작업(딥링크 등)이면 빈 화면 대신 목록으로 돌아간다.
+// TODO(#69): 제출 후 읽기 전용 상태가 들어오면 제출한 보고를 넘겨 읽기 전용으로 연다. 그 전까지는 보고를 입력할 수 있다
+export function CompletedWorkDetailRoute({
+  navigation,
+  route,
+}: HistoryScreenProps<'CompletedWorkDetail'>) {
+  const { works } = useHistory();
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const completed = works.find(item => item.id === route.params.id);
+  const work = useMemo(
+    () => completed && completedToWorkDetail(completed),
+    [completed],
+  );
+  // 탭 안 스택이라, 스택 첫 화면(딥링크)에서 그냥 뒤로 가면 탭 내비게이터가 홈 탭으로 보낸다.
+  // 첫 화면이면 작업 이력 목록으로 바꾸고, 아니면 이 화면만 닫는다 (위에 쌓인 화면은 남는다)
+  const leave = useCallback(() => {
+    if (navigation.getState().routes[0]?.key === route.key) {
+      navigation.replace('WorkHistory');
+    } else {
+      navigation.goBack();
+    }
+  }, [navigation, route.key]);
+  const missing = work === undefined;
+  useEffect(() => {
+    if (missing) {
+      leave();
+    }
+  }, [missing, leave]);
+  if (!work) {
+    return null;
+  }
+
+  return (
+    <WorkDetailScreen
+      work={work}
+      titleRef={titleRef}
+      onBack={leave}
+      onDone={leave}
+      onSubmitReport={() => ({
+        kind: 'submitted',
+        at: formatResultTime(new Date()),
+      })}
+      onCall={callPhone}
+      onNavigate={openDirections}
+      onPickPhoto={async () => `mock://photo-${Date.now()}`}
     />
   );
 }

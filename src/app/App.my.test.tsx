@@ -89,14 +89,7 @@ describe('App — 마이 탭', () => {
     },
   );
 
-  it('신청 현황·조직 참여는 화면이 생길 때까지(#73) 마이페이지에 머문다', async () => {
-    await openMyPage();
-
-    await userEvent.press(button('신청 현황, 3건'));
-    await userEvent.press(button('조직 참여'));
-
-    expect(header('마이페이지')).toBeOnTheScreen();
-  });
+  // 신청 현황·조직 참여 화면은 App.org.test (#73)
 
   it('프로필을 저장하면 마이페이지로 돌아와 바뀐 이름·연락처를 보여준다', async () => {
     await openMyPage();
@@ -137,7 +130,8 @@ describe('App — 마이 탭', () => {
     await userEvent.press(button('알림센터'));
     const unread = () => screen.getAllByRole('button', { name: /^읽지 않음/ });
     const before = unread().length;
-    await userEvent.press(unread()[0]);
+    // 작업 알림은 읽음 처리만 한다 (참여 거절 알림은 거절 화면을 연다, App.org.test)
+    await userEvent.press(button(/^읽지 않음, 작업 취소/));
     expect(unread()).toHaveLength(before - 1);
 
     await userEvent.press(button('뒤로 가기'));

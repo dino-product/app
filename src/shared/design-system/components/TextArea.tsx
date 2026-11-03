@@ -3,7 +3,7 @@ import { StyleSheet, TextInput } from 'react-native';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 
-// 여러 줄 입력 (수행 메모, 사용 부품, 기타 거절 사유)
+// 여러 줄 입력 (수행 메모, 기타 거절 사유)
 export type TextAreaProps = {
   /** 스크린리더 이름. 화면의 제목과 겹치지 않게 "… 입력" 처럼 쓴다 */
   label: string;
@@ -11,6 +11,8 @@ export type TextAreaProps = {
   value: string;
   onChangeText: (text: string) => void;
   error?: boolean;
+  /** 값은 보이고 고칠 수 없다 (제출을 마친 완료 보고) */
+  readOnly?: boolean;
 };
 
 export const TextArea = memo(function DesignSystemTextArea({
@@ -19,10 +21,12 @@ export const TextArea = memo(function DesignSystemTextArea({
   value,
   onChangeText,
   error = false,
+  readOnly = false,
 }: TextAreaProps) {
   return (
     <TextInput
       accessibilityLabel={label}
+      editable={!readOnly}
       multiline
       placeholder={placeholder}
       placeholderTextColor={colors.gray[400]}
