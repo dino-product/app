@@ -1,5 +1,17 @@
-import { useCallback } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type ScrollViewInstance,
+} from 'react-native';
 import { BottomSheet, colors, CTA, Text } from '../../../shared/design-system';
 import {
   allTermsAgreed,
@@ -8,6 +20,7 @@ import {
   toggleTerm,
   type Terms,
   type TermsAgreement,
+  type TermsType,
 } from '../model';
 import { AgreeAllCheckbox, TermsCheck } from './TermsChecks';
 
@@ -15,23 +28,59 @@ import { AgreeAllCheckbox, TermsCheck } from './TermsChecks';
 // '확인' 은 전체 동의일 때만 켜지고, 누르면 시트의 체크를 화면에 반영한다 (기본안, 디자인 확인 항목)
 export function TermsSheet({
   visible,
+  focusType,
   draft,
   onChange,
   onClose,
   onConfirm,
 }: {
   visible: boolean;
+  /** 화면에서 > 를 누른 약관. 열리면 그 약관이 보이게 스크롤한다 */
+  focusType: TermsType | null;
   /** 시트에서 고친 체크. 연 순간의 화면 체크에서 시작한다 */
   draft: TermsAgreement;
-  onChange: (draft: TermsAgreement) => void;
+  onChange: Dispatch<SetStateAction<TermsAgreement>>;
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const allAgreed = allTermsAgreed(draft);
+  // TermsCheck 가 memo 라 체크가 바뀔 때마다 다섯 행을 다 그리지 않게 이전 값으로 바꾼다
   const toggle = useCallback(
-    (terms: Terms) => onChange(toggleTerm(draft, terms.type)),
-    [draft, onChange],
+    (terms: Terms) => onChange(current => toggleTerm(current, terms.type)),
+    [onChange],
   );
+  const toggleAll = useCallback(() => onChange(toggleAllTerms), [onChange]);
+
+  // 열릴 때 한 번, 누른 약관의 자리(약관 목록 위치 + 그 안의 위치)로 스크롤한다. 자리는 레이아웃으로만 알 수 있어
+  // 두 값이 모두 온 순간에 옮기고, 다시 그리지 않게 ref 에 둔다. 시트가 닫히면 다음에 열 때 다시 옮긴다
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const positions = useRef<{
+    items?: number;
+    rows: Partial<Record<TermsType, number>>;
+    scrolled: boolean;
+  }>({ rows: {}, scrolled: false });
+  useEffect(() => {
+    if (!visible) {
+      positions.current = { rows: {}, scrolled: false };
+    }
+  }, [visible]);
+  const scrollToFocus = () => {
+    const { items, rows, scrolled } = positions.current;
+    const row = focusType === null ? undefined : rows[focusType];
+    if (scrolled || items === undefined || row === undefined) {
+      return;
+    }
+    positions.current.scrolled = true;
+    scrollRef.current?.scrollTo({ y: items + row, animated: false });
+  };
+  const layoutItems = (event: LayoutChangeEvent) => {
+    positions.current.items = event.nativeEvent.layout.y;
+    scrollToFocus();
+  };
+  const layoutRow = (type: TermsType) => (event: LayoutChangeEvent) => {
+    positions.current.rows[type] = event.nativeEvent.layout.y;
+    scrollToFocus();
+  };
 
   return (
     <BottomSheet
@@ -52,6 +101,7 @@ export function TermsSheet({
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         // 본문 상자도 스크롤한다 (Android 는 겹친 스크롤을 켜야 안쪽이 먼저 받는다)
@@ -61,14 +111,23 @@ export function TermsSheet({
           <AgreeAllCheckbox
             label="전체 동의"
             checked={allAgreed}
-            onPress={() => onChange(toggleAllTerms(draft))}
+            onPress={toggleAll}
             variant="Body/XS/Medium"
             color={colors.gray[900]}
           />
         </View>
-        <View style={styles.items}>
+        <View
+          onLayout={layoutItems}
+          style={styles.items}
+          testID="terms-sheet-items"
+        >
           {termsList.map(terms => (
-            <View key={terms.type} style={styles.item}>
+            <View
+              key={terms.type}
+              onLayout={layoutRow(terms.type)}
+              style={styles.item}
+              testID={`terms-sheet-${terms.type}`}
+            >
               <TermsCheck
                 terms={terms}
                 title={terms.sheetTitle}
@@ -78,7 +137,6 @@ export function TermsSheet({
                 gap={8}
               />
               <ScrollView
-                accessibilityLabel={`${terms.sheetTitle} 본문`}
                 style={styles.body}
                 contentContainerStyle={styles.bodyContent}
                 nestedScrollEnabled

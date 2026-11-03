@@ -1,11 +1,12 @@
 import {
   act,
+  fireEvent,
   render,
   screen,
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { NativeModules } from 'react-native';
+import { NativeModules, ScrollView } from 'react-native';
 import { noTermsAgreed } from '../model';
 import { TermsAgreementScreen } from './TermsAgreementScreen';
 
@@ -199,6 +200,22 @@ describe('TermsAgreementScreen', () => {
       expect(screen.queryByTestId('terms-sheet')).not.toBeOnTheScreen();
       expect(allAgree()).not.toBeChecked();
       expect(checkbox(rows[0])).not.toBeChecked();
+    });
+
+    it('행의 > 를 누르면 그 약관이 보이게 시트를 스크롤한다', async () => {
+      const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockClear();
+      await renderTerms();
+
+      await openSheet(rows[2]);
+      const layout = (testID: string, y: number) =>
+        fireEvent(screen.getByTestId(testID), 'layout', {
+          nativeEvent: { layout: { x: 0, y, width: 345, height: 214 } },
+        });
+      await layout('terms-sheet-THIRD_PARTY', 452);
+      await layout('terms-sheet-items', 38);
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith({ y: 490, animated: false });
     });
 
     it('시트는 화면에서 켠 체크를 이어받아 열린다', async () => {

@@ -38,5 +38,9 @@ export function useScheduleStore(initial: {
     }));
   }, []);
 
-  return { ...state, accept, reject };
+  // 로그아웃하면 처음 받은 일정으로 되돌린다 (API 연동 뒤에는 다시 로그인할 때 서버가 다시 준다)
+  const [initialState] = useState(initial);
+  const reset = useCallback(() => setState(initialState), [initialState]);
+
+  return { ...state, accept, reject, reset };
 }

@@ -32,6 +32,7 @@ import {
   toggleTerm,
   type Terms,
   type TermsAgreement,
+  type TermsType,
 } from '../model';
 
 // Figma 약관 동의 (3284:22327 빈 / 3278:19869 전체 체크). 필수 네 개에 모두 동의해야 '가입하기' 가 켜진다.
@@ -49,6 +50,8 @@ export function TermsAgreementScreen({
 }) {
   const [agreement, setAgreement] = useState(noTermsAgreed);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // > 를 누른 약관. 시트가 그 약관이 보이게 열린다
+  const [focusType, setFocusType] = useState<TermsType | null>(null);
   // 시트에서 고치는 체크. 열 때 화면 체크로 시작하고, '확인' 을 눌러야 화면에 반영한다
   const [draft, setDraft] = useState(noTermsAgreed);
 
@@ -57,8 +60,9 @@ export function TermsAgreementScreen({
     (terms: Terms) => setAgreement(current => toggleTerm(current, terms.type)),
     [],
   );
-  const openSheet = () => {
+  const openSheet = (type: TermsType) => {
     setDraft(agreement);
+    setFocusType(type);
     setSheetOpen(true);
   };
   const confirmSheet = () => {
@@ -111,7 +115,7 @@ export function TermsAgreementScreen({
                     terms,
                   )} 보기`}
                   hitSlop={ICON_HIT_SLOP}
-                  onPress={openSheet}
+                  onPress={() => openSheet(terms.type)}
                   style={styles.more}
                 >
                   <Icon
@@ -135,6 +139,7 @@ export function TermsAgreementScreen({
 
       <TermsSheet
         visible={sheetOpen}
+        focusType={focusType}
         draft={draft}
         onChange={setDraft}
         onClose={() => setSheetOpen(false)}
@@ -155,13 +160,13 @@ const styles = StyleSheet.create({
   agreements: { gap: 24 },
   allRow: { flexDirection: 'row' },
   divider: { height: 1, backgroundColor: colors.inputDisabled },
-  rows: { gap: 24 },
-  // 행 높이는 Figma 20 이고 체크 표시(24)가 위아래로 2씩 넘친다
+  // Figma 는 행 20 에 간격 24 이고 체크 표시(24)가 위아래로 2씩 넘친다. 행을 체크 표시 높이로 두고 간격 20 으로
+  // 같은 44 간격을 맞춘다. 높이를 묶지 않아 큰 글자로 이름이 두 줄이 돼도 옆 행과 겹치지 않는다
+  rows: { gap: 20 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 20,
   },
   // 화살표 선이 행 오른쪽 끝에서 5 안쪽에 오도록 아이콘 틀(24)을 바깥으로 민다
   more: { marginRight: -4 },

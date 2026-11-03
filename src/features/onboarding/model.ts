@@ -189,3 +189,17 @@ export function toggleAllTerms(agreement: TermsAgreement): TermsAgreement {
 export function canSignUp(agreement: TermsAgreement): boolean {
   return termsList.every(terms => !terms.required || agreement[terms.type]);
 }
+
+const HANGUL_START = 0xac00;
+const HANGUL_END = 0xd7a3;
+const FINAL_RIEUL = 8;
+
+/** 조사 '(으)로': 받침이 없거나 ㄹ 받침이면 '로', 그 밖의 받침이면 '으로' (기사로, 직원으로, 사무실로) */
+export function withRo(word: string): string {
+  const code = word.charCodeAt(word.length - 1);
+  if (code < HANGUL_START || code > HANGUL_END) {
+    return '로';
+  }
+  const final = (code - HANGUL_START) % 28;
+  return final === 0 || final === FINAL_RIEUL ? '로' : '으로';
+}

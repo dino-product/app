@@ -14,6 +14,7 @@ import {
   CTA,
   Icon,
   Text,
+  MIN_TOUCH_TARGET,
   typography,
   withOpacity,
 } from '../../../../shared/design-system';
@@ -56,6 +57,7 @@ export function OrgJoinScreen({
   lookup,
   onFound,
   onPending,
+  onAlreadyMember,
   titleRef,
 }: {
   flow?: JoinFlow;
@@ -65,6 +67,8 @@ export function OrgJoinScreen({
   onFound: (organization: Organization, code: string) => void;
   /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
   onPending?: (organization: Organization) => void;
+  /** 이미 참여 중인 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 회사의 참여 완료로 돌아간다) */
+  onAlreadyMember?: (organization: Organization) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -104,6 +108,8 @@ export function OrgJoinScreen({
         onFound(outcome.organization, trimmed);
       } else if (outcome.kind === 'pending' && onPending) {
         onPending(outcome.organization);
+      } else if (outcome.kind === 'alreadyMember' && onAlreadyMember) {
+        onAlreadyMember(outcome.organization);
       } else if (outcome.kind === 'invalid') {
         // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
         if (Platform.OS === 'ios') {
@@ -277,9 +283,10 @@ const onboardingStyles = StyleSheet.create({
   intro: { gap: 6 },
   field: { gap: 8 },
   inputGroup: { gap: 12 },
-  // 입력칸 46, 테두리 Gray100. 버튼(CTA M)은 393 폭에서 102 다
+  // 입력칸 46, 테두리 Gray100. 버튼(CTA M)은 393 폭에서 102 다.
+  // 입력칸은 hitSlop 으로 넓힐 수 없어 Android 는 최소 터치 영역(48)까지 키운다
   input: {
-    minHeight: 46,
+    minHeight: Math.max(46, MIN_TOUCH_TARGET),
     marginRight: 10,
     paddingHorizontal: 16,
     borderColor: colors.gray[100],

@@ -66,4 +66,16 @@ describe('useScheduleStore', () => {
     expect(result.current.pending).toHaveLength(1);
     expect(result.current.confirmed).toHaveLength(1);
   });
+
+  it('처음 받은 일정으로 되돌린다 (로그아웃)', async () => {
+    const { result } = await renderHook(() =>
+      useScheduleStore({ confirmed, pending }),
+    );
+    await act(() => result.current.accept('p1'));
+
+    await act(() => result.current.reset());
+
+    expect(result.current.pending.map(item => item.id)).toEqual(['p1']);
+    expect(result.current.confirmed.map(item => item.id)).toEqual(['c1']);
+  });
 });

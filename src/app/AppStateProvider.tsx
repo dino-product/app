@@ -16,6 +16,7 @@ import type {
 } from '../features/schedule/model';
 import { useScheduleStore } from '../features/schedule/useScheduleStore';
 import type { ReportSubmission } from '../features/work/model';
+import { useAuth } from './AuthProvider';
 
 // 화면을 오가도 남아야 하는 상태. API 연동 전까지 목 데이터로 들고 있는다.
 type WorkSession = {
@@ -70,8 +71,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   );
   const [today] = useState(() => new Date());
   const [initialSchedule] = useState(() => makeScheduleMock(today));
-  const { confirmed, pending, accept, reject } =
+  const { confirmed, pending, accept, reject, reset } =
     useScheduleStore(initialSchedule);
+
+  // 로그아웃·탈퇴하면 이 기기에 들고 있던 목 상태를 비운다. 다른 계정으로 로그인해도 앞 계정의 작업·제출·수락이 남지 않는다
+  // (API 연동 뒤에는 로그인한 계정의 상태를 서버가 다시 준다). 렌더 중에 바꿔 로그인 화면이 비운 상태로 바로 그려진다
+  const { signedIn } = useAuth();
+  const [account, setAccount] = useState(signedIn);
+  if (signedIn !== account) {
+    setAccount(signedIn);
+    if (signedIn === null) {
+      setStarted(false);
+      setSubmissions({});
+      reset();
+    }
+  }
   // 완료 이력은 이 앱에서 바뀌지 않으므로 처음 한 번 만든 값을 그대로 넘긴다
   const [history] = useState(() => ({
     today,

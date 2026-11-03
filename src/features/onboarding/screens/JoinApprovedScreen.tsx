@@ -15,6 +15,7 @@ import {
   participationTypeLabels,
   type ParticipationRequest,
 } from '../../my/org/model';
+import { withRo } from '../model';
 
 // Figma 참여 완료 (3227:8525), 참여 완료-유형 변경 (3239:9100).
 // 유형 변경 화면은 제목이 '직원' 인데 요약 유형은 '기사' 라, 둘 다 확정된 유형으로 보인다 (기본안, 디자인 확인 항목).
@@ -107,13 +108,6 @@ export function JoinApprovedScreen({
       </View>
     </SafeAreaView>
   );
-}
-
-/** 받침이 있으면 '으로', 없으면 '로' (직원으로, 기사로) */
-function withRo(word: string): string {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  const hasBatchim = code >= 0 && code <= 11171 && code % 28 !== 0;
-  return hasBatchim ? '으로' : '로';
 }
 
 const styles = StyleSheet.create({

@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { colors, typography } from '../../../../shared/design-system';
 import type { ParticipationRequest } from '../model';
 import { JoinRejectedScreen } from './JoinRejectedScreen';
 
@@ -61,5 +62,29 @@ describe('JoinRejectedScreen', () => {
     await userEvent.press(screen.getByRole('button', { name: '확인' }));
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+  it('온보딩에서는 머리 제목이 참여 요청 결과다 (#85)', async () => {
+    await render(
+      <JoinRejectedScreen
+        flow="onboarding"
+        request={rejected}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('header', { name: '참여 요청 결과' }),
+    ).toBeOnTheScreen();
+  });
+
+  // Figma 회사찾기-거절 (3255:18035): 값 Caption/M/Semibold Gray800
+  it('요약 값은 SemiBold Gray800 이다', async () => {
+    await renderRejected();
+
+    expect(screen.getByText('Orbit')).toHaveStyle({
+      ...typography['Caption/M/SemiBold'],
+      color: colors.gray[800],
+    });
   });
 });

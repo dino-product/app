@@ -2,7 +2,10 @@ import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect } from 'react';
 import { Platform, StatusBar } from 'react-native';
 import { decideParticipationMock } from '../../features/my/org/mockData';
-import type { ParticipationRequest } from '../../features/my/org/model';
+import type {
+  Organization,
+  ParticipationRequest,
+} from '../../features/my/org/model';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
@@ -40,6 +43,10 @@ export function LoginRoute({ navigation }: RootScreenProps<'Login'>) {
       methods={loginMethodsFor(Platform.OS)}
       recentMethod={auth.lastMethod}
       onLogin={method => {
+        // 화면이 바뀌기 전에 다른 버튼을 눌러도 처음 누른 방식만 쓴다 (온보딩 방식이 바뀌지 않게)
+        if (!navigation.isFocused()) {
+          return;
+        }
         // 가입한 계정이면 바로 메인으로 (루트가 화면 묶음을 바꾼다), 신규 사용자는 프로필 등록부터
         if (isRegistered(auth, method)) {
           auth.signIn(method);
@@ -88,6 +95,15 @@ export function CompanyFindRoute({
 }: OnboardingScreenProps<'CompanyFind'>) {
   const { lookupCompany, requests } = useOnboarding();
   const titleRef = useFocusTitleOnOpen(navigation);
+  const requestOf = (
+    organization: Organization,
+    status: ParticipationRequest['status'],
+  ) =>
+    requests.find(
+      item =>
+        item.organizationId === organization.organizationId &&
+        item.status === status,
+    );
 
   return (
     <OrgJoinScreen
@@ -100,15 +116,20 @@ export function CompanyFindRoute({
           navigation.navigate('JoinRoleSelect', organization);
         }
       }}
-      // 승인 대기에서 뒤로 왔다가 같은 회사를 다시 찾으면 그 요청의 승인 대기로 돌아간다
+      // 승인 대기·참여 완료에서 뒤로 왔다가 같은 회사를 다시 찾으면 그 요청의 화면으로 돌아간다.
+      // 알림만 띄우면 '시작하기' 로 갈 길이 없어진다
       onPending={organization => {
-        const pending = requests.find(
-          item =>
-            item.organizationId === organization.organizationId &&
-            item.status === 'PENDING',
-        );
-        if (pending && navigation.isFocused()) {
-          navigation.navigate('JoinPending', { requestId: pending.requestId });
+        const request = requestOf(organization, 'PENDING');
+        if (request && navigation.isFocused()) {
+          navigation.navigate('JoinPending', { requestId: request.requestId });
+        }
+      }}
+      onAlreadyMember={organization => {
+        const request = requestOf(organization, 'APPROVED');
+        if (request && navigation.isFocused()) {
+          navigation.navigate('JoinApproved', {
+            requestId: request.requestId,
+          });
         }
       }}
       onBack={() => navigation.goBack()}

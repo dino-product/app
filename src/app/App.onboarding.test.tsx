@@ -173,6 +173,28 @@ describe('App — 온보딩', () => {
     expect(focus).toHaveBeenCalledTimes(3);
   });
 
+  it('카카오를 누르고 화면이 바뀌기 전에 Apple 을 눌러도 처음 누른 방식으로 온보딩을 한다', async () => {
+    await render(<App />);
+    const kakao = button('카카오로 시작하기');
+    const apple = button('Apple로 시작하기');
+
+    await fireEvent.press(kakao);
+    await fireEvent.press(apple);
+    await registerProfile();
+    await agreeTerms();
+    await findCompany('123456');
+    await requestAs('기사');
+    await approveAndStart();
+    await logoutFromMyPage();
+
+    expect(
+      within(screen.getByTestId('login-KAKAO')).getByText(
+        '최근에 로그인 했어요!',
+        { includeHiddenElements: true },
+      ),
+    ).toBeOnTheScreen();
+  });
+
   it('Android 에서는 카카오 버튼만 보인다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     await render(<App />);
@@ -243,6 +265,18 @@ describe('App — 온보딩', () => {
     await login('카카오로 시작하기');
     expect(header('내 작업')).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
+  });
+
+  it('로그아웃하면 이 기기에 들고 있던 목 상태(작업 시작 등)를 비워, 다시 로그인하면 처음 상태다', async () => {
+    await requestToJoin();
+    await approveAndStart();
+    await userEvent.press(button('작업 시작'));
+    expect(button('작업 수행중')).toBeOnTheScreen();
+
+    await logoutFromMyPage();
+    await login('카카오로 시작하기');
+
+    expect(button('작업 시작')).toBeOnTheScreen();
   });
 
   it('카카오로 가입한 뒤 Apple 로 로그인하면 다른 계정이라 프로필 등록부터 한다', async () => {
@@ -342,6 +376,31 @@ describe('App — 온보딩', () => {
       expect(
         await screen.findByRole('header', { name: '역할을 선택해주세요' }),
       ).toBeOnTheScreen();
+    });
+
+    it('참여 완료에서 뒤로 가도 같은 회사 코드를 넣으면 그 참여 완료로 돌아와 시작할 수 있다', async () => {
+      await requestToJoin();
+      await userEvent.press(button('확인'));
+      expect(header('참여 완료')).toBeOnTheScreen();
+
+      await escapeFrom('참여 완료');
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      await findCompany('123456');
+
+      expect(
+        await screen.findByRole('header', { name: 'Orbit 참여 승인 완료' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(button('시작하기'));
+      expect(header('내 작업')).toBeOnTheScreen();
+    });
+
+    it('승인 대기에서 Android 뒤로가기를 누르면 역할 선택이 아니라 회사 찾기로 간다', async () => {
+      await requestToJoin();
+
+      expect(await pressBack()).toBe(true);
+
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('역할을 선택해주세요')).not.toBeOnTheScreen();
     });
 
     it('234567 은 요청과 다른 유형으로 승인돼 유형 변경 완료가 보이고, 시작하기로 메인에 간다', async () => {

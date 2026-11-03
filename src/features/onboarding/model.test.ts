@@ -14,6 +14,7 @@ import {
   toggleAllTerms,
   toggleTerm,
   withdraw,
+  withRo,
   type AuthState,
   type TermsAgreement,
 } from './model';
@@ -163,5 +164,17 @@ describe('더미 로그인', () => {
       lastMethod: 'KAKAO',
     });
     expect(signedInAuth('APPLE').signedIn).toBe('APPLE');
+  });
+});
+
+describe('withRo', () => {
+  // 받침이 없거나 ㄹ 받침이면 '로', 그 밖의 받침이면 '으로'
+  it.each([
+    ['기사', '로'],
+    ['직원', '으로'],
+    ['관리자', '로'],
+    ['사무실', '로'],
+  ])('%s → %s', (word, particle) => {
+    expect(withRo(word)).toBe(particle);
   });
 });
