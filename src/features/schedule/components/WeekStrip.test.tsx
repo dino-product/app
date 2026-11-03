@@ -59,7 +59,8 @@ describe('WeekStrip', () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
-  it('VoiceOver 는 날짜 버튼의 이전 주·다음 주 동작으로 그 칸의 요일을 앞뒤 주에서 고르고 읽어 준다', async () => {
+  // 보이는 주만 넘기고 고른 날은 그대로 둔다 (#100). 넘긴 주는 저절로 읽지 않으므로 알려 준다
+  it('VoiceOver 는 날짜 버튼의 이전 주·다음 주 동작으로 보이는 주만 넘기고, 넘긴 주를 읽어 준다', async () => {
     const announce = jest.mocked(
       AccessibilityInfo.announceForAccessibilityWithOptions,
     );
@@ -76,21 +77,38 @@ describe('WeekStrip', () => {
     await fireEvent(day, 'accessibilityAction', {
       nativeEvent: { actionName: 'nextWeek' },
     });
-    expect(onSelect).toHaveBeenLastCalledWith(new Date(2026, 11, 23));
-    expect(announce).toHaveBeenLastCalledWith('12월 23일 수요일', {
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenLastCalledWith('12월 20일부터 12월 26일까지', {
       queue: true,
     });
 
     await fireEvent(day, 'accessibilityAction', {
       nativeEvent: { actionName: 'prevWeek' },
     });
-    expect(onSelect).toHaveBeenLastCalledWith(new Date(2026, 11, 9));
-    expect(announce).toHaveBeenLastCalledWith('12월 9일 수요일', {
+    expect(onPrev).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenLastCalledWith('12월 6일부터 12월 12일까지', {
       queue: true,
     });
-    // 밀기 콜백은 부르지 않는다 (선택 요일을 따르는 밀기와 달리 포커스한 칸 기준)
-    expect(onPrev).not.toHaveBeenCalled();
-    expect(onNext).not.toHaveBeenCalled();
+    // 고른 날은 바꾸지 않는다
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('VoiceOver 로 넘긴 주가 달·해를 걸치면 양 끝 날짜의 달을 읽는다', async () => {
+    const announce = jest.mocked(
+      AccessibilityInfo.announceForAccessibilityWithOptions,
+    );
+    announce.mockClear();
+    await renderStrip(new Date(2026, 11, 22));
+
+    await fireEvent(
+      screen.getByRole('button', { name: '12월 22일 화요일' }),
+      'accessibilityAction',
+      { nativeEvent: { actionName: 'nextWeek' } },
+    );
+
+    expect(announce).toHaveBeenLastCalledWith('12월 27일부터 1월 2일까지', {
+      queue: true,
+    });
   });
 
   it('주가 바뀌어도 요일 칸은 그대로 남아 VoiceOver 포커스가 같은 요일에 머문다', async () => {
@@ -129,16 +147,16 @@ describe('WeekStrip 넘김', () => {
       nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 69 } },
     });
 
-  // ScheduleScreen 처럼 밀어 넘기면 같은 요일을 앞뒤 주에서 고른다
+  // ScheduleScreen 처럼 밀어 넘기면 보이는 주만 바꾸고 고른 날은 그대로 둔다 (#100)
   function StatefulStrip() {
-    const [date, setDate] = useState(selected);
+    const [weekOf, setWeekOf] = useState(selected);
     return (
       <WeekStrip
-        days={weekDays(date)}
-        selected={date}
-        onSelect={setDate}
-        onPrev={() => setDate(addWeeks(date, -1))}
-        onNext={() => setDate(addWeeks(date, 1))}
+        days={weekDays(weekOf)}
+        selected={selected}
+        onSelect={jest.fn()}
+        onPrev={() => setWeekOf(addWeeks(weekOf, -1))}
+        onNext={() => setWeekOf(addWeeks(weekOf, 1))}
       />
     );
   }
@@ -157,19 +175,49 @@ describe('WeekStrip 넘김', () => {
     }
   });
 
-  // 밀어 넘기면 같은 요일을 고르므로 넘어간 뒤의 모습과 같다
-  it('옆 주는 같은 요일을 고른 모습으로 그린다', async () => {
+  // 검정 선택 칸은 고른 날 하나에만 있다. 옆 주에 같은 요일을 고른 모습으로 그리지 않는다 (#100)
+  it('옆 주에는 고른 날이 없으면 선택 칸이 없다', async () => {
     await renderStrip();
 
-    expect(
-      screen.getByRole('button', { name: '12월 22일 화요일', ...hidden }),
-    ).toBeSelected();
-    expect(
-      screen.getByRole('button', { name: '12월 23일 수요일', ...hidden }),
-    ).not.toBeSelected();
+    const selectedCells = screen
+      .getAllByRole('button', hidden)
+      .filter(cell => cell.props.accessibilityState?.selected);
+    expect(selectedCells).toHaveLength(1);
+    expect(selectedCells[0].props.accessibilityLabel).toBe('12월 15일 화요일');
+    for (const name of ['12월 8일 화요일', '12월 22일 화요일']) {
+      expect(
+        screen.getByRole('button', { name, ...hidden }),
+      ).not.toBeSelected();
+    }
   });
 
-  it('밀어서 넘긴 뒤에도 요일 칸이 그대로 남아 포커스가 같은 요일에 머문다', async () => {
+  it('고른 날이 옆 주에 있으면 그 주의 그 칸만 선택으로 그린다', async () => {
+    // 보이는 주는 12월 13일 ~ 19일, 고른 날은 다음 주 23일 수요일
+    await render(
+      <WeekStrip
+        days={weekDays(selected)}
+        selected={new Date(2026, 11, 23)}
+        onSelect={jest.fn()}
+        onPrev={jest.fn()}
+        onNext={jest.fn()}
+      />,
+    );
+
+    const selectedCells = screen
+      .getAllByRole('button', hidden)
+      .filter(cell => cell.props.accessibilityState?.selected);
+    expect(selectedCells.map(cell => cell.props.accessibilityLabel)).toEqual([
+      '12월 23일 수요일',
+    ]);
+    // 보이는 주에는 선택 칸이 없다
+    expect(
+      screen
+        .getAllByRole('button')
+        .filter(cell => cell.props.accessibilityState?.selected),
+    ).toEqual([]);
+  });
+
+  it('밀어서 넘긴 뒤에도 요일 칸이 그대로 남아 포커스가 같은 요일에 머물고, 고른 날은 그대로다', async () => {
     const { finish } = holdNativeAnimations();
     await render(<StatefulStrip />);
     await layoutTrack();
@@ -182,12 +230,22 @@ describe('WeekStrip 넘김', () => {
     ).toBeSelected();
     await finish();
 
+    // 넘긴 주에는 고른 날이 없어 선택 칸이 없다
     expect(
       screen.getByRole('button', { name: '12월 22일 화요일' }),
-    ).toBeSelected();
+    ).not.toBeSelected();
+    expect(
+      screen
+        .getAllByRole('button')
+        .filter(cell => cell.props.accessibilityState?.selected),
+    ).toEqual([]);
     const sameCell =
       screen.getByRole('button', { name: '12월 23일 수요일' }) === wednesday;
     expect(sameCell).toBe(true);
+    // 고른 날은 앞 주 옆 페이지에 그대로 있다
+    expect(
+      screen.getByRole('button', { name: '12월 15일 화요일', ...hidden }),
+    ).toBeSelected();
   });
 });
 

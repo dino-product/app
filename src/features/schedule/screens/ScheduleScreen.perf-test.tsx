@@ -54,7 +54,7 @@ describe('ScheduleScreen 렌더 예산', () => {
       },
     );
 
-    // 마운트 1 + 주 넘김 1. 선택 날짜와 보이는 달을 바꾸는 두 setState 는 한 번에 처리된다
+    // 마운트 1 + 주 넘김 1. 보이는 주만 바꾸고 고른 날·날짜 머리·일정은 다시 계산하지 않는다
     expect(Math.max(...result.counts)).toBe(2);
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
@@ -86,7 +86,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         },
       );
 
-      // 마운트 1 + 넘김 확정 1. 트랙의 페이지 자리와 선택 날짜가 한 번에 바뀐다
+      // 마운트 1 + 넘김 확정 1. 트랙의 페이지 자리와 보이는 주가 한 번에 바뀐다
       expect(Math.max(...result.counts)).toBe(2);
       expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
         perfBudget.render.maxRedundantUpdates,

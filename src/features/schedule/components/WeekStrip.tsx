@@ -8,11 +8,11 @@ import {
 import { colors, Text } from '../../../shared/design-system';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
-import { dayA11yLabel, dayColor } from './calendarDay';
+import { dayA11yLabel, dayColor, weekA11yLabel } from './calendarDay';
 import { SwipeTrack, type PageOffset } from './SwipeTrack';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
-// VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 고른다)
+// VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 넘긴다)
 const weekActions = [
   { name: 'prevWeek', label: '이전 주' },
   { name: 'nextWeek', label: '다음 주' },
@@ -24,7 +24,7 @@ const weekActionDelta: Partial<Record<string, number>> = {
 
 // Figma 내 일정 › 주간 날짜 줄 (DesignSystem › Calendar Contents, View=Week). 선택한 날은 Primary 배경 상자.
 // 왼쪽으로 밀면 다음 주, 오른쪽으로 밀면 이전 주 (iOS 캘린더와 같은 방향). 끄는 동안 줄이 손가락을 따라 움직이고
-// 옆 주가 드러나며, 다 넘어간 뒤에 onPrev·onNext 를 부른다.
+// 옆 주가 드러나며, 다 넘어간 뒤에 onPrev·onNext 를 부른다. 넘기는 것은 보이는 주(days)뿐이고 고른 날은 그대로다.
 export function WeekStrip({
   days,
   selected,
@@ -33,12 +33,13 @@ export function WeekStrip({
   onNext,
   edgeInset = 0,
 }: {
+  /** 보이는 주 (일요일~토요일). 고른 날이 없는 주일 수 있다 */
   days: readonly Date[];
   selected: Date;
   onSelect: (date: Date) => void;
-  /** 이전 주로 밀었을 때 */
+  /** 이전 주로 넘겼을 때 */
   onPrev: () => void;
-  /** 다음 주로 밀었을 때 */
+  /** 다음 주로 넘겼을 때 */
   onNext: () => void;
   /**
    * 부모가 화면 가장자리에서 들어간 거리. Android 에서 이만큼 바깥까지 가장자리 밀기를 받고,
@@ -47,31 +48,31 @@ export function WeekStrip({
   edgeInset?: number;
 }) {
   const swipe = useHorizontalSwipe({ onPrev, onNext });
-  // 동작은 포커스한 칸 기준이다: 그 요일을 앞뒤 주에서 고른다. 칸은 그대로 남고 레이블만 바뀌므로
-  // VoiceOver 가 저절로 읽지 않는 새 날짜를 읽어 준다 (말하던 것이 끝난 뒤에)
-  const moveWeekFrom =
-    (date: Date) =>
-    ({ nativeEvent }: AccessibilityActionEvent) => {
-      const delta = weekActionDelta[nativeEvent.actionName];
-      if (delta === undefined) {
-        return;
-      }
-      const next = addWeeks(date, delta);
-      onSelect(next);
-      AccessibilityInfo.announceForAccessibilityWithOptions(
-        dayA11yLabel(next),
-        { queue: true },
-      );
-    };
+  // 밀기처럼 보이는 주만 넘기고 고른 날은 그대로 둔다. 포커스한 칸은 그대로 남고 레이블만 바뀌어
+  // VoiceOver 가 저절로 읽지 않으므로 넘긴 주를 읽어 준다 (말하던 것이 끝난 뒤에)
+  const moveWeek = ({ nativeEvent }: AccessibilityActionEvent) => {
+    const delta = weekActionDelta[nativeEvent.actionName];
+    if (delta === undefined) {
+      return;
+    }
+    if (delta < 0) {
+      onPrev();
+    } else {
+      onNext();
+    }
+    AccessibilityInfo.announceForAccessibilityWithOptions(
+      weekA11yLabel(days.map(day => addWeeks(day, delta))),
+      { queue: true },
+    );
+  };
 
-  // 밀어 넘기면 같은 요일을 고르므로(ScheduleScreen) 옆 주도 그 요일을 고른 모습으로 그린다. 넘어간 뒤와 같다
+  // 검정 칸은 고른 날 하나에만 있다. 옆 주도 고른 날이 그 주에 있을 때만 그린다
   const renderWeek = (offset: PageOffset) => {
-    const weekSelected = addWeeks(selected, offset);
     return (
       <View style={styles.row}>
         {days.map(day => {
           const date = addWeeks(day, offset);
-          const active = isSameDay(date, weekSelected);
+          const active = isSameDay(date, selected);
           const color = active
             ? colors.white[100]
             : dayColor(date.getDay(), 'week');
@@ -83,7 +84,7 @@ export function WeekStrip({
               accessibilityLabel={dayA11yLabel(date)}
               accessibilityState={{ selected: active }}
               accessibilityActions={weekActions}
-              onAccessibilityAction={moveWeekFrom(date)}
+              onAccessibilityAction={moveWeek}
               hitSlop={DAY_HIT_SLOP}
               onPress={() => onSelect(date)}
               style={[styles.day, active && styles.dayActive]}

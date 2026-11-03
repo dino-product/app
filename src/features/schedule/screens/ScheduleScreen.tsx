@@ -72,6 +72,10 @@ export function ScheduleScreen({
     year: today.getFullYear(),
     month: today.getMonth(),
   });
+  // 주간 줄이 보이는 주의 일요일 0시. 고른 날이 없는 주일 수 있다
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(today).getTime(),
+  );
 
   const selectedKey = toDateKey(selected);
   const daySchedules = useMemo(
@@ -84,17 +88,24 @@ export function ScheduleScreen({
   );
   const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
+  // 고른 날의 주·달을 보여 준다
   const selectDate = useCallback((date: Date) => {
     setSelected(date);
     setViewMonth({ year: date.getFullYear(), month: date.getMonth() });
+    setWeekStart(startOfWeek(date).getTime());
   }, []);
+  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
+  const toggleCalendar = () => {
+    setCalendarOpen(open => !open);
+    selectDate(selected);
+  };
 
   const moveMonth = (delta: number) =>
     setViewMonth(prev => addMonths(prev.year, prev.month, delta));
 
-  // 주간 줄은 선택한 날의 주를 그린다. 밀어서 주를 넘기면 같은 요일을 고른다 (iOS 캘린더 일 보기)
-  const moveWeek = (delta: number) => selectDate(addWeeks(selected, delta));
-  const weekStart = startOfWeek(selected).getTime();
+  // 주간 줄은 보이는 주를 따로 둔다. 주를 넘겨도 고른 날은 그대로다 (#100)
+  const moveWeek = (delta: number) =>
+    setWeekStart(prev => addWeeks(new Date(prev), delta).getTime());
   const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
 
   const renderConfirmed = useCallback(
@@ -121,7 +132,7 @@ export function ScheduleScreen({
           accessibilityRole="button"
           accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
           hitSlop={ICON_HIT_SLOP}
-          onPress={() => setCalendarOpen(open => !open)}
+          onPress={toggleCalendar}
         >
           {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
           {calendarOpen ? (
