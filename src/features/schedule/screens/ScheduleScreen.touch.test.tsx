@@ -41,7 +41,8 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
     const day = screen.getByRole('button', { name: '12월 15일 화요일' });
     const row = day.parent as HostElement;
     const gap = stylePt(row, 'gap');
-    const width = (contentWidth(row.parent as HostElement) - gap * 6) / 7;
+    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
+    const width = (contentWidth(weekArea) - gap * 6) / 7;
     expectMinTouchTarget(day, { width });
     const slop = hitSlopOf(day);
     expect(slop.left + slop.right).toBeLessThanOrEqual(gap);

@@ -45,14 +45,18 @@ describe('WeekStrip 터치 영역', () => {
     );
   });
 
-  // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
-  it('마지막 칸이 루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
+  // 넘김 창은 옆 주를 자르려고 overflow hidden 이다. 그 밖의 터치는 안쪽 칸에 가지 않는다 (Android).
+  // 페이지는 창 폭 그대로이고 좌우 여백만큼 칸이 들어가 있다
+  it('마지막 칸이 넓힌 영역은 넘김 창 안(페이지 좌우 여백)에 든다', async () => {
     await renderTouchStrip();
 
     const saturday = getDay('10월 17일 토요일');
-    const root = saturday.parent as HostElement;
+    // 칸 › 주 줄 › 페이지 › 트랙 › 넘김 창
+    const page = saturday.parent?.parent as HostElement;
+    const swipeWindow = page.parent?.parent as HostElement;
+    expect(swipeWindow).toHaveStyle({ overflow: 'hidden' });
     expect(hitSlopOf(saturday).right).toBeLessThanOrEqual(
-      hitSlopOf(root).right,
+      stylePt(page, 'paddingHorizontal'),
     );
   });
 });

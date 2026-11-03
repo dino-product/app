@@ -1,6 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { colors, typography } from '../../../shared/design-system';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
 import { WorkHistoryScreen } from './WorkHistoryScreen';
@@ -133,6 +134,22 @@ describe('WorkHistoryScreen — 월 이동', () => {
     expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
     expect(screen.getByText('이 달에 완료한 작업이 없어요')).toBeOnTheScreen();
     expect(screen.getByLabelText('이번 달 완료 0건')).toBeOnTheScreen();
+  });
+
+  it('빈 상태 아이콘은 화살표 없는 채운 시계(Gray300, 40)다', async () => {
+    await renderHistory({ works: [] });
+
+    const icon = screen.getByTestId('history-empty-icon', {
+      includeHiddenElements: true,
+    });
+    expect(icon).toHaveStyle({ width: 40, height: 40 });
+    const [svg] = icon.children;
+    if (typeof svg === 'string') {
+      throw new Error('SVG 뷰가 없습니다');
+    }
+    expect(svg.props.xml).toBe(iconSvgs['history-empty'].xml);
+    expect(svg.props.xml).not.toContain('M5 2.667V6.167H8.5');
+    expect(svg.props.color).toBe(colors.gray[300]);
   });
 });
 
