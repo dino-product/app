@@ -19,10 +19,12 @@ import {
 import { KeyboardAvoidingArea } from '../../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
+import { flowLayouts } from '../components/flowLayouts';
 import { NoticeModal, type Notice } from '../components/NoticeModal';
-import type { LookupOutcome, Organization } from '../model';
+import type { JoinFlow, LookupOutcome, Organization } from '../model';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
+// 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
 // QR 코드 인식은 카메라 모듈·권한 문구가 필요해 별도 티켓이라 비활성이다
 const intro = {
   title: '회사 찾기',
@@ -48,15 +50,20 @@ const noticeFor = (
       };
 
 export function OrgJoinScreen({
+  flow = 'my',
   onBack,
   lookup,
   onFound,
+  onPending,
   titleRef,
 }: {
+  flow?: JoinFlow;
   onBack: () => void;
   /** 입력한 코드로 회사를 찾는다 (GET /api/v1/organizations/lookup) */
   lookup: (code: string) => Promise<LookupOutcome>;
   onFound: (organization: Organization, code: string) => void;
+  /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
+  onPending?: (organization: Organization) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -93,6 +100,8 @@ export function OrgJoinScreen({
       setInvalid(outcome.kind === 'invalid');
       if (outcome.kind === 'found') {
         onFound(outcome.organization, trimmed);
+      } else if (outcome.kind === 'pending' && onPending) {
+        onPending(outcome.organization);
       } else if (outcome.kind === 'invalid') {
         // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
         if (Platform.OS === 'ios') {
@@ -121,10 +130,13 @@ export function OrgJoinScreen({
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
+      {/* 마이에서는 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
       <SubScreenHeader
-        title={invalid ? '회사 참여' : '조직 참여하기'}
+        title={flow === 'onboarding' || invalid ? '회사 참여' : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
@@ -212,7 +224,6 @@ export function OrgJoinScreen({
 const noop = () => {};
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
   content: {
     gap: 28,
     paddingHorizontal: 24,

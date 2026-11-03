@@ -1,5 +1,10 @@
 import { membershipsMock } from '../mockData';
-import { lookupCompanyMock, participationRequestsMock } from './mockData';
+import {
+  decideParticipationMock,
+  lookupCompanyMock,
+  participationRequestsMock,
+} from './mockData';
+import type { ParticipationRequest } from './model';
 
 describe('lookupCompanyMock', () => {
   const lookup = (code: string) =>
@@ -25,6 +30,63 @@ describe('lookupCompanyMock', () => {
     expect(lookup('HANBIT10')).toMatchObject({
       availability: 'PENDING_REQUEST',
       pendingRequestId: 'request-1',
+    });
+  });
+});
+
+// 온보딩(#85)에서 승인 대기 › '확인' 을 누르면 사무실이 결정한 것으로 친다. 결과는 회사 코드로 고른다
+describe('decideParticipationMock', () => {
+  const requestTo = (
+    code: string,
+    desiredType: ParticipationRequest['desiredType'] = 'TECHNICIAN',
+  ): ParticipationRequest => {
+    const organization = lookupCompanyMock(code, [], []);
+    if (!organization) {
+      throw new Error(`없는 회사 코드: ${code}`);
+    }
+    return {
+      organizationId: organization.organizationId,
+      organizationName: organization.organizationName,
+      requestId: 'request-1',
+      desiredType,
+      status: 'PENDING',
+      requestChannel: 'COMPANY_CODE',
+      requestedAt: '2026-09-23T01:24:00Z',
+    };
+  };
+
+  it('Figma 예시 코드 123456 은 Orbit 이고, 요청한 유형 그대로 승인한다', () => {
+    const request = requestTo('123456', 'STAFF');
+
+    expect(request.organizationName).toBe('Orbit');
+    expect(decideParticipationMock(request)).toEqual({
+      status: 'APPROVED',
+      approvedType: 'STAFF',
+    });
+  });
+
+  it('234567 은 요청과 다른 유형으로 승인한다 (유형 변경)', () => {
+    expect(decideParticipationMock(requestTo('234567', 'TECHNICIAN'))).toEqual({
+      status: 'APPROVED',
+      approvedType: 'STAFF',
+    });
+    expect(decideParticipationMock(requestTo('234567', 'STAFF'))).toEqual({
+      status: 'APPROVED',
+      approvedType: 'TECHNICIAN',
+    });
+  });
+
+  it('345678 은 사유와 함께 거절한다', () => {
+    expect(decideParticipationMock(requestTo('345678'))).toEqual({
+      status: 'REJECTED',
+      rejectReason: '현재 기사 인원이 충분해 요청을 받지 않고 있어요.',
+    });
+  });
+
+  it('그 밖의 회사는 요청한 유형으로 승인한다', () => {
+    expect(decideParticipationMock(requestTo('ORBIT1245', 'STAFF'))).toEqual({
+      status: 'APPROVED',
+      approvedType: 'STAFF',
     });
   });
 });

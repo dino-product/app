@@ -37,4 +37,15 @@ describe('colors', () => {
   it('Figma 변수 P/T/01 을 갖는다', () => {
     expect(colors.pt01).toBe('#32303A');
   });
+
+  // 온보딩 (#85)
+  it('Figma 변수 입력칸/폰트/비활성화 와 라이브러리 Gray200·Gray500 을 갖는다', () => {
+    expect(colors.inputDisabled).toBe('#CFCFCF');
+    expect(colors.libraryGray[200]).toBe('#D9D9D9');
+    expect(colors.libraryGray[500]).toBe('#7F7F7F');
+  });
+
+  it('카카오 로그인 버튼 노랑을 갖는다', () => {
+    expect(colors.kakao).toBe('#FEE500');
+  });
 });

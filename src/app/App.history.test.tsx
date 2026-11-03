@@ -1,5 +1,6 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { BackHandler, FlatList } from 'react-native';
+import { signedInAuth } from '../features/onboarding/model';
 import App from './App';
 
 // #71 하단 탭 '작업 이력'. 화면 자체는 WorkHistoryScreen.test 가 보고, 여기서는 탭·스택 연결을 본다.
@@ -16,7 +17,7 @@ const monthTitle = (offset: number) => {
 };
 
 async function openHistory() {
-  await render(<App />);
+  await render(<App initialAuth={signedInAuth()} />);
   await userEvent.press(tab('작업 이력'));
 }
 

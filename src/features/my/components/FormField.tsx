@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { colors, Text, typography } from '../../../shared/design-system';
 
-// 라벨 + 한 줄 입력칸. 포커스되면 보라 테두리 (Figma 마이페이지-프로필 수정 3255:19478)
+// 라벨 + 한 줄 입력칸. 포커스되면 보라 테두리 (Figma 마이페이지-프로필 수정 3255:19478, 온보딩 프로필 등록 3267:11212)
 export type FormFieldProps = {
   /** 보이는 라벨이자 스크린리더 이름 */
   label: string;
@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
   field: { gap: 8 },
   input: {
     ...typography['Body/XS/Medium'],
-    minHeight: 48,
+    minHeight: 50,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.gray[200],
     backgroundColor: colors.white[100],

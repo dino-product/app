@@ -244,4 +244,48 @@ describe('BottomSheet', () => {
       expect(onClose).not.toHaveBeenCalled();
     });
   });
+  describe('모양 (Figma 시트마다 다르다)', () => {
+    it('기본은 신청 취소 시트(2889:13197) 모양이다: 손잡이, 위 모서리 24, 아래는 안전 영역 + 16', async () => {
+      await render(sheet(true));
+
+      expect(
+        screen.getByTestId('sheet-handle', { includeHiddenElements: true }),
+      ).toBeTruthy();
+      expect(screen.getByTestId('sheet')).toHaveStyle({
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      });
+      expect(screen.getByTestId('sheet-content')).toHaveStyle({
+        paddingTop: 12,
+        paddingHorizontal: 24,
+        paddingBottom: 16,
+      });
+    });
+
+    it('document 는 약관 동의 시트(3569:7702) 모양이다: 손잡이 없이 위 모서리 28, 위 24·아래 36, 좌우 여백은 내용이 정한다', async () => {
+      await render(
+        <BottomSheet
+          visible
+          onClose={jest.fn()}
+          variant="document"
+          testID="sheet"
+        >
+          <Text>시트 내용</Text>
+        </BottomSheet>,
+      );
+
+      expect(
+        screen.queryByTestId('sheet-handle', { includeHiddenElements: true }),
+      ).toBeNull();
+      expect(screen.getByTestId('sheet')).toHaveStyle({
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+      });
+      expect(screen.getByTestId('sheet-content')).toHaveStyle({
+        paddingTop: 24,
+        paddingHorizontal: 0,
+        paddingBottom: 36,
+      });
+    });
+  });
 });

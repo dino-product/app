@@ -4,13 +4,32 @@ import type {
   NavigatorScreenParams,
 } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { LoginMethod } from '../../features/onboarding/model';
 
-// 탭 바가 없는 화면(요청 상세·거절 사유)은 탭 위의 루트 스택에 둔다
+// 루트 스택은 로그인 상태에 따라 화면 묶음을 바꾼다 (#85, React Navigation 인증 흐름).
+// 로그아웃: 로그인 → 온보딩 / 로그인: 메인과 탭 바가 없는 화면(요청 상세·거절 사유)
 export type RootStackParamList = {
+  Login: undefined;
+  /** method: 이 온보딩을 시작한 더미 로그인 방식 */
+  Onboarding: { method: LoginMethod };
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   RequestDetail: { id: string };
   RejectReason: { id: string };
 };
+
+// 온보딩 (#85). 하단 탭이 없는 가입 흐름이라 루트 스택 위에 따로 쌓는다
+export type OnboardingStackParamList = {
+  ProfileRegister: undefined;
+  TermsAgreement: undefined;
+  CompanyFind: undefined;
+  JoinRoleSelect: { organizationId: string; organizationName: string };
+  JoinPending: { requestId: string };
+  JoinApproved: { requestId: string };
+  JoinRejected: { requestId: string };
+};
+
+export const ONBOARDING_INITIAL_ROUTE =
+  'ProfileRegister' satisfies keyof OnboardingStackParamList;
 
 // 탭 이름은 하단 탭 키(MainTabKey)와 같다 (MainTabBar 가 컴파일 타임에 확인)
 export type MainTabParamList = {
@@ -80,4 +99,10 @@ export type MyScreenProps<T extends keyof MyStackParamList> =
   CompositeScreenProps<
     NativeStackScreenProps<MyStackParamList, T>,
     MainTabScreenProps<'my'>
+  >;
+
+export type OnboardingScreenProps<T extends keyof OnboardingStackParamList> =
+  CompositeScreenProps<
+    NativeStackScreenProps<OnboardingStackParamList, T>,
+    RootScreenProps<'Onboarding'>
   >;

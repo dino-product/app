@@ -5,7 +5,9 @@ import {
 } from '@react-navigation/native';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { escapeTarget } from '../../../jest/voiceOver';
+import { signedInAuth } from '../../features/onboarding/model';
 import { AppStateProvider } from '../AppStateProvider';
+import { AuthProvider } from '../AuthProvider';
 import { RootNavigator } from './RootNavigator';
 import type { RootStackParamList } from './types';
 
@@ -18,14 +20,16 @@ const navigation = createNavigationContainerRef<RootStackParamList>();
 
 const renderAt = (routes: Route[]) =>
   render(
-    <AppStateProvider>
-      <NavigationContainer
-        ref={navigation}
-        initialState={{ index: routes.length - 1, routes }}
-      >
-        <RootNavigator />
-      </NavigationContainer>
-    </AppStateProvider>,
+    <AuthProvider initialState={signedInAuth()}>
+      <AppStateProvider>
+        <NavigationContainer
+          ref={navigation}
+          initialState={{ index: routes.length - 1, routes }}
+        >
+          <RootNavigator />
+        </NavigationContainer>
+      </AppStateProvider>
+    </AuthProvider>,
   );
 
 // 목록에 없는 요청(이미 처리됐거나 서버에서 취소됨)으로 화면이 열린 경우.
@@ -59,27 +63,29 @@ const renderHistoryAt = (
   }[],
 ) =>
   render(
-    <AppStateProvider>
-      <NavigationContainer
-        initialState={{
-          routes: [
-            {
-              name: 'Main',
-              state: {
-                routes: [
-                  {
-                    name: 'history',
-                    state: { index: routes.length - 1, routes },
-                  },
-                ],
+    <AuthProvider initialState={signedInAuth()}>
+      <AppStateProvider>
+        <NavigationContainer
+          initialState={{
+            routes: [
+              {
+                name: 'Main',
+                state: {
+                  routes: [
+                    {
+                      name: 'history',
+                      state: { index: routes.length - 1, routes },
+                    },
+                  ],
+                },
               },
-            },
-          ],
-        }}
-      >
-        <RootNavigator />
-      </NavigationContainer>
-    </AppStateProvider>,
+            ],
+          }}
+        >
+          <RootNavigator />
+        </NavigationContainer>
+      </AppStateProvider>
+    </AuthProvider>,
   );
 
 describe('RootNavigator — 없는 완료 작업', () => {

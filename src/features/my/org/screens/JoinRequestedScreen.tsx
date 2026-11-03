@@ -5,26 +5,32 @@ import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestSheet } from '../components/CancelRequestSheet';
+import { flowLayouts } from '../components/flowLayouts';
+import { InfoNotice } from '../components/InfoNotice';
 import { SummaryCard } from '../components/SummaryCard';
 import {
   formatRequestedAt,
   participationTypeLabels,
   requestChannelLabels,
+  type JoinFlow,
   type ParticipationRequest,
 } from '../model';
 
-// Figma 회사찾기-요청완료 (3235:14886). 진행 표시는 첫 단계만 끝난 상태다
+// Figma 회사찾기-요청완료 (3235:14886). 진행 표시는 첫 단계만 끝난 상태다.
+// 온보딩(#85)은 승인 대기 (3227:8824) 이고 머리 제목 '승인 대기', 버튼 위 안내 상자가 더 있다
 const steps = ['요청 완료', '사무실 검토 중', '참여 완료'] as const;
 
 export function JoinRequestedScreen({
+  flow = 'my',
   request,
   onConfirm,
   onCancel,
   onBack,
   titleRef,
 }: {
+  flow?: JoinFlow;
   request: ParticipationRequest;
-  /** 마이페이지로 */
+  /** 마이는 마이페이지로, 온보딩은 사무실이 결정한 것으로 친다 (더미) */
   onConfirm: () => void;
   /** 바텀시트에서 신청 취소를 확정했을 때 */
   onCancel: (requestId: string) => void;
@@ -37,9 +43,12 @@ export function JoinRequestedScreen({
   const confirmed = useRef(false);
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
       <SubScreenHeader
-        title="조직 참여하기"
+        title={flow === 'onboarding' ? '승인 대기' : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
@@ -92,7 +101,11 @@ export function JoinRequestedScreen({
           ))}
         </View>
 
+        {/* 값 글자는 마이(3235:14886)가 Medium, 온보딩(3227:8824)이 SemiBold 다 */}
         <SummaryCard
+          valueVariant={
+            flow === 'onboarding' ? 'Caption/M/SemiBold' : 'Caption/M/Medium'
+          }
           rows={[
             { label: '회사', value: request.organizationName },
             {
@@ -118,7 +131,12 @@ export function JoinRequestedScreen({
         </Text>
       </ScrollView>
 
-      <View style={[readableColumn, styles.actions]}>
+      {flow === 'onboarding' && (
+        <View style={[readableColumn, styles.notice]}>
+          <InfoNotice message="이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다." />
+        </View>
+      )}
+      <View style={[readableColumn, styles.actions, flowLayouts[flow].actions]}>
         <CTA
           variant="outline"
           label="신청 취소"
@@ -149,7 +167,6 @@ export function JoinRequestedScreen({
 const STEP_SIZE = 36;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
   content: {
     gap: 24,
     paddingHorizontal: 24,
@@ -176,12 +193,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
     backgroundColor: colors.gray[100],
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
+  // 안내 상자는 아래 버튼 줄 위 16 에 붙는다 (Figma 위치 684)
+  notice: { paddingHorizontal: 24, paddingBottom: 16 },
+  actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1 },
 });

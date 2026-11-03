@@ -87,10 +87,15 @@ export const colors = {
   accents: { blue: '#0088FF' },
   // Figma 변수 P/T/01 — 내 일정 › 응답 필요 카드 제목
   pt01: '#32303A',
+  // Figma 변수 입력칸/폰트/비활성화 — 온보딩 약관 동의의 구분선·행 화살표
+  inputDisabled: '#CFCFCF',
+  // 라이브러리 변수 Gray200·Gray500 (로컬 Gray200 #DEDEDE, Gray500 #9B9B9B 와 다름) — 온보딩 안내 문구, 약관 본문 상자
+  libraryGray: { 200: '#D9D9D9', 500: '#7F7F7F' },
 
   // 이 컬렉션 밖에서 컴포넌트에 직접 쓰인 값
   black: '#000000', // Tab Bar 활성 라벨, 메인화면 헤더
   mainText: '#2A2A2A', // "메인 문구" — 작업 상세 헤더 제목
   inactive: '#F0F0F0', // "비활성화 색" — Bottom Navigation Bar 테두리
   toggleKnob: '#F2F2F2', // 라이브러리 "Gray100" (로컬 Gray100 #E9E9EA 와 다름) — Toggle Off 노브
+  kakao: '#FEE500', // 카카오 로그인 버튼 채움 (Figma 로그인 3284:21451, 변수 없음)
 } as const;

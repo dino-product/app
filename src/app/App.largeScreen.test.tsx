@@ -5,6 +5,7 @@ import {
   readableColumn,
 } from '../shared/layout/readableColumn';
 import type { HostElement } from '../shared/testing/touchTarget';
+import { signedInAuth } from '../features/onboarding/model';
 import App from './App';
 
 // #56: 큰 화면(태블릿, 펼친 폴더블)은 방향을 고정하지 않는다. Figma 는 휴대폰 세로 디자인뿐이라
@@ -82,7 +83,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   beforeEach(() => resizeWindow(width, height));
 
   it('홈: 제목·진행 중 작업·일정 카드가 읽기 좋은 폭 안에서 가운데 정렬된다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     expectInReadableColumn(
       header('내 작업'),
@@ -93,7 +94,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 
   it('작업 상세: 헤더·본문·제출 버튼·떠 있는 "완료 보고 작성하기" 가 읽기 좋은 폭 안에 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(button('보일러 점검 상세 보기'));
 
     expectInReadableColumn(
@@ -106,14 +107,14 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 
   it('작업 상세: 떠 있는 버튼 양옆 빈 곳의 터치는 아래 스크롤 뷰로 지나간다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(button('보일러 점검 상세 보기'));
 
     expect(jumpWrapper()?.props.pointerEvents).toBe('box-none');
   });
 
   it('내 일정: 제목·하위 탭·주간 줄·달력·응답 필요 카드가 읽기 좋은 폭 안에 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
 
     expectInReadableColumn(
@@ -133,7 +134,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 
   it('작업 이력: 제목·월 화살표·요약 카드·완료 작업 행이 읽기 좋은 폭 안에 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
 
     expectInReadableColumn(
@@ -146,7 +147,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 
   it('요청 상세·거절 사유: 헤더·본문·하단 버튼이 읽기 좋은 폭 안에 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await openPendingRequest();
 
     expectInReadableColumn(
@@ -167,7 +168,7 @@ describe.each(WIDE_WINDOWS)('넓은 창 %d×%d', (width, height) => {
   });
 
   it('하단 탭 바는 화면 배경처럼 창 전체 폭을 쓴다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     expect(columnStyleOf(screen.getByRole('tab', { name: '홈' }))).toBe(
       undefined,
@@ -188,7 +189,7 @@ describe('휴대폰 폭에서는 지금과 같게 그려진다', () => {
   });
 
   it('떠 있는 버튼 래퍼는 좌우 위치 없이 폭 100% 와 좌우 패딩으로 놓인다 (left·right·start·end 가 있으면 폭 100% 와 겹쳐 넘친다)', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(button('보일러 점검 상세 보기'));
 
     const style = flat(jumpWrapper()?.props.style);
@@ -214,7 +215,7 @@ describe('창 크기가 바뀌면', () => {
 
   it('뒤로 가기 스와이프 범위(창 폭의 왼쪽 1/3)를 새 창 폭으로 다시 계산한다', async () => {
     await resizeWindow(840, 1200);
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     await userEvent.press(button('보일러 점검 상세 보기'));
     expect(swipeEnd('작업 상세')).toBe(280);
 

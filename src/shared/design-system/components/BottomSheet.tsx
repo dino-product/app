@@ -14,7 +14,9 @@ import { useReduceMotion } from '../../accessibility/useReduceMotion';
 import { readableColumn } from '../../layout/readableColumn';
 import { colors, withOpacity } from '../tokens/colors';
 
-// Figma 마이페이지-신청 취소 바텀시트 (2889:13197). 화면 아래에서 올라오는 확인 시트.
+// 화면 아래에서 올라오는 시트. 모양은 Figma 시트마다 다르다 (variant).
+// confirm: 마이페이지-신청 취소 (2889:13197) — 손잡이, 위 모서리 24, 좌우 여백 24
+// document: 온보딩 약관 동의 (3569:7702) — 손잡이 없음, 위 모서리 28, 좌우 여백은 내용이 정한다 (제목 16, 본문 24)
 // 닫기 요청(onClose)은 배경 누르기, 아래로 끌기, Android 뒤로가기, VoiceOver 두 손가락 Z 로 온다.
 // 바깥이 visible 을 false 로 바꾸면 내려가는 애니메이션이 끝난 뒤 모달을 내린다.
 // RN Modal 이라 열려 있는 동안 스크린리더 포커스는 시트 안에 머문다 (iOS 는 모달 화면, Android 는 별도 창)
@@ -26,6 +28,7 @@ export type BottomSheetProps = {
   /** 다 내려가 모달을 내린 뒤. 화면을 옮기거나 스크린리더 포커스를 옮기는 일은 여기서 한다 */
   onClosed?: () => void;
   children: ReactNode;
+  variant?: 'confirm' | 'document';
   testID?: string;
 };
 
@@ -42,6 +45,7 @@ export function BottomSheet({
   onClose,
   onClosed,
   children,
+  variant = 'confirm',
   testID,
 }: BottomSheetProps) {
   const reduceMotion = useReduceMotion();
@@ -151,6 +155,7 @@ export function BottomSheet({
   }
   // 내려가는 동안에는 누르지 못하게 한다 ('닫기' 뒤 '취소', 같은 버튼 두 번 누르기)
   const touchable = visible ? 'auto' : 'none';
+  const shape = shapes[variant];
 
   return (
     <Modal
@@ -186,19 +191,25 @@ export function BottomSheet({
           style={[
             readableColumn,
             styles.sheet,
+            shape.sheet,
             { transform: [{ translateY }] },
           ]}
           testID={testID}
         >
           <View
             style={[
-              styles.content,
-              { paddingBottom: insets.bottom + SHEET_BOTTOM_PADDING },
+              shape.content,
+              { paddingBottom: shape.bottomPadding(insets.bottom) },
             ]}
             testID={testID && `${testID}-content`}
             {...panResponder.panHandlers}
           >
-            <View style={styles.handle} />
+            {shape.handle && (
+              <View
+                style={styles.handle}
+                testID={testID && `${testID}-handle`}
+              />
+            )}
             {children}
           </View>
         </Animated.View>
@@ -207,8 +218,6 @@ export function BottomSheet({
   );
 }
 
-const SHEET_BOTTOM_PADDING = 16;
-
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
@@ -216,12 +225,7 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity('#000000', 0.4),
   },
   fill: { flex: 1 },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: colors.white[100],
-  },
-  content: { paddingHorizontal: 24, paddingTop: 12 },
+  sheet: { backgroundColor: colors.white[100] },
   handle: {
     alignSelf: 'center',
     width: 40,
@@ -231,3 +235,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray[300],
   },
 });
+
+const shapeStyles = StyleSheet.create({
+  confirmSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  confirmContent: { paddingHorizontal: 24, paddingTop: 12 },
+  documentSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  documentContent: { paddingHorizontal: 0, paddingTop: 24 },
+});
+
+// 아래 여백: confirm 은 안전 영역 위로 16 을 더 띄운다. document 는 Figma 의 36(홈 인디케이터 포함)이고 안전 영역이 더 크면 그만큼 둔다
+const shapes = {
+  confirm: {
+    sheet: shapeStyles.confirmSheet,
+    content: shapeStyles.confirmContent,
+    handle: true,
+    bottomPadding: (inset: number) => inset + 16,
+  },
+  document: {
+    sheet: shapeStyles.documentSheet,
+    content: shapeStyles.documentContent,
+    handle: false,
+    bottomPadding: (inset: number) => Math.max(inset, 36),
+  },
+} as const;

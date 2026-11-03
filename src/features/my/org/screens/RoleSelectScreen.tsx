@@ -10,9 +10,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
-import { participationTypeLabels, type ParticipationType } from '../model';
+import { flowLayouts } from '../components/flowLayouts';
+import {
+  participationTypeLabels,
+  type JoinFlow,
+  type ParticipationType,
+} from '../model';
 
-// Figma 회사찾기 › 역할 선택 (3278:20936 고르기 전 / 3278:20974 기사 선택)
+// Figma 회사찾기 › 역할 선택 (3278:20936 고르기 전 / 3278:20974 기사 선택).
+// 온보딩(#85)은 역할 선택 (3255:18530 / 3255:19213) 이고 머리 제목이 '참여 요청' 이다
 const options: readonly { type: ParticipationType; description: string }[] = [
   {
     type: 'STAFF',
@@ -25,11 +31,13 @@ const options: readonly { type: ParticipationType; description: string }[] = [
 ];
 
 export function RoleSelectScreen({
+  flow = 'my',
   organizationName,
   onBack,
   onSubmit,
   titleRef,
 }: {
+  flow?: JoinFlow;
   organizationName: string;
   onBack: () => void;
   onSubmit: (type: ParticipationType) => void;
@@ -48,9 +56,12 @@ export function RoleSelectScreen({
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
       <SubScreenHeader
-        title="조직 참여하기"
+        title={flow === 'onboarding' ? '참여 요청' : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
@@ -132,7 +143,7 @@ export function RoleSelectScreen({
         </View>
       </ScrollView>
 
-      <View style={[readableColumn, styles.actions]}>
+      <View style={[readableColumn, flowLayouts[flow].actions]}>
         <CTA
           label="참여 요청하기"
           disabled={selected === null}
@@ -146,7 +157,6 @@ export function RoleSelectScreen({
 const RADIO_SIZE = 22;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
   content: {
     gap: 24,
     paddingHorizontal: 24,
@@ -200,5 +210,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background[3],
   },
   hintText: { flex: 1 },
-  actions: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12 },
 });

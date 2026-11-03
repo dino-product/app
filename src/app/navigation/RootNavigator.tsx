@@ -11,6 +11,8 @@ import {
 import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { MyStateProvider } from '../../features/my/MyStateProvider';
+import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider';
+import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {
   AccountRoute,
@@ -22,6 +24,16 @@ import {
   WithdrawalBlockedRoute,
   WithdrawalRoute,
 } from './myRoutes';
+import {
+  CompanyFindRoute,
+  JoinApprovedRoute,
+  JoinPendingRoute,
+  JoinRejectedRoute as OnboardingJoinRejectedRoute,
+  JoinRoleSelectRoute,
+  LoginRoute,
+  ProfileRegisterRoute,
+  TermsAgreementRoute,
+} from './onboardingRoutes';
 import {
   JoinRejectedRoute,
   JoinRequestedRoute,
@@ -41,10 +53,13 @@ import {
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
+  ONBOARDING_INITIAL_ROUTE,
   type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
   type MyStackParamList,
+  type OnboardingStackParamList,
+  type RootScreenProps,
   type RootStackParamList,
 } from './types';
 
@@ -53,6 +68,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const MyStack = createNativeStackNavigator<MyStackParamList>();
+const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
 
 // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
 // 창 폭의 이 비율까지인 왼쪽 영역에서만 받는다. iOS 전용 옵션이다. 지금은 iPhone 세로 전용(#23)이라 폭이 바뀌지 않지만,
@@ -216,6 +232,58 @@ function MyTab() {
   );
 }
 
+// 온보딩 (#85). 상태는 이 온보딩 안에서만 쓰므로 스택을 감싼다. 첫 화면에서 뒤로 가면 루트의 로그인으로 돌아가고 상태도 사라진다
+function OnboardingFlow({ route }: RootScreenProps<'Onboarding'>) {
+  const stackOptions = useStackOptions();
+  return (
+    <OnboardingProvider method={route.params.method}>
+      <OnboardingStack.Navigator
+        initialRouteName={ONBOARDING_INITIAL_ROUTE}
+        screenOptions={stackOptions}
+        screenLayout={stackScreenLayout}
+      >
+        <OnboardingStack.Screen
+          name="ProfileRegister"
+          component={ProfileRegisterRoute}
+        />
+        <OnboardingStack.Screen
+          name="TermsAgreement"
+          component={TermsAgreementRoute}
+          getId={once}
+        />
+        <OnboardingStack.Screen
+          name="CompanyFind"
+          component={CompanyFindRoute}
+          getId={once}
+        />
+        <OnboardingStack.Screen
+          name="JoinRoleSelect"
+          component={JoinRoleSelectRoute}
+          getId={byOrganization}
+        />
+        <OnboardingStack.Screen
+          name="JoinPending"
+          component={JoinPendingRoute}
+          getId={byRequest}
+        />
+        <OnboardingStack.Screen
+          name="JoinApproved"
+          component={JoinApprovedRoute}
+          getId={byRequest}
+        />
+        <OnboardingStack.Screen
+          name="JoinRejected"
+          component={OnboardingJoinRejectedRoute}
+          getId={byRequest}
+        />
+      </OnboardingStack.Navigator>
+    </OnboardingProvider>
+  );
+}
+
+// 로그아웃하면 로그인이 메인을 대신한다. 뒤로 가는 모양으로 바꾼다
+const loginOptions = { animationTypeForReplace: 'pop' } as const;
+
 function MainTabs() {
   return (
     // Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
@@ -232,24 +300,44 @@ function MainTabs() {
   );
 }
 
+// 로그인 상태에 따라 화면 묶음을 바꾼다 (React Navigation 인증 흐름). 묶음이 바뀌면 이전 묶음의 화면이 스택에서 모두 빠져,
+// 메인에 들어간 뒤에는 뒤로 가기로 온보딩·로그인에, 로그아웃한 뒤에는 메인에 돌아가지 않는다
 export function RootNavigator() {
   const stackOptions = useStackOptions();
+  const { signedIn } = useAuth();
   return (
     <RootStack.Navigator
       screenOptions={stackOptions}
       screenLayout={stackScreenLayout}
     >
-      <RootStack.Screen name="Main" component={MainTabs} />
-      <RootStack.Screen
-        name="RequestDetail"
-        component={RequestDetailRoute}
-        getId={byId}
-      />
-      <RootStack.Screen
-        name="RejectReason"
-        component={RejectReasonRoute}
-        getId={byId}
-      />
+      {signedIn === null ? (
+        <>
+          <RootStack.Screen
+            name="Login"
+            component={LoginRoute}
+            options={loginOptions}
+          />
+          <RootStack.Screen
+            name="Onboarding"
+            component={OnboardingFlow}
+            getId={once}
+          />
+        </>
+      ) : (
+        <>
+          <RootStack.Screen name="Main" component={MainTabs} />
+          <RootStack.Screen
+            name="RequestDetail"
+            component={RequestDetailRoute}
+            getId={byId}
+          />
+          <RootStack.Screen
+            name="RejectReason"
+            component={RejectReasonRoute}
+            getId={byId}
+          />
+        </>
+      )}
     </RootStack.Navigator>
   );
 }

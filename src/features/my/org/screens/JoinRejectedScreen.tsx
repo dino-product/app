@@ -4,27 +4,38 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
+import { flowLayouts } from '../components/flowLayouts';
 import { SummaryCard } from '../components/SummaryCard';
-import { participationTypeLabels, type ParticipationRequest } from '../model';
+import {
+  participationTypeLabels,
+  type JoinFlow,
+  type ParticipationRequest,
+} from '../model';
 
-// Figma 회사찾기-거절 (3255:18035). 알림센터의 참여 거절 알림에서 들어온다 (디자인 확인 항목)
+// Figma 회사찾기-거절 (3255:18035). 알림센터의 참여 거절 알림에서 들어온다 (디자인 확인 항목).
+// 온보딩(#85)은 참여 요청 결과-거절 (3257:10610) 이고 승인 대기에서 결정되면 온다
 export function JoinRejectedScreen({
+  flow = 'my',
   request,
   onConfirm,
   onBack,
   titleRef,
 }: {
+  flow?: JoinFlow;
   request: ParticipationRequest;
-  /** 이전 화면으로 */
+  /** 마이는 이전 화면으로, 온보딩은 회사 찾기로 */
   onConfirm: () => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
       <SubScreenHeader
-        title="조직 참여하기"
+        title={flow === 'onboarding' ? REJECTED_TITLE : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
@@ -75,15 +86,17 @@ export function JoinRejectedScreen({
         </View>
       </ScrollView>
 
-      <View style={[readableColumn, styles.actions]}>
+      <View style={[readableColumn, flowLayouts[flow].actions]}>
         <CTA label="확인" onPress={onConfirm} />
       </View>
     </SafeAreaView>
   );
 }
 
+// 온보딩 거절 화면의 머리 제목 (Figma 3257:10610)
+const REJECTED_TITLE = '참여 요청 결과';
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
   content: { paddingTop: 32, paddingBottom: 24 },
   section: { gap: 16, paddingHorizontal: 24 },
   intro: { alignItems: 'center', gap: 8, marginBottom: 8 },
@@ -99,5 +112,4 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: colors.background[3],
   },
-  actions: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12 },
 });

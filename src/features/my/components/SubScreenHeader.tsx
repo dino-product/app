@@ -8,13 +8,14 @@ import {
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 
-// 마이 탭 하위 화면의 머리: 왼쪽 뒤로 가기, 가운데 제목 (Figma 마이페이지-* 프레임 공통)
+// 마이 탭 하위 화면의 머리: 왼쪽 뒤로 가기, 가운데 제목 (Figma 마이페이지-* 프레임 공통).
+// 온보딩 약관 동의처럼 제목 없이 뒤로 가기만 있는 머리도 있다
 export function SubScreenHeader({
   title,
   onBack,
   titleRef,
 }: {
-  title: string;
+  title?: string;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
@@ -30,14 +31,16 @@ export function SubScreenHeader({
       >
         <Icon name="chevron-left" />
       </Pressable>
-      <Text
-        ref={titleRef}
-        accessibilityRole="header"
-        variant="Body/M/SemiBold"
-        color={colors.mainText}
-      >
-        {title}
-      </Text>
+      {title !== undefined && (
+        <Text
+          ref={titleRef}
+          accessibilityRole="header"
+          variant="Body/M/SemiBold"
+          color={colors.mainText}
+        >
+          {title}
+        </Text>
+      )}
     </View>
   );
 }

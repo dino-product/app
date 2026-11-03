@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
+import { signedInAuth } from '../features/onboarding/model';
 import App from './App';
 
 // 마이 탭(#72). 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로
@@ -34,7 +35,7 @@ const pressAlertButton = async (
 };
 
 async function openMyPage() {
-  await render(<App />);
+  await render(<App initialAuth={signedInAuth()} />);
   await userEvent.press(tab('마이'));
 }
 
@@ -148,15 +149,16 @@ describe('App — 마이 탭', () => {
     expect(screen.getByText('현재 버전 1.0')).toBeOnTheScreen();
   });
 
-  it('로그아웃을 확인하면 첫 화면(홈)으로 돌아간다', async () => {
+  // 로그인 흐름(#85): 로그아웃하면 탭 없이 로그인 화면으로 간다
+  it('로그아웃을 확인하면 로그인 화면으로 간다', async () => {
     await openMyPage();
 
     await userEvent.press(button('계정 관리'));
     await userEvent.press(button('로그아웃'));
     await userEvent.press(button('확인'));
 
-    expect(header('내 작업')).toBeOnTheScreen();
-    expect(tab('홈')).toBeSelected();
+    expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
     expect(header('계정 관리')).not.toBeOnTheScreen();
   });
 
@@ -211,7 +213,7 @@ describe('App — 마이 탭', () => {
     });
 
     it('진행 중인 작업이 있으면 그 사유도 보이고, > 를 누르면 홈으로 간다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await userEvent.press(button('작업 시작'));
       await userEvent.press(tab('마이'));
 
@@ -227,9 +229,9 @@ describe('App — 마이 탭', () => {
       expect(tab('홈')).toBeSelected();
     });
 
-    it('막는 사유가 없으면 계정 탈퇴로 가고, 최종 확인 뒤 첫 화면으로 돌아간다', async () => {
+    it('막는 사유가 없으면 계정 탈퇴로 가고, 최종 확인 뒤 로그인 화면으로 간다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
@@ -252,8 +254,8 @@ describe('App — 마이 탭', () => {
       await userEvent.press(button('탈퇴하기'));
       await pressAlertButton(alert, '탈퇴');
 
-      expect(header('내 작업')).toBeOnTheScreen();
-      expect(tab('홈')).toBeSelected();
+      expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
+      expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
     });
   });
 
@@ -354,7 +356,7 @@ describe('App — 마이 탭', () => {
     ] as const;
     // 응답 필요 요청을 모두 수락했는지에 따라 계정 탈퇴·탈퇴 불가로 간다
     async function openDeep(name: (typeof deepScreens)[number][0]) {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       if (name === '계정 탈퇴') {
         await userEvent.press(tab('내 일정'));
         await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
