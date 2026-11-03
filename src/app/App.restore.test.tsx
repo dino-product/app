@@ -1,6 +1,6 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { Alert } from 'react-native';
-import { appStorage } from '../shared/storage/appStorage';
+import { appStorage, writeJson } from '../shared/storage/appStorage';
 import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 
@@ -45,6 +45,11 @@ async function openRejectFromRequestDetail() {
   await userEvent.press(screen.getAllByRole('button', { name: / 상세,/ })[0]);
   await userEvent.press(screen.getByRole('button', { name: '거절' }));
 }
+
+// 저장소에 화면 상태를 직접 넣는다 (지금 막 저장한 것으로)
+const seedNavigation = (state: unknown) =>
+  writeJson(NAVIGATION_STATE_KEY, { savedAt: Date.now(), state });
+const HOUR = 60 * 60 * 1000;
 
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 const pressAlertButton = (alert: ReturnType<typeof spyAlert>, text: string) =>
@@ -243,7 +248,7 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     const kill = await launch();
     await writeReport();
 
-    now.mockReturnValue(start + 12 * 60 * 60 * 1000 + 1);
+    now.mockReturnValue(start + 12 * HOUR + 1);
     await relaunch(kill);
 
     expect(header('내 작업')).toBeOnTheScreen();
@@ -253,14 +258,129 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     );
   });
 
-  it('저장한 화면 구조가 지금 앱과 맞지 않으면(앱 업데이트 등) 첫 화면으로 시작한다', async () => {
-    appStorage.set(
-      NAVIGATION_STATE_KEY,
-      JSON.stringify({
-        savedAt: Date.now(),
-        state: { index: 0, routes: [{ name: 'OldScreen' }] },
-      }),
+  // 다시 열기만 하고 화면을 바꾸지 않았으면 12시간은 처음 저장한 때부터 센다. 열 때마다 늘어나지 않는다
+  it('복원만 하고 화면을 바꾸지 않았으면 12시간은 마지막으로 화면이 바뀐 때부터 센다', async () => {
+    const start = Date.now();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(start);
+    let kill = await launch();
+    await openWorkDetail();
+
+    now.mockReturnValue(start + 11 * HOUR);
+    kill = await relaunch(kill);
+    expect(header('작업 상세')).toBeOnTheScreen();
+
+    now.mockReturnValue(start + 13 * HOUR);
+    await relaunch(kill);
+    expect(header('내 작업')).toBeOnTheScreen();
+  });
+
+  // 하위 내비게이터는 남아 있는 하위 이동 파라미터(screen)를 저장한 하위 상태보다 먼저 쓴다 (useNavigationBuilder)
+  it('바깥에서 하위 화면을 골라 옮긴 뒤(탈퇴 불가 › 진행 중인 작업 보기)에도 보던 하위 화면을 복원한다', async () => {
+    const kill = await launch();
+    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+    await userEvent.press(tab('마이'));
+    await userEvent.press(screen.getByRole('button', { name: '계정 관리' }));
+    await userEvent.press(screen.getByRole('button', { name: '계정 탈퇴' }));
+    await userEvent.press(
+      await screen.findByRole('button', { name: '진행 중인 작업 1건 보기' }),
     );
+    await openWorkDetail();
+    await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관 교체');
+
+    await relaunch(kill);
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+      '배관 교체',
+    );
+  });
+
+  it('하위 이동 파라미터가 남은 상태도 저장한 탭과 하위 화면으로 연다', async () => {
+    seedNavigation({
+      index: 0,
+      routes: [
+        {
+          name: 'Main',
+          params: { screen: 'schedule', params: { tab: 'pending' } },
+          state: {
+            index: 3,
+            routes: [
+              { name: 'home' },
+              { name: 'schedule', params: {} },
+              { name: 'history' },
+              {
+                name: 'my',
+                state: {
+                  index: 2,
+                  routes: [
+                    { name: 'MyPage' },
+                    { name: 'OrgJoin' },
+                    {
+                      name: 'OrgRoleSelect',
+                      params: {
+                        organizationId: 'org-1',
+                        organizationName: 'Orbit',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await launch();
+
+    expect(tab('마이')).toBeSelected();
+    expect(header('역할을 선택해주세요')).toBeOnTheScreen();
+  });
+
+  it('복원한 거절 사유의 요청이 없으면(이미 처리됨) 이전 화면으로 돌아가고 고르던 사유도 지운다', async () => {
+    seedNavigation({
+      index: 1,
+      routes: [
+        { name: 'Main' },
+        { name: 'RejectReason', params: { id: 'gone' } },
+      ],
+    });
+    writeJson('schedule.rejectDraft.gone', {
+      selected: 'schedule',
+      otherText: '',
+    });
+
+    await launch();
+
+    expect(header('내 작업')).toBeOnTheScreen();
+    expect(appStorage.contains('schedule.rejectDraft.gone')).toBe(false);
+  });
+
+  // 검증표가 없으면 작업 상세가 route.params.id 를 읽다 죽는다. React Navigation 은 모르는 화면만 빼 주고 파라미터는 보지 않는다
+  it('저장한 화면 구조가 지금 앱과 맞지 않으면(앱 업데이트로 파라미터가 바뀜 등) 첫 화면으로 시작한다', async () => {
+    seedNavigation({
+      index: 0,
+      routes: [
+        {
+          name: 'Main',
+          state: {
+            index: 0,
+            routes: [
+              {
+                name: 'home',
+                state: {
+                  index: 1,
+                  routes: [
+                    { name: 'WorkHome' },
+                    { name: 'WorkDetail', params: { workId: 'w1' } },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
 
     await launch();
 

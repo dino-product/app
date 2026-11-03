@@ -133,11 +133,13 @@ export function WorkDetailRoute({
     [submission],
   );
   const titleRef = useFocusTitleOnOpen(navigation);
-  const [hasUnsavedReport, setHasUnsavedReport] = useState(false);
   // 앱이 종료되기 전에 쓰던 보고가 있으면 이어 쓴다 (#34). 제출을 마친 작업은 쓸 보고가 없다
   const [draft] = useState(() =>
     submission ? undefined : loadReportDraft(workId),
   );
+  // 남긴 초안은 입력이 있는 보고뿐이라(saveReportDraft) 이어 쓰면 처음부터 작성 중이다.
+  // 화면이 알려 줄 때 바꾸면 열자마자 다시 그리게 된다
+  const [hasUnsavedReport, setHasUnsavedReport] = useState(draft !== undefined);
 
   // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 기기에 남긴 초안도 지운다.
   // 막았던 동작을 다시 보낸다. 한 번 확인을 거친 동작이라 이 화면에서 다시 막히지 않는다
@@ -274,17 +276,18 @@ export function RejectReasonRoute({
 }: RootScreenProps<'RejectReason'>) {
   const { reject } = useSchedule();
   const requestId = route.params.id;
-  const request = usePendingRequest(requestId, navigation);
-  const titleRef = useFocusTitleOnOpen(navigation);
-  // 앱이 종료되기 전에 고르던 사유가 있으면 이어 고른다 (#34)
-  const [draft] = useState(() => loadRejectDraft(requestId));
   // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(제출·취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
-  // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다
+  // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다.
+  // 없는 요청이면 usePendingRequest 의 effect 가 열리자마자 닫으므로 그보다 먼저 듣는다 (effect 는 선언 순서대로 돈다)
   useEffect(
     () =>
       navigation.addListener('beforeRemove', () => clearRejectDraft(requestId)),
     [navigation, requestId],
   );
+  const request = usePendingRequest(requestId, navigation);
+  const titleRef = useFocusTitleOnOpen(navigation);
+  // 앱이 종료되기 전에 고르던 사유가 있으면 이어 고른다 (#34)
+  const [draft] = useState(() => loadRejectDraft(requestId));
   if (!request) {
     return null;
   }

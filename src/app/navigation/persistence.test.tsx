@@ -136,7 +136,9 @@ describe('내비게이션 상태 저장', () => {
       expect(parseSavedNavigation(saved(state), NOW)).toBeUndefined();
     });
 
-    it('바깥에서 하위 화면을 고른 파라미터(내 일정 › 응답 필요, 마이 › 조직 참여)는 받는다', () => {
+    // 하위 내비게이터는 남은 하위 이동 파라미터를 저장한 하위 상태보다 먼저 써서 화면을 다시 만든다 (useNavigationBuilder).
+    // 이미 하위 상태에 반영된 것이라 지운다
+    it('바깥에서 하위 화면을 고른 파라미터(내 일정 › 응답 필요, 마이 › 조직 참여)는 받되, 하위 상태가 있으면 지운다', () => {
       const state = withRoot([
         {
           name: 'Main',
@@ -169,7 +171,39 @@ describe('내비게이션 상태 저장', () => {
         },
       ]);
 
+      const restored = JSON.parse(JSON.stringify(state));
+      delete restored.routes[0].params;
+
+      expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
+    });
+
+    it('하위 상태가 없으면(아직 열지 않은 하위 내비게이터) 하위 이동 파라미터를 남긴다', () => {
+      const state = withRoot([
+        {
+          name: 'Main',
+          params: {
+            screen: 'home',
+            params: { screen: 'WorkDetail', params: { id: 'w1' } },
+          },
+        },
+      ]);
+
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+    });
+
+    it('하위 이동 키 말고 다른 파라미터는 남긴다', () => {
+      const state = withHomeRoutes([{ name: 'WorkHome' }]);
+      const home = state.routes[0].state.routes[0] as Record<string, unknown>;
+      home.params = { screen: 'WorkHome', initial: false };
+      const tabs = state.routes[0].state.routes;
+      (tabs[1] as Record<string, unknown>).params = { tab: 'pending' };
+
+      const restored = parseSavedNavigation(saved(state), NOW) as typeof state;
+
+      expect(restored.routes[0].state.routes[0]).not.toHaveProperty('params');
+      expect(restored.routes[0].state.routes[1]).toHaveProperty('params', {
+        tab: 'pending',
+      });
     });
 
     it(`마지막 저장 뒤 ${
@@ -216,6 +250,14 @@ describe('내비게이션 상태 저장', () => {
       ).toEqual(saved(homeDetailState));
     });
 
+    it('저장 시각을 주면 그 시각으로 남긴다 (복원만 한 상태를 다시 남길 때)', () => {
+      saveNavigationState(homeDetailState as never, NOW - 1000);
+
+      expect(
+        JSON.parse(appStorage.getString(NAVIGATION_STATE_KEY) ?? ''),
+      ).toEqual(saved(homeDetailState, NOW - 1000));
+    });
+
     it('상태가 없으면(내비게이터가 사라짐) 저장하지 않는다', () => {
       saveNavigationState(undefined);
 
@@ -226,7 +268,10 @@ describe('내비게이션 상태 저장', () => {
     it('시작할 때 읽은 상태는 저장소에서 뺀다', () => {
       saveNavigationState(homeDetailState as never);
 
-      expect(takeNavigationState()).toEqual(homeDetailState);
+      expect(takeNavigationState()).toEqual({
+        state: homeDetailState,
+        savedAt: NOW,
+      });
       expect(appStorage.contains(NAVIGATION_STATE_KEY)).toBe(false);
       expect(takeNavigationState()).toBeUndefined();
     });
@@ -251,9 +296,15 @@ describe('내비게이션 상태 저장', () => {
         names: Object.keys(schema),
       });
       for (const route of state.routes) {
+        const routePath = `${path} › ${route.name}`;
         const child = schema[route.name]?.navigator;
+        // 하위 내비게이터가 있는 화면은 검증표에도 하위 검증표가 있어야 한다
+        expect({ path: routePath, nested: child !== undefined }).toEqual({
+          path: routePath,
+          nested: route.state !== undefined,
+        });
         if (child) {
-          compare(route.state, child, `${path} › ${route.name}`);
+          compare(route.state, child, routePath);
         }
       }
     };
