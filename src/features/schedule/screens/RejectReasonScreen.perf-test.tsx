@@ -48,4 +48,27 @@ describe('RejectReasonScreen 렌더 예산', () => {
       perfBudget.render.maxRedundantUpdates,
     );
   }, 30_000);
+
+  // 고른 사유를 다시 누르면 선택을 푼다 (#101). 다른 선택지로 바꿔 접을 때와 같다
+  it('기타를 다시 눌러 풀면 한 번, 접힌 뒤 섹션 내리기에 한 번만 다시 그린다', async () => {
+    const result = await measureRenders(
+      <RejectReasonScreen onBack={() => {}} onSubmit={() => {}} />,
+      {
+        scenario: async () => {
+          const other = () =>
+            screen.getByRole('radio', { name: '기타 (직접 입력)' });
+          await userEvent.press(other());
+          await settleAnimation();
+          await userEvent.press(other());
+          await settleAnimation();
+        },
+      },
+    );
+
+    // 마운트 1 + 펼침 1 + 풀기(접힘) 1 + 접힌 뒤 섹션 내리기 1
+    expect(Math.max(...result.counts)).toBe(4);
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
+  }, 30_000);
 });

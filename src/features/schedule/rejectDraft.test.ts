@@ -28,6 +28,17 @@ describe('거절 사유 초안', () => {
     });
   });
 
+  // 고른 사유를 다시 눌러 풀어도 쓴 글은 남긴다 (#101)
+  it('선택을 풀고 쓴 글만 남았으면 선택 없이 글을 남긴다', () => {
+    saveRejectDraft('request-1', { selected: 'other', otherText: '차량 고장' });
+    saveRejectDraft('request-1', { selected: null, otherText: '차량 고장' });
+
+    expect(loadRejectDraft('request-1')).toEqual({
+      selected: null,
+      otherText: '차량 고장',
+    });
+  });
+
   it('아무것도 고르거나 쓰지 않았으면 지운다', () => {
     saveRejectDraft('request-1', { selected: 'schedule', otherText: '' });
     saveRejectDraft('request-1', { selected: null, otherText: '' });

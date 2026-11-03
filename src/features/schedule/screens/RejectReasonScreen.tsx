@@ -113,7 +113,9 @@ export function RejectReasonScreen({
   };
 
   const select = (key: RejectReasonKey) => {
-    const expand = key === 'other';
+    // 고른 사유를 다시 누르면 선택을 푼다 (#101). 기타면 입력란도 접는다
+    const next = key === selected ? null : key;
+    const expand = next === 'other';
     if (expand !== expanded) {
       if (expand) {
         setFocusOnOpen(true);
@@ -126,7 +128,7 @@ export function RejectReasonScreen({
       }
       animateOther(expand);
     }
-    setSelected(key);
+    setSelected(next);
     setOtherTextError(false);
   };
 
