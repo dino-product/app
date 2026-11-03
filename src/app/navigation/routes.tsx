@@ -15,6 +15,11 @@ import {
 import { completedToWorkDetail } from '../../features/history/mockData';
 import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
 import { requestToWorkDetail } from '../../features/schedule/mockData';
+import {
+  clearRejectDraft,
+  loadRejectDraft,
+  saveRejectDraft,
+} from '../../features/schedule/rejectDraft';
 import { RejectReasonScreen } from '../../features/schedule/screens/RejectReasonScreen';
 import { RequestDetailScreen } from '../../features/schedule/screens/RequestDetailScreen';
 import { ScheduleScreen } from '../../features/schedule/screens/ScheduleScreen';
@@ -24,6 +29,11 @@ import {
   workDetail,
 } from '../../features/work/mockData';
 import { formatResultTime, formatSubmittedAt } from '../../features/work/model';
+import {
+  clearReportDraft,
+  loadReportDraft,
+  saveReportDraft,
+} from '../../features/work/reportDraft';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
 import { useHistory, useSchedule, useWorkSession } from '../AppStateProvider';
@@ -124,11 +134,17 @@ export function WorkDetailRoute({
   );
   const titleRef = useFocusTitleOnOpen(navigation);
   const [hasUnsavedReport, setHasUnsavedReport] = useState(false);
+  // 앱이 종료되기 전에 쓰던 보고가 있으면 이어 쓴다 (#34). 제출을 마친 작업은 쓸 보고가 없다
+  const [draft] = useState(() =>
+    submission ? undefined : loadReportDraft(workId),
+  );
 
-  // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 초안을 저장하게 되면 여기서 지운다.
+  // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 기기에 남긴 초안도 지운다.
   // 막았던 동작을 다시 보낸다. 한 번 확인을 거친 동작이라 이 화면에서 다시 막히지 않는다
-  const discardReportAndLeave = (action: NavigationAction) =>
+  const discardReportAndLeave = (action: NavigationAction) => {
+    clearReportDraft(workId);
     navigation.dispatch(action);
+  };
 
   // 작성 중인 보고가 있으면 화면을 스택에서 빼는 모든 동작에서 묻는다.
   // 포커스만 잃는 탭 이동은 화면을 빼지 않아(입력이 남음) 묻지 않는다.
@@ -142,6 +158,9 @@ export function WorkDetailRoute({
       work={work}
       titleRef={titleRef}
       onUnsavedReportChange={setHasUnsavedReport}
+      initialReport={draft}
+      // 입력이 바뀔 때마다 남겨 둔다. 앱이 언제 종료될지 JS 는 알 수 없다
+      onReportChange={report => saveReportDraft(workId, report)}
       onBack={() => navigation.goBack()}
       onDone={() => {
         // 제출 완료·작업 취소 모두 진행 중 작업이 끝난 것이다
@@ -152,6 +171,7 @@ export function WorkDetailRoute({
         // 서버가 받은 셈으로 앱 상태에 둔다. API 연동 때는 제출 응답이 submitted 일 때만 저장하거나 상세 조회로 바꾼다
         const now = new Date();
         saveSubmission(workId, { submittedAt: formatSubmittedAt(now), report });
+        clearReportDraft(workId);
         return { kind: 'submitted', at: formatResultTime(now) };
       }}
       onCall={callPhone}
@@ -253,8 +273,18 @@ export function RejectReasonRoute({
   route,
 }: RootScreenProps<'RejectReason'>) {
   const { reject } = useSchedule();
-  const request = usePendingRequest(route.params.id, navigation);
+  const requestId = route.params.id;
+  const request = usePendingRequest(requestId, navigation);
   const titleRef = useFocusTitleOnOpen(navigation);
+  // 앱이 종료되기 전에 고르던 사유가 있으면 이어 고른다 (#34)
+  const [draft] = useState(() => loadRejectDraft(requestId));
+  // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(제출·취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
+  // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', () => clearRejectDraft(requestId)),
+    [navigation, requestId],
+  );
   if (!request) {
     return null;
   }
@@ -262,6 +292,8 @@ export function RejectReasonRoute({
   return (
     <RejectReasonScreen
       titleRef={titleRef}
+      initialDraft={draft}
+      onDraftChange={value => saveRejectDraft(requestId, value)}
       onBack={() => navigation.goBack()}
       onSubmit={() => {
         // 거절 사유는 API 연동 때 서버로 보낸다. 요청 상세에서 왔어도 내 일정까지 돌아간다

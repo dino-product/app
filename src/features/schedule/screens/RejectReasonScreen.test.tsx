@@ -336,6 +336,79 @@ describe('RejectReasonScreen', () => {
     expect(onBack).toHaveBeenCalledTimes(2);
   });
 
+  // 앱이 종료됐다가 다시 열리면 기기에 남긴 초안으로 이어 고른다 (#34)
+  describe('고르던 사유 이어 고르기', () => {
+    it('기타 초안으로 열면 애니메이션 없이 펼친 채로 쓰던 글을 보이고, 키보드는 올리지 않는다', async () => {
+      const timing = jest.spyOn(Animated, 'timing');
+      await renderReject({
+        initialDraft: { selected: 'other', otherText: '차량 고장' },
+      });
+
+      expect(otherOption()).toBeChecked();
+      expect(otherOption()).toBeExpanded();
+      expect(otherInput()).toHaveDisplayValue('차량 고장');
+      expect(otherInput()).toHaveProp('autoFocus', false);
+      expect(screen.getByTestId('reject-other-content')).toHaveStyle({
+        opacity: 1,
+      });
+      expect(timing).not.toHaveBeenCalled();
+      expect(submitButton()).toBeEnabled();
+    });
+
+    it('이어 고른 화면도 접었다 다시 펼치면 처음처럼 입력란에 포커스한다', async () => {
+      await renderReject({
+        initialDraft: { selected: 'other', otherText: '차량 고장' },
+      });
+
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      await finishAnimations();
+      expect(otherInputEvenHidden()).toBeNull();
+
+      await userEvent.press(otherOption());
+      expect(otherInput()).toHaveProp('autoFocus', true);
+      expect(otherInput()).toHaveDisplayValue('차량 고장');
+    });
+
+    it('다른 사유 초안으로 열면 그 사유를 고른 채로 열리고, 기타를 고르면 남겨 둔 글이 보인다', async () => {
+      const onSubmit = jest.fn();
+      await renderReject({
+        onSubmit,
+        initialDraft: { selected: 'distance', otherText: '차량 고장' },
+      });
+
+      expect(option('작업 위치가 너무 멉니다')).toBeChecked();
+      expect(otherInputEvenHidden()).toBeNull();
+      await userEvent.press(submitButton());
+      expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
+
+      await userEvent.press(otherOption());
+      expect(otherInput()).toHaveDisplayValue('차량 고장');
+    });
+
+    it('고르거나 쓸 때마다 지금 선택과 글을 넘긴다', async () => {
+      const onDraftChange = jest.fn();
+      await renderReject({ onDraftChange });
+
+      await userEvent.press(otherOption());
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        selected: 'other',
+        otherText: '',
+      });
+
+      await userEvent.type(otherInput()!, '개인');
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        selected: 'other',
+        otherText: '개인',
+      });
+
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        selected: 'schedule',
+        otherText: '개인',
+      });
+    });
+  });
+
   // Figma 스케줄 › 거절 사유: 처음 3239:9164, 선택 2714:12181, 기타 펼침 3227:8674, 입력 중 3239:9238
   describe('Figma 값', () => {
     it('소개는 제목·안내 문구 사이 12, 안내 문구 Caption/M/Medium Gray600 이고, 선택지와 48 떨어진다', async () => {
