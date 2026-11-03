@@ -19,7 +19,9 @@ import {
 import { escapeFrom } from '../../jest/voiceOver';
 import App from './App';
 
-// 온보딩 (#85). 앱을 처음 켜면 로그인부터 시작한다. "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다
+// 온보딩 (#85). 앱을 처음 켜면 로그인부터 시작한다. "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다.
+// 로그인부터 참여 결과까지 한 번에 지나가는 흐름이라 커버리지·병렬 실행에서 기본 5초를 넘을 수 있다
+jest.setTimeout(20_000);
 const header = (name: string) => screen.queryByRole('header', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
@@ -70,9 +72,10 @@ async function login(name: '카카오로 시작하기' | 'Apple로 시작하기'
   await userEvent.press(button(name));
 }
 
+// 글자 단위 입력·서식은 화면 테스트가 확인한다. 여기서는 흐름만 보므로 값을 한 번에 넣는다
 async function registerProfile() {
-  await userEvent.type(screen.getByLabelText('이름'), '박기사');
-  await userEvent.type(screen.getByLabelText('연락처'), '01012345678');
+  await fireEvent.changeText(screen.getByLabelText('이름'), '박기사');
+  await fireEvent.changeText(screen.getByLabelText('연락처'), '01012345678');
   await userEvent.press(button('완료'));
 }
 
@@ -83,10 +86,9 @@ async function agreeTerms() {
   await userEvent.press(button('가입하기'));
 }
 
-// 회사 찾기로 돌아오면 앞서 넣은 코드가 입력칸에 남아 있다
+// 회사 찾기로 돌아오면 앞서 넣은 코드가 입력칸에 남아 있어 값을 바꿔 넣는다
 async function findCompany(code: string) {
-  await userEvent.clear(screen.getByLabelText('회사 코드 입력'));
-  await userEvent.type(screen.getByLabelText('회사 코드 입력'), code);
+  await fireEvent.changeText(screen.getByLabelText('회사 코드 입력'), code);
   await userEvent.press(button('회사 확인'));
 }
 
