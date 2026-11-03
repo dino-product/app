@@ -52,9 +52,13 @@ const relaunchOnWorkDetail = (withDraft: boolean) => () => {
 
 // 이어 쓰는 보고는 처음부터 작성 중이라 나갈 때 묻기(#24, usePreventRemove)가 열자마자 켜진다.
 // React Navigation 은 이것을 루트·탭·홈 스택의 PreventRemoveProvider 상태로 위로 전해(useInsertionEffect → setState)
-// 내비게이터가 그만큼 다시 그려진다. 사용자가 처음 입력할 때 생기는 것과 같은 갱신이고, 초안을 가진 채 다시 열 때 한 번만 생긴다.
-// 묻기를 늦게 켜면 열자마자 뒤로 갈 때 묻지 않으므로 받아들이고, 이보다 늘지 않는지만 본다
-const PREVENT_REMOVE_REGISTRATION_UPDATES = 4;
+// 내비게이터가 그만큼 다시 그려진다. 묻기를 늦게 켜면 열자마자 뒤로 갈 때 묻지 않으므로 예산 예외로 둔다 (#92).
+// 허용 횟수는 performance-budget.json 의 render.exceptions 에 있고, 렌더 회귀 게이트도 같은 값을 본다
+const RESTORE_WITH_DRAFT =
+  '작성하던 완료 보고로 다시 열 때는 나갈 때 묻기를 켜는 갱신만 더해진다';
+const restoreWithDraftException = perfBudget.render.exceptions.find(
+  item => item.scenario === `App 렌더 예산 ${RESTORE_WITH_DRAFT}`,
+);
 
 const expectWithinBudget = (
   result: Awaited<ReturnType<typeof measureRenders>>,
@@ -82,13 +86,15 @@ describe('App 렌더 예산', () => {
     );
   });
 
-  it('작성하던 완료 보고로 다시 열 때는 나갈 때 묻기를 켜는 갱신만 더해진다', async () => {
+  it(RESTORE_WITH_DRAFT, async () => {
     const result = await measureRenders(<App />, {
       beforeEach: relaunchOnWorkDetail(true),
     });
 
+    // 예외 이름이 시나리오 이름(describe + it)과 어긋나면 게이트가 예외를 찾지 못한다
+    expect(restoreWithDraftException).toBeDefined();
     expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
-      PREVENT_REMOVE_REGISTRATION_UPDATES,
+      restoreWithDraftException?.maxInitialUpdateCount ?? 0,
     );
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
