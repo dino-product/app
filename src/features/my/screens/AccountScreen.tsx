@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
@@ -84,7 +85,10 @@ export function AccountScreen({
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SubScreenHeader title="계정 관리" onBack={onBack} titleRef={titleRef} />
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         {/* 화면 제목과 같은 이름이라 스크린리더에서는 한 번만 읽게 뺀다 */}
         <Text
           accessibilityElementsHidden

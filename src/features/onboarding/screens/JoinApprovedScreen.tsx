@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import {
   STANDALONE_SCREEN_EDGES,
   standaloneScreen,
@@ -44,7 +45,10 @@ export function JoinApprovedScreen({
       style={standaloneScreen.screen}
     >
       <SubScreenHeader title="참여 완료" onBack={onBack} titleRef={titleRef} />
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         <View style={styles.intro}>
           <Icon name="modal-check" />
           <View style={styles.texts}>

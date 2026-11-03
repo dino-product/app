@@ -12,6 +12,7 @@ import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
+import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ScheduleScreen } from './ScheduleScreen';
@@ -418,17 +419,19 @@ describe('ScheduleScreen — 확정 일정', () => {
     });
   });
 
-  // Figma: 제목은 상태 막대 아래 8, 제목과 탭 사이 24. 머리말 아래에 그림자가 리스트 위로 드리운다
-  it('머리말은 제목 위 8, 제목과 탭 사이 24 이고 아래에 그림자가 있다', async () => {
+  // 제목 줄은 탭 첫 화면 공통 상단 바다 (#103, Figma 3463:17455: 상태 표시줄 아래 12, 종 없음 2714:12918).
+  // Figma 내 일정: 제목과 탭 사이 24. 머리말 아래에 그림자가 리스트 위로 드리운다
+  it('머리말은 공통 상단 바(종 없음) 아래 24 에 탭이 있고, 아래에 그림자가 있다', async () => {
     await renderSchedule();
 
     const title = screen.getByRole('header', { name: '내 일정' });
+    const bar = title.parent?.parent as HostElement;
     const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
-    expect(title).toHaveStyle({ paddingTop: 8 });
-    expect(stylePt(title, 'paddingBottom') + stylePt(tab, 'paddingTop')).toBe(
-      24,
-    );
-    expect(title.parent?.parent).toHaveStyle({
+    expect(isInsideScrollView(title)).toBe(false);
+    expect(bar).toHaveStyle({ paddingTop: 12, paddingHorizontal: 24 });
+    expect(stylePt(bar, 'paddingBottom') + stylePt(tab, 'paddingTop')).toBe(24);
+    expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
+    expect(bar.parent?.parent).toHaveStyle({
       boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
       zIndex: 1,
     });

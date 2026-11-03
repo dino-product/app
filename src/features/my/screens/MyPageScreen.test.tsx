@@ -4,7 +4,9 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
+import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { membershipsMock, profileMock } from '../mockData';
 import { MyPageScreen, type MyPageScreenProps } from './MyPageScreen';
 
@@ -122,6 +124,33 @@ describe('MyPageScreen', () => {
     await userEvent.press(screen.getByRole('button', { name: /^김현진/ }));
 
     expect(props.onEditProfile).toHaveBeenCalledTimes(1);
+  });
+
+  // #103: 탭 첫 화면 공통 상단 바 (Figma 3463:17455 규격)
+  it('제목과 종(상단 바)은 스크롤 뷰 밖에 고정되고, 다른 탭과 같은 규격이다', async () => {
+    await renderMyPage();
+
+    const title = screen.getByRole('header', { name: '마이페이지' });
+    expect(isInsideScrollView(title)).toBe(false);
+    expect(
+      isInsideScrollView(screen.getByRole('button', { name: '알림센터' })),
+    ).toBe(false);
+    expect(title.parent?.parent).toHaveStyle({
+      paddingTop: 12,
+      paddingHorizontal: 24,
+    });
+  });
+
+  it('프로필 카드는 상단 바 아래 20 에서 시작한다', async () => {
+    await renderMyPage();
+
+    let scroll = screen.getByRole('button', { name: /^김현진/ }).parent;
+    while (scroll && scroll.type !== 'RCTScrollView') {
+      scroll = scroll.parent;
+    }
+    expect(
+      StyleSheet.flatten(scroll?.props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: 20 });
   });
 
   it('소속 행은 누르는 동작이 없는 정보 행이다', async () => {

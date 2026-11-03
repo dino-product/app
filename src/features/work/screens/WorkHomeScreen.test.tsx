@@ -2,6 +2,7 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { currentWork, weeklySchedule } from '../mockData';
 import { WorkHomeScreen } from './WorkHomeScreen';
 
@@ -168,12 +169,31 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     );
   });
 
-  it('제목 줄은 상태 표시줄 아래 12 에서, 카드보다 3.91 안쪽에서 시작한다', async () => {
+  // #103: 탭 첫 화면 공통 상단 바. Figma 3463:17455 는 카드와 같은 좌우 24 에서 시작한다
+  it('제목 줄(상단 바)은 스크롤 뷰 밖에 고정되고, 상태 표시줄 아래 12·좌우 24 에서 시작한다', async () => {
+    await renderHome({ onOpenNotifications: jest.fn() });
+
+    const title = screen.getByRole('header', { name: '내 작업' });
+    expect(isInsideScrollView(title)).toBe(false);
+    expect(
+      isInsideScrollView(screen.getByRole('button', { name: '알림센터' })),
+    ).toBe(false);
+    expect(title.parent?.parent).toHaveStyle({
+      paddingTop: 12,
+      paddingHorizontal: 24,
+    });
+  });
+
+  it('진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 제목 줄 아래 106 → 카드 126)', async () => {
     await renderHome();
 
-    const titleRow = screen.getByRole('header', { name: '내 작업' }).parent;
-    expect(titleRow).toHaveStyle({ marginLeft: 3.91 });
-    expect(titleRow?.parent).toHaveStyle({ paddingTop: 12 });
+    let list = screen.getAllByRole('button', { name: /세탁기 설치/ })[0].parent;
+    while (list && list.type !== 'RCTScrollView') {
+      list = list.parent;
+    }
+    expect(StyleSheet.flatten(list?.props.contentContainerStyle)).toMatchObject(
+      { paddingTop: 20 },
+    );
   });
 
   it('일정 줄은 카드보다 6.84 안쪽에서 시작하고, 첫 일정 카드는 그 아래 12 에서 시작한다', async () => {

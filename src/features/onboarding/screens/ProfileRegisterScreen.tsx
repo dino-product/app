@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { FormField } from '../../my/components/FormField';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
 import { formatPhoneNumber, type ProfileInput } from '../../my/model';
@@ -56,6 +57,7 @@ export function ProfileRegisterScreen({
 
       <KeyboardAvoidingArea testID="profile-register-body">
         <ScrollView
+          {...noOverscroll}
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }

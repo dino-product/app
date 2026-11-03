@@ -15,6 +15,7 @@ import {
   Text,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
 import type { WorkDetail } from '../../work/model';
 
@@ -59,7 +60,10 @@ export function RequestDetailScreen({
           작업 상세
         </Text>
       </View>
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         <WorkInfoSections work={work} onCall={onCall} onNavigate={onNavigate} />
       </ScrollView>
       <View style={[readableColumn, styles.actions]}>

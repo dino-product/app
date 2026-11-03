@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { FormField } from '../components/FormField';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import { canSaveProfile, formatPhoneNumber, type ProfileInput } from '../model';
@@ -53,6 +54,7 @@ export function ProfileEditScreen({
 
       <KeyboardAvoidingArea testID="profile-edit-body">
         <ScrollView
+          {...noOverscroll}
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }

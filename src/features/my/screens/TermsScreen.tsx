@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 
@@ -35,7 +36,7 @@ export function TermsScreen({
         onBack={onBack}
         titleRef={titleRef}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...noOverscroll} contentContainerStyle={styles.content}>
         <View style={[readableColumn, styles.section]}>
           <Text accessibilityRole="header" variant="Body/S/SemiBold">
             약관 및 정책

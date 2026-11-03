@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
 import { SummaryCard } from '../components/SummaryCard';
@@ -41,7 +42,7 @@ export function JoinRejectedScreen({
         onBack={onBack}
         titleRef={titleRef}
       />
-      <ScrollView contentContainerStyle={look.content}>
+      <ScrollView {...noOverscroll} contentContainerStyle={look.content}>
         <View style={[readableColumn, styles.section, look.summarySection]}>
           <View style={[styles.intro, look.intro]}>
             <Icon name="modal-x" size={onboarding ? 40 : 48} />

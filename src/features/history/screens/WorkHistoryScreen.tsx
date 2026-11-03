@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Icon, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabHeader } from '../../../shared/layout/TabHeader';
 import { addMonths, formatMonthTitle } from '../../schedule/model';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { MonthSwitcher } from '../components/MonthSwitcher';
@@ -81,16 +82,8 @@ export function WorkHistoryScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={readableColumn}>
-        <Text
-          accessibilityRole="header"
-          variant="Body/XL/SemiBold"
-          color={colors.black}
-          style={styles.title}
-        >
-          작업 이력
-        </Text>
-      </View>
+      {/* 탭 첫 화면 공통 상단 바 (#103). Figma 작업이력 (기본) 2751:6982 에는 종이 없다 */}
+      <TabHeader title="작업 이력" />
       <FlatList
         ref={listRef}
         testID="work-history-list"
@@ -140,7 +133,6 @@ function EmptyMonth() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
-  title: { paddingHorizontal: 24, paddingTop: 16 },
   list: { flex: 1 },
   header: {
     gap: 24,

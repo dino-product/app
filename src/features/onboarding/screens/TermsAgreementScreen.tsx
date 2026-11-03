@@ -15,6 +15,7 @@ import {
   Text,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import {
   STANDALONE_SCREEN_EDGES,
   standaloneScreen,
@@ -77,7 +78,10 @@ export function TermsAgreementScreen({
     >
       <SubScreenHeader onBack={onBack} />
 
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         <Text
           ref={titleRef}
           accessibilityRole="header"

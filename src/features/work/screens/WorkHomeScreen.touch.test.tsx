@@ -17,6 +17,8 @@ describe('WorkHomeScreen 터치 영역', () => {
       />,
     );
 
-    expectIconButtonTouchTarget(screen.getByRole('button', { name: '알림' }));
+    expectIconButtonTouchTarget(
+      screen.getByRole('button', { name: '알림센터' }),
+    );
   });
 });

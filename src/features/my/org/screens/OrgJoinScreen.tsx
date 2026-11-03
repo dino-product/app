@@ -20,6 +20,7 @@ import {
 } from '../../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
 import { NoticeModal, type Notice } from '../components/NoticeModal';
@@ -158,6 +159,7 @@ export function OrgJoinScreen({
 
       <KeyboardAvoidingArea testID="org-join-body">
         <ScrollView
+          {...noOverscroll}
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }

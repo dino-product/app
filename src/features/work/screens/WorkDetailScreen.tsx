@@ -28,6 +28,7 @@ import {
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { Section, SectionBand } from '../components/InfoCard';
 import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
@@ -206,6 +207,7 @@ export function WorkDetailScreen({
       {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다 */}
       <KeyboardAvoidingArea testID="work-detail-body">
         <ScrollView
+          {...noOverscroll}
           ref={scrollRef}
           testID="work-detail-scroll"
           // 끌어내리면 키보드가 손가락을 따라 내려간다. Android 는 interactive 가 없어 끌기 시작할 때 내린다

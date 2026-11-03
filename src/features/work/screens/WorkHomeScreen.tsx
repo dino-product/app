@@ -1,20 +1,14 @@
 import { useCallback, type Ref } from 'react';
 import {
   FlatList,
-  Pressable,
   StyleSheet,
   View,
   type FlatListInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  colors,
-  Icon,
-  ICON_HIT_SLOP,
-  Text,
-  withOpacity,
-} from '../../../shared/design-system';
+import { colors, Icon, Text, withOpacity } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabHeader } from '../../../shared/layout/TabHeader';
 import {
   CurrentWorkCard,
   NoCurrentWorkCard,
@@ -55,27 +49,6 @@ export function WorkHomeScreen({
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <Text
-          accessibilityRole="header"
-          variant="Body/XL/SemiBold"
-          color={colors.black}
-        >
-          내 작업
-        </Text>
-        {onOpenNotifications ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="알림"
-            hitSlop={ICON_HIT_SLOP}
-            onPress={onOpenNotifications}
-          >
-            <Icon name="bell" />
-          </Pressable>
-        ) : (
-          <Icon name="bell" />
-        )}
-      </View>
       {currentWork ? (
         <CurrentWorkCard
           work={currentWork}
@@ -110,6 +83,7 @@ export function WorkHomeScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
       <FlatList
         ref={listRef}
         data={schedule}
@@ -177,17 +151,15 @@ const BOTTOM_FADE_HEIGHT = 83;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 3463:17452: 제목 줄 72–106, 카드 126).
   // 마지막 카드는 흐려지는 곳 위에서 끝난다
-  content: { paddingHorizontal: 24, paddingBottom: BOTTOM_FADE_HEIGHT },
-  // 제목 줄은 상태 표시줄(안전 영역) 아래 12 에서 시작한다 (Figma: 상태 표시줄 60, 제목 줄 72)
-  header: { gap: 20, paddingTop: 12, paddingBottom: HEADER_PADDING_BOTTOM },
-  // 제목 줄·일정 줄은 Figma 에서 카드보다 조금 안쪽에서 시작하고 오른쪽 끝은 카드와 같다
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginLeft: 3.91,
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: BOTTOM_FADE_HEIGHT,
   },
+  header: { gap: 20, paddingBottom: HEADER_PADDING_BOTTOM },
+  // 일정 줄은 Figma 에서 카드보다 조금 안쪽에서 시작하고 오른쪽 끝은 카드와 같다
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -12,12 +12,13 @@ import {
   createTextStyle,
   fonts,
   Icon,
-  ICON_HIT_SLOP,
   Text,
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabHeader } from '../../../shared/layout/TabHeader';
 import {
   formatJoinDate,
   formatPhoneNumber,
@@ -63,29 +64,13 @@ export function MyPageScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <TabHeader title="마이페이지" onOpenNotifications={onOpenNotifications} />
       {/* 소속 발주사는 한 사람이 몇 곳뿐이라 카드 하나 안에 다 그린다 (가상화할 만큼 길지 않다) */}
       <ScrollView
+        {...noOverscroll}
         ref={scrollRef}
         contentContainerStyle={[readableColumn, styles.content]}
       >
-        <View style={styles.titleRow}>
-          <Text
-            accessibilityRole="header"
-            variant="Body/XL/SemiBold"
-            color={colors.black}
-          >
-            마이페이지
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="알림센터"
-            hitSlop={ICON_HIT_SLOP}
-            onPress={onOpenNotifications}
-          >
-            <Icon name="bell" />
-          </Pressable>
-        </View>
-
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${profile.name}, ${phone}, ${joinDate}`}
@@ -292,17 +277,12 @@ const SETTING_ROW_HIT_SLOP = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 프로필 카드는 지금처럼 제목 줄 아래 20 에서 시작한다. 제목 줄은 스크롤 밖 상단 바다 (#103)
   content: {
     gap: 24,
     paddingHorizontal: 24,
-    paddingTop: 18,
+    paddingTop: 20,
     paddingBottom: 24,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: -4,
   },
   card: {
     borderRadius: 16,
