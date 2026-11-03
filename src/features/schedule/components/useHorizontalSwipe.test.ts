@@ -251,6 +251,20 @@ describe('useHorizontalSwipe 손가락 따라가기·넘김 애니메이션', ()
     expect(result.current.page).toBe(0);
   });
 
+  // 큰 화면에서는 창(본문 기둥)보다 길게 끌 수 있다. 그 너머에는 그린 페이지가 없다
+  it('한 페이지 폭보다 더 끌어도 옆 페이지 너머로 가지 않는다', async () => {
+    const { result, finish, offsets } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -600 });
+    expect(Math.min(...offsets)).toBe(-PAGE_WIDTH);
+    await finish();
+
+    // 넘긴 뒤(page 1)에는 그 앞 페이지(page 0) 자리까지
+    offsets.length = 0;
+    await drag(result.current.panHandlers, { dx: 600 });
+    expect(Math.max(...offsets)).toBeCloseTo(0);
+  });
+
   it('폭이 바뀌면 트랙을 지금 페이지 자리로 옮긴다', async () => {
     const { result, finish, offsets } = await setup();
     await drag(result.current.panHandlers, { dx: -80 });
@@ -284,11 +298,13 @@ describe('useHorizontalSwipe 버튼 넘김', () => {
   });
 
   it('넘기는 중에 또 누르면 앞 넘김을 바로 확정하고 이어서 넘어가 누른 횟수만큼 넘긴다', async () => {
-    const { result, finish, lastSlide, onNext } = await setup();
+    const { result, finish, offsets, lastSlide, onNext } = await setup();
 
     await act(() => result.current.slide(1));
     await act(() => result.current.slide(1));
 
+    // 트랙을 추정 자리에 세우지 않는다. 새 애니메이션이 네이티브의 지금 값에서 이어 가 뒤로 튀지 않는다
+    expect(offsets).toEqual([]);
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(result.current.page).toBe(1);
     expect(lastSlide()?.toValue).toBe(-2 * PAGE_WIDTH);
@@ -296,6 +312,26 @@ describe('useHorizontalSwipe 버튼 넘김', () => {
     await finish();
     expect(onNext).toHaveBeenCalledTimes(2);
     expect(result.current.page).toBe(2);
+  });
+
+  it('미끄러지는 중에 폭이 바뀌면 다 넘어간 뒤 새 폭의 자리로 맞춘다', async () => {
+    const { result, finish, offsets } = await setup();
+
+    await act(() => result.current.slide(1));
+    await act(() => result.current.onTrackLayout(layout(400)));
+    await finish();
+
+    expect(offsets.at(-1)).toBe(-400);
+  });
+
+  it('미끄러지는 중에 화면을 떠나면 콜백을 부르지 않는다', async () => {
+    const { result, unmount, finish, onNext } = await setup();
+
+    await act(() => result.current.slide(1));
+    await unmount();
+    await finish();
+
+    expect(onNext).not.toHaveBeenCalled();
   });
 
   it('미끄러지는 중에 손가락으로 잡으면 넘김을 확정하고 지금 보이는 자리에서 이어 끈다', async () => {

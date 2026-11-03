@@ -147,6 +147,22 @@ describe('MonthCalendar 넘김', () => {
     expect(screen.getByText('2027년 3월')).toBeOnTheScreen();
   });
 
+  // 날짜를 key 로 두면 넘길 때마다 세 격자의 칸을 거의 다 지우고 새로 만든다 (네이티브 뷰 생성)
+  it('달을 넘겨도 날짜 칸을 다시 만들지 않고 내용만 바꾼다', async () => {
+    const { finish } = holdNativeAnimations();
+    await render(<StatefulCalendar />);
+    await layoutTrack();
+    // 12월 격자 둘째 주 첫 칸 (1월 3일은 12월 격자에 없다)
+    const cell = screen.getByRole('button', { name: '12월 6일 일요일' });
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await finish();
+
+    const sameCell =
+      screen.getByRole('button', { name: '1월 3일 일요일' }) === cell;
+    expect(sameCell).toBe(true);
+  });
+
   it('동작 줄이기가 켜져 있으면 애니메이션 없이 바로 넘긴다', async () => {
     jest
       .mocked(AccessibilityInfo.isReduceMotionEnabled)

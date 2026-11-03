@@ -155,7 +155,9 @@ function inGrid(weeks: MonthCell[][], dateKey: string) {
   return first <= dateKey && dateKey <= last;
 }
 
-// 한 달 치 날짜 칸. 넘김 트랙의 페이지마다 그린다
+// 한 달 치 날짜 칸. 넘김 트랙의 페이지마다 그린다.
+// 주·칸은 자리(몇째 주, 무슨 요일)를 key 로 둔다. 달을 넘기면 세 격자가 모두 바뀌는데, 날짜를 key 로 두면
+// 칸을 거의 다 지우고 새로 만든다 (네이티브 뷰 생성). 자리를 key 로 두면 내용만 바꾼다
 const MonthGrid = memo(function MonthGridView({
   weeks,
   selected,
@@ -170,14 +172,14 @@ const MonthGrid = memo(function MonthGridView({
 }) {
   return (
     <View style={styles.weeks}>
-      {weeks.map(week => (
-        <View key={toDateKey(week[0].date)} style={styles.week}>
+      {weeks.map((week, row) => (
+        <View key={row} style={styles.week}>
           {week.map(({ date, inMonth }) => {
             const active = selected !== null && isSameDay(date, selected);
             const count = eventCounts.get(toDateKey(date)) ?? 0;
             return (
               <Pressable
-                key={date.getTime()}
+                key={date.getDay()}
                 accessibilityRole="button"
                 accessibilityLabel={dayA11yLabel(date)}
                 accessibilityState={{ selected: active }}
