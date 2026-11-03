@@ -1,5 +1,10 @@
 import { render, screen } from '@testing-library/react-native';
-import { colors, typography } from '../../../shared/design-system';
+import {
+  colors,
+  pressedBackground,
+  typography,
+} from '../../../shared/design-system';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ConfirmedRow, PendingRequestCard } from './ScheduleRows';
@@ -72,6 +77,17 @@ describe('ConfirmedRow', () => {
 });
 
 // Figma 내 일정 › 응답 필요 (2367:12834) 의 요청 카드
+describe('ConfirmedRow 눌림 (#102)', () => {
+  it('누를 수 있는 행은 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+    await render(<ConfirmedRow item={confirmed} onPress={jest.fn()} />);
+
+    await expectPressedBackground(
+      screen.getByRole('button', { name: /^세탁기 설치, / }),
+      pressedBackground.onWhite,
+    );
+  });
+});
+
 describe('PendingRequestCard', () => {
   const renderCard = () =>
     render(
@@ -116,7 +132,25 @@ describe('PendingRequestCard', () => {
       name: '에어컨 필터 교체 수락',
     }).parent as HostElement;
     expect(actions).toHaveStyle({ gap: 10 });
-    expect(actions.parent).toHaveStyle({ gap: 16, padding: 24 });
+    // 누르는 본문이 눌림 배경을 카드 위·옆 끝까지 칠하도록 여백을 본문·버튼 줄이 나눠 갖는다 (#102)
+    const body = titleBlock.parent as HostElement;
+    expect(body).toHaveStyle({
+      paddingTop: 24,
+      paddingHorizontal: 24,
+      paddingBottom: 16,
+    });
+    expect(actions).toHaveStyle({ paddingHorizontal: 24, paddingBottom: 24 });
+    expect(actions.parent).toHaveStyle({ gap: 0, padding: 0 });
+  });
+
+  // #102: 누르는 본문(상세 열기)만 회색이 되고, 거절·수락 버튼 줄은 그대로다
+  it('본문을 누르고 있는 동안 본문 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+    await renderCard();
+
+    await expectPressedBackground(
+      screen.getByRole('button', { name: /^에어컨 필터 교체 상세,/ }),
+      pressedBackground.onWhite,
+    );
   });
 
   it('거절·수락은 높이 46, 반경 12 의 M 버튼이다', async () => {

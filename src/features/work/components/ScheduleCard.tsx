@@ -1,7 +1,13 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type PressableStateCallbackType,
+} from 'react-native';
 import {
   colors,
+  pressedBackground,
   StatusChip,
   Text,
   workStatusLabels,
@@ -25,7 +31,7 @@ export const ScheduleCard = memo(function ScheduleCardView({
         item.address
       }`}
       onPress={() => onPress(item.id)}
-      style={styles.card}
+      style={cardStyle}
     >
       <View style={styles.titleRow}>
         <View style={styles.summary}>
@@ -59,6 +65,12 @@ export const ScheduleCard = memo(function ScheduleCardView({
   );
 });
 
+// 누르는 동안 둥근 모서리 안을 회색으로 칠한다 (#102)
+const cardStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.card,
+  pressed && styles.pressed,
+];
+
 const styles = StyleSheet.create({
   card: {
     gap: 6,
@@ -66,6 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: colors.white[100],
   },
+  pressed: { backgroundColor: pressedBackground.onWhite },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

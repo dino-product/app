@@ -1,6 +1,17 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, Icon, StatusChip, Text } from '../../../shared/design-system';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type PressableStateCallbackType,
+} from 'react-native';
+import {
+  colors,
+  Icon,
+  pressedBackground,
+  StatusChip,
+  Text,
+} from '../../../shared/design-system';
 import {
   completedWorkA11yLabel,
   formatWorkTime,
@@ -20,7 +31,7 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
       accessibilityRole="button"
       accessibilityLabel={completedWorkA11yLabel(item)}
       onPress={() => onPress(item.id)}
-      style={styles.row}
+      style={rowStyle}
     >
       <View style={styles.titleRow}>
         <Text variant="Body/M/SemiBold" numberOfLines={1} style={styles.shrink}>
@@ -52,6 +63,12 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
   );
 });
 
+// 누르는 동안 회색 배경 (#102)
+const rowStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.row,
+  pressed && styles.pressed,
+];
+
 const styles = StyleSheet.create({
   row: {
     gap: 10,
@@ -59,6 +76,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
   },
+  pressed: { backgroundColor: pressedBackground.onWhite },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

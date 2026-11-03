@@ -1,5 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
-import { colors } from '../../../shared/design-system';
+import { colors, pressedBackground } from '../../../shared/design-system';
+import { pressIn } from '../../../shared/testing/press';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { makeNotificationsMock } from '../mockData';
 import type { AppNotification } from '../model';
 import { NotificationCenterScreen } from './NotificationCenterScreen';
@@ -57,6 +59,24 @@ describe('NotificationCenterScreen', () => {
     expect(row('notification-4')).toHaveStyle({
       backgroundColor: colors.white[100],
     });
+  });
+
+  // #102: 누르는 동안 회색 배경. 읽지 않은 알림은 이미 회색이라 한 단계 진한 회색이다
+  it('읽지 않은 알림을 누르고 있는 동안 배경이 Gray100 이 되고 떼면 돌아온다', async () => {
+    await renderCenter();
+
+    await expectPressedBackground(
+      row('notification-1'),
+      pressedBackground.onGray,
+    );
+  });
+
+  it('읽었고 열 곳도 없는 알림은 누를 수 없어 눌림 배경이 없다', async () => {
+    await renderCenter();
+
+    const item = row('notification-4');
+    await pressIn(item);
+    expect(item).toHaveStyle({ backgroundColor: colors.white[100] });
   });
 
   it('스크린리더는 읽지 않은 알림을 먼저 알린다', async () => {
@@ -157,6 +177,15 @@ describe('NotificationCenterScreen — 열 곳이 있는 알림', () => {
 
     expect(props.onOpen).toHaveBeenCalledWith('request-3');
     expect(props.onRead).not.toHaveBeenCalled();
+  });
+
+  it('읽은 알림이어도 열 곳이 있으면 누르고 있는 동안 배경이 Gray50 이 된다', async () => {
+    await renderWith([rejected]);
+
+    await expectPressedBackground(
+      row('notification-9'),
+      pressedBackground.onWhite,
+    );
   });
 
   it('읽지 않았으면 읽음으로 바꾸고 연다', async () => {

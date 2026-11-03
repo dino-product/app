@@ -1,6 +1,11 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
-import { colors, typography } from '../../../shared/design-system';
+import {
+  colors,
+  pressedBackground,
+  typography,
+} from '../../../shared/design-system';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import type { HostElement } from '../../../shared/testing/touchTarget';
@@ -181,6 +186,15 @@ describe('WorkHistoryScreen — 상세 열기', () => {
     await userEvent.press(rows()[1]);
 
     expect(onOpenWork).toHaveBeenCalledWith('s1');
+  });
+});
+
+// #102: 누르는 동안 회색 배경
+describe('WorkHistoryScreen — 눌림', () => {
+  it('완료 작업 행을 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+    await renderHistory();
+
+    await expectPressedBackground(rows()[0], pressedBackground.onWhite);
   });
 });
 

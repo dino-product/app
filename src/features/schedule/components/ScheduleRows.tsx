@@ -1,9 +1,15 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type PressableStateCallbackType,
+} from 'react-native';
 import {
   colors,
   CTA,
   Icon,
+  pressedBackground,
   StatusChip,
   Text,
   workStatusLabels,
@@ -79,7 +85,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onPress(item.id)}
-      style={styles.row}
+      style={confirmedRowStyle}
     >
       {content}
     </Pressable>
@@ -103,7 +109,7 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
         accessibilityRole="button"
         accessibilityLabel={`${item.title} 상세, ${item.dateLabel} ${item.timeRange}, ${item.company} ${item.customerName} · ${item.address}`}
         onPress={() => onOpen(item.id)}
-        style={styles.cardBody}
+        style={cardBodyStyle}
       >
         <View style={styles.titleRow}>
           <StatusChip status={item.status} size="S" style={styles.chip} />
@@ -139,6 +145,16 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   );
 });
 
+// 누르는 동안 회색 배경 (#102). 응답 필요 카드는 상세를 여는 본문만 칠하고 거절·수락 줄은 그대로다
+const confirmedRowStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.row,
+  pressed && styles.pressed,
+];
+const cardBodyStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.cardBody,
+  pressed && styles.pressed,
+];
+
 const styles = StyleSheet.create({
   row: {
     gap: 10,
@@ -147,9 +163,16 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[200],
     backgroundColor: colors.white[100],
   },
-  // 칩 줄 → 14 → 제목·업체 줄 → 16 → 버튼 줄
-  card: { gap: 16 },
-  cardBody: { gap: 14 },
+  pressed: { backgroundColor: pressedBackground.onWhite },
+  // 칩 줄 → 14 → 제목·업체 줄 → 16 → 버튼 줄. 눌림 배경이 카드 위·옆 끝까지 칠해지도록
+  // 카드 여백(24)과 버튼 줄 위 간격(16)을 본문·버튼 줄 안으로 옮겼다
+  card: { gap: 0, padding: 0 },
+  cardBody: {
+    gap: 14,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
   cardTitle: { gap: 8 },
   titleRow: {
     flexDirection: 'row',
@@ -162,6 +185,11 @@ const styles = StyleSheet.create({
   time: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
-  actions: { flexDirection: 'row', gap: 10 },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
   action: { flex: 1 },
 });
