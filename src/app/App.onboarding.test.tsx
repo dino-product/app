@@ -1,5 +1,6 @@
 import {
   act,
+  fireEvent,
   render,
   screen,
   userEvent,
@@ -7,10 +8,12 @@ import {
   within,
 } from '@testing-library/react-native';
 import {
+  AccessibilityInfo,
   Alert,
   BackHandler,
   NativeModules,
   Platform,
+  StatusBar,
   type AlertButton,
 } from 'react-native';
 import { escapeFrom } from '../../jest/voiceOver';
@@ -126,6 +129,48 @@ describe('App — 온보딩', () => {
     expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
     expect(button('카카오로 시작하기')).toBeOnTheScreen();
     expect(button('Apple로 시작하기')).toBeOnTheScreen();
+  });
+
+  it('보라 배경인 로그인 화면이 보이는 동안만 상태 표시줄 글자가 흰색이고, 프로필 등록으로 가면 되돌린다', async () => {
+    const push = jest.spyOn(StatusBar, 'pushStackEntry');
+    const pop = jest.spyOn(StatusBar, 'popStackEntry');
+    await render(<App />);
+    const lightEntries = push.mock.results
+      .filter(
+        (_, index) => push.mock.calls[index][0].barStyle === 'light-content',
+      )
+      .map(result => result.value);
+    expect(lightEntries).toHaveLength(1);
+    expect(pop).not.toHaveBeenCalledWith(lightEntries[0]);
+
+    await login('카카오로 시작하기');
+
+    expect(pop).toHaveBeenCalledWith(lightEntries[0]);
+  });
+
+  it('온보딩 화면은 열리면 스크린리더 포커스가 제목으로 간다', async () => {
+    const focus = jest
+      .spyOn(AccessibilityInfo, 'sendAccessibilityEvent')
+      .mockClear();
+    // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
+    const appear = (title: string) =>
+      fireEvent(screen.getByRole('header', { name: title }), 'appear');
+    const titleNode = expect.objectContaining({
+      props: expect.objectContaining({ accessibilityRole: 'header' }),
+    });
+    await render(<App />);
+
+    await login('카카오로 시작하기');
+    await appear('프로필 등록');
+    expect(focus).toHaveBeenLastCalledWith(titleNode, 'focus');
+
+    await registerProfile();
+    await appear('서비스 이용을 위해 동의가 필요해요');
+    expect(focus).toHaveBeenCalledTimes(2);
+
+    await agreeTerms();
+    await appear('회사 참여');
+    expect(focus).toHaveBeenCalledTimes(3);
   });
 
   it('Android 에서는 카카오 버튼만 보인다', async () => {

@@ -1,4 +1,10 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { NativeModules } from 'react-native';
 import type { ParticipationRequest } from '../model';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
@@ -110,5 +116,13 @@ describe('JoinRequestedScreen', () => {
 
     expect(props.onCancel).not.toHaveBeenCalled();
     expect(sheetTitle()).toBeNull();
+  });
+  it('확인을 연달아 눌러도 한 번만 알린다 (온보딩은 확인으로 사무실 결정을 흉내 낸다)', async () => {
+    const { onConfirm } = await renderRequested();
+
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

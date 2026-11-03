@@ -64,7 +64,7 @@ export function ProfileRegisterScreen({
           contentContainerStyle={[readableColumn, styles.content]}
         >
           <View style={styles.avatar}>
-            <Icon name="user" size={44} color={colors.support.sideBarIcon} />
+            <Icon name="avatar-user" color={colors.support.sideBarIcon} />
           </View>
           <View style={styles.form}>
             <FormField

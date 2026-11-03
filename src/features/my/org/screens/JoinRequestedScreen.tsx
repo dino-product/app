@@ -43,6 +43,14 @@ export function JoinRequestedScreen({
   const look = looks[flow];
   // 시트에서 취소를 확정했는지. 시트가 다 내려간 뒤에 취소·이동한다 (모달 아래에서 화면이 바뀌지 않게)
   const confirmed = useRef(false);
+  // 화면을 옮기기 전에 '확인' 을 연달아 눌러도 한 번만 알린다 (온보딩은 확인이 사무실 결정을 흉내 낸다)
+  const acknowledged = useRef(false);
+  const acknowledge = () => {
+    if (!acknowledged.current) {
+      acknowledged.current = true;
+      onConfirm();
+    }
+  };
 
   return (
     <SafeAreaView
@@ -168,7 +176,7 @@ export function JoinRequestedScreen({
           onPress={() => setCanceling(true)}
           style={styles.action}
         />
-        <CTA label="확인" onPress={onConfirm} style={styles.action} />
+        <CTA label="확인" onPress={acknowledge} style={styles.action} />
       </View>
 
       <CancelRequestSheet

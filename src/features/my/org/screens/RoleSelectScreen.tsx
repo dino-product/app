@@ -135,9 +135,18 @@ export function RoleSelectScreen({
                       {option.description}
                     </Text>
                   </View>
-                  <View style={[styles.radio, checked && styles.radioChecked]}>
-                    {checked && <View style={styles.radioDot} />}
-                  </View>
+                  {flow === 'onboarding' ? (
+                    <Icon
+                      name={checked ? 'radio-on' : 'radio-off'}
+                      color={checked ? colors.secondary : colors.gray[200]}
+                    />
+                  ) : (
+                    <View
+                      style={[styles.radio, checked && styles.radioChecked]}
+                    >
+                      {checked && <View style={styles.radioDot} />}
+                    </View>
+                  )}
                 </Pressable>
               );
             })}

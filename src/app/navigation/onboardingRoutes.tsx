@@ -1,6 +1,6 @@
-import { CommonActions } from '@react-navigation/native';
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect } from 'react';
+import { Platform, StatusBar } from 'react-native';
 import { decideParticipationMock } from '../../features/my/org/mockData';
 import type { ParticipationRequest } from '../../features/my/org/model';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
@@ -20,8 +20,20 @@ import type { OnboardingScreenProps, RootScreenProps } from './types';
 // 로그인·온보딩 화면들 (#85). 더미 로그인 상태(AuthProvider)와 온보딩 상태(OnboardingProvider)를 화면 props 로 이어 준다.
 // 회사 찾기~거절은 마이 › 조직 참여(#73) 화면을 flow="onboarding" 으로 다시 쓴다.
 
+// 보라 배경이라 로그인 화면이 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다.
+// 온보딩을 위에 쌓아도 로그인 화면은 아래에 남아 있으므로, 마운트가 아니라 포커스로 켜고 끈다
+function useLightStatusBar() {
+  useFocusEffect(
+    useCallback(() => {
+      const entry = StatusBar.pushStackEntry({ barStyle: 'light-content' });
+      return () => StatusBar.popStackEntry(entry);
+    }, []),
+  );
+}
+
 export function LoginRoute({ navigation }: RootScreenProps<'Login'>) {
   const auth = useAuth();
+  useLightStatusBar();
 
   return (
     <LoginScreen
