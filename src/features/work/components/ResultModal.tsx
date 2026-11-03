@@ -55,7 +55,7 @@ export function ResultModal({
           >
             {submitted
               ? '작업이 완료 처리되었습니다'
-              : '등록 담당자가 이 작업을\n취소했습니다'}
+              : '등록 담당자가 이 작업을 취소했습니다'}
           </Text>
           <View style={styles.summary}>
             {rows.map(row => (

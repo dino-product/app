@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { colors } from '../../../shared/design-system';
 import { workDetail } from '../../work/mockData';
 import { RequestDetailScreen } from './RequestDetailScreen';
 
@@ -30,5 +31,23 @@ describe('RequestDetailScreen', () => {
     expect(onAccept).toHaveBeenCalled();
     expect(onReject).toHaveBeenCalled();
     expect(onBack).toHaveBeenCalled();
+  });
+
+  // 작업 정보 영역은 작업 수행 상세와 같은 컴포넌트를 쓴다
+  it('작업 내용 카드는 회색 채움이다', async () => {
+    await render(
+      <RequestDetailScreen
+        work={workDetail}
+        onBack={jest.fn()}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+        onCall={jest.fn()}
+        onNavigate={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('work-content-card')).toHaveStyle({
+      backgroundColor: colors.gray[50],
+    });
   });
 });

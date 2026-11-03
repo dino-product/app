@@ -37,6 +37,8 @@ const statusSpec: Record<
     background: colors.pending[3],
     foreground: colors.pending[1],
   },
+  // 작업전은 DesignSystem 칩 세트에 없다. Figma 주석(3237:5854)은 스케줄에서 온 칩은 연보라, 작업수행에서 온 칩은 회색이라 했지만,
+  // 어느 화면에서 왔든 연보라 하나로 쓰기로 했다 (2026-11-02)
   beforeWork: {
     label: '작업전',
     background: colors.accepted[2],

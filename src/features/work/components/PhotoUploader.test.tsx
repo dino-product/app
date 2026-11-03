@@ -1,4 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { colors } from '../../../shared/design-system';
 import { PhotoUploader } from './PhotoUploader';
 
 describe('PhotoUploader', () => {
@@ -13,7 +15,23 @@ describe('PhotoUploader', () => {
     );
 
     expect(screen.getByText('작업 전')).toBeOnTheScreen();
-    expect(screen.getByText('1/5')).toBeOnTheScreen();
+    expect(screen.getByText('1/6')).toBeOnTheScreen();
+  });
+
+  it('추가 칸은 회색 채움이고 테두리가 없다', async () => {
+    await render(
+      <PhotoUploader
+        title="작업 전"
+        photos={[]}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    expect(add).toHaveStyle({ backgroundColor: colors.gray[50] });
+    expect(StyleSheet.flatten(add.props.style).borderWidth ?? 0).toBe(0);
+    expect(screen.getByText('0/6')).toBeOnTheScreen();
   });
 
   it('추가 타일을 누르면 onAdd 를 호출한다', async () => {
@@ -57,7 +75,7 @@ describe('PhotoUploader', () => {
     await render(
       <PhotoUploader
         title="작업 전"
-        photos={['1', '2', '3', '4', '5']}
+        photos={['1', '2', '3', '4', '5', '6']}
         onAdd={onAdd}
         onRemove={jest.fn()}
       />,
@@ -68,5 +86,31 @@ describe('PhotoUploader', () => {
 
     expect(add).toBeDisabled();
     expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  // 제출을 마친 보고. 추가 칸·삭제 버튼을 숨길지는 디자이너 확인 전이라 Figma 대로 두고 누를 수만 없게 한다
+  it('readOnly 면 추가·삭제를 막는다', async () => {
+    const onAdd = jest.fn();
+    const onRemove = jest.fn();
+    await render(
+      <PhotoUploader
+        title="작업 전"
+        photos={['p1']}
+        onAdd={onAdd}
+        onRemove={onRemove}
+        readOnly
+      />,
+    );
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    const remove = screen.getByRole('button', { name: '작업 전 사진 1 삭제' });
+    await userEvent.press(add);
+    await userEvent.press(remove);
+
+    expect(add).toBeDisabled();
+    expect(remove).toBeDisabled();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(screen.getByText('1/6')).toBeOnTheScreen();
   });
 });

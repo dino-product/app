@@ -68,7 +68,7 @@ async function submitReport() {
   );
   await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
-  await userEvent.press(screen.getByRole('button', { name: '카드' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
   await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
   await screen.findByRole('header', { name: '제출 완료' });
 }
@@ -177,6 +177,63 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
     // 제출을 마친 보고는 잃을 입력이 아니라 나갈 때 묻지 않는다
     expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('제출한 작업을 다시 열면 읽기 전용 제출 완료 상태다', async () => {
+    await render(<App />);
+
+    await submitReport();
+    await userEvent.press(
+      screen.getByRole('button', { name: '메인 화면으로' }),
+    );
+    await userEvent.press(
+      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+    );
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '제출 완료' })).toBeDisabled();
+    expect(
+      screen.getByText(/^제출 시각 \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    ).toBeOnTheScreen();
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
+      '75,000',
+    );
+  });
+
+  // 목 데이터는 같은 작업을 계속 진행할 작업으로 보여 주므로, 다시 시작하면 새 작업처럼 연다
+  it('제출한 진행 작업을 다시 시작하면 빈 보고로 열어 다시 끝낼 수 있다', async () => {
+    await render(<App />);
+
+    await submitReport();
+    await userEvent.press(
+      screen.getByRole('button', { name: '메인 화면으로' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+    await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('');
+  });
+
+  it('제출하지 않은 다른 작업은 비어 있는 보고로 연다', async () => {
+    await render(<App />);
+
+    await submitReport();
+    await userEvent.press(
+      screen.getByRole('button', { name: '메인 화면으로' }),
+    );
+    await userEvent.press(
+      screen.getAllByRole('button', { name: /^세탁기 설치/ })[0],
+    );
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('');
   });
 
   it('상세에서 지금 탭("홈")을 다시 누르면 그 탭의 첫 화면으로 돌아간다', async () => {

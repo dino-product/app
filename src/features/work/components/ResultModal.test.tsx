@@ -32,12 +32,26 @@ describe('ResultModal', () => {
     expect(
       screen.getByRole('header', { name: '작업이 취소되었습니다' }),
     ).toBeOnTheScreen();
-    expect(
-      screen.getByText('등록 담당자가 이 작업을\n취소했습니다'),
-    ).toBeOnTheScreen();
     expect(screen.getByText('고객 요청')).toHaveStyle({
       color: colors.warning[1],
     });
+  });
+
+  // Figma 는 한 줄이다. 폭이 모자랄 때만 자연스럽게 줄이 바뀐다
+  it('작업 취소: 설명에 강제 줄바꿈이 없다', async () => {
+    await render(
+      <ResultModal
+        visible
+        result={{ kind: 'canceled', reason: '고객 요청', at: '10.01 15:15' }}
+        onConfirm={jest.fn()}
+      />,
+    );
+
+    const description = screen.getByText(
+      '등록 담당자가 이 작업을 취소했습니다',
+      { normalizer: text => text },
+    );
+    expect(description).toHaveTextContent(/^[^\n]+$/);
   });
 
   it('"메인 화면으로" 를 누르면 onConfirm 을 호출한다', async () => {

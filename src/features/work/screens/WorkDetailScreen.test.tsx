@@ -7,7 +7,9 @@ import {
 } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
+import { colors } from '../../../shared/design-system';
 import { workDetail } from '../mockData';
+import type { WorkDetail } from '../model';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
 const renderDetail = (
@@ -35,8 +37,33 @@ async function fillRequired() {
   );
   await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
-  await userEvent.press(screen.getByRole('button', { name: '카드' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 }
+
+// 같은 부모 아래에서 a 가 b 보다 앞에 있는지 (스크린리더가 읽는 순서)
+function comesBefore(
+  a: ReturnType<typeof screen.getByText>,
+  b: ReturnType<typeof screen.getByText>,
+) {
+  const siblings = a.parent?.children ?? [];
+  expect(b.parent).toBe(a.parent);
+  expect(siblings.indexOf(a)).toBeLessThan(siblings.indexOf(b));
+}
+
+const submittedWork: WorkDetail = {
+  ...workDetail,
+  submission: {
+    submittedAt: '2026-12-19 11:32',
+    report: {
+      beforePhotos: ['mock://before-1', 'mock://before-2'],
+      afterPhotos: ['mock://after-1'],
+      memo: '배터리 교체',
+      parts: '건전지 4개',
+      amount: '120000',
+      paymentMethod: 'card',
+    },
+  },
+};
 
 describe('WorkDetailScreen', () => {
   it('작업명·상태·작업번호와 일정·고객 정보를 보여준다', async () => {
@@ -113,7 +140,9 @@ describe('WorkDetailScreen', () => {
 
     await userEvent.type(screen.getByLabelText('결제 금액 입력'), '7a5,0원00');
 
-    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('75000');
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
+      '75,000',
+    );
   });
 
   it('결제 금액의 앞자리 0 은 지운다', async () => {
@@ -132,10 +161,159 @@ describe('WorkDetailScreen', () => {
       screen.getByRole('button', { name: '작업 전 사진 1 삭제' }),
     );
 
-    expect(screen.getByText('0/5')).toBeOnTheScreen();
+    expect(screen.getByText('0/6')).toBeOnTheScreen();
     expect(
       screen.getByRole('button', { name: '완료보고 제출' }),
     ).toBeDisabled();
+  });
+
+  it('사진은 단계별 6장까지 추가하고 7장째는 추가되지 않는다', async () => {
+    let n = 0;
+    await renderDetail({ onPickPhoto: jest.fn(async () => `mock://${++n}`) });
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    for (let i = 0; i < 7; i += 1) {
+      await userEvent.press(add);
+    }
+
+    expect(screen.getByText('6/6')).toBeOnTheScreen();
+    expect(add).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: '작업 전 사진 7 삭제' }),
+    ).not.toBeOnTheScreen();
+  });
+
+  it('수행 메모·사용 부품 제목 뒤에 회색 "(선택)" 을 붙이고 "…, 선택" 으로 읽는다', async () => {
+    await renderDetail();
+
+    expect(
+      screen.getByRole('header', { name: '수행 메모, 선택' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('header', { name: '사용 부품, 선택' }),
+    ).toBeOnTheScreen();
+    const optional = screen.getAllByText('(선택)');
+    expect(optional).toHaveLength(2);
+    for (const text of optional) {
+      expect(text).toHaveStyle({ color: colors.gray[500] });
+    }
+  });
+
+  it('사용 부품은 한 줄 입력이고 수행 메모만 여러 줄이다', async () => {
+    await renderDetail();
+
+    expect(screen.getByLabelText('사용 부품 입력')).not.toHaveProp(
+      'multiline',
+      true,
+    );
+    expect(screen.getByLabelText('수행 메모 입력')).toHaveProp(
+      'multiline',
+      true,
+    );
+  });
+
+  it('완료보고 제출 위에 "제출 후 수정 불가" 를 두고 버튼보다 먼저 읽게 한다', async () => {
+    await renderDetail();
+
+    const notice = screen.getByText('제출 후 수정 불가');
+    comesBefore(notice, screen.getByRole('button', { name: '완료보고 제출' }));
+  });
+
+  describe('제출을 마친 작업', () => {
+    it('입력값을 읽기 전용으로 보여주고, 제출 시각과 비활성 "제출 완료" 버튼을 보여준다', async () => {
+      await renderDetail({ work: submittedWork });
+
+      const done = screen.getByRole('button', { name: '제출 완료' });
+      expect(done).toBeDisabled();
+      comesBefore(screen.getByText('제출 시각 2026-12-19 11:32'), done);
+      expect(screen.queryByText('제출 후 수정 불가')).not.toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: '완료보고 제출' }),
+      ).not.toBeOnTheScreen();
+
+      const amount = screen.getByLabelText('결제 금액 입력');
+      expect(amount).toHaveDisplayValue('120,000');
+      expect(amount).toHaveProp('editable', false);
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배터리 교체',
+      );
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveProp(
+        'editable',
+        false,
+      );
+      expect(screen.getByLabelText('사용 부품 입력')).toHaveDisplayValue(
+        '건전지 4개',
+      );
+      expect(screen.getByLabelText('사용 부품 입력')).toHaveProp(
+        'editable',
+        false,
+      );
+      // 결제 방식은 펼침 화살표 없이 고른 값만 보인다
+      expect(screen.getByText('현장 카드')).toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: '결제 방식 선택' }),
+      ).not.toBeOnTheScreen();
+    });
+
+    it('제출한 사진을 보여주고 더 넣거나 지울 수 없다', async () => {
+      const onPickPhoto = jest.fn(async () => 'mock://photo');
+      await renderDetail({ work: submittedWork, onPickPhoto });
+
+      expect(screen.getByText('2/6')).toBeOnTheScreen();
+      expect(screen.getByText('1/6')).toBeOnTheScreen();
+      const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+      const remove = screen.getByRole('button', {
+        name: '작업 전 사진 1 삭제',
+      });
+      await userEvent.press(add);
+      await userEvent.press(remove);
+
+      expect(add).toBeDisabled();
+      expect(remove).toBeDisabled();
+      expect(onPickPhoto).not.toHaveBeenCalled();
+      expect(screen.getByText('2/6')).toBeOnTheScreen();
+    });
+
+    it('작성 중이라고 알리지 않는다 (나갈 때 묻지 않는다)', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ work: submittedWork, onUnsavedReportChange });
+
+      expect(onUnsavedReportChange).not.toHaveBeenCalledWith(true);
+    });
+
+    it('작성하던 보고가 제출되면 작성 중이 아니라고 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      const props = {
+        onBack: jest.fn(),
+        onSubmitReport: jest.fn(() => ({
+          kind: 'submitted' as const,
+          at: '10.01 15:15',
+        })),
+        onDone: jest.fn(),
+        onCall: jest.fn(),
+        onNavigate: jest.fn(),
+        onPickPhoto: jest.fn(async () => null),
+        onUnsavedReportChange,
+      };
+      await render(<WorkDetailScreen work={workDetail} {...props} />);
+      await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관');
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+
+      // 입력은 화면에 남아 있지만 제출 정보가 들어오면 잃을 입력이 아니다
+      await screen.rerender(
+        <WorkDetailScreen work={submittedWork} {...props} />,
+      );
+
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
+    });
+
+    it('"완료 보고 작성하기" 버튼을 띄우지 않는다', async () => {
+      await renderDetail({ work: submittedWork });
+
+      expect(
+        screen.queryByRole('button', { name: '완료 보고 작성하기' }),
+      ).not.toBeOnTheScreen();
+    });
   });
 
   describe('키보드', () => {
@@ -300,7 +478,7 @@ describe('WorkDetailScreen', () => {
       screen.getByRole('button', { name: '작업 전 사진 추가' }),
     );
 
-    expect(screen.getAllByText('0/5')).toHaveLength(2);
+    expect(screen.getAllByText('0/6')).toHaveLength(2);
   });
 
   describe('작성 중인 완료 보고 알림', () => {
@@ -367,10 +545,10 @@ describe('WorkDetailScreen', () => {
     await userEvent.press(
       screen.getByRole('button', { name: '결제 방식 선택' }),
     );
-    await userEvent.press(screen.getByRole('button', { name: '카드' }));
+    await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 
     expect(
       screen.getByRole('button', { name: '결제 방식 선택' }),
-    ).toHaveAccessibilityValue({ text: '카드' });
+    ).toHaveAccessibilityValue({ text: '현장 카드' });
   });
 });
