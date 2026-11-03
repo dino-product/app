@@ -32,6 +32,7 @@ export function TabHeader({
           accessibilityRole="header"
           variant="Body/XL/SemiBold"
           color={colors.black}
+          style={styles.title}
         >
           {title}
         </Text>
@@ -70,4 +71,6 @@ const styles = StyleSheet.create({
     minHeight: 34,
     pointerEvents: 'box-none',
   },
+  // 큰 글자에서 줄 폭을 넘으면 제목이 줄바꿈되어 종이 화면 밖으로 밀리지 않는다
+  title: { flexShrink: 1 },
 });

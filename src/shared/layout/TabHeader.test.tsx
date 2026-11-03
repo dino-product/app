@@ -42,6 +42,17 @@ describe('TabHeader', () => {
     ).toHaveStyle({ paddingTop: 12, paddingBottom: 16 });
   });
 
+  // 글자 크기 설정을 크게 하면 제목이 줄 폭을 넘는다. 제목이 줄바꿈되어 종이 화면 밖으로 밀리지 않는다
+  it('큰 글자에서는 제목이 줄어들어(줄바꿈) 종 자리를 남긴다', async () => {
+    await render(
+      <TabHeader title="마이페이지" onOpenNotifications={jest.fn()} />,
+    );
+
+    expect(screen.getByRole('header', { name: '마이페이지' })).toHaveStyle({
+      flexShrink: 1,
+    });
+  });
+
   it('알림 동작이 없으면 종을 그리지 않는다 (Figma 에 종이 없는 화면)', async () => {
     await render(<TabHeader title="내 일정" />);
 
