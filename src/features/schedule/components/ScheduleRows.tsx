@@ -10,17 +10,24 @@ import {
 } from '../../../shared/design-system';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 
-// 내 일정 목록의 행 (확정 일정) 과 카드 (응답 필요)
+// 내 일정 목록의 행 (확정 일정) 과 카드 (응답 필요). Figma 2714:12918, 2367:12834
 
-function Meta({ item }: { item: ConfirmedSchedule }) {
+/** 업체 | 고객 · 주소. 업체명은 확정 일정 행에서 Medium, 응답 필요 카드에서 SemiBold 다 (Figma) */
+function Meta({
+  item,
+  companyVariant = 'Caption/M/Medium',
+}: {
+  item: ConfirmedSchedule;
+  companyVariant?: 'Caption/M/Medium' | 'Caption/M/SemiBold';
+}) {
   return (
     <View style={styles.meta}>
-      <Text variant="Caption/M/Medium" color={colors.gray[800]}>
+      <Text variant={companyVariant} color={colors.gray[800]}>
         {item.company}
       </Text>
       <View style={styles.divider} />
       <Text
-        variant="Caption/M/Regular"
+        variant="Caption/M/Medium"
         color={colors.gray[600]}
         numberOfLines={1}
         style={styles.shrink}
@@ -44,13 +51,13 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   const content = (
     <>
       <View style={styles.titleRow}>
-        <Text variant="Body/S/Bold" numberOfLines={1} style={styles.shrink}>
+        <Text variant="Body/M/SemiBold" numberOfLines={1} style={styles.shrink}>
           {item.title}
         </Text>
         <StatusChip status={item.status} size="S" style={styles.chip} />
       </View>
       <View style={styles.time}>
-        <Icon name="calendar" size={20} color={colors.gray[600]} />
+        <Icon name="calendar" color={colors.gray[600]} />
         <Text variant="Body/XS/Medium" color={colors.gray[600]}>
           {item.timeRange}
         </Text>
@@ -91,7 +98,7 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   onOpen: (id: string) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, styles.card]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${item.title} 상세, ${item.dateLabel} ${item.timeRange}, ${item.company} ${item.customerName} · ${item.address}`}
@@ -100,18 +107,20 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
       >
         <View style={styles.titleRow}>
           <StatusChip status={item.status} size="S" style={styles.chip} />
-          <Text variant="Body/XS/Medium" color={colors.gray[600]}>
+          <Text variant="Body/XS/SemiBold" color={colors.gray[700]}>
             {`${item.dateLabel} · ${item.timeRange}`}
           </Text>
         </View>
-        <Text variant="Body/S/Bold" numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Meta item={item} />
+        <View style={styles.cardTitle}>
+          <Text variant="Body/M/SemiBold" color={colors.pt01} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Meta item={item} companyVariant="Caption/M/SemiBold" />
+        </View>
       </Pressable>
       <View style={styles.actions}>
         <CTA
-          type="modal"
+          size="M"
           variant="outline"
           label="거절"
           onPress={() => onReject(item.id)}
@@ -119,7 +128,7 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
           accessibilityLabel={`${item.title} 거절`}
         />
         <CTA
-          type="modal"
+          size="M"
           label="수락"
           onPress={() => onAccept(item.id)}
           style={styles.action}
@@ -132,14 +141,16 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
 
 const styles = StyleSheet.create({
   row: {
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    gap: 10,
+    padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: colors.gray[200],
     backgroundColor: colors.white[100],
   },
-  cardBody: { gap: 8 },
+  // 칩 줄 → 14 → 제목·업체 줄 → 16 → 버튼 줄
+  card: { gap: 16 },
+  cardBody: { gap: 14 },
+  cardTitle: { gap: 8 },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -148,9 +159,9 @@ const styles = StyleSheet.create({
   },
   chip: { alignSelf: 'center' },
   shrink: { flexShrink: 1 },
-  time: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  divider: { width: 1, height: 12, backgroundColor: colors.gray[300] },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  time: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
+  actions: { flexDirection: 'row', gap: 10 },
   action: { flex: 1 },
 });

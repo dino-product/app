@@ -21,6 +21,7 @@ import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
   addWeeks,
+  countByDate,
   formatDateHeader,
   startOfWeek,
   toDateKey,
@@ -81,10 +82,7 @@ export function ScheduleScreen({
         .sort((a, b) => a.timeRange.localeCompare(b.timeRange)),
     [confirmed, selectedKey],
   );
-  const markedKeys = useMemo(
-    () => new Set(confirmed.map(item => item.dateKey)),
-    [confirmed],
-  );
+  const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
   const selectDate = useCallback((date: Date) => {
     setSelected(date);
@@ -125,57 +123,70 @@ export function ScheduleScreen({
           hitSlop={ICON_HIT_SLOP}
           onPress={() => setCalendarOpen(open => !open)}
         >
-          <Icon name="calendar" color={colors.gray[600]} />
+          {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
+          {calendarOpen ? (
+            <Icon name="calendar-switch-open" color={colors.gray[800]} />
+          ) : (
+            <Icon name="calendar-switch" color={colors.gray[500]} />
+          )}
         </Pressable>
       </View>
-      <View style={styles.rule} />
+      {/* Figma 는 주간 줄과 펼친 달력의 여백이 다르고, 구분선은 주간 줄에만 있다 */}
       {calendarOpen ? (
-        <MonthCalendar
-          year={viewMonth.year}
-          month={viewMonth.month}
-          selected={selected}
-          markedKeys={markedKeys}
-          edgeInset={styles.dateArea.paddingHorizontal}
-          onSelect={selectDate}
-          onPrev={() => moveMonth(-1)}
-          onNext={() => moveMonth(1)}
-        />
+        <View style={styles.monthArea}>
+          <MonthCalendar
+            year={viewMonth.year}
+            month={viewMonth.month}
+            selected={selected}
+            eventCounts={eventCounts}
+            edgeInset={styles.monthArea.paddingHorizontal}
+            onSelect={selectDate}
+            onPrev={() => moveMonth(-1)}
+            onNext={() => moveMonth(1)}
+          />
+        </View>
       ) : (
-        <WeekStrip
-          days={week}
-          selected={selected}
-          edgeInset={styles.dateArea.paddingHorizontal}
-          onSelect={selectDate}
-          onPrev={() => moveWeek(-1)}
-          onNext={() => moveWeek(1)}
-        />
+        <View style={styles.weekArea}>
+          <View style={styles.rule} />
+          <WeekStrip
+            days={week}
+            selected={selected}
+            edgeInset={styles.weekArea.paddingHorizontal}
+            onSelect={selectDate}
+            onPrev={() => moveWeek(-1)}
+            onNext={() => moveWeek(1)}
+          />
+        </View>
       )}
     </View>
   );
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={readableColumn}>
-        <Text
-          accessibilityRole="header"
-          variant="Body/XL/SemiBold"
-          color={colors.black}
-          style={styles.title}
-        >
-          내 일정
-        </Text>
-        <UnderlineTabs
-          items={[
-            {
-              key: 'confirmed',
-              label: '확정 일정',
-              count: daySchedules.length,
-            },
-            { key: 'pending', label: '응답 필요', count: pending.length },
-          ]}
-          selectedKey={tab}
-          onChange={setTab}
-        />
+      {/* 머리말 그림자가 아래 리스트 위로 드리우도록 앞에 그린다 */}
+      <View style={styles.header}>
+        <View style={readableColumn}>
+          <Text
+            accessibilityRole="header"
+            variant="Body/XL/SemiBold"
+            color={colors.black}
+            style={styles.title}
+          >
+            내 일정
+          </Text>
+          <UnderlineTabs
+            items={[
+              {
+                key: 'confirmed',
+                label: '확정 일정',
+                count: daySchedules.length,
+              },
+              { key: 'pending', label: '응답 필요', count: pending.length },
+            ]}
+            selectedKey={tab}
+            onChange={setTab}
+          />
+        </View>
       </View>
       {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
       {tab === 'confirmed' ? (
@@ -220,15 +231,22 @@ function Empty({ text }: { text: string }) {
   );
 }
 
+// Figma: 날짜 줄·달력·구분선은 화면 가장자리에서 24, 주간 줄은 10 안쪽이다
+const DATE_INSET = 24;
+const WEEK_INSET = 10;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
-  title: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
+  header: {
+    zIndex: 1,
+    backgroundColor: colors.white[100],
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
+  },
+  // 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
+  title: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
   list: { flex: 1 },
   dateArea: {
-    gap: 16,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 24,
     borderBottomWidth: 12,
     borderBottomColor: colors.background[3],
   },
@@ -236,7 +254,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: DATE_INSET,
   },
-  rule: { height: 1, backgroundColor: colors.gray[100] },
+  weekArea: {
+    gap: 20,
+    paddingHorizontal: WEEK_INSET,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  monthArea: {
+    paddingHorizontal: DATE_INSET,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
+  rule: {
+    height: 1,
+    marginHorizontal: DATE_INSET - WEEK_INSET,
+    backgroundColor: colors.gray[100],
+  },
   empty: { textAlign: 'center', paddingVertical: 40 },
 });

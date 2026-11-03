@@ -29,6 +29,21 @@ describe('Icon', () => {
     });
   });
 
+  it('세로가 다른 아이콘은 Figma 비율대로 높이를 잡는다', async () => {
+    await render(<Icon name="calendar-switch" testID="icon" />);
+    expect(screen.getByTestId('icon', hidden)).toHaveStyle({
+      width: 24,
+      height: 28,
+    });
+    expect(svgOf('icon').props).toMatchObject({ width: 24, height: 28 });
+
+    await render(<Icon name="calendar-switch" size={12} testID="icon-12" />);
+    expect(screen.getByTestId('icon-12', hidden)).toHaveStyle({
+      width: 12,
+      height: 14,
+    });
+  });
+
   it('색을 바꾸는 아이콘은 color 를 따르고, 없으면 Figma 색을 쓴다', async () => {
     await render(<Icon name="chevron-left" color="#123456" testID="tinted" />);
     expect(svgOf('tinted').props.color).toBe('#123456');
@@ -65,6 +80,18 @@ describe('iconSvgs', () => {
       expect({ name, size: icon.size }).toEqual({ name, size: width });
       if (icon.tint) {
         expect({ name, color: 'color' in icon }).toEqual({ name, color: true });
+      }
+    }
+  });
+
+  it('height 를 둔 아이콘은 SVG 의 height 와 같고 폭과 다르다', () => {
+    for (const [name, icon] of Object.entries(iconSvgs)) {
+      if ('height' in icon) {
+        const height = Number(
+          /<svg [^>]*height="([\d.]+)"/.exec(icon.xml)?.[1],
+        );
+        expect({ name, height: icon.height }).toEqual({ name, height });
+        expect(icon.height).not.toBe(icon.size);
       }
     }
   });

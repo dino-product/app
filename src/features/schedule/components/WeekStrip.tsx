@@ -5,10 +5,10 @@ import {
   View,
   type AccessibilityActionEvent,
 } from 'react-native';
-import { colors, MIN_TOUCH_TARGET, Text } from '../../../shared/design-system';
+import { colors, Text } from '../../../shared/design-system';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
-import { dayA11yLabel, weekdayColor } from './calendarDay';
+import { dayA11yLabel, dayColor } from './calendarDay';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 
 // VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 고른다)
@@ -21,7 +21,7 @@ const weekActionDelta: Partial<Record<string, number>> = {
   nextWeek: 1,
 };
 
-// Figma 내 일정 › 주간 날짜 줄. 선택한 날은 Primary 배경 상자.
+// Figma 내 일정 › 주간 날짜 줄 (DesignSystem › Calendar Contents, View=Week). 선택한 날은 Primary 배경 상자.
 // 왼쪽으로 밀면 다음 주, 오른쪽으로 밀면 이전 주 (iOS 캘린더와 같은 방향).
 export function WeekStrip({
   days,
@@ -72,7 +72,9 @@ export function WeekStrip({
       <GestureExclusionArea edgeInset={edgeInset} />
       {days.map(date => {
         const active = isSameDay(date, selected);
-        const color = active ? colors.white[100] : weekdayColor(date.getDay());
+        const color = active
+          ? colors.white[100]
+          : dayColor(date.getDay(), 'week');
         return (
           <Pressable
             // 요일 칸을 key 로 둬 주가 바뀌어도 칸을 다시 만들지 않는다. VoiceOver 포커스가 같은 요일에 머문다
@@ -86,7 +88,10 @@ export function WeekStrip({
             onPress={() => onSelect(date)}
             style={[styles.day, active && styles.dayActive]}
           >
-            <Text variant="Body/XS/Medium" color={color}>
+            <Text
+              variant={active ? 'Body/XS/SemiBold' : 'Body/XS/Medium'}
+              color={color}
+            >
               {date.getDate()}
             </Text>
             <Text
@@ -103,18 +108,20 @@ export function WeekStrip({
   );
 }
 
-const DAY_MIN_WIDTH = 40;
-// 날짜 칸 폭 40 을 최소 터치 영역으로 보완한다. 칸이 붙어도 겹친 곳은 뒤 칸이 먼저 받도록 뒤쪽으로만
-// 넓히고, 루트가 네이티브 뷰가 되어도 마지막 칸에 닿도록 루트도 같이 넓힌다
-const DAY_HIT_SLOP = { right: MIN_TOUCH_TARGET - DAY_MIN_WIDTH };
+const DAY_GAP = 6;
+// 칸 폭(375 에서 45.6)을 뒤 칸 쪽 칸 사이 간격만큼 넓혀 최소 터치 영역을 채운다 (360dp 에서도 43.4 + 6).
+// 간격까지만 넓혀 옆 칸과 겹치지 않고, 루트가 네이티브 뷰가 되어도 마지막 칸에 닿도록 루트도 같이 넓힌다
+const DAY_HIT_SLOP = { right: DAY_GAP };
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  // Figma 칸 48.14 는 393 화면에서 (373 - 간격 6×6) / 7 이다. 화면 폭에 맞춰 7칸이 나눠 갖는다
+  row: { flexDirection: 'row', gap: DAY_GAP },
   day: {
+    flex: 1,
+    height: 69,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    minWidth: DAY_MIN_WIDTH,
-    paddingVertical: 8,
     borderRadius: 10,
   },
   dayActive: { backgroundColor: colors.primary },

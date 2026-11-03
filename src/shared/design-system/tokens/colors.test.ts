@@ -27,4 +27,14 @@ describe('colors', () => {
   it('Figma 변수 Disabled(Primary 50%) 를 갖는다', () => {
     expect(colors.disabled).toBe('rgba(28, 27, 42, 0.5)');
   });
+
+  // DesignSystem › Calendar Contents 의 토요일 날짜 (#77)
+  it('Figma 변수 Accents/Blue 를 갖는다', () => {
+    expect(colors.accents.blue).toBe('#0088FF');
+  });
+
+  // 응답 필요 카드 제목 (#77)
+  it('Figma 변수 P/T/01 을 갖는다', () => {
+    expect(colors.pt01).toBe('#32303A');
+  });
 });

@@ -83,6 +83,11 @@ export const colors = {
     sideBarIcon: '#898EAE',
   },
 
+  // Figma 변수 Accents/Blue — DesignSystem › Calendar Contents 의 토요일 날짜·요일 글자
+  accents: { blue: '#0088FF' },
+  // Figma 변수 P/T/01 — 내 일정 › 응답 필요 카드 제목
+  pt01: '#32303A',
+
   // 이 컬렉션 밖에서 컴포넌트에 직접 쓰인 값
   black: '#000000', // Tab Bar 활성 라벨, 메인화면 헤더
   mainText: '#2A2A2A', // "메인 문구" — 작업 상세 헤더 제목
