@@ -488,18 +488,16 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
   const touchStart = (target: HostElement | null, id = 0) =>
     act(() => {
       const event = touchesEvent({ changed: [id], touches: [id] });
-      list().props.onTouchStartCapture?.(event);
+      list().props.onTouchStartCapture(event);
       target?.props.onTouchStart?.(event);
     });
   const touchEnd = (target: HostElement, id = 0) =>
     act(() =>
-      target.props.onTouchEnd?.(touchesEvent({ changed: [id], touches: [] })),
+      target.props.onTouchEnd(touchesEvent({ changed: [id], touches: [] })),
     );
   const touchCancel = (target: HostElement, id = 0) =>
     act(() =>
-      target.props.onTouchCancel?.(
-        touchesEvent({ changed: [id], touches: [] }),
-      ),
+      target.props.onTouchCancel(touchesEvent({ changed: [id], touches: [] })),
     );
 
   it.each(['ios', 'android'] as const)(
@@ -549,6 +547,18 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
 
     await touchStart(screen.getByText('2026년 12월 15일 (화)') as HostElement);
     expect(list().props.scrollEnabled).not.toBe(false);
+  });
+
+  // 만지던 칸이 그사이 사라지면 뗀 이벤트가 오지 않을 수 있다. 리스트에서 새로 시작한 터치가 바로잡는다
+  it('달력에서 뗀 이벤트를 놓쳐도, 손가락이 모두 떨어진 뒤 일정 목록에서 새로 시작한 터치는 리스트를 스크롤한다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    expect(list().props.scrollEnabled).toBe(false);
+    // 뗀 이벤트 없이 새 손가락이 일정 목록에 닿는다 (iOS 는 손가락 번호를 다시 쓴다)
+    await touchStart(screen.getByText('세탁기 설치') as HostElement);
+
+    expect(list().props.scrollEnabled).toBe(true);
   });
 
   it('주간 줄을 만지는 동안에도 날짜를 누르면 고르고, 손을 떼면 다시 스크롤한다', async () => {
