@@ -3,6 +3,12 @@
 
 export type ParticipationType = 'STAFF' | 'TECHNICIAN';
 
+/**
+ * 회사 참여 화면을 여는 흐름. my: 마이 › 조직 참여 (#73, 하단 탭 위),
+ * onboarding: 가입 직후 회사 참여 (#85, 탭 없음). 머리 제목·아래 여백이 Figma 마다 다르다
+ */
+export type JoinFlow = 'my' | 'onboarding';
+
 export type RequestChannel = 'COMPANY_CODE' | 'JOIN_LINK' | 'QR_CODE';
 
 export type Organization = { organizationId: string; organizationName: string };
@@ -29,7 +35,16 @@ export type ParticipationRequest = Organization & {
   requestedAt: string;
   /** 사유를 입력해 거절한 요청에만 있다 */
   rejectReason?: string;
+  /** 승인한 요청의 확정 유형. 사무실이 희망 유형과 다르게 정할 수 있다 */
+  approvedType?: ParticipationType;
+  /** 승인·거절한 일시 (ISO, UTC) */
+  decidedAt?: string;
 };
+
+/** 사무실의 결정 (승인 대기 → 승인·거절) */
+export type ParticipationDecision =
+  | { status: 'APPROVED'; approvedType: ParticipationType }
+  | { status: 'REJECTED'; rejectReason: string };
 
 export const participationTypeLabels: Record<ParticipationType, string> = {
   STAFF: '직원',

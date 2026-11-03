@@ -1,5 +1,6 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import { signedInAuth } from '../features/onboarding/model';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
 import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
@@ -12,8 +13,9 @@ const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
 
+// 더미 로그인 세션은 아직 저장하지 않아(#85 은 메모리에만 둔다) 메인 화면 복원은 로그인한 계정으로 다시 연 경우를 본다
 async function launch() {
-  const { unmount } = await render(<App />);
+  const { unmount } = await render(<App initialAuth={signedInAuth()} />);
   // 테스트 환경에서는 언마운트가 OS 의 앱 종료와 같다. 정리 코드만 돌고 내비게이션 동작은 일어나지 않는다
   return () => unmount();
 }
@@ -60,6 +62,33 @@ const pressAlertButton = (alert: ReturnType<typeof spyAlert>, text: string) =>
 describe('App — 종료 후 다시 열기 (#34)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  describe('로그인 상태 (#85)', () => {
+    it('로그아웃 상태로 다시 열면 저장한 메인 화면 대신 로그인 화면부터 연다', async () => {
+      const kill = await launch();
+      await openWorkDetail();
+      await kill();
+
+      await render(<App />);
+
+      expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
+      expect(tabBar()).not.toBeOnTheScreen();
+    });
+
+    it('온보딩 도중 종료되면 다시 열 때 로그인부터 시작한다', async () => {
+      const { unmount } = await render(<App />);
+      await userEvent.press(
+        screen.getByRole('button', { name: '카카오로 시작하기' }),
+      );
+      expect(header('프로필 등록')).toBeOnTheScreen();
+      await unmount();
+
+      await render(<App />);
+
+      expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
+      expect(header('프로필 등록')).not.toBeOnTheScreen();
+    });
   });
 
   it('처음 실행이면 첫 화면(홈)에서 시작한다', async () => {

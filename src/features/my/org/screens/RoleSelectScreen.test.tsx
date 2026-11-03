@@ -107,4 +107,17 @@ describe('RoleSelectScreen', () => {
 
     expect(onSubmit).toHaveBeenCalledWith('STAFF');
   });
+  it('온보딩에서는 머리 제목이 참여 요청이다 (#85)', async () => {
+    await render(
+      <RoleSelectScreen
+        flow="onboarding"
+        organizationName="Orbit"
+        onBack={jest.fn()}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('header', { name: '참여 요청' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+  });
 });

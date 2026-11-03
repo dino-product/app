@@ -19,6 +19,7 @@ import {
 import { hideKeyboard, showKeyboard } from '../../jest/keyboard';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
+import { signedInAuth } from '../features/onboarding/model';
 import App from './App';
 
 // 네이티브 스택은 아래 화면을 그대로 두고 스크린리더에서만 숨긴다 (aria-hidden).
@@ -39,7 +40,7 @@ async function renderWithBackButton() {
       handlers.add(handler);
       return { remove: () => handlers.delete(handler) };
     });
-  await render(<App />);
+  await render(<App initialAuth={signedInAuth()} />);
 
   return async () => {
     let handled = false;
@@ -79,14 +80,14 @@ describe('App', () => {
   });
 
   it('첫 화면은 작업 수행 메인화면(내 작업)이고 하단 탭은 홈이다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(tab('홈')).toBeSelected();
   });
 
   it('작업을 열면 탭 바가 있는 작업 상세로, 뒤로 가기로 메인화면으로 돌아온다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(
       screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -101,7 +102,7 @@ describe('App', () => {
   });
 
   it('전환 중에 작업 카드를 한 번 더 눌러도 상세는 하나만 쌓인다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     const card = screen.getByRole('button', { name: '보일러 점검 상세 보기' });
 
     await fireEvent.press(card);
@@ -113,7 +114,7 @@ describe('App', () => {
   });
 
   it('작업을 시작하고 상세에 다녀와도 "작업 수행중" 이 유지된다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
     await userEvent.press(screen.getByRole('button', { name: '작업 수행중' }));
@@ -166,7 +167,7 @@ describe('App', () => {
 
   it('완료 보고를 제출하고 메인으로 돌아오면 다시 "작업 시작" 상태다', async () => {
     const alert = spyAlert();
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await submitReport();
     await userEvent.press(
@@ -180,7 +181,7 @@ describe('App', () => {
   });
 
   it('제출한 작업을 다시 열면 읽기 전용 제출 완료 상태다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await submitReport();
     await userEvent.press(
@@ -202,7 +203,7 @@ describe('App', () => {
 
   // 목 데이터는 같은 작업을 계속 진행할 작업으로 보여 주므로, 다시 시작하면 새 작업처럼 연다
   it('제출한 진행 작업을 다시 시작하면 빈 보고로 열어 다시 끝낼 수 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await submitReport();
     await userEvent.press(
@@ -219,7 +220,7 @@ describe('App', () => {
   });
 
   it('제출하지 않은 다른 작업은 비어 있는 보고로 연다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await submitReport();
     await userEvent.press(
@@ -237,7 +238,7 @@ describe('App', () => {
   });
 
   it('상세에서 지금 탭("홈")을 다시 누르면 그 탭의 첫 화면으로 돌아간다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(
       screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -251,7 +252,7 @@ describe('App', () => {
   });
 
   it('다른 탭에 다녀와도 탭마다 보던 화면이 남아 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(
       screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -266,7 +267,7 @@ describe('App', () => {
   });
 
   it('탭을 오가도 작성하던 완료 보고 입력이 남아 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(
       screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -282,7 +283,7 @@ describe('App', () => {
 
   // 탭 화면은 떠나도 마운트된 채로 남는다 (예전 수작업 탭 전환은 다른 탭을 언마운트해 날짜·하위 탭·달력 상태가 초기화됐다)
   it('홈에 다녀와도 내 일정에서 고른 하위 탭이 남아 있다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(tab('내 일정'));
     await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
@@ -303,7 +304,7 @@ describe('App', () => {
 
     async function openDetail() {
       jest.replaceProperty(Platform, 'OS', 'android');
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       const before = keyboardListeners();
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -357,7 +358,7 @@ describe('App', () => {
   });
 
   it('홈 첫 화면에서 홈 탭을 다시 눌러도 그대로다', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(tab('홈'));
 
@@ -375,7 +376,7 @@ describe('App', () => {
 
     it('홈 첫 화면에서 홈 탭을 다시 누르면 맨 위로 간다', async () => {
       const scroll = spyScroll();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(tab('홈'));
       await nextFrame();
@@ -386,7 +387,7 @@ describe('App', () => {
 
     it('상세가 열려 있으면 첫 화면으로만 돌아가고, 한 번 더 누르면 맨 위로 간다', async () => {
       const scroll = spyScroll();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -404,7 +405,7 @@ describe('App', () => {
 
     it('내 일정 탭을 다시 누르면 보이는 리스트(확정 일정·응답 필요)가 맨 위로 간다', async () => {
       const scroll = spyScroll();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(tab('내 일정'));
       await userEvent.press(tab('내 일정'));
@@ -421,7 +422,7 @@ describe('App', () => {
 
     it('다른 탭으로 옮길 때는 스크롤하지 않는다', async () => {
       const scroll = spyScroll();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       // 탭은 처음 열 때 마운트되므로, 두 탭을 모두 연 뒤에 오가야 양쪽 리스너가 걸린 상태다
       for (const name of ['내 일정', '홈', '내 일정', '홈']) {
@@ -452,7 +453,7 @@ describe('App', () => {
       });
 
     it('작업 상세는 화면 왼쪽 1/3 에서 시작한 스와이프만 받는다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -462,7 +463,7 @@ describe('App', () => {
     });
 
     it('요청 상세·거절 사유(탭 위 루트 스택)도 왼쪽 1/3 에서만 받는다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
 
@@ -494,7 +495,7 @@ describe('App', () => {
 
     it('작업 상세는 전환이 끝나면 포커스가 제목으로 간다', async () => {
       const focus = spyFocus();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -510,7 +511,7 @@ describe('App', () => {
     // 열리는 중에 위 화면이 또 열리면 이 화면은 보이기 전에 닫힘 전환부터 받는다
     it('닫힘 전환으로는 포커스를 옮기지 않고, 그 뒤 처음 보일 때 옮긴다', async () => {
       const focus = spyFocus();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -527,7 +528,7 @@ describe('App', () => {
 
     it('요청 상세·거절 사유도 열릴 때 제목으로 가고, 돌아온 화면에서는 다시 옮기지 않는다', async () => {
       const focus = spyFocus();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
 
@@ -547,7 +548,7 @@ describe('App', () => {
     });
 
     it('작업 상세에서 두 손가락 Z 로 메인화면으로 돌아온다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -559,7 +560,7 @@ describe('App', () => {
     });
 
     it('거절 사유 → 요청 상세 → 내 일정 순서로 두 손가락 Z 로 돌아온다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
       await userEvent.press(
@@ -579,7 +580,7 @@ describe('App', () => {
     // Android 뒤로가기(다른 탭 첫 화면 → 홈 탭)와 달리 탭을 바꾸지 않는다.
     // 아무도 받지 않아야 VoiceOver 가 돌아갈 곳이 없다고 처리한다
     it('탭 첫 화면은 두 손가락 Z 를 받지 않는다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       expect(escapeTarget('내 작업')).toBeNull();
 
       await userEvent.press(tab('내 일정'));
@@ -587,7 +588,7 @@ describe('App', () => {
     });
 
     it('escape 를 받는 뷰는 iOS 뷰 평탄화로 사라지지 않는다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(
         screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -598,7 +599,7 @@ describe('App', () => {
     });
 
     it('완료 보고 제출 뒤 결과 모달에서 두 손가락 Z 로 메인화면과 "작업 시작" 상태로 돌아온다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await submitReport();
       await escapeFrom('제출 완료');
@@ -662,7 +663,7 @@ describe('App', () => {
 
     it('뒤로 가기 버튼: 묻고, "계속 작성" 이면 입력을 둔 채 머문다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetailWithMemo();
 
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
@@ -693,7 +694,7 @@ describe('App', () => {
 
     it('뒤로 가기 버튼: "나가기" 면 메인화면으로 돌아가고, 다시 열면 빈 보고다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetailWithMemo();
 
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
@@ -706,7 +707,7 @@ describe('App', () => {
 
     it('iOS 스와이프: 입력이 있는 동안 네이티브 닫기를 막고, 끝까지 밀면 묻는다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetail();
       expect(nativeScreen('작업 상세').props.preventNativeDismiss).toBeFalsy();
 
@@ -742,7 +743,7 @@ describe('App', () => {
 
     it('VoiceOver 두 손가락 Z: 묻고, "나가기" 면 메인화면으로 돌아간다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetailWithMemo();
 
       await escapeFrom('작업 상세');
@@ -756,7 +757,7 @@ describe('App', () => {
     // 지금 탭을 다시 누르면 상세를 스택에서 빼므로 화면을 닫는 경우다
     it('상세에서 지금 탭("홈")을 다시 눌러도 묻는다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetailWithMemo();
 
       await userEvent.press(tab('홈'));
@@ -769,7 +770,7 @@ describe('App', () => {
 
     it('입력이 없거나 입력했다 지우면 묻지 않고 닫는다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await openDetail();
       await swipeBack('작업 상세', 'dismissed');
@@ -787,7 +788,7 @@ describe('App', () => {
     // 결과 모달의 두 손가락 Z 도 '메인 화면으로' 와 같은 동작이라 묻지 않는다
     it('제출 뒤 결과 모달에서 두 손가락 Z 로 나가도 묻지 않는다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await submitReport();
       await escapeFrom('제출 완료');
@@ -798,7 +799,7 @@ describe('App', () => {
 
     it('다른 탭으로 옮길 때는 묻지 않는다', async () => {
       const alert = spyAlert();
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await openDetailWithMemo();
 
       await userEvent.press(tab('내 일정'));
@@ -810,7 +811,7 @@ describe('App', () => {
 
   // 마이페이지도 회색이다 (App.my.test)
   it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인은 회색)', async () => {
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
     const backdrop = () => screen.getByTestId('main-tab-bar');
 
     expect(backdrop()).toHaveStyle({ backgroundColor: colors.background[3] });
@@ -828,7 +829,7 @@ describe('App', () => {
     const openURL = jest
       .spyOn(Linking, 'openURL')
       .mockRejectedValue(new Error('no handler'));
-    await render(<App />);
+    await render(<App initialAuth={signedInAuth()} />);
 
     await userEvent.press(
       screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
@@ -846,13 +847,13 @@ describe('App', () => {
 
   describe('내 일정', () => {
     async function openPending() {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
     }
 
     it('하단 탭으로 내 일정과 홈을 오간다', async () => {
-      await render(<App />);
+      await render(<App initialAuth={signedInAuth()} />);
 
       await userEvent.press(tab('내 일정'));
       expect(header('내 일정')).toBeOnTheScreen();

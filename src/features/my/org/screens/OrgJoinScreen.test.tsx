@@ -207,6 +207,49 @@ describe('OrgJoinScreen', () => {
     expect(checkButton()).toBeEnabled();
     expect(lookup).toHaveBeenCalledTimes(1);
   });
+
+  describe('온보딩 흐름 (#85)', () => {
+    const renderOnboarding = (outcome: LookupOutcome) => {
+      const props = {
+        onBack: jest.fn(),
+        lookup: jest.fn(async () => outcome),
+        onFound: jest.fn(),
+        onPending: jest.fn(),
+        onAlreadyMember: jest.fn(),
+      };
+      return render(<OrgJoinScreen flow="onboarding" {...props} />).then(
+        () => props,
+      );
+    };
+
+    it('머리 제목은 늘 회사 참여다', async () => {
+      await renderOnboarding({ kind: 'found', organization: orbit });
+
+      expect(
+        screen.getByRole('header', { name: '회사 참여' }),
+      ).toBeOnTheScreen();
+    });
+
+    it('승인 대기·이미 참여 중인 회사면 알림 대신 바깥에 알린다', async () => {
+      const pending = await renderOnboarding({
+        kind: 'pending',
+        organization: orbit,
+      });
+      await userEvent.type(codeInput(), '123456');
+      await userEvent.press(checkButton());
+      expect(pending.onPending).toHaveBeenCalledWith(orbit);
+      expect(screen.queryByText('이미 참여를 요청한 회사예요')).toBeNull();
+
+      const member = await renderOnboarding({
+        kind: 'alreadyMember',
+        organization: orbit,
+      });
+      await userEvent.type(codeInput(), '123456');
+      await userEvent.press(checkButton());
+      expect(member.onAlreadyMember).toHaveBeenCalledWith(orbit);
+      expect(screen.queryByText('이미 참여 중인 회사예요')).toBeNull();
+    });
+  });
 });
 
 function header(name: string) {

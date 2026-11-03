@@ -15,6 +15,7 @@ import type {
   HomeStackParamList,
   MainTabParamList,
   MyStackParamList,
+  OnboardingStackParamList,
   RootStackParamList,
 } from './types';
 
@@ -102,7 +103,22 @@ const mainTabs = {
   history: nested(historyStack),
   my: nested(myStack),
 } satisfies Record<keyof MainTabParamList, ScreenSchema>;
+// 온보딩 (#85). 더미 로그인과 온보딩 진행(약관 체크·참여 요청)은 메모리에만 있어, 온보딩 도중 종료되면 다시 열 때
+// 로그인부터 시작한다. 그래서 Onboarding 화면이 든 상태는 맞지 않는 것으로 보고 통째로 버린다. 하위 검증표는 구조를 적어 둔다
+const onboardingStack = {
+  ProfileRegister: once,
+  TermsAgreement: once,
+  CompanyFind: once,
+  JoinRoleSelect: {
+    params: stringFields('organizationId', 'organizationName'),
+  },
+  JoinPending: byRequest,
+  JoinApproved: byRequest,
+  JoinRejected: byRequest,
+} satisfies Record<keyof OnboardingStackParamList, ScreenSchema>;
 export const navigationSchema: NavigatorSchema = {
+  Login: once,
+  Onboarding: { navigator: onboardingStack, params: () => false },
   Main: nested(mainTabs),
   RequestDetail: byId,
   RejectReason: byId,

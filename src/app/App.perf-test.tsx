@@ -1,6 +1,7 @@
 import { measureRenders } from 'reassure';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { perfBudget } from '../shared/perf/budget';
+import { signedInAuth } from '../features/onboarding/model';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
 import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
@@ -74,20 +75,29 @@ const expectWithinBudget = (
 describe('App 렌더 예산', () => {
   it('마운트 시 추가 렌더와 중복 렌더가 예산 이내다', async () => {
     expectWithinBudget(
+      await measureRenders(<App initialAuth={signedInAuth()} />, {
+        beforeEach: firstLaunch,
+      }),
+    );
+  });
+
+  // 처음 켜면 로그인 화면부터 연다 (#85)
+  it('로그아웃 상태로 마운트해도 추가 렌더와 중복 렌더가 예산 이내다', async () => {
+    expectWithinBudget(
       await measureRenders(<App />, { beforeEach: firstLaunch }),
     );
   });
 
   it('종료 후 보던 작업 상세로 다시 열 때도 예산 이내다', async () => {
     expectWithinBudget(
-      await measureRenders(<App />, {
+      await measureRenders(<App initialAuth={signedInAuth()} />, {
         beforeEach: relaunchOnWorkDetail(false),
       }),
     );
   });
 
   it(RESTORE_WITH_DRAFT, async () => {
-    const result = await measureRenders(<App />, {
+    const result = await measureRenders(<App initialAuth={signedInAuth()} />, {
       beforeEach: relaunchOnWorkDetail(true),
     });
 

@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { signedInAuth } from '../../features/onboarding/model';
 import { appStorage, isRecord } from '../../shared/storage/appStorage';
 import App from '../App';
 import {
@@ -277,24 +278,34 @@ describe('내비게이션 상태 저장', () => {
     });
   });
 
-  // 화면을 더하거나 이름을 바꾸고 검증표를 그대로 두면, 저장한 상태를 늘 버리거나 틀린 상태를 받는다
+  // 화면을 더하거나 이름을 바꾸고 검증표를 그대로 두면, 저장한 상태를 늘 버리거나 틀린 상태를 받는다.
+  // 루트는 로그인 상태에 따라 화면 묶음(로그인·온보딩 / 메인)만 그리므로(#85), 두 상태로 그려 루트 화면 이름을 합친다
   it('검증표가 실제 내비게이터의 화면 이름과 같다', async () => {
-    await render(<App />);
+    const savedState = () =>
+      JSON.parse(appStorage.getString(NAVIGATION_STATE_KEY) ?? 'null').state;
+
+    const signedOut = await render(<App />);
+    await userEvent.press(
+      screen.getByRole('button', { name: '카카오로 시작하기' }),
+    );
+    const onboarding = savedState();
+    await signedOut.unmount();
+    appStorage.clearAll();
+
+    await render(<App initialAuth={signedInAuth()} />);
     for (const name of ['내 일정', '작업 이력', '마이', '홈']) {
       await userEvent.press(screen.getByRole('tab', { name }));
     }
-    const rendered = JSON.parse(
-      appStorage.getString(NAVIGATION_STATE_KEY) ?? 'null',
-    ).state;
+    const main = savedState();
 
-    const compare = (state: unknown, schema: NavigatorSchema, path: string) => {
+    const compareRoutes = (
+      state: unknown,
+      schema: NavigatorSchema,
+      path: string,
+    ) => {
       if (!isRecord(state) || !Array.isArray(state.routes)) {
         throw new Error(`${path} 상태가 없다`);
       }
-      expect({ path, names: state.routeNames }).toEqual({
-        path,
-        names: Object.keys(schema),
-      });
       for (const route of state.routes) {
         const routePath = `${path} › ${route.name}`;
         const child = schema[route.name]?.navigator;
@@ -308,6 +319,21 @@ describe('내비게이션 상태 저장', () => {
         }
       }
     };
-    compare(rendered, navigationSchema, 'Root');
+    const compare = (state: unknown, schema: NavigatorSchema, path: string) => {
+      if (!isRecord(state)) {
+        throw new Error(`${path} 상태가 없다`);
+      }
+      expect({ path, names: state.routeNames }).toEqual({
+        path,
+        names: Object.keys(schema),
+      });
+      compareRoutes(state, schema, path);
+    };
+
+    expect([...onboarding.routeNames, ...main.routeNames]).toEqual(
+      Object.keys(navigationSchema),
+    );
+    compareRoutes(onboarding, navigationSchema, 'Root(로그아웃)');
+    compareRoutes(main, navigationSchema, 'Root(로그인)');
   });
 });

@@ -1,8 +1,4 @@
-import {
-  useScrollToTop,
-  type NavigationProp,
-  type ParamListBase,
-} from '@react-navigation/native';
+import { useScrollToTop } from '@react-navigation/native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ScrollViewInstance } from 'react-native';
 import { checkWithdrawalEligibilityMock } from '../../features/my/mockData';
@@ -25,32 +21,12 @@ import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
 import { termsLinks } from '../../features/my/termsLinks';
 import { useSchedule, useWorkSession } from '../AppStateProvider';
 import { APP_VERSION } from '../appVersion';
+import { useAuth } from '../AuthProvider';
 import { openWebPage } from '../externalLinks';
 import { useFocusTitleOnOpen } from './routes';
 import { HOME_INITIAL_ROUTE, type MyScreenProps } from './types';
 
 // 마이 탭 스택에 올리는 화면들 (#72). 마이 탭 상태(MyStateProvider)와 앱 상태를 화면 props 로 이어 준다.
-
-// 로그인 흐름이 아직 없어, 로그아웃·탈퇴하면 앱 첫 화면(홈)으로 돌아간다. 탭을 새로 만들어 화면 상태도 처음으로 돌린다.
-// 맨 위 내비게이터(루트 스택)까지 올라가 바꾸므로 사이의 내비게이터 구성이 바뀌어도 그대로 동작한다
-type ResettableNavigation = Pick<
-  NavigationProp<ParamListBase>,
-  'getParent' | 'reset'
->;
-
-function useResetToFirstScreen(navigation: ResettableNavigation) {
-  return useCallback(() => {
-    let root = navigation;
-    for (
-      let parent = root.getParent<ResettableNavigation | undefined>();
-      parent !== undefined;
-      parent = parent.getParent<ResettableNavigation | undefined>()
-    ) {
-      root = parent;
-    }
-    root.reset({ index: 0, routes: [{ name: 'Main' }] });
-  }, [navigation]);
-}
 
 // 탈퇴 가능 여부 (목). 서버는 기사 소속의 작업중·응답 전 작업을 센다.
 // 앱 상태로 계산해, 사유를 정리하고 돌아오면 탈퇴 불가 화면도 바로 바뀐다
@@ -176,14 +152,14 @@ export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {
 export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
   const eligibility = useWithdrawalEligibility();
   const titleRef = useFocusTitleOnOpen(navigation);
-  const resetToFirstScreen = useResetToFirstScreen(navigation);
+  const { signOut } = useAuth();
 
   return (
     <AccountScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
-      // API 연동 때 POST /api/v1/auth/logout 을 부른다
-      onLogout={resetToFirstScreen}
+      // 로그아웃 상태가 되면 루트가 메인을 로그인 화면으로 바꾼다. 탭이 사라져 화면 상태도 처음으로 돌아간다
+      onLogout={signOut}
       // API 연동 때 GET /api/v1/users/{accountId}/withdrawal-eligibility 로 묻는다
       checkWithdrawal={async () => eligibility}
       // 확인하는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
@@ -204,14 +180,14 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
 
 export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
-  const resetToFirstScreen = useResetToFirstScreen(navigation);
+  const { withdraw } = useAuth();
 
   return (
     <WithdrawalScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
-      // API 연동 때 사유와 함께 POST /api/v1/users/{accountId}/withdrawals 로 보내고 로그아웃 상태가 된다
-      onWithdraw={resetToFirstScreen}
+      // 더미 계정이 사라지고 로그인 화면으로 간다. 다시 로그인하면 신규 사용자다
+      onWithdraw={withdraw}
     />
   );
 }

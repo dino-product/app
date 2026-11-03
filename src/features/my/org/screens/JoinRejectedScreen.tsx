@@ -4,44 +4,63 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
+import { flowLayouts } from '../components/flowLayouts';
 import { SummaryCard } from '../components/SummaryCard';
-import { participationTypeLabels, type ParticipationRequest } from '../model';
+import {
+  participationTypeLabels,
+  type JoinFlow,
+  type ParticipationRequest,
+} from '../model';
 
-// Figma 회사찾기-거절 (3255:18035). 알림센터의 참여 거절 알림에서 들어온다 (디자인 확인 항목)
+// Figma 회사찾기-거절 (3255:18035). 알림센터의 참여 거절 알림에서 들어온다 (디자인 확인 항목).
+// 온보딩(#85)은 참여 요청 결과-거절 (3257:10610) 이고 승인 대기에서 결정되면 온다
 export function JoinRejectedScreen({
+  flow = 'my',
   request,
   onConfirm,
   onBack,
   titleRef,
 }: {
+  flow?: JoinFlow;
   request: ParticipationRequest;
-  /** 이전 화면으로 */
+  /** 마이는 이전 화면으로, 온보딩은 회사 찾기로 */
   onConfirm: () => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
+  const onboarding = flow === 'onboarding';
+  const look = looks[flow];
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
       <SubScreenHeader
-        title="조직 참여하기"
+        title={flow === 'onboarding' ? REJECTED_TITLE : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={[readableColumn, styles.section]}>
-          <View style={styles.intro}>
-            <Icon name="modal-x" size={48} />
-            <Text accessibilityRole="header" variant="Body/L/Bold">
-              참여 요청이 거절되었어요
-            </Text>
-            <Text
-              variant="Body/XS/Regular"
-              color={colors.gray[600]}
-              style={styles.center}
-            >
-              같은 회사 코드로 다시 요청할 수 있습니다.
-            </Text>
+      <ScrollView contentContainerStyle={look.content}>
+        <View style={[readableColumn, styles.section, look.summarySection]}>
+          <View style={[styles.intro, look.intro]}>
+            <Icon name="modal-x" size={onboarding ? 40 : 48} />
+            <View style={look.texts}>
+              <Text
+                accessibilityRole="header"
+                variant="Body/L/Bold"
+                style={styles.center}
+              >
+                참여 요청이 거절되었어요
+              </Text>
+              <Text
+                variant={onboarding ? 'Body/XS/Medium' : 'Body/XS/Regular'}
+                color={colors.gray[600]}
+                style={styles.center}
+              >
+                같은 회사 코드로 다시 요청할 수 있습니다.
+              </Text>
+            </View>
           </View>
           <SummaryCard
             rows={[
@@ -54,20 +73,20 @@ export function JoinRejectedScreen({
           />
         </View>
 
-        <View style={styles.band} />
+        <View style={[styles.band, look.band]} />
 
-        <View style={[readableColumn, styles.section]}>
+        <View style={[readableColumn, styles.section, look.reasonSection]}>
           <Text accessibilityRole="header" variant="Body/S/SemiBold">
             거절 사유
           </Text>
-          <View style={styles.reason}>
+          <View style={[styles.reason, look.reason]}>
             <Text variant="Caption/M/Medium" color={colors.gray[800]}>
               {request.rejectReason ?? '입력된 거절 사유가 없어요.'}
             </Text>
           </View>
           <Text
             variant="Caption/S/Medium"
-            color={colors.gray[500]}
+            color={onboarding ? colors.libraryGray[500] : colors.gray[500]}
             style={styles.center}
           >
             거절 후에도 회사 코드와 참여 링크는 계속 사용할 수 있습니다.
@@ -75,29 +94,44 @@ export function JoinRejectedScreen({
         </View>
       </ScrollView>
 
-      <View style={[readableColumn, styles.actions]}>
+      <View style={[readableColumn, flowLayouts[flow].actions]}>
         <CTA label="확인" onPress={onConfirm} />
       </View>
     </SafeAreaView>
   );
 }
 
+// 온보딩 거절 화면의 머리 제목 (Figma 3257:10610)
+const REJECTED_TITLE = '참여 요청 결과';
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
-  content: { paddingTop: 32, paddingBottom: 24 },
-  section: { gap: 16, paddingHorizontal: 24 },
-  intro: { alignItems: 'center', gap: 8, marginBottom: 8 },
+  section: { paddingHorizontal: 24 },
+  intro: { alignItems: 'center' },
   center: { textAlign: 'center' },
   // 요약과 거절 사유 사이 두꺼운 회색 띠는 화면 끝까지 칠한다
-  band: {
-    height: 12,
-    marginVertical: 24,
-    backgroundColor: colors.background[3],
-  },
-  reason: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: colors.background[3],
-  },
-  actions: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12 },
+  band: { height: 12, backgroundColor: colors.background[3] },
+  reason: { padding: 20, backgroundColor: colors.background[3] },
 });
+
+// 마이(3255:18035)와 온보딩(3257:10610)의 Figma 값이 자리마다 다르다.
+// 온보딩: 머리 아래 42 에 아이콘(40), 아이콘과 문구 사이 24, 제목과 설명 사이 6, 띠 위 24·아래 42, 사유 칸 사이 12
+const looks = {
+  my: StyleSheet.create({
+    content: { paddingTop: 32, paddingBottom: 24 },
+    summarySection: { gap: 16 },
+    intro: { gap: 8, marginBottom: 8 },
+    texts: { gap: 8 },
+    band: { marginVertical: 24 },
+    reasonSection: { gap: 16 },
+    reason: { borderRadius: 16 },
+  }),
+  onboarding: StyleSheet.create({
+    content: { paddingTop: 42, paddingBottom: 24 },
+    summarySection: { gap: 24 },
+    intro: { gap: 24 },
+    texts: { gap: 6 },
+    band: { marginTop: 24, marginBottom: 42 },
+    reasonSection: { gap: 12 },
+    reason: { borderRadius: 14 },
+  }),
+} satisfies Record<JoinFlow, unknown>;

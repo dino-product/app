@@ -14,15 +14,19 @@ import {
   CTA,
   Icon,
   Text,
+  MIN_TOUCH_TARGET,
   typography,
+  withOpacity,
 } from '../../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
+import { flowLayouts } from '../components/flowLayouts';
 import { NoticeModal, type Notice } from '../components/NoticeModal';
-import type { LookupOutcome, Organization } from '../model';
+import type { JoinFlow, LookupOutcome, Organization } from '../model';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
+// 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
 // QR 코드 인식은 카메라 모듈·권한 문구가 필요해 별도 티켓이라 비활성이다
 const intro = {
   title: '회사 찾기',
@@ -48,15 +52,23 @@ const noticeFor = (
       };
 
 export function OrgJoinScreen({
+  flow = 'my',
   onBack,
   lookup,
   onFound,
+  onPending,
+  onAlreadyMember,
   titleRef,
 }: {
+  flow?: JoinFlow;
   onBack: () => void;
   /** 입력한 코드로 회사를 찾는다 (GET /api/v1/organizations/lookup) */
   lookup: (code: string) => Promise<LookupOutcome>;
   onFound: (organization: Organization, code: string) => void;
+  /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
+  onPending?: (organization: Organization) => void;
+  /** 이미 참여 중인 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 회사의 참여 완료로 돌아간다) */
+  onAlreadyMember?: (organization: Organization) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -78,6 +90,7 @@ export function OrgJoinScreen({
 
   const trimmed = code.trim();
   const shownIntro = invalid ? invalidIntro : intro;
+  const look = looks[flow];
 
   const check = async () => {
     if (checkingRef.current || trimmed === '') {
@@ -93,6 +106,10 @@ export function OrgJoinScreen({
       setInvalid(outcome.kind === 'invalid');
       if (outcome.kind === 'found') {
         onFound(outcome.organization, trimmed);
+      } else if (outcome.kind === 'pending' && onPending) {
+        onPending(outcome.organization);
+      } else if (outcome.kind === 'alreadyMember' && onAlreadyMember) {
+        onAlreadyMember(outcome.organization);
       } else if (outcome.kind === 'invalid') {
         // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
         if (Platform.OS === 'ios') {
@@ -121,10 +138,13 @@ export function OrgJoinScreen({
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
+      {/* 마이에서는 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
       <SubScreenHeader
-        title={invalid ? '회사 참여' : '조직 참여하기'}
+        title={flow === 'onboarding' || invalid ? '회사 참여' : '조직 참여하기'}
         onBack={onBack}
         titleRef={titleRef}
       />
@@ -136,51 +156,58 @@ export function OrgJoinScreen({
           }
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
-          contentContainerStyle={[readableColumn, styles.content]}
+          contentContainerStyle={[readableColumn, look.styles.content]}
         >
-          <View accessibilityLiveRegion="polite" style={styles.intro}>
-            <Text accessibilityRole="header" variant="Body/XL/Bold">
+          <View accessibilityLiveRegion="polite" style={look.styles.intro}>
+            <Text accessibilityRole="header" variant={look.title}>
               {shownIntro.title}
             </Text>
-            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+            <Text variant={look.description} color={colors.gray[600]}>
               {shownIntro.description}
             </Text>
           </View>
 
-          <View style={styles.field}>
+          <View style={look.styles.field}>
             <Text
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
-              variant="Caption/M/SemiBold"
-              color={colors.gray[800]}
+              variant={look.label}
+              color={look.labelColor}
             >
               회사 코드 입력
             </Text>
-            <View style={styles.codeRow}>
-              <TextInput
-                accessibilityLabel="회사 코드 입력"
-                value={code}
-                onChangeText={setCode}
-                placeholder="회사 코드 입력"
-                placeholderTextColor={colors.gray[400]}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={check}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                style={[styles.input, focused && styles.inputFocused]}
-              />
-              <CTA
-                label="회사 확인"
-                onPress={check}
-                disabled={trimmed === '' || checking}
-                style={styles.checkButton}
-              />
+            <View style={look.styles.inputGroup}>
+              <View style={styles.codeRow}>
+                <TextInput
+                  accessibilityLabel="회사 코드 입력"
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="회사 코드 입력"
+                  placeholderTextColor={look.placeholderColor}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={check}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  style={[
+                    styles.input,
+                    look.styles.input,
+                    focused && styles.inputFocused,
+                  ]}
+                />
+                <CTA
+                  label="회사 확인"
+                  size={look.checkSize}
+                  onPress={check}
+                  disabled={trimmed === '' || checking}
+                  style={look.styles.checkButton}
+                />
+              </View>
+              <Text variant="Caption/S/Medium" color={look.hintColor}>
+                회사 관리자에게 받은 코드를 입력해 주세요.
+              </Text>
             </View>
-            <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-              회사 관리자에게 받은 코드를 입력해 주세요.
-            </Text>
           </View>
 
           <View
@@ -188,11 +215,11 @@ export function OrgJoinScreen({
             importantForAccessibility="no-hide-descendants"
             style={styles.orRow}
           >
-            <View style={styles.orLine} />
-            <Text variant="Caption/M/Medium" color={colors.gray[400]}>
+            <View style={look.styles.orLine} />
+            <Text variant={look.or} color={colors.gray[400]}>
               또는
             </Text>
-            <View style={styles.orLine} />
+            <View style={look.styles.orLine} />
           </View>
 
           <CTA
@@ -212,7 +239,20 @@ export function OrgJoinScreen({
 const noop = () => {};
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
+  codeRow: { flexDirection: 'row' },
+  input: {
+    ...typography['Body/XS/Medium'],
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: colors.gray[900],
+  },
+  inputFocused: { borderColor: colors.secondary },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+});
+
+// 마이(3235:17242 외)와 온보딩(3205:6299 / 3278:23116)의 Figma 값이 자리마다 다르다
+const myStyles = StyleSheet.create({
   content: {
     gap: 28,
     paddingHorizontal: 24,
@@ -221,19 +261,65 @@ const styles = StyleSheet.create({
   },
   intro: { gap: 8 },
   field: { gap: 10 },
-  codeRow: { flexDirection: 'row', gap: 12 },
+  inputGroup: { gap: 10 },
   input: {
-    ...typography['Body/XS/Medium'],
-    flex: 1,
     minHeight: 56,
+    marginRight: 12,
     paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
     borderColor: colors.gray[200],
-    color: colors.gray[900],
   },
-  inputFocused: { borderColor: colors.secondary },
   checkButton: { paddingHorizontal: 20 },
-  orRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   orLine: { flex: 1, height: 1, backgroundColor: colors.gray[100] },
 });
+
+const onboardingStyles = StyleSheet.create({
+  // 머리 아래 22, 칸 사이 24 (Figma 위치 132)
+  content: {
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
+  intro: { gap: 6 },
+  field: { gap: 8 },
+  inputGroup: { gap: 12 },
+  // 입력칸 46, 테두리 Gray100. 버튼(CTA M)은 393 폭에서 102 다.
+  // 입력칸은 hitSlop 으로 넓힐 수 없어 Android 는 최소 터치 영역(48)까지 키운다
+  input: {
+    minHeight: Math.max(46, MIN_TOUCH_TARGET),
+    marginRight: 10,
+    paddingHorizontal: 16,
+    borderColor: colors.gray[100],
+  },
+  checkButton: { minWidth: 102 },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: withOpacity(colors.gray[400], 0.3),
+  },
+});
+
+const looks = {
+  my: {
+    styles: myStyles,
+    title: 'Body/XL/Bold',
+    description: 'Caption/M/Medium',
+    label: 'Caption/M/SemiBold',
+    labelColor: colors.gray[800],
+    placeholderColor: colors.gray[400],
+    checkSize: 'L',
+    hintColor: colors.gray[600],
+    or: 'Caption/M/Medium',
+  },
+  onboarding: {
+    styles: onboardingStyles,
+    title: 'Body/L/Bold',
+    description: 'Body/XS/Medium',
+    label: 'Caption/M/Medium',
+    labelColor: colors.gray[700],
+    placeholderColor: colors.gray[500],
+    checkSize: 'M',
+    hintColor: colors.libraryGray[500],
+    or: 'Caption/M/Regular',
+  },
+} as const satisfies Record<JoinFlow, unknown>;

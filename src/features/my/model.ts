@@ -144,6 +144,12 @@ const normalize = ({ name, phoneNumber }: ProfileInput): ProfileInput => ({
   phoneNumber: phoneNumber.replace(/\D/g, ''),
 });
 
+/** 서버 규칙에 맞는 이름·연락처인지 (프로필 수정, 온보딩 프로필 등록) */
+export function isValidProfile(input: ProfileInput): boolean {
+  const { name, phoneNumber } = normalize(input);
+  return NAME_PATTERN.test(name) && PHONE_PATTERN.test(phoneNumber);
+}
+
 /** 바뀐 값이 있고 서버 규칙에 맞을 때만 저장할 수 있다 */
 export function canSaveProfile(
   saved: ProfileInput,
@@ -153,11 +159,7 @@ export function canSaveProfile(
   const after = normalize(input);
   const changed =
     before.name !== after.name || before.phoneNumber !== after.phoneNumber;
-  return (
-    changed &&
-    NAME_PATTERN.test(after.name) &&
-    PHONE_PATTERN.test(after.phoneNumber)
-  );
+  return changed && isValidProfile(after);
 }
 
 /**

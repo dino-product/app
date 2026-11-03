@@ -1,5 +1,12 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { NativeModules } from 'react-native';
+import { colors, typography } from '../../../../shared/design-system';
 import type { ParticipationRequest } from '../model';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 
@@ -110,5 +117,52 @@ describe('JoinRequestedScreen', () => {
 
     expect(props.onCancel).not.toHaveBeenCalled();
     expect(sheetTitle()).toBeNull();
+  });
+  it('확인을 연달아 눌러도 한 번만 알린다 (온보딩은 확인으로 사무실 결정을 흉내 낸다)', async () => {
+    const { onConfirm } = await renderRequested();
+
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+  describe('흐름별 모양', () => {
+    // Figma 회사찾기-요청완료 (3235:14886): 값 Caption/M/Medium Gray800, 안내 상자 없음
+    it('마이는 머리 제목이 조직 참여하기이고 요약 값은 Medium Gray800 이다', async () => {
+      await renderRequested();
+
+      expect(
+        screen.getByRole('header', { name: '조직 참여하기' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Orbit')).toHaveStyle({
+        ...typography['Caption/M/Medium'],
+        color: colors.gray[800],
+      });
+      expect(screen.queryByText(/새로운 요청은 차단됩니다/)).toBeNull();
+    });
+
+    // Figma 승인 대기 (3227:8824): 값 Caption/M/Semibold Gray800, 버튼 위 안내 상자
+    it('온보딩은 머리 제목이 승인 대기이고 요약 값은 SemiBold, 안내 상자가 있다 (#85)', async () => {
+      await render(
+        <JoinRequestedScreen
+          flow="onboarding"
+          request={request}
+          onConfirm={jest.fn()}
+          onCancel={jest.fn()}
+          onBack={jest.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole('header', { name: '승인 대기' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Orbit')).toHaveStyle({
+        ...typography['Caption/M/SemiBold'],
+        color: colors.gray[800],
+      });
+      expect(
+        screen.getByText('이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다.'),
+      ).toBeOnTheScreen();
+    });
   });
 });
