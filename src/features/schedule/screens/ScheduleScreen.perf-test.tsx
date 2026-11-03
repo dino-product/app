@@ -1,6 +1,6 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { measureRenders } from 'reassure';
-import { drag } from '../../../../jest/gesture';
+import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { perfBudget } from '../../../shared/perf/budget';
 import { makeScheduleMock } from '../mockData';
@@ -60,6 +60,53 @@ describe('ScheduleScreen 렌더 예산', () => {
       perfBudget.render.maxRedundantUpdates,
     );
   }, 30_000);
+
+  // 달력을 만지는 동안 리스트 스크롤을 막는다 (#99). 막고 풀 때 리스트만 다시 그리고 달력은 그대로 둔다
+  it.each([
+    { label: '주간 줄', testID: 'week-strip', open: false },
+    { label: '펼친 달력', testID: 'month-calendar', open: true },
+  ])(
+    '$label 에 손가락이 닿을 때와 뗄 때 한 번씩만 다시 그린다',
+    async ({ testID, open }) => {
+      const result = await measureRenders(
+        <ScheduleScreen
+          today={today}
+          confirmed={confirmed}
+          pending={pending}
+          onAccept={() => {}}
+          onReject={() => {}}
+          onOpenRequest={() => {}}
+        />,
+        {
+          scenario: async () => {
+            if (open) {
+              await fireEvent.press(
+                screen.getByRole('button', { name: '달력 펼치기' }),
+              );
+            }
+            const area = screen.getByTestId(testID);
+            await act(() =>
+              area.props.onTouchStart(
+                touchesEvent({ changed: [0], touches: [0] }),
+              ),
+            );
+            await act(() =>
+              area.props.onTouchEnd(
+                touchesEvent({ changed: [0], touches: [] }),
+              ),
+            );
+          },
+        },
+      );
+
+      // 마운트 1 (+ 펼치기 1) + 막기 1 + 풀기 1
+      expect(Math.max(...result.counts)).toBe(open ? 4 : 3);
+      expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+        perfBudget.render.maxRedundantUpdates,
+      );
+    },
+    30_000,
+  );
 
   describe('넘김 애니메이션', () => {
     afterEach(() => {

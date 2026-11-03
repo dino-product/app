@@ -11,6 +11,7 @@ import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, dayColor, weekA11yLabel } from './calendarDay';
 import { SwipeTrack, type PageOffset } from './SwipeTrack';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
+import type { AreaTouchHandlers } from './useTouchScrollLock';
 
 // VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 넘긴다)
 const weekActions = [
@@ -32,6 +33,7 @@ export function WeekStrip({
   onPrev,
   onNext,
   edgeInset = 0,
+  touchHandlers,
 }: {
   /** 보이는 주 (일요일~토요일). 고른 날이 없는 주일 수 있다 */
   days: readonly Date[];
@@ -46,6 +48,8 @@ export function WeekStrip({
    * 넘길 때 옆 주가 이만큼 바깥(화면 가장자리)에서 들어온다
    */
   edgeInset?: number;
+  /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
+  touchHandlers?: AreaTouchHandlers;
 }) {
   const swipe = useHorizontalSwipe({ onPrev, onNext });
   // 밀기처럼 보이는 주만 넘기고 고른 날은 그대로 둔다. 포커스한 칸은 그대로 남고 레이블만 바뀌어
@@ -110,7 +114,7 @@ export function WeekStrip({
   };
 
   return (
-    <View testID="week-strip" {...swipe.panHandlers}>
+    <View testID="week-strip" {...touchHandlers} {...swipe.panHandlers}>
       <GestureExclusionArea edgeInset={edgeInset} />
       <SwipeTrack
         swipe={swipe}

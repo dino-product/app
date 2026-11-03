@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,7 +7,7 @@ import {
   within,
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
-import { drag } from '../../../../jest/gesture';
+import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
@@ -464,6 +465,159 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(
       screen.getByRole('button', { name: '12월 15일 화요일' }),
     ).toBeOnTheScreen();
+  });
+});
+
+// 주간 줄·월 달력은 리스트 머리에 있다. 달력을 만지는 동안(닿은 뒤 뗄 때까지)은 리스트가 세로로 움직이지 않는다 (#99)
+describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** 확정 일정 리스트 (네이티브 스크롤 뷰) */
+  const list = () => {
+    let node = screen.getByText(/^\d{4}년 \d+월 \d+일 \(.\)$/) as HostElement;
+    while (node.parent && node.type !== 'RCTScrollView') {
+      node = node.parent;
+    }
+    expect(node.type).toBe('RCTScrollView');
+    return node;
+  };
+  // RNTL fireEvent 는 터치 시작을 거절하는 응답자(밀기)가 있는 뷰의 이벤트를 막아 props 의 핸들러를 직접 부른다.
+  // RN 은 터치 시작을 리스트(조상)의 capture 로 먼저 보내고 닿은 뷰에서 위로(bubble) 올린다
+  const touchStart = (target: HostElement | null, id = 0) =>
+    act(() => {
+      const event = touchesEvent({ changed: [id], touches: [id] });
+      list().props.onTouchStartCapture?.(event);
+      target?.props.onTouchStart?.(event);
+    });
+  const touchEnd = (target: HostElement, id = 0) =>
+    act(() =>
+      target.props.onTouchEnd?.(touchesEvent({ changed: [id], touches: [] })),
+    );
+  const touchCancel = (target: HostElement, id = 0) =>
+    act(() =>
+      target.props.onTouchCancel?.(
+        touchesEvent({ changed: [id], touches: [] }),
+      ),
+    );
+
+  it.each(['ios', 'android'] as const)(
+    '%s: 주간 줄에 손가락이 닿으면 리스트 스크롤을 막고, 떼면 다시 스크롤한다',
+    async os => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderSchedule();
+      expect(list().props.scrollEnabled).not.toBe(false);
+
+      await touchStart(screen.getByTestId('week-strip'));
+      expect(list().props.scrollEnabled).toBe(false);
+
+      await touchEnd(screen.getByTestId('week-strip'));
+      expect(list().props.scrollEnabled).toBe(true);
+    },
+  );
+
+  it('주간 줄 터치가 취소돼도 다시 스크롤한다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    await touchCancel(screen.getByTestId('week-strip'));
+
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('펼친 달력도 손가락이 닿은 동안 리스트 스크롤을 막는다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    await touchStart(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(false);
+
+    await touchEnd(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(true);
+
+    await touchStart(screen.getByTestId('month-calendar'));
+    await touchCancel(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('달력 밖(날짜 머리·일정 목록)에서 시작한 터치는 리스트 스크롤을 막지 않는다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByText('세탁기 설치') as HostElement);
+    expect(list().props.scrollEnabled).not.toBe(false);
+
+    await touchStart(screen.getByText('2026년 12월 15일 (화)') as HostElement);
+    expect(list().props.scrollEnabled).not.toBe(false);
+  });
+
+  it('주간 줄을 만지는 동안에도 날짜를 누르면 고르고, 손을 떼면 다시 스크롤한다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await touchStart(strip);
+    await fireEvent.press(
+      screen.getByRole('button', { name: '12월 16일 수요일' }),
+    );
+    await touchEnd(strip);
+
+    expect(screen.getByText('2026년 12월 16일 (수)')).toBeOnTheScreen();
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('주간 줄을 만지는 동안 밀어서 주를 넘기고, 손을 떼면 다시 스크롤한다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await touchStart(strip);
+    // 밀던 중 리스트가 응답자를 달라고 해도 넘겨 주지 않는다
+    const { released } = await drag(strip.props, { dx: -80, cancelAt: 6 });
+    await touchEnd(screen.getByTestId('week-strip'));
+
+    expect(released).toBe(false);
+    expect(
+      screen.getByRole('button', { name: '12월 20일 일요일' }),
+    ).toBeOnTheScreen();
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  // 막고 푸는 렌더는 리스트만 다시 그리고 달력은 그대로 둔다 (끄는 손가락을 따라가는 JS 를 붙잡지 않는다)
+  it.each([
+    { label: '주간 줄', testID: 'week-strip', open: false },
+    { label: '달력', testID: 'month-calendar', open: true },
+  ])(
+    '$label 을 만지기 시작하고 떼도 $label 은 다시 그리지 않는다',
+    async ({ testID, open }) => {
+      await renderSchedule();
+      if (open) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+      }
+      const before = screen.getByTestId(testID).props;
+
+      await touchStart(screen.getByTestId(testID));
+      expect(list().props.scrollEnabled).toBe(false);
+      await touchEnd(screen.getByTestId(testID));
+      expect(list().props.scrollEnabled).toBe(true);
+
+      // 다시 그리면 루트 뷰가 새 props 를 받는다
+      const same = screen.getByTestId(testID).props === before;
+      expect(same).toBe(true);
+    },
+  );
+
+  it('응답 필요 리스트는 막지 않는다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+
+    let node = screen.getByText('에어컨 필터 교체') as HostElement;
+    while (node.parent && node.type !== 'RCTScrollView') {
+      node = node.parent;
+    }
+    expect(node.props.scrollEnabled).not.toBe(false);
   });
 });
 

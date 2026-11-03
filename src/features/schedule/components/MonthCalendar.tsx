@@ -20,6 +20,7 @@ import {
 import { dayA11yLabel, dayColor, weekdayHeaderColor } from './calendarDay';
 import { PAGE_OFFSETS, SwipeTrack, type PageOffset } from './SwipeTrack';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
+import type { AreaTouchHandlers } from './useTouchScrollLock';
 
 // Figma 내 일정 › 달력 펼침 (Calendar Contents). 선택일은 Primary 둥근 사각형, 일정은 날짜 아래 점 1~3개로 표시한다.
 // 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달. 끄는 동안 날짜 격자만 손가락을 따라 움직여 옆 달이 드러나고,
@@ -33,6 +34,7 @@ export function MonthCalendar({
   onPrev,
   onNext,
   edgeInset = 0,
+  touchHandlers,
 }: {
   year: number;
   month: number;
@@ -47,6 +49,8 @@ export function MonthCalendar({
    * 넘길 때 옆 달이 이만큼 바깥(화면 가장자리)에서 들어온다
    */
   edgeInset?: number;
+  /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
+  touchHandlers?: AreaTouchHandlers;
 }) {
   const swipe = useHorizontalSwipe({ onPrev, onNext });
   // 앞뒤 달 격자도 미리 만들어 둔다 (이전·지금·다음)
@@ -80,6 +84,7 @@ export function MonthCalendar({
       testID="month-calendar"
       hitSlop={ROOT_HIT_SLOP}
       style={styles.container}
+      {...touchHandlers}
       {...swipe.panHandlers}
     >
       <View style={styles.titleRow}>

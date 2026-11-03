@@ -49,6 +49,27 @@ function touchEvent(
   } as unknown as GestureResponderEvent;
 }
 
+/**
+ * onTouchStart·onTouchEnd·onTouchCancel 이 받는 이벤트. 응답자와 상관없이 닿은 뷰에서 위로 올라간다.
+ * changed 는 이번에 닿거나 뗀 손가락, touches 는 그 뒤에도 화면에 닿아 있는 손가락이다
+ */
+export function touchesEvent({
+  changed,
+  touches,
+}: {
+  changed: readonly number[];
+  touches: readonly number[];
+}): GestureResponderEvent {
+  const touch = (identifier: number) => ({ identifier, pageX: 0, pageY: 0 });
+  return {
+    nativeEvent: {
+      changedTouches: changed.map(touch),
+      touches: touches.map(touch),
+      timestamp: 0,
+    },
+  } as unknown as GestureResponderEvent;
+}
+
 export type DragResult = {
   /** 움직이는 도중 응답자가 됐는지 */
   granted: boolean;
@@ -59,6 +80,7 @@ export type DragResult = {
 /**
  * (0,0) 에서 (dx,dy) 까지 steps 번(한 번에 16ms)에 고르게 끈다. path 를 주면 그 점들을 차례로 지난다.
  * cancelAt 번째 이동 뒤에는 바깥(리스트 스크롤 등)이 응답자를 달라고 한다. 넘겨 주면 거기서 끝난다.
+ * terminateAt 번째 이동 뒤에는 묻지 않고 끊는다 (Android 부모의 가로채기, 시스템 제스처·전화 등).
  */
 export async function drag(
   handlers: GestureResponderHandlers,
@@ -68,6 +90,7 @@ export async function drag(
     path,
     fingers = 1,
     cancelAt,
+    terminateAt,
     ...rest
   }: {
     dx?: number;
@@ -76,6 +99,7 @@ export async function drag(
     path?: readonly Point[];
     fingers?: number;
     cancelAt?: number;
+    terminateAt?: number;
   },
 ): Promise<DragResult> {
   const steps = path ? path.length - 1 : rest.steps ?? 10;
@@ -118,6 +142,10 @@ export async function drag(
           handlers.onResponderTerminate?.(move);
           return;
         }
+      }
+      if (result.granted && step === terminateAt) {
+        handlers.onResponderTerminate?.(move);
+        return;
       }
     }
 

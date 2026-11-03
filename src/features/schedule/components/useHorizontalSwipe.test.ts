@@ -169,15 +169,42 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
-  it('밀던 중에 리스트가 스크롤하겠다고 하면 넘겨 주고 제자리로 돌아간다', async () => {
-    const { result, finish, lastSlide, onNext } = await setup();
+  // 달력을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99). iOS 는 리스트가 응답자를 달라고 하고
+  // 넘겨 주면 그때부터 스크롤한다. Android 는 묻지 않고 끊으므로(가로채기) 응답자가 될 때 부모의 가로채기를 막는다
+  it('밀던 중에 리스트가 스크롤하겠다고 해도 넘겨 주지 않고 계속 따라가 넘긴다', async () => {
+    const { result, finish, offsets, onNext } = await setup();
 
     const { released } = await drag(result.current.panHandlers, {
       dx: -80,
       cancelAt: 6,
     });
 
-    expect(released).toBe(true);
+    expect(released).toBe(false);
+    expect(offsets.at(-1)).toBe(-64);
+    await finish();
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it('응답자가 되면 네이티브 부모(리스트)의 터치 가로채기를 막는다', async () => {
+    const { result } = await setup();
+    const grant = jest.fn(result.current.panHandlers.onResponderGrant);
+
+    await drag(
+      { ...result.current.panHandlers, onResponderGrant: grant },
+      {
+        dx: -80,
+      },
+    );
+
+    // PanResponder 는 onResponderGrant 의 반환값으로 네이티브 응답자를 막을지 정한다
+    expect(grant).toHaveReturnedWith(true);
+  });
+
+  it('시스템이 밀기를 끊으면(전화·시스템 제스처 등) 넘기지 않고 제자리로 돌아간다', async () => {
+    const { result, finish, lastSlide, onNext } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -80, terminateAt: 6 });
+
     expect(lastSlide()?.toValue).toBeCloseTo(0);
     await finish();
     expect(onNext).not.toHaveBeenCalled();
