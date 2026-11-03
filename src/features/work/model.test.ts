@@ -97,12 +97,13 @@ it('현장 사진은 단계별 최대 6장이다 (백엔드 CompletionReport 와
   expect(PHOTO_LIMIT).toBe(6);
 });
 
-it('결제 방식 이름은 Figma 의 "카드결제" 표기를 따른다', () => {
-  expect(paymentMethodLabels).toEqual({
-    card: '카드결제',
-    cash: '현금결제',
-    transfer: '계좌이체',
-  });
+it('결제 방식은 Figma 드롭다운 목록 순서·이름을 따른다 (백엔드 실제 결제 방식 4가지)', () => {
+  expect(Object.entries(paymentMethodLabels)).toEqual([
+    ['card', '현장 카드'],
+    ['cash', '현장 현금'],
+    ['transfer', '계좌 이체'],
+    ['invoice', '청구서 발행(후불)'],
+  ]);
 });
 
 describe('formatSubmittedAt', () => {

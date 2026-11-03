@@ -37,7 +37,7 @@ async function fillRequired() {
   );
   await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
-  await userEvent.press(screen.getByRole('button', { name: '카드결제' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 }
 
 // 같은 부모 아래에서 a 가 b 보다 앞에 있는지 (스크린리더가 읽는 순서)
@@ -249,7 +249,7 @@ describe('WorkDetailScreen', () => {
         false,
       );
       // 결제 방식은 펼침 화살표 없이 고른 값만 보인다
-      expect(screen.getByText('카드결제')).toBeOnTheScreen();
+      expect(screen.getByText('현장 카드')).toBeOnTheScreen();
       expect(
         screen.queryByRole('button', { name: '결제 방식 선택' }),
       ).not.toBeOnTheScreen();
@@ -545,10 +545,10 @@ describe('WorkDetailScreen', () => {
     await userEvent.press(
       screen.getByRole('button', { name: '결제 방식 선택' }),
     );
-    await userEvent.press(screen.getByRole('button', { name: '카드결제' }));
+    await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 
     expect(
       screen.getByRole('button', { name: '결제 방식 선택' }),
-    ).toHaveAccessibilityValue({ text: '카드결제' });
+    ).toHaveAccessibilityValue({ text: '현장 카드' });
   });
 });

@@ -68,7 +68,7 @@ async function submitReport() {
   );
   await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
-  await userEvent.press(screen.getByRole('button', { name: '카드결제' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
   await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
   await screen.findByRole('header', { name: '제출 완료' });
 }

@@ -43,13 +43,15 @@ export type WorkDetail = {
 /** 작업 전·후 단계별 최대 장수. 백엔드 CompletionReport 의 MAX_PHOTO_COUNT 와 같다 */
 export const PHOTO_LIMIT = 6;
 
-export type PaymentMethod = 'card' | 'cash' | 'transfer';
+// 백엔드 ActualPaymentMethod 의 CREDIT_CARD, CASH, BANK_TRANSFER, INVOICE 에 대응한다
+export type PaymentMethod = 'card' | 'cash' | 'transfer' | 'invoice';
 
-// Figma 에는 고른 값 "카드결제" 만 있어 현금·계좌이체 이름은 같은 표기에 맞춘 임시값이다 (API 스펙 확정 시 교체)
+// Figma 결제 방식 드롭다운 목록. 선언 순서가 목록 순서다
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
-  card: '카드결제',
-  cash: '현금결제',
-  transfer: '계좌이체',
+  card: '현장 카드',
+  cash: '현장 현금',
+  transfer: '계좌 이체',
+  invoice: '청구서 발행(후불)',
 };
 
 export type WorkReport = {

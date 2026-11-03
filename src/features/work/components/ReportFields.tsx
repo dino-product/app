@@ -119,7 +119,7 @@ export function PaymentMethodSelect({
   if (readOnly) {
     return (
       <View style={styles.box}>
-        <Text variant="Body/XS/Regular" style={styles.boxInput}>
+        <Text variant="Body/XS/Regular" style={styles.grow}>
           {value ? paymentMethodLabels[value] : ''}
         </Text>
       </View>
@@ -141,9 +141,9 @@ export function PaymentMethodSelect({
         <Text
           variant="Body/XS/Regular"
           color={value ? colors.gray[900] : colors.gray[400]}
-          style={styles.boxInput}
+          style={styles.grow}
         >
-          {value ? paymentMethodLabels[value] : '결제 방식을 선택해주세요'}
+          {value ? paymentMethodLabels[value] : '결제 방식 선택'}
         </Text>
         <Icon name="chevron-down" size={20} color={colors.gray[500]} />
       </Pressable>
@@ -185,6 +185,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white[100],
   },
   boxInput: { flex: 1, color: colors.gray[900] },
+  // Text 는 글자색을 color prop 으로 정한다. 스타일에 색을 넣으면 prop 을 덮어쓴다
+  grow: { flex: 1 },
   select: { gap: 8 },
   options: {
     overflow: 'hidden',

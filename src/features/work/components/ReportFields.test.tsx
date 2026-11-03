@@ -112,14 +112,25 @@ describe('PaymentMethodSelect', () => {
     await userEvent.press(
       screen.getByRole('button', { name: '결제 방식 선택' }),
     );
-    for (const name of ['카드결제', '현금결제', '계좌이체']) {
+    const names = ['현장 카드', '현장 현금', '계좌 이체', '청구서 발행(후불)'];
+    for (const name of names) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
-    await userEvent.press(screen.getByRole('button', { name: '카드결제' }));
+    await userEvent.press(
+      screen.getByRole('button', { name: '청구서 발행(후불)' }),
+    );
 
     expect(
       screen.getByRole('button', { name: '결제 방식 선택' }),
-    ).toHaveAccessibilityValue({ text: '카드결제' });
+    ).toHaveAccessibilityValue({ text: '청구서 발행(후불)' });
+  });
+
+  it('고르기 전에는 "결제 방식 선택" 을 회색으로 보여준다', async () => {
+    await render(<PaymentMethodSelect value={null} onChange={jest.fn()} />);
+
+    expect(screen.getByText('결제 방식 선택')).toHaveStyle({
+      color: colors.gray[400],
+    });
   });
 
   it('흰 배경에 Gray200 테두리다', async () => {
@@ -135,7 +146,7 @@ describe('PaymentMethodSelect', () => {
       <PaymentMethodSelect value="card" onChange={jest.fn()} readOnly />,
     );
 
-    expect(screen.getByText('카드결제')).toBeOnTheScreen();
+    expect(screen.getByText('현장 카드')).toBeOnTheScreen();
     expect(screen.queryByRole('button')).not.toBeOnTheScreen();
   });
 });
