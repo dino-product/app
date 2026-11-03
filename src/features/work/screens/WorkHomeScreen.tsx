@@ -6,7 +6,7 @@ import {
   type FlatListInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, Icon, Text, withOpacity } from '../../../shared/design-system';
+import { colors, Icon, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import {
@@ -95,16 +95,6 @@ export function WorkHomeScreen({
         ItemSeparatorComponent={Separator}
         contentContainerStyle={[readableColumn, styles.content]}
       />
-      {/* 탭 바 바로 위에서 목록이 배경색으로 흐려진다. 터치는 아래 목록으로 간다.
-          일정이 없으면 깔지 않는다 (작은 화면에서 빈 상태 안내가 흐려지지 않게) */}
-      {schedule.length > 0 && (
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          style={styles.bottomFade}
-          testID="home-bottom-fade"
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -147,17 +137,16 @@ function EmptySchedule() {
 
 // Figma 에서 '일정' 줄과 첫 일정 카드 사이
 const HEADER_PADDING_BOTTOM = 12;
-// Figma 에서 목록이 흐려지는 탭 바 위 높이
-const BOTTOM_FADE_HEIGHT = 83;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
   // 진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 3463:17452: 제목 줄 72–106, 카드 126).
-  // 마지막 카드는 흐려지는 곳 위에서 끝난다
+  // 화면은 탭 바 위에서 끝나므로 마지막 카드 아래는 다른 화면처럼 24 만 둔다 (기본안).
+  // Figma 메인화면의 하단 흐림 레이어(3463:17535)는 넣지 않는다: 흐림은 작업 상세 버튼 뒤에만 둔다 (#95, 사용자 결정)
   content: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: BOTTOM_FADE_HEIGHT,
+    paddingBottom: 24,
   },
   header: { gap: 20, paddingBottom: HEADER_PADDING_BOTTOM },
   // 일정 줄은 Figma 에서 카드보다 조금 안쪽에서 시작하고 오른쪽 끝은 카드와 같다
@@ -171,20 +160,6 @@ const styles = StyleSheet.create({
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   viewToggle: { flexDirection: 'row', gap: 4 },
   separator: { height: 12 },
-  // 진하기는 추정값이다. Figma 패널에 정지점 위치가 나오지 않아, 흐려진 글자 픽셀을 재서
-  // 위 20% 까지 투명, 탭 바와 닿는 곳에서 0.65 로 잡았다 (메인화면 - 시작 가능 3255:17530)
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: BOTTOM_FADE_HEIGHT,
-    pointerEvents: 'none',
-    backgroundImage: `linear-gradient(to bottom, ${withOpacity(
-      colors.background[3],
-      0,
-    )} 20%, ${withOpacity(colors.background[3], 0.65)} 100%)`,
-  },
   // Figma 에서 '일정' 줄 아래 118pt
   emptySchedule: {
     alignItems: 'center',

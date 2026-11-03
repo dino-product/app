@@ -172,7 +172,8 @@ describe('WorkHomeScreen', () => {
 });
 
 describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)', () => {
-  it('본문은 좌우 24 여백이고, 목록 끝은 아래 흐림(83) 위에서 끝난다', async () => {
+  // #95: 하단 흐림을 빼면서 남던 아래 여백(83)도 정리한다. 화면은 탭 바 위에서 끝나 마지막 카드가 가려지지 않는다
+  it('본문은 좌우 24 여백이고, 목록 끝은 아래 24 여백 뒤에서 끝난다', async () => {
     await renderHome();
 
     // 본문 여백은 스크롤 뷰의 contentContainerStyle 로 준다
@@ -181,7 +182,7 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
       list = list.parent;
     }
     expect(StyleSheet.flatten(list?.props.contentContainerStyle)).toMatchObject(
-      { paddingHorizontal: 24, paddingBottom: 83 },
+      { paddingHorizontal: 24, paddingBottom: 24 },
     );
   });
 
@@ -229,32 +230,18 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     });
   });
 
-  it('탭 바 위 83pt 에서 목록이 배경색으로 흐려지고, 터치는 그대로 아래로 간다', async () => {
-    await renderHome();
-
-    const fade = screen.getByTestId('home-bottom-fade', {
-      includeHiddenElements: true,
-    });
-    expect(fade).toHaveStyle({
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: 83,
-      pointerEvents: 'none',
-      backgroundImage:
-        'linear-gradient(to bottom, rgba(245, 246, 248, 0) 20%, rgba(245, 246, 248, 0.65) 100%)',
-    });
-    // 스크린리더에서는 숨는다 (기본 쿼리는 숨은 요소를 찾지 않는다)
-    expect(screen.queryByTestId('home-bottom-fade')).not.toBeOnTheScreen();
-  });
-
-  it('일정이 없으면 흐림을 깔지 않는다 (작은 화면에서 빈 상태 안내가 흐려지지 않게)', async () => {
-    await renderHome({ schedule: [] });
+  // #95: 흐림은 작업 상세 '완료 보고 작성하기' 버튼 뒤에만 둔다 (사용자 결정)
+  it('목록 아래에 흐림(그라데이션)을 깔지 않는다', async () => {
+    const { container } = await renderHome();
 
     expect(
       screen.queryByTestId('home-bottom-fade', { includeHiddenElements: true }),
     ).not.toBeOnTheScreen();
+    expect(
+      container.queryAll(
+        node => StyleSheet.flatten(node.props.style)?.backgroundImage != null,
+      ),
+    ).toHaveLength(0);
   });
 
   it('일정 빈 상태는 일정 줄 아래 118 에서 시작한다 (메인화면 - 일정(무) 3278:23276)', async () => {

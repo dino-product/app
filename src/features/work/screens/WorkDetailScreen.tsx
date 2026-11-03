@@ -25,6 +25,7 @@ import {
   ICON_HIT_SLOP,
   Text,
   TextArea,
+  withOpacity,
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -305,21 +306,33 @@ export function WorkDetailScreen({
 
         {/* 제출을 마친 작업은 작성할 보고가 없다 */}
         {showJump && !readOnly && (
-          // 버튼 양옆 여백까지 덮으므로 그 터치는 아래 스크롤 뷰로 넘긴다
-          <View pointerEvents="box-none" style={[readableColumn, styles.jump]}>
-            <CTA
-              variant="brand"
-              icon={
-                <Icon
-                  name="chevrons-down"
-                  size={20}
-                  color={colors.white[100]}
-                />
-              }
-              label="완료 보고 작성하기"
-              onPress={jumpToReport}
+          <>
+            {/* 버튼 뒤 그라데이션 (#95). 버튼이 있을 때만 깔고, 터치는 아래 스크롤 뷰로 넘기고, 스크린리더에서 숨긴다 */}
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={styles.jumpFade}
+              testID="work-detail-jump-fade"
             />
-          </View>
+            {/* 버튼 양옆 여백까지 덮으므로 그 터치는 아래 스크롤 뷰로 넘긴다 */}
+            <View
+              pointerEvents="box-none"
+              style={[readableColumn, styles.jump]}
+            >
+              <CTA
+                variant="brand"
+                icon={
+                  <Icon
+                    name="chevrons-down"
+                    size={20}
+                    color={colors.white[100]}
+                  />
+                }
+                label="완료 보고 작성하기"
+                onPress={jumpToReport}
+              />
+            </View>
+          </>
         )}
       </KeyboardAvoidingArea>
 
@@ -327,6 +340,20 @@ export function WorkDetailScreen({
     </SafeAreaView>
   );
 }
+
+// '완료 보고 작성하기' 뒤 그라데이션. Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417):
+// 393×320, 프레임 위 532 에서 아래 끝(852)까지, 채움 #F0F0F0 (변수 없음) 투명 0% → 불투명 54.3%, 위→아래.
+// 변환 행렬(위치 = 1.065 × 높이 비율 − 0.065)로 레이어 높이의 6.1% 까지 투명, 57.1% 부터 불투명이다.
+// 앱 화면은 탭 바(Figma 102) 위에서 끝나므로 그 위로 보이는 218 만 그리고, 정지점은 레이어 위에서 잰 거리로 옮긴다
+const JUMP_FADE_COLOR = '#F0F0F0';
+const FIGMA_FADE_HEIGHT = 320;
+const FIGMA_TAB_BAR_HEIGHT = 102;
+const JUMP_FADE_HEIGHT = FIGMA_FADE_HEIGHT - FIGMA_TAB_BAR_HEIGHT;
+/** Figma 레이어 위에서 잰 투명 구간 끝 / 불투명 시작 (pt) */
+const JUMP_FADE_CLEAR_UNTIL = (FIGMA_FADE_HEIGHT * 0.065) / 1.065;
+const JUMP_FADE_SOLID_FROM = (FIGMA_FADE_HEIGHT * (0.5432692 + 0.065)) / 1.065;
+const fadeStop = (fromTop: number) =>
+  `${Math.round((fromTop / JUMP_FADE_HEIGHT) * 10000) / 100}%`;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
@@ -341,4 +368,20 @@ const styles = StyleSheet.create({
   submit: { marginHorizontal: 24, marginTop: 40 },
   // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
   jump: { position: 'absolute', bottom: 16, paddingHorizontal: 24 },
+  // 창 폭 전체에 깔고 버튼과 함께 탭 바 위에 붙는다
+  jumpFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: JUMP_FADE_HEIGHT,
+    pointerEvents: 'none',
+    backgroundImage: `linear-gradient(to bottom, ${withOpacity(
+      JUMP_FADE_COLOR,
+      0,
+    )} ${fadeStop(JUMP_FADE_CLEAR_UNTIL)}, ${withOpacity(
+      JUMP_FADE_COLOR,
+      1,
+    )} ${fadeStop(JUMP_FADE_SOLID_FROM)})`,
+  },
 });
