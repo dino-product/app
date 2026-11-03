@@ -1,7 +1,13 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
-import { colors, typography } from '../../../shared/design-system';
+import {
+  colors,
+  pressedBackground,
+  typography,
+} from '../../../shared/design-system';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { isInsideScrollView } from '../../../shared/testing/scroll';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
 import { WorkHistoryScreen } from './WorkHistoryScreen';
@@ -76,6 +82,25 @@ describe('WorkHistoryScreen — 화면 구성', () => {
     expect(
       screen.getByText('정다은 · 서울 용산구 이태원로 202'),
     ).toBeOnTheScreen();
+  });
+});
+
+// #103: 탭 첫 화면 공통 상단 바 (Figma 3463:17455 규격). Figma 작업이력 (기본) 2751:6982 에는 종이 없다
+describe('WorkHistoryScreen — 상단 바', () => {
+  it('제목은 스크롤 뷰 밖에 고정되고, 상태 표시줄 아래 12·좌우 24 에서 시작하며 종이 없다', async () => {
+    await renderHistory();
+
+    const title = screen.getByRole('header', { name: '작업 이력' });
+    expect(isInsideScrollView(title)).toBe(false);
+    expect(title).toHaveStyle({
+      ...typography['Body/XL/SemiBold'],
+      color: colors.black,
+    });
+    expect(title.parent?.parent).toHaveStyle({
+      paddingTop: 12,
+      paddingHorizontal: 24,
+    });
+    expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
   });
 });
 
@@ -161,6 +186,15 @@ describe('WorkHistoryScreen — 상세 열기', () => {
     await userEvent.press(rows()[1]);
 
     expect(onOpenWork).toHaveBeenCalledWith('s1');
+  });
+});
+
+// #102: 누르는 동안 회색 배경
+describe('WorkHistoryScreen — 눌림', () => {
+  it('완료 작업 행을 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+    await renderHistory();
+
+    await expectPressedBackground(rows()[0], pressedBackground.onWhite);
   });
 });
 

@@ -1,4 +1,5 @@
 export { colors, withOpacity } from './tokens/colors';
+export { pressedBackground } from './tokens/pressed';
 export { fonts, type FontFamily } from './tokens/fonts';
 export {
   createTextStyle,

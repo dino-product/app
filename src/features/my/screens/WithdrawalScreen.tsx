@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Text, TextArea } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 
 // Figma 마이페이지-탈퇴 (2935:15259)
@@ -69,6 +70,7 @@ export function WithdrawalScreen({
       {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다 */}
       <KeyboardAvoidingArea testID="withdrawal-body">
         <ScrollView
+          {...noOverscroll}
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }

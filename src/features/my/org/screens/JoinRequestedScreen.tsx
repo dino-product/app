@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestModal } from '../components/CancelRequestModal';
 import { flowLayouts } from '../components/flowLayouts';
@@ -63,6 +64,7 @@ export function JoinRequestedScreen({
         titleRef={titleRef}
       />
       <ScrollView
+        {...noOverscroll}
         contentContainerStyle={[readableColumn, styles.content, look.content]}
       >
         <View style={[styles.intro, look.intro]}>

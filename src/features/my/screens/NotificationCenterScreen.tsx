@@ -4,10 +4,11 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type PressableStateCallbackType,
   type TextInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, Text } from '../../../shared/design-system';
+import { colors, pressedBackground, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
@@ -105,7 +106,13 @@ const NotificationRow = memo(function MyNotificationRow({
           : '읽음으로 표시합니다'
       }
       onPress={pressable ? press : undefined}
-      style={[styles.row, item.read ? styles.read : styles.unread]}
+      style={
+        pressable
+          ? item.read
+            ? rowStyles.read
+            : rowStyles.unread
+          : rowStyles.info
+      }
       testID={`notification-${item.id}`}
     >
       <View style={[readableColumn, styles.rowContent]}>
@@ -143,7 +150,9 @@ const styles = StyleSheet.create({
   content: { paddingTop: 8, paddingBottom: 24 },
   row: { paddingHorizontal: 24 },
   unread: { backgroundColor: colors.background[3] },
+  unreadPressed: { backgroundColor: pressedBackground.onGray },
   read: { backgroundColor: colors.white[100] },
+  readPressed: { backgroundColor: pressedBackground.onWhite },
   rowContent: { gap: 8, paddingVertical: 22 },
   rowTop: {
     flexDirection: 'row',
@@ -161,3 +170,17 @@ const styles = StyleSheet.create({
   },
   empty: { paddingTop: 120, textAlign: 'center' },
 });
+
+// 누르는 동안 회색 배경 (#102). 읽지 않은 알림은 이미 회색이라 한 단계 진하게 칠한다.
+// 읽었고 열 곳도 없는 알림은 누를 수 없어 바뀌지 않는다
+const rowStyles = {
+  unread: ({ pressed }: PressableStateCallbackType) => [
+    styles.row,
+    pressed ? styles.unreadPressed : styles.unread,
+  ],
+  read: ({ pressed }: PressableStateCallbackType) => [
+    styles.row,
+    pressed ? styles.readPressed : styles.read,
+  ],
+  info: [styles.row, styles.read],
+};

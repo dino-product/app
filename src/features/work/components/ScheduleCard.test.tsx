@@ -1,5 +1,10 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
-import { colors, fonts } from '../../../shared/design-system';
+import {
+  colors,
+  fonts,
+  pressedBackground,
+} from '../../../shared/design-system';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { weeklySchedule } from '../mockData';
 import { ScheduleCard } from './ScheduleCard';
 
@@ -7,6 +12,15 @@ import { ScheduleCard } from './ScheduleCard';
 const item = weeklySchedule[0];
 
 describe('ScheduleCard', () => {
+  // #102: 누르는 동안 회색 배경. 둥근 모서리(16) 안에 그린다
+  it('누르고 있는 동안 카드 배경이 Gray50 이 되고 떼면 흰색으로 돌아온다', async () => {
+    await render(<ScheduleCard item={item} onPress={jest.fn()} />);
+
+    const card = screen.getByRole('button', { name: /세탁기 설치/ });
+    expect(card).toHaveStyle({ borderRadius: 16 });
+    await expectPressedBackground(card, pressedBackground.onWhite);
+  });
+
   it('누르면 그 일정의 id 로 onPress 를 부른다', async () => {
     const onPress = jest.fn();
     await render(<ScheduleCard item={item} onPress={onPress} />);

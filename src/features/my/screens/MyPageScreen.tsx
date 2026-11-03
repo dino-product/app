@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type PressableStateCallbackType,
   type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,12 +13,14 @@ import {
   createTextStyle,
   fonts,
   Icon,
-  ICON_HIT_SLOP,
+  pressedBackground,
   Text,
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabHeader } from '../../../shared/layout/TabHeader';
 import {
   formatJoinDate,
   formatPhoneNumber,
@@ -63,39 +66,19 @@ export function MyPageScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <TabHeader title="마이페이지" onOpenNotifications={onOpenNotifications} />
       {/* 소속 발주사는 한 사람이 몇 곳뿐이라 카드 하나 안에 다 그린다 (가상화할 만큼 길지 않다) */}
       <ScrollView
+        {...noOverscroll}
         ref={scrollRef}
         contentContainerStyle={[readableColumn, styles.content]}
       >
-        <View style={styles.titleRow}>
-          <Text
-            accessibilityRole="header"
-            variant="Body/XL/SemiBold"
-            color={colors.black}
-          >
-            마이페이지
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="알림센터"
-            hitSlop={ICON_HIT_SLOP}
-            onPress={onOpenNotifications}
-          >
-            <Icon name="bell" />
-          </Pressable>
-        </View>
-
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${profile.name}, ${phone}, ${joinDate}`}
           accessibilityHint="프로필을 수정합니다"
           onPress={onEditProfile}
-          style={({ pressed }) => [
-            styles.card,
-            styles.profileCard,
-            pressed && styles.pressed,
-          ]}
+          style={profileCardStyle}
         >
           <View style={styles.avatar}>
             <Icon name="user" size={30} color={colors.support.sideBarIcon} />
@@ -151,7 +134,7 @@ export function MyPageScreen({
                 onPress={onJoinOrganization}
                 style={({ pressed }) => [
                   styles.joinButton,
-                  pressed && styles.pressed,
+                  pressed && styles.buttonPressed,
                 ]}
               >
                 <Text variant="Caption/S/Medium" color={colors.white[100]}>
@@ -162,7 +145,11 @@ export function MyPageScreen({
           </View>
           <View style={[styles.card, styles.membershipCard]}>
             {memberships.length === 0 ? (
-              <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+              <Text
+                variant="Caption/M/Medium"
+                color={colors.gray[600]}
+                style={styles.membershipEmpty}
+              >
                 아직 소속된 발주사가 없어요
               </Text>
             ) : (
@@ -217,7 +204,8 @@ const chipBackgrounds = StyleSheet.create({
   DEACTIVATED: { backgroundColor: statusSpec.DEACTIVATED.background },
 });
 
-// Figma 에 누르는 동작이 없어 정보 행이다. 스크린리더는 한 줄로 읽는다
+// Figma 에 누르는 동작이 없어 정보 행이다. 스크린리더는 한 줄로 읽는다.
+// 누르고 있는 동안에는 다른 리스트 행처럼 회색 배경을 보인다 (#102). 동작은 없어 버튼으로 읽히지 않는다
 const MembershipRow = memo(function MyMembershipRow({
   membership,
 }: {
@@ -227,10 +215,12 @@ const MembershipRow = memo(function MyMembershipRow({
   const spec = statusSpec[status];
   const roleLabel = memberRoleLabels[role];
   return (
-    <View
+    <Pressable
       accessible
       accessibilityLabel={`${organizationName}, ${roleLabel}, ${spec.label}`}
-      style={styles.membershipRow}
+      // 누를 동작이 없으니 Android 에서 클릭할 수 있는 뷰로 만들지 않는다 (TalkBack 이 활성화하라고 읽지 않게)
+      focusable={false}
+      style={membershipRowStyle}
       testID={`membership-${organizationId}`}
     >
       <View style={styles.membershipText}>
@@ -247,7 +237,7 @@ const MembershipRow = memo(function MyMembershipRow({
           {spec.label}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 });
 
@@ -265,13 +255,28 @@ function SettingRow({
       accessibilityRole="button"
       hitSlop={SETTING_ROW_HIT_SLOP}
       onPress={onPress}
-      style={({ pressed }) => [styles.settingRow, pressed && styles.pressed]}
+      style={settingRowStyle}
     >
       <Icon name={icon} size={20} color={colors.gray[700]} />
       <Text variant="Body/XS/Medium">{label}</Text>
     </Pressable>
   );
 }
+
+// 누르는 동안 회색 배경 (#102). 흰 카드 안 행은 카드 모서리와 같은 중심의 둥근 사각형으로 칠한다
+const profileCardStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.card,
+  styles.profileCard,
+  pressed && styles.rowPressed,
+];
+const membershipRowStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.membershipRow,
+  pressed && styles.rowPressed,
+];
+const settingRowStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.settingRow,
+  pressed && styles.rowPressed,
+];
 
 // Figma 에만 있는 색 (컬렉션 밖 값)
 const CHEVRON_COLOR = '#A1A1AA';
@@ -283,6 +288,12 @@ const ACTION_HIT_SLOP = {
   top: touchSlop(ACTION_HEIGHT),
   bottom: touchSlop(ACTION_HEIGHT),
 };
+/** 소속·설정 카드 안에서 눌림 회색이 카드 가장자리와 떨어지는 거리. 글자는 지금처럼 카드 안 20 에서 시작한다 */
+const CARD_INSET = 8;
+/** 카드 모서리(16)와 같은 중심이 되는 눌림 회색의 모서리 */
+const ROW_RADIUS = 16 - CARD_INSET;
+/** 소속 행 위아래 여백. 행 사이 간격(13 · 선 · 13)을 행 안으로 옮겼다 */
+const MEMBERSHIP_ROW_PADDING = 13;
 /** 설정 행 높이. Figma 의 글자 줄(22)과 행 사이 간격(24)을 행 안 여백으로 옮겼다 */
 const SETTING_ROW_HEIGHT = 46;
 const SETTING_ROW_HIT_SLOP = {
@@ -292,23 +303,20 @@ const SETTING_ROW_HIT_SLOP = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 프로필 카드는 지금처럼 제목 줄 아래 20 에서 시작한다. 제목 줄은 스크롤 밖 상단 바다 (#103)
   content: {
     gap: 24,
     paddingHorizontal: 24,
-    paddingTop: 18,
+    paddingTop: 20,
     paddingBottom: 24,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: -4,
   },
   card: {
     borderRadius: 16,
     backgroundColor: colors.white[100],
   },
-  pressed: { opacity: 0.8 },
+  // '조직 참여' 는 CTA 처럼 눌리는 동안 흐려진다
+  buttonPressed: { opacity: 0.8 },
+  rowPressed: { backgroundColor: pressedBackground.onWhite },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -363,8 +371,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.primary,
   },
+  // 카드 안 여백 20 중 일부(가로 12, 세로 13)를 행 안으로 옮겨, 눌림 회색이 글자 둘레에 둥글게 칠해진다 (#102)
   membershipCard: {
-    padding: 20,
+    paddingHorizontal: CARD_INSET,
+    paddingVertical: 20 - MEMBERSHIP_ROW_PADDING,
     boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.08)',
   },
   membershipRow: {
@@ -372,11 +382,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    paddingHorizontal: 20 - CARD_INSET,
+    paddingVertical: MEMBERSHIP_ROW_PADDING,
+    borderRadius: ROW_RADIUS,
+  },
+  membershipEmpty: {
+    paddingHorizontal: 20 - CARD_INSET,
+    paddingVertical: MEMBERSHIP_ROW_PADDING,
   },
   membershipText: { flex: 1 },
+  // 행 사이는 지금처럼 13 · 선 · 13 이고 선은 카드 안 20 에서 시작한다
   divider: {
     height: 1,
-    marginVertical: 13,
+    marginHorizontal: 20 - CARD_INSET,
     backgroundColor: colors.gray[100],
   },
   // 글꼴 확대 시 잘리지 않도록 Figma 높이(21)는 최소값으로만 건다
@@ -388,7 +406,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   settingsCard: {
-    paddingHorizontal: 20,
+    paddingHorizontal: CARD_INSET,
     paddingVertical: 8,
     boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.08)',
   },
@@ -397,5 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minHeight: SETTING_ROW_HEIGHT,
+    paddingHorizontal: 20 - CARD_INSET,
+    borderRadius: ROW_RADIUS,
   },
 });

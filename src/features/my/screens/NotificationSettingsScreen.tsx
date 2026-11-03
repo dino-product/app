@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text, Toggle } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import type { NotificationSettings } from '../model';
 
@@ -44,7 +45,10 @@ export function NotificationSettingsScreen({
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SubScreenHeader title="알림 설정" onBack={onBack} titleRef={titleRef} />
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         {items.map(item => (
           <SettingCard
             key={item.key}

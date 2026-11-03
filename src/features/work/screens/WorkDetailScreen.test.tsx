@@ -407,6 +407,73 @@ describe('WorkDetailScreen', () => {
         screen.getByRole('button', { name: '완료 보고 작성하기' }),
       ).toBeOnTheScreen();
     });
+
+    // #95: Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417)
+    describe('버튼 뒤 그라데이션', () => {
+      const fade = () =>
+        screen.queryByTestId('work-detail-jump-fade', {
+          includeHiddenElements: true,
+        });
+
+      // Figma 레이어는 393×320, 프레임 위 532 에서 아래 끝(852)까지다. 앱 화면은 탭 바(102) 위에서 끝나 그 위 218 이 보인다.
+      // 채움은 #F0F0F0 투명(0%) → 불투명(54.3%), 위→아래이고 변환 행렬로 레이어 높이의 6.1%~57.1% 구간에 걸친다.
+      // 320 기준 19.5 ~ 182.8 이라 보이는 218 안에서는 8.96% ~ 83.84% 다
+      it('버튼이 보이면 그 뒤 탭 바 위 218 에 #F0F0F0 그라데이션이 깔린다', async () => {
+        await renderDetail();
+
+        expect(fade()).toHaveStyle({
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 218,
+          backgroundImage:
+            'linear-gradient(to bottom, rgba(240, 240, 240, 0) 8.96%, rgba(240, 240, 240, 1) 83.84%)',
+        });
+      });
+
+      it('버튼보다 뒤에 그린다', async () => {
+        await renderDetail();
+
+        const button = screen.getByRole('button', {
+          name: '완료 보고 작성하기',
+        });
+        let wrapper = button.parent;
+        while (wrapper && wrapper.parent !== fade()?.parent) {
+          wrapper = wrapper.parent;
+        }
+        const siblings = fade()?.parent?.children ?? [];
+        expect(siblings.indexOf(fade()!)).toBeLessThan(
+          siblings.indexOf(wrapper!),
+        );
+      });
+
+      it('터치를 막지 않고(아래 스크롤·입력칸으로 간다) 스크린리더에서 숨는다', async () => {
+        await renderDetail();
+
+        expect(fade()).toHaveStyle({ pointerEvents: 'none' });
+        expect(
+          screen.queryByTestId('work-detail-jump-fade'),
+        ).not.toBeOnTheScreen();
+      });
+
+      it('보고 영역까지 스크롤해 버튼이 숨으면 그라데이션도 없다', async () => {
+        await renderDetail();
+        await layout();
+
+        await scrollTo(1000);
+        expect(fade()).not.toBeOnTheScreen();
+
+        await scrollTo(0);
+        expect(fade()).toBeOnTheScreen();
+      });
+
+      it('제출을 마친 읽기 전용 상세에는 없다', async () => {
+        await renderDetail({ work: submittedWork });
+
+        expect(fade()).not.toBeOnTheScreen();
+      });
+    });
   });
 
   it('작업이 취소된 결과면 취소 모달을 보여준다', async () => {

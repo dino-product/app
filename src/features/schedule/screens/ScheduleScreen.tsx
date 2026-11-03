@@ -15,6 +15,7 @@ import {
   UnderlineTabs,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabHeader } from '../../../shared/layout/TabHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
@@ -205,14 +206,8 @@ export function ScheduleScreen({
       {/* 머리말 그림자가 아래 리스트 위로 드리우도록 앞에 그린다 */}
       <View style={styles.header}>
         <View style={readableColumn}>
-          <Text
-            accessibilityRole="header"
-            variant="Body/XL/SemiBold"
-            color={colors.black}
-            style={styles.title}
-          >
-            내 일정
-          </Text>
+          {/* 탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(2714:12918)에는 종이 없다 */}
+          <TabHeader title="내 일정" style={styles.titleBar} />
           <UnderlineTabs
             items={[
               {
@@ -285,7 +280,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
   },
   // 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
-  title: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
+  titleBar: { paddingBottom: 16 },
   list: { flex: 1 },
   dateArea: {
     paddingTop: 24,

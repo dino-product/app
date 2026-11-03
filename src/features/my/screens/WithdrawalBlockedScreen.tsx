@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
   withdrawalBlockCards,
@@ -36,7 +37,10 @@ export function WithdrawalBlockedScreen({
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SubScreenHeader title="계정 관리" onBack={onBack} titleRef={titleRef} />
-      <ScrollView contentContainerStyle={[readableColumn, styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, styles.content]}
+      >
         <View style={styles.intro}>
           <Icon name="info-circle" size={36} />
           <Text accessibilityRole="header" variant="Body/L/Bold">

@@ -67,9 +67,10 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
     await renderSchedule();
 
     const tab = screen.getByRole('tab', { name: '확정 일정 0건' });
-    const title = screen.getByRole('header', { name: '내 일정' });
+    const bar = screen.getByRole('header', { name: '내 일정' }).parent
+      ?.parent as HostElement;
     expect(hitSlopOf(tab).top).toBeLessThanOrEqual(
-      stylePt(title, 'paddingBottom'),
+      stylePt(bar, 'paddingBottom'),
     );
   });
 });

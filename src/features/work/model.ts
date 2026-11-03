@@ -12,6 +12,8 @@ export type CurrentWork = {
 
 export type ScheduleItem = {
   id: string;
+  /** 작업 날짜 YYYY-MM-DD. 블록 보기에서 고른 날의 일정만 고를 때 쓴다 (#94) */
+  dateKey: string;
   title: string;
   status: WorkStatus;
   timeRange: string;
@@ -135,4 +137,19 @@ export function formatSubmittedAt(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
     date.getDate(),
   )} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/** 그 날이 속한 주의 월요일~일요일 0시. 내 작업 블록 보기의 날짜 칸 (Figma 3463:17452 는 월요일 시작) */
+export function mondayWeek(date: Date): Date[] {
+  // getDay 는 일요일이 0 이라 일요일은 6일 전 월요일의 주에 든다
+  const sinceMonday = (date.getDay() + 6) % 7;
+  return Array.from(
+    { length: 7 },
+    (_, i) =>
+      new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate() - sinceMonday + i,
+      ),
+  );
 }

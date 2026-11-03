@@ -16,6 +16,7 @@ import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {
   AccountRoute,
+  HomeNotificationCenterRoute,
   MyPageRoute,
   NotificationCenterRoute,
   NotificationSettingsRoute,
@@ -146,6 +147,11 @@ function HomeTab() {
         component={WorkDetailRoute}
         getId={byId}
       />
+      <HomeStack.Screen
+        name="NotificationCenter"
+        component={HomeNotificationCenterRoute}
+        getId={once}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -167,68 +173,66 @@ function HistoryTab() {
   );
 }
 
-// 마이 탭 (#72). 하위 화면 상태는 이 탭 안에서만 쓰므로 탭 스택을 감싼다
+// 마이 탭 (#72). 하위 화면 상태(MyStateProvider)는 홈의 알림센터(#96)도 쓰므로 탭 내비게이터를 감싼다
 function MyTab() {
   const stackOptions = useStackOptions();
   return (
-    <MyStateProvider>
-      <MyStack.Navigator
-        initialRouteName={MY_INITIAL_ROUTE}
-        screenOptions={stackOptions}
-        screenLayout={stackScreenLayout}
-      >
-        <MyStack.Screen name="MyPage" component={MyPageRoute} />
-        <MyStack.Screen
-          name="ProfileEdit"
-          component={ProfileEditRoute}
-          getId={once}
-        />
-        <MyStack.Screen
-          name="NotificationSettings"
-          component={NotificationSettingsRoute}
-          getId={once}
-        />
-        <MyStack.Screen
-          name="NotificationCenter"
-          component={NotificationCenterRoute}
-          getId={once}
-        />
-        <MyStack.Screen name="Terms" component={TermsRoute} getId={once} />
-        <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
-        <MyStack.Screen
-          name="Withdrawal"
-          component={WithdrawalRoute}
-          getId={once}
-        />
-        <MyStack.Screen
-          name="WithdrawalBlocked"
-          component={WithdrawalBlockedRoute}
-          getId={once}
-        />
-        {/* 조직 참여 (#73) */}
-        <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
-        <MyStack.Screen
-          name="OrgRoleSelect"
-          component={RoleSelectRoute}
-          getId={byOrganization}
-        />
-        <MyStack.Screen
-          name="OrgJoinRequested"
-          component={JoinRequestedRoute}
-          getId={byRequest}
-        />
-        <MyStack.Screen
-          name="OrgJoinRejected"
-          component={JoinRejectedRoute}
-          getId={byRequest}
-        />
-        <MyStack.Screen
-          name="OrgJoinRequests"
-          component={JoinRequestsRoute}
-          getId={once}
-        />
-      </MyStack.Navigator>
-    </MyStateProvider>
+    <MyStack.Navigator
+      initialRouteName={MY_INITIAL_ROUTE}
+      screenOptions={stackOptions}
+      screenLayout={stackScreenLayout}
+    >
+      <MyStack.Screen name="MyPage" component={MyPageRoute} />
+      <MyStack.Screen
+        name="ProfileEdit"
+        component={ProfileEditRoute}
+        getId={once}
+      />
+      <MyStack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsRoute}
+        getId={once}
+      />
+      <MyStack.Screen
+        name="NotificationCenter"
+        component={NotificationCenterRoute}
+        getId={once}
+      />
+      <MyStack.Screen name="Terms" component={TermsRoute} getId={once} />
+      <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
+      <MyStack.Screen
+        name="Withdrawal"
+        component={WithdrawalRoute}
+        getId={once}
+      />
+      <MyStack.Screen
+        name="WithdrawalBlocked"
+        component={WithdrawalBlockedRoute}
+        getId={once}
+      />
+      {/* 조직 참여 (#73) */}
+      <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
+      <MyStack.Screen
+        name="OrgRoleSelect"
+        component={RoleSelectRoute}
+        getId={byOrganization}
+      />
+      <MyStack.Screen
+        name="OrgJoinRequested"
+        component={JoinRequestedRoute}
+        getId={byRequest}
+      />
+      <MyStack.Screen
+        name="OrgJoinRejected"
+        component={JoinRejectedRoute}
+        getId={byRequest}
+      />
+      <MyStack.Screen
+        name="OrgJoinRequests"
+        component={JoinRequestsRoute}
+        getId={once}
+      />
+    </MyStack.Navigator>
   );
 }
 
@@ -284,19 +288,22 @@ function OnboardingFlow({ route }: RootScreenProps<'Onboarding'>) {
 // 로그아웃하면 로그인이 메인을 대신한다. 뒤로 가는 모양으로 바꾼다
 const loginOptions = { animationTypeForReplace: 'pop' } as const;
 
+// 마이 탭 상태는 로그아웃·탈퇴로 메인이 빠지면 함께 사라져 처음 값으로 돌아간다
 function MainTabs() {
   return (
-    // Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
-    <Tab.Navigator
-      backBehavior="firstRoute"
-      tabBar={renderTabBar}
-      screenOptions={tabOptions}
-    >
-      <Tab.Screen name="home" component={HomeTab} />
-      <Tab.Screen name="schedule" component={ScheduleRoute} />
-      <Tab.Screen name="history" component={HistoryTab} />
-      <Tab.Screen name="my" component={MyTab} />
-    </Tab.Navigator>
+    <MyStateProvider>
+      {/* Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름) */}
+      <Tab.Navigator
+        backBehavior="firstRoute"
+        tabBar={renderTabBar}
+        screenOptions={tabOptions}
+      >
+        <Tab.Screen name="home" component={HomeTab} />
+        <Tab.Screen name="schedule" component={ScheduleRoute} />
+        <Tab.Screen name="history" component={HistoryTab} />
+        <Tab.Screen name="my" component={MyTab} />
+      </Tab.Navigator>
+    </MyStateProvider>
   );
 }
 

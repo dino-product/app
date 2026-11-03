@@ -125,6 +125,62 @@ describe('App', () => {
     ).toBeOnTheScreen();
   });
 
+  // #96: 탭 화면의 종은 알림센터로 가는 버튼이다
+  describe('내 작업 홈의 종', () => {
+    it('누르면 알림센터가 열리고, 뒤로 가면 내 작업 홈으로 돌아온다', async () => {
+      await render(<App initialAuth={signedInAuth()} />);
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(header('내 작업')).not.toBeOnTheScreen();
+      expect(tab('홈')).toBeSelected();
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('알림센터')).not.toBeOnTheScreen();
+    });
+
+    it('Android 뒤로가기로도 내 작업 홈으로 돌아온다', async () => {
+      const pressBack = await renderWithBackButton();
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+
+      expect(await pressBack()).toBe(true);
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('알림센터')).not.toBeOnTheScreen();
+    });
+
+    it('홈에서 읽은 알림은 마이페이지 알림센터에서도 읽음이다 (같은 알림 목록)', async () => {
+      await render(<App initialAuth={signedInAuth()} />);
+      const unread = () =>
+        screen.getAllByRole('button', { name: /^읽지 않음/ }).length;
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      const before = unread();
+      await userEvent.press(
+        screen.getByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+      await userEvent.press(tab('마이'));
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(unread()).toBe(before - 1);
+    });
+
+    it('참여 거절 알림을 누르면 마이 탭의 거절 화면을 연다', async () => {
+      await render(<App initialAuth={signedInAuth()} />);
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        screen.getByRole('button', { name: /참여 요청이 거절되었습니다/ }),
+      );
+
+      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+    });
+  });
+
   describe('Android 뒤로가기', () => {
     it('상세에서 누르면 메인화면으로 돌아온다', async () => {
       const pressBack = await renderWithBackButton();

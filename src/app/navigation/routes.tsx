@@ -25,6 +25,7 @@ import { RequestDetailScreen } from '../../features/schedule/screens/RequestDeta
 import { ScheduleScreen } from '../../features/schedule/screens/ScheduleScreen';
 import {
   currentWork,
+  homeToday,
   weeklySchedule,
   workDetail,
 } from '../../features/work/mockData';
@@ -93,15 +94,22 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
     (id: string) => navigation.navigate('WorkDetail', { id }),
     [navigation],
   );
+  // 종은 알림센터를 연다 (#96). 홈 탭 안에 쌓아 뒤로 가면 홈으로 돌아온다
+  const openNotifications = useCallback(
+    () => navigation.navigate('NotificationCenter'),
+    [navigation],
+  );
 
   return (
     <WorkHomeScreen
       currentWork={currentWork}
       schedule={weeklySchedule}
+      today={homeToday}
       weekLabel="9. 14. – 9. 20."
       started={started}
       onStartWork={startWork}
       onOpenWork={openWork}
+      onOpenNotifications={openNotifications}
       listRef={listRef}
     />
   );

@@ -4,7 +4,11 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { colors } from '../../../shared/design-system';
+import { StyleSheet } from 'react-native';
+import { colors, pressedBackground } from '../../../shared/design-system';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
+import { isInsideScrollView } from '../../../shared/testing/scroll';
+import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { membershipsMock, profileMock } from '../mockData';
 import { MyPageScreen, type MyPageScreenProps } from './MyPageScreen';
 
@@ -122,6 +126,129 @@ describe('MyPageScreen', () => {
     await userEvent.press(screen.getByRole('button', { name: /^김현진/ }));
 
     expect(props.onEditProfile).toHaveBeenCalledTimes(1);
+  });
+
+  // #103: 탭 첫 화면 공통 상단 바 (Figma 3463:17455 규격)
+  it('제목과 종(상단 바)은 스크롤 뷰 밖에 고정되고, 다른 탭과 같은 규격이다', async () => {
+    await renderMyPage();
+
+    const title = screen.getByRole('header', { name: '마이페이지' });
+    expect(isInsideScrollView(title)).toBe(false);
+    expect(
+      isInsideScrollView(screen.getByRole('button', { name: '알림센터' })),
+    ).toBe(false);
+    expect(title.parent?.parent).toHaveStyle({
+      paddingTop: 12,
+      paddingHorizontal: 24,
+    });
+  });
+
+  it('프로필 카드는 상단 바 아래 20 에서 시작한다', async () => {
+    await renderMyPage();
+
+    let scroll = screen.getByRole('button', { name: /^김현진/ }).parent;
+    while (scroll && scroll.type !== 'RCTScrollView') {
+      scroll = scroll.parent;
+    }
+    expect(
+      StyleSheet.flatten(scroll?.props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: 20 });
+  });
+
+  // #102: 누르는 동안 회색 배경 (흰 카드 안의 행은 Gray50)
+  describe('눌림', () => {
+    it('프로필 카드를 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+      await renderMyPage();
+
+      await expectPressedBackground(
+        screen.getByRole('button', { name: /^김현진/ }),
+        pressedBackground.onWhite,
+      );
+    });
+
+    it.each(['알림 설정', '약관 및 앱 정보', '계정 관리'])(
+      '설정 행 %s 를 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다',
+      async name => {
+        await renderMyPage();
+
+        await expectPressedBackground(
+          screen.getByRole('button', { name }),
+          pressedBackground.onWhite,
+        );
+      },
+    );
+
+    it('소속 발주사 행을 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+      await renderMyPage();
+
+      await expectPressedBackground(
+        screen.getByTestId('membership-org-1'),
+        pressedBackground.onWhite,
+      );
+    });
+
+    it('소속 행은 눌러도 동작이 없고 스크린리더에서는 지금처럼 정보 한 줄이다', async () => {
+      await renderMyPage();
+
+      const row = screen.getByTestId('membership-org-1');
+      expect(row).toHaveProp('accessible', true);
+      expect(row).toHaveAccessibleName('오빗 서비스, 총관리자, 활성');
+      expect(row).not.toHaveProp('accessibilityRole', 'button');
+      expect(
+        screen.queryByRole('button', { name: /^오빗 서비스/ }),
+      ).not.toBeOnTheScreen();
+      // Pressable 은 기본으로 Android 에서 클릭할 수 있는 뷰가 되어 TalkBack 이 '두 번 탭하여 활성화' 를 읽는다
+      expect(row).toHaveProp('focusable', false);
+    });
+
+    // 회색은 카드 안쪽에 둥근 사각형으로 칠한다. 여백 일부를 행 안으로 옮겨 글자 자리는 그대로다
+    it('소속 행·설정 행의 글자는 지금처럼 카드 안 20 에서 시작하고, 소속 행 사이는 13·선·13 이다', async () => {
+      await renderMyPage();
+
+      const membership = screen.getByTestId('membership-org-1');
+      const membershipCard = membership.parent as HostElement;
+      expect(
+        stylePt(membershipCard, 'paddingHorizontal') +
+          stylePt(membership, 'paddingHorizontal'),
+      ).toBe(20);
+      expect(
+        stylePt(membershipCard, 'paddingVertical') +
+          stylePt(membership, 'paddingVertical'),
+      ).toBe(20);
+      const divider = membershipCard.children[1] as HostElement;
+      expect(divider).toHaveStyle({ height: 1 });
+      expect(
+        stylePt(membershipCard, 'paddingHorizontal') +
+          stylePt(divider, 'marginHorizontal'),
+      ).toBe(20);
+      expect(stylePt(divider, 'marginVertical')).toBe(0);
+      expect(stylePt(membership, 'paddingVertical')).toBe(13);
+
+      const setting = screen.getByRole('button', { name: '알림 설정' });
+      const settingsCard = setting.parent as HostElement;
+      expect(
+        stylePt(settingsCard, 'paddingHorizontal') +
+          stylePt(setting, 'paddingHorizontal'),
+      ).toBe(20);
+    });
+
+    // 카드 모서리(16)에서 안쪽 여백만큼 줄인 모서리라 회색이 카드의 둥근 모서리 밖으로 나가지 않는다
+    it('소속 행·설정 행의 회색은 카드 모서리와 같은 중심의 둥근 사각형이다', async () => {
+      await renderMyPage();
+
+      for (const row of [
+        screen.getByTestId('membership-org-1'),
+        screen.getByRole('button', { name: '알림 설정' }),
+      ]) {
+        const card = row.parent as HostElement;
+        expect(
+          stylePt(row, 'borderRadius') + stylePt(card, 'paddingHorizontal'),
+        ).toBe(stylePt(card, 'borderRadius'));
+        expect(stylePt(card, 'paddingVertical')).toBeLessThanOrEqual(
+          stylePt(card, 'paddingHorizontal'),
+        );
+      }
+    });
   });
 
   it('소속 행은 누르는 동작이 없는 정보 행이다', async () => {

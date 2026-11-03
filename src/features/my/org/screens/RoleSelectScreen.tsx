@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
+import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
 import { InfoNotice } from '../components/InfoNotice';
@@ -67,7 +68,10 @@ export function RoleSelectScreen({
         onBack={onBack}
         titleRef={titleRef}
       />
-      <ScrollView contentContainerStyle={[readableColumn, look.styles.content]}>
+      <ScrollView
+        {...noOverscroll}
+        contentContainerStyle={[readableColumn, look.styles.content]}
+      >
         <View style={look.styles.intro}>
           <Text accessibilityRole="header" variant={look.title}>
             역할을 선택해주세요
