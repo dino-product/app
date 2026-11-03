@@ -1,4 +1,10 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { dragFrom } from '../../../../jest/responder';
 import { noTermsAgreed } from '../model';
 import { TermsSheet } from './TermsSheet';
@@ -49,11 +55,33 @@ describe('TermsSheet 끌기', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('닫기 버튼으로 닫는다', async () => {
+  // 끌기 자리를 좁혀도 다른 닫기 방법은 그대로다
+  it('닫기 버튼·배경·Android 뒤로가기·VoiceOver 두 손가락 Z 로 닫는다', async () => {
     const { onClose } = await renderSheet();
 
     await userEvent.press(screen.getByRole('button', { name: '닫기' }));
+    await fireEvent.press(
+      screen.getByTestId('terms-sheet-backdrop', {
+        includeHiddenElements: true,
+      }),
+    );
+    await act(() =>
+      modalOf(screen.getByTestId('terms-sheet')).onRequestClose(),
+    );
+    await fireEvent(screen.getByTestId('terms-sheet'), 'accessibilityEscape');
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(4);
   });
 });
+
+/** 시트를 감싼 RN Modal 의 props (호스트 요소 이름이 Modal 이다) */
+function modalOf(element: ReturnType<typeof screen.getByTestId>) {
+  let node = element.parent;
+  while (node && node.type !== 'Modal') {
+    node = node.parent;
+  }
+  if (!node) {
+    throw new Error('시트가 Modal 안에 있지 않다');
+  }
+  return node.props as { onRequestClose: () => void };
+}
