@@ -292,8 +292,8 @@ export function WorkHistoryRoute({
   );
 }
 
-// 완료한 작업의 상세. 목록에 없는 작업(딥링크 등)이면 빈 화면 대신 목록으로 돌아간다.
-// TODO(#69): 제출 후 읽기 전용 상태가 들어오면 제출한 보고를 넘겨 읽기 전용으로 연다. 그 전까지는 보고를 입력할 수 있다
+// 완료한 작업의 상세. 보고를 제출한 작업이라 제출 후 읽기 전용(#69)으로 열린다.
+// 목록에 없는 작업(딥링크 등)이면 빈 화면 대신 목록으로 돌아간다
 export function CompletedWorkDetailRoute({
   navigation,
   route,
@@ -329,14 +329,15 @@ export function CompletedWorkDetailRoute({
       work={work}
       titleRef={titleRef}
       onBack={leave}
+      onCall={callPhone}
+      onNavigate={openDirections}
+      // 읽기 전용이라 제출·사진 추가·결과 모달은 일어나지 않는다
       onDone={leave}
       onSubmitReport={() => ({
         kind: 'submitted',
         at: formatResultTime(new Date()),
       })}
-      onCall={callPhone}
-      onNavigate={openDirections}
-      onPickPhoto={async () => `mock://photo-${Date.now()}`}
+      onPickPhoto={async () => null}
     />
   );
 }

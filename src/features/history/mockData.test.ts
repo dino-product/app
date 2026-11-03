@@ -1,5 +1,6 @@
 import { toDateKey } from '../schedule/model';
 import { workDetail } from '../work/mockData';
+import { canSubmitReport } from '../work/model';
 import { completedToWorkDetail, makeHistoryMock } from './mockData';
 import { completedInMonth, monthOf } from './model';
 
@@ -48,5 +49,15 @@ describe('completedToWorkDetail', () => {
     });
     // 작업번호는 작업번호 형식을 유지한다
     expect(detail.id).toBe(workDetail.id);
+  });
+
+  // 완료한 작업은 보고를 제출한 작업이라 상세가 제출 후 읽기 전용(#69)으로 열린다
+  it('제출 기록을 넣는다. 제출 시각은 작업한 날의 끝 시각이고, 보고는 필수 항목이 다 찬 것이다', () => {
+    const [work] = makeHistoryMock(new Date(2026, 8, 28));
+
+    const { submission } = completedToWorkDetail(work);
+
+    expect(submission?.submittedAt).toBe(`2026-09-28 ${work.end}`);
+    expect(submission && canSubmitReport(submission.report)).toBe(true);
   });
 });

@@ -72,6 +72,35 @@ describe('App — 작업 이력 탭', () => {
     ).toBeOnTheScreen();
   });
 
+  it('작업 이력에서 연 상세는 제출 후 읽기 전용이다', async () => {
+    await openHistory();
+
+    await userEvent.press(rows()[0]);
+
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '제출 완료' })).toBeDisabled();
+    expect(
+      screen.getByText(/^제출 시각 \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    ).toBeOnTheScreen();
+    expect(screen.getByLabelText('결제 금액 입력')).toHaveProp(
+      'editable',
+      false,
+    );
+    expect(screen.getByLabelText('수행 메모 입력')).toHaveProp(
+      'editable',
+      false,
+    );
+    expect(
+      screen.getByRole('button', { name: '작업 전 사진 추가' }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: '완료보고 제출' }),
+    ).not.toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: '완료 보고 작성하기' }),
+    ).not.toBeOnTheScreen();
+  });
+
   it('상세에서 뒤로 오면 고른 달과 같은 목록(스크롤 위치)이 그대로다', async () => {
     const scroll = jest.spyOn(FlatList.prototype, 'scrollToOffset');
     await openHistory();
