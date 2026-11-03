@@ -2,32 +2,41 @@ import { membershipsMock } from '../mockData';
 import {
   decideParticipationMock,
   lookupCompanyMock,
+  mockCompanyCodes,
   participationRequestsMock,
 } from './mockData';
-import type { ParticipationRequest } from './model';
+import { isCompanyCodeComplete, type ParticipationRequest } from './model';
 
 describe('lookupCompanyMock', () => {
   const lookup = (code: string) =>
     lookupCompanyMock(code, membershipsMock, participationRequestsMock);
 
+  // 앱은 규칙을 채운 코드로만 찾으므로 목 코드도 규칙 안에 있어야 한다 (#97)
+  it('목 회사 코드는 모두 서버 규칙(Crockford Base32 6자)을 채운다', () => {
+    expect(mockCompanyCodes).toContain('123456');
+    expect(
+      mockCompanyCodes.filter(code => !isCompanyCodeComplete(code)),
+    ).toEqual([]);
+  });
+
   it('없는 코드는 null (서버 404)', () => {
-    expect(lookup('NOPE')).toBeNull();
+    expect(lookup('ZZZZZZ')).toBeNull();
   });
 
   it('처음 참여하는 회사는 대소문자·공백·하이픈과 상관없이 참여할 수 있다', () => {
-    expect(lookup(' orbit-1245 ')).toMatchObject({
+    expect(lookup(' rbt-124 ')).toMatchObject({
       organizationName: 'Orbit',
       availability: 'AVAILABLE',
     });
   });
 
   it('활성 소속 회사는 이미 참여, 비활성 소속만 있으면 다시 요청할 수 있다', () => {
-    expect(lookup('OBS0001')?.availability).toBe('ALREADY_MEMBER');
-    expect(lookup('FIELD0002')?.availability).toBe('AVAILABLE');
+    expect(lookup('BS0001')?.availability).toBe('ALREADY_MEMBER');
+    expect(lookup('FD0002')?.availability).toBe('AVAILABLE');
   });
 
   it('승인 대기 중인 요청이 있으면 그 요청을 알려준다', () => {
-    expect(lookup('HANBIT10')).toMatchObject({
+    expect(lookup('HB0010')).toMatchObject({
       availability: 'PENDING_REQUEST',
       pendingRequestId: 'request-1',
     });
@@ -84,7 +93,7 @@ describe('decideParticipationMock', () => {
   });
 
   it('그 밖의 회사는 요청한 유형으로 승인한다', () => {
-    expect(decideParticipationMock(requestTo('ORBIT1245', 'STAFF'))).toEqual({
+    expect(decideParticipationMock(requestTo('RBT124', 'STAFF'))).toEqual({
       status: 'APPROVED',
       approvedType: 'STAFF',
     });

@@ -74,6 +74,15 @@ describe('Icon', () => {
     expect(empty.xml).toContain('M12.25 2.03125C15.0928 2.03125'); // 원본 윤곽
   });
 
+  // DesignSystem App Icon 의 x 는 사진 삭제용(어두운 원), Modal-X 는 결과 상태라 일반 닫기 X 를 더한다 (#98)
+  it('일반 닫기 X(close-line)는 뒤로 가기(chevron-left)와 같은 선 아이콘이고 색을 바꿀 수 있다', () => {
+    const x = iconSvgs['close-line'];
+    expect(x).toMatchObject({ tint: true, size: 24, color: '#32303A' });
+    expect(x.xml).toContain('stroke-width="2"');
+    expect(x.xml).toContain('stroke-linecap="round"');
+    expect(x.xml).not.toContain('<rect');
+  });
+
   it('장식용이라 스크린리더에서 숨긴다', async () => {
     await render(<Icon name="phone" testID="icon" />);
 

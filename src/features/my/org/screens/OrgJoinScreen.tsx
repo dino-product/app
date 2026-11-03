@@ -23,7 +23,13 @@ import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
 import { NoticeModal, type Notice } from '../components/NoticeModal';
-import type { JoinFlow, LookupOutcome, Organization } from '../model';
+import {
+  isCompanyCodeComplete,
+  sanitizeCompanyCodeInput,
+  type JoinFlow,
+  type LookupOutcome,
+  type Organization,
+} from '../model';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
@@ -88,24 +94,25 @@ export function OrgJoinScreen({
     };
   }, []);
 
-  const trimmed = code.trim();
+  // 입력은 늘 규칙대로 정리돼 있다 (대문자, 허용 문자, 6자까지). 6자를 채워야 찾는다 (#97)
+  const complete = isCompanyCodeComplete(code);
   const shownIntro = invalid ? invalidIntro : intro;
   const look = looks[flow];
 
   const check = async () => {
-    if (checkingRef.current || trimmed === '') {
+    if (checkingRef.current || !complete) {
       return;
     }
     checkingRef.current = true;
     setChecking(true);
     try {
-      const outcome = await lookup(trimmed);
+      const outcome = await lookup(code);
       if (!mounted.current) {
         return;
       }
       setInvalid(outcome.kind === 'invalid');
       if (outcome.kind === 'found') {
-        onFound(outcome.organization, trimmed);
+        onFound(outcome.organization, code);
       } else if (outcome.kind === 'pending' && onPending) {
         onPending(outcome.organization);
       } else if (outcome.kind === 'alreadyMember' && onAlreadyMember) {
@@ -181,11 +188,21 @@ export function OrgJoinScreen({
                 <TextInput
                   accessibilityLabel="회사 코드 입력"
                   value={code}
-                  onChangeText={setCode}
+                  // 허용 밖 문자는 들어가지 않는다. 붙여넣기는 정리한 뒤 6자로 자르므로 maxLength 는 두지 않는다
+                  onChangeText={text =>
+                    setCode(previous =>
+                      sanitizeCompanyCodeInput(text, previous),
+                    )
+                  }
                   placeholder="회사 코드 입력"
                   placeholderTextColor={look.placeholderColor}
+                  // 영문이 섞여 숫자 키패드는 쓰지 않는다. iOS 는 영문·숫자 자판, Android 는 한글 IME·추천이 뜨지 않는 자판
+                  keyboardType={
+                    Platform.OS === 'ios' ? 'ascii-capable' : 'visible-password'
+                  }
                   autoCapitalize="characters"
                   autoCorrect={false}
+                  autoComplete="off"
                   returnKeyType="done"
                   onSubmitEditing={check}
                   onFocus={() => setFocused(true)}
@@ -200,7 +217,7 @@ export function OrgJoinScreen({
                   label="회사 확인"
                   size={look.checkSize}
                   onPress={check}
-                  disabled={trimmed === '' || checking}
+                  disabled={!complete || checking}
                   style={look.styles.checkButton}
                 />
               </View>

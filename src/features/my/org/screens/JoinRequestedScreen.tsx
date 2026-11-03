@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
-import { CancelRequestSheet } from '../components/CancelRequestSheet';
+import { CancelRequestModal } from '../components/CancelRequestModal';
 import { flowLayouts } from '../components/flowLayouts';
 import { InfoNotice } from '../components/InfoNotice';
 import { SummaryCard } from '../components/SummaryCard';
@@ -32,7 +32,7 @@ export function JoinRequestedScreen({
   request: ParticipationRequest;
   /** 마이는 마이페이지로, 온보딩은 사무실이 결정한 것으로 친다 (더미) */
   onConfirm: () => void;
-  /** 바텀시트에서 신청 취소를 확정했을 때 */
+  /** 신청 취소 모달에서 취소를 확정했을 때 */
   onCancel: (requestId: string) => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
@@ -41,8 +41,8 @@ export function JoinRequestedScreen({
   const [canceling, setCanceling] = useState(false);
   const onboarding = flow === 'onboarding';
   const look = looks[flow];
-  // 시트에서 취소를 확정했는지. 시트가 다 내려간 뒤에 취소·이동한다 (모달 아래에서 화면이 바뀌지 않게)
-  const confirmed = useRef(false);
+  // 화면을 옮기기 전에 모달의 '취소' 를 연달아 눌러도 한 번만 취소한다
+  const canceled = useRef(false);
   // 화면을 옮기기 전에 '확인' 을 연달아 눌러도 한 번만 알린다 (온보딩은 확인이 사무실 결정을 흉내 낸다)
   const acknowledged = useRef(false);
   const acknowledge = () => {
@@ -179,18 +179,17 @@ export function JoinRequestedScreen({
         <CTA label="확인" onPress={acknowledge} style={styles.action} />
       </View>
 
-      <CancelRequestSheet
+      {/* 신청 취소 확인은 화면 가운데 모달이다 (#98). 신청 현황(JoinRequestsScreen)은 바텀 시트 그대로다 */}
+      <CancelRequestModal
         request={canceling ? request : null}
         onClose={() => setCanceling(false)}
-        onConfirm={() => {
-          confirmed.current = true;
-          setCanceling(false);
-        }}
-        onClosed={() => {
-          if (confirmed.current) {
-            confirmed.current = false;
-            onCancel(request.requestId);
+        onConfirm={requestId => {
+          if (canceled.current) {
+            return;
           }
+          canceled.current = true;
+          setCanceling(false);
+          onCancel(requestId);
         }}
       />
     </SafeAreaView>

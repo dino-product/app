@@ -74,7 +74,7 @@ describe('App — 조직 참여', () => {
     await openMyPage();
     await userEvent.press(button('조직 참여'));
 
-    await findCompany('Orbit1245');
+    await findCompany('RBT124');
     expect(
       await screen.findByRole('header', { name: '역할을 선택해주세요' }),
     ).toBeOnTheScreen();
@@ -97,7 +97,7 @@ describe('App — 조직 참여', () => {
   it('요청 완료에서 뒤로 가면 회사 찾기가 아니라 처음 연 화면으로 돌아간다', async () => {
     await openMyPage();
     await userEvent.press(button('조직 참여'));
-    await findCompany('Orbit1245');
+    await findCompany('RBT124');
     await userEvent.press(await screen.findByRole('radio', { name: /^직원/ }));
     await userEvent.press(button('참여 요청하기'));
 
@@ -110,7 +110,7 @@ describe('App — 조직 참여', () => {
   it('요청 완료에서 신청 취소를 확정하면 마이페이지로 돌아가고 배지는 그대로다', async () => {
     await openMyPage();
     await userEvent.press(button('조직 참여'));
-    await findCompany('Orbit1245');
+    await findCompany('RBT124');
     await userEvent.press(await screen.findByRole('radio', { name: /^기사/ }));
     await userEvent.press(button('참여 요청하기'));
 
@@ -127,7 +127,7 @@ describe('App — 조직 참여', () => {
     await openMyPage();
     await userEvent.press(button('조직 참여'));
 
-    await findCompany('OBS0001');
+    await findCompany('BS0001');
 
     expect(
       await screen.findByRole('header', { name: '이미 참여 중인 회사예요' }),
@@ -140,7 +140,7 @@ describe('App — 조직 참여', () => {
     await userEvent.press(button('확인'));
     expect(header('이미 참여 중인 회사예요')).toBeNull();
     expect(screen.getByLabelText('회사 코드 입력')).toHaveDisplayValue(
-      'OBS0001',
+      'BS0001',
     );
   });
 
@@ -148,7 +148,7 @@ describe('App — 조직 참여', () => {
     await openMyPage();
     await userEvent.press(button('조직 참여'));
 
-    await findCompany('NOPE');
+    await findCompany('ZZZZZZ');
 
     expect(
       await screen.findByRole('header', { name: '회사 참여' }),

@@ -7,6 +7,11 @@ import {
   Text,
 } from '../../../../shared/design-system';
 import type { ParticipationRequest } from '../model';
+import {
+  cancelRequestMessage,
+  cancelRequestTitle,
+  cancelRequestTitleLabel,
+} from './cancelRequestCopy';
 
 // Figma 마이페이지-신청 취소 바텀시트 (2889:13197)
 export function CancelRequestSheet({
@@ -39,20 +44,18 @@ export function CancelRequestSheet({
       <View style={styles.body}>
         <Text
           accessibilityRole="header"
-          accessibilityLabel={`${name} 참여 신청을 취소할까요?`}
+          accessibilityLabel={cancelRequestTitleLabel(name)}
           variant="Body/M/SemiBold"
           style={styles.center}
         >
-          {`${name} 참여 신청을\n취소할까요?`}
+          {cancelRequestTitle(name)}
         </Text>
         <Text
           variant="Caption/M/Medium"
           color={colors.gray[600]}
           style={styles.center}
         >
-          {
-            '취소하면 사무실의 승인 대기 목록에서도 사라져요.\n같은 회사 코드로 언제든 다시 신청할 수 있어요.'
-          }
+          {cancelRequestMessage}
         </Text>
       </View>
       <View style={styles.actions}>

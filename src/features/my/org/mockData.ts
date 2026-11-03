@@ -10,19 +10,24 @@ import {
 // 조직 참여 목 데이터 (#73). API 연동 전까지 회사 코드 조회와 참여 신청을 흉내 낸다.
 
 // 회사 코드 → 회사. 소속 발주사(membershipsMock)와 같은 id 를 써서 '이미 참여' 를 앱에서 볼 수 있다.
-// Figma 예시 코드 Orbit1245(마이 › 조직 참여)와 123456(온보딩)은 처음 참여하는 회사다.
+// 코드는 서버 규칙(Crockford Base32 6자, I·L·O·U 없음)을 따른다 (#97). Figma 예시 Orbit1245 는 규칙 밖이라
+// 마이 › 조직 참여의 Orbit 은 RBT124 다. 123456(온보딩 Figma 예시)도 처음 참여하는 Orbit 이다.
 // 온보딩(#85)은 승인 대기에서 '확인' 을 누르면 결정된 것으로 친다. 234567 은 유형 변경 승인, 345678 은 거절이다
 const organizationsByCode: Record<string, Organization> = {
-  ORBIT1245: { organizationId: 'org-9', organizationName: 'Orbit' },
+  RBT124: { organizationId: 'org-9', organizationName: 'Orbit' },
   '123456': { organizationId: 'org-9', organizationName: 'Orbit' },
   '234567': { organizationId: 'org-13', organizationName: '한결 설비' },
   '345678': { organizationId: 'org-12', organizationName: '스마트 홈케어' },
-  OBS0001: { organizationId: 'org-1', organizationName: '오빗 서비스' },
-  FIELD0002: { organizationId: 'org-2', organizationName: '현장 파트너스' },
-  TECH0003: { organizationId: 'org-3', organizationName: '테크 솔루션' },
-  HANBIT10: { organizationId: 'org-10', organizationName: '한빛 설비' },
-  GREEN11: { organizationId: 'org-11', organizationName: '그린 테크' },
+  BS0001: { organizationId: 'org-1', organizationName: '오빗 서비스' },
+  FD0002: { organizationId: 'org-2', organizationName: '현장 파트너스' },
+  TC0003: { organizationId: 'org-3', organizationName: '테크 솔루션' },
+  HB0010: { organizationId: 'org-10', organizationName: '한빛 설비' },
+  GR0011: { organizationId: 'org-11', organizationName: '그린 테크' },
 };
+
+/** 목에 있는 회사 코드 (규칙 검사용) */
+export const mockCompanyCodes: readonly string[] =
+  Object.keys(organizationsByCode);
 
 /**
  * 회사 코드 조회 (GET /api/v1/organizations/lookup). 없는 코드는 서버가 404 라 null 이다.
