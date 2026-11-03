@@ -51,6 +51,79 @@ describe('RootNavigator — 없는 요청', () => {
   });
 });
 
+// 작업 이력 탭 안의 스택(목록 › 완료 작업 상세)을 바로 연다
+const renderHistoryAt = (
+  routes: {
+    name: 'WorkHistory' | 'CompletedWorkDetail';
+    params?: { id: string };
+  }[],
+) =>
+  render(
+    <AppStateProvider>
+      <NavigationContainer
+        initialState={{
+          routes: [
+            {
+              name: 'Main',
+              state: {
+                routes: [
+                  {
+                    name: 'history',
+                    state: { index: routes.length - 1, routes },
+                  },
+                ],
+              },
+            },
+          ],
+        }}
+      >
+        <RootNavigator />
+      </NavigationContainer>
+    </AppStateProvider>,
+  );
+
+describe('RootNavigator — 없는 완료 작업', () => {
+  it('완료 작업 상세는 빈 화면 대신 작업 이력 목록으로 돌아간다', async () => {
+    await renderHistoryAt([
+      { name: 'WorkHistory' },
+      { name: 'CompletedWorkDetail', params: { id: 'missing' } },
+    ]);
+
+    expect(
+      await screen.findByRole('header', { name: '작업 이력' }),
+    ).toBeOnTheScreen();
+  });
+
+  it('돌아갈 화면이 없으면(딥링크로 바로 열림) 작업 이력 목록으로 바꾼다', async () => {
+    await renderHistoryAt([
+      { name: 'CompletedWorkDetail', params: { id: 'missing' } },
+    ]);
+
+    expect(
+      await screen.findByRole('header', { name: '작업 이력' }),
+    ).toBeOnTheScreen();
+  });
+});
+
+describe('RootNavigator — 딥링크로 바로 연 완료 작업 상세', () => {
+  // 탭 안 스택 첫 화면이라 그냥 뒤로 가면 탭 내비게이터가 홈 탭으로 보낸다
+  it('뒤로 가기를 누르면 홈이 아니라 작업 이력 목록으로 간다', async () => {
+    await renderHistoryAt([
+      { name: 'CompletedWorkDetail', params: { id: 'history-1' } },
+    ]);
+    expect(
+      await screen.findByRole('header', { name: '작업 상세' }),
+    ).toBeOnTheScreen();
+
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+    expect(
+      await screen.findByRole('header', { name: '작업 이력' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: '작업 이력' })).toBeSelected();
+  });
+});
+
 describe('RootNavigator — VoiceOver escape', () => {
   it('아래 화면이 빠져 스택 첫 화면이 되면 escape 만 끄고 화면은 다시 만들지 않는다', async () => {
     await renderAt([

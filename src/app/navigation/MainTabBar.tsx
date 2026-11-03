@@ -35,7 +35,6 @@ export function MainTabBar({ state, navigation }: BottomTabBarProps) {
 
   const onChange = (key: MainTabKey) => {
     const route = state.routes.find(item => item.name === key);
-    // 작업 이력은 아직 화면이 없다
     if (!route) {
       return;
     }

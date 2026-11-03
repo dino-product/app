@@ -7,6 +7,8 @@ import {
   type Context,
   type ReactNode,
 } from 'react';
+import { makeHistoryMock } from '../features/history/mockData';
+import type { CompletedWork } from '../features/history/model';
 import { makeScheduleMock } from '../features/schedule/mockData';
 import type {
   ConfirmedSchedule,
@@ -34,8 +36,15 @@ type ScheduleState = {
   reject: (id: string) => void;
 };
 
+type HistoryState = {
+  today: Date;
+  /** 완료한 작업 전부 */
+  works: readonly CompletedWork[];
+};
+
 const WorkSessionContext = createContext<WorkSession | null>(null);
 const ScheduleContext = createContext<ScheduleState | null>(null);
+const HistoryContext = createContext<HistoryState | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [started, setStarted] = useState(false);
@@ -63,6 +72,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [initialSchedule] = useState(() => makeScheduleMock(today));
   const { confirmed, pending, accept, reject } =
     useScheduleStore(initialSchedule);
+  // 완료 이력은 이 앱에서 바뀌지 않으므로 처음 한 번 만든 값을 그대로 넘긴다
+  const [history] = useState(() => ({
+    today,
+    works: makeHistoryMock(today),
+  }));
 
   // 한쪽이 바뀔 때 다른 탭 화면까지 다시 그리지 않도록 컨텍스트를 나눈다
   const work = useMemo(
@@ -83,7 +97,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   return (
     <WorkSessionContext.Provider value={work}>
       <ScheduleContext.Provider value={schedule}>
-        {children}
+        <HistoryContext.Provider value={history}>
+          {children}
+        </HistoryContext.Provider>
       </ScheduleContext.Provider>
     </WorkSessionContext.Provider>
   );
@@ -99,3 +115,4 @@ function useRequired<T>(context: Context<T | null>): T {
 
 export const useWorkSession = () => useRequired(WorkSessionContext);
 export const useSchedule = () => useRequired(ScheduleContext);
+export const useHistory = () => useRequired(HistoryContext);

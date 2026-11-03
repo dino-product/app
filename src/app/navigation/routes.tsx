@@ -12,6 +12,8 @@ import {
   type FlatListInstance,
   type TextInstance,
 } from 'react-native';
+import { completedToWorkDetail } from '../../features/history/mockData';
+import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
 import { requestToWorkDetail } from '../../features/schedule/mockData';
 import { RejectReasonScreen } from '../../features/schedule/screens/RejectReasonScreen';
 import { RequestDetailScreen } from '../../features/schedule/screens/RequestDetailScreen';
@@ -24,9 +26,10 @@ import {
 import { formatResultTime, formatSubmittedAt } from '../../features/work/model';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
-import { useSchedule, useWorkSession } from '../AppStateProvider';
+import { useHistory, useSchedule, useWorkSession } from '../AppStateProvider';
 import { callPhone, openDirections } from '../externalLinks';
 import type {
+  HistoryScreenProps,
   HomeScreenProps,
   MainTabScreenProps,
   RootScreenProps,
@@ -265,6 +268,75 @@ export function RejectReasonRoute({
         reject(request.id);
         navigation.popTo('Main');
       }}
+    />
+  );
+}
+
+export function WorkHistoryRoute({
+  navigation,
+}: HistoryScreenProps<'WorkHistory'>) {
+  const { today, works } = useHistory();
+  const listRef = useTabScrollToTop();
+  const openWork = useCallback(
+    (id: string) => navigation.navigate('CompletedWorkDetail', { id }),
+    [navigation],
+  );
+
+  return (
+    <WorkHistoryScreen
+      today={today}
+      works={works}
+      onOpenWork={openWork}
+      listRef={listRef}
+    />
+  );
+}
+
+// 완료한 작업의 상세. 목록에 없는 작업(딥링크 등)이면 빈 화면 대신 목록으로 돌아간다.
+// TODO(#69): 제출 후 읽기 전용 상태가 들어오면 제출한 보고를 넘겨 읽기 전용으로 연다. 그 전까지는 보고를 입력할 수 있다
+export function CompletedWorkDetailRoute({
+  navigation,
+  route,
+}: HistoryScreenProps<'CompletedWorkDetail'>) {
+  const { works } = useHistory();
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const completed = works.find(item => item.id === route.params.id);
+  const work = useMemo(
+    () => completed && completedToWorkDetail(completed),
+    [completed],
+  );
+  // 탭 안 스택이라, 스택 첫 화면(딥링크)에서 그냥 뒤로 가면 탭 내비게이터가 홈 탭으로 보낸다.
+  // 첫 화면이면 작업 이력 목록으로 바꾸고, 아니면 이 화면만 닫는다 (위에 쌓인 화면은 남는다)
+  const leave = useCallback(() => {
+    if (navigation.getState().routes[0]?.key === route.key) {
+      navigation.replace('WorkHistory');
+    } else {
+      navigation.goBack();
+    }
+  }, [navigation, route.key]);
+  const missing = work === undefined;
+  useEffect(() => {
+    if (missing) {
+      leave();
+    }
+  }, [missing, leave]);
+  if (!work) {
+    return null;
+  }
+
+  return (
+    <WorkDetailScreen
+      work={work}
+      titleRef={titleRef}
+      onBack={leave}
+      onDone={leave}
+      onSubmitReport={() => ({
+        kind: 'submitted',
+        at: formatResultTime(new Date()),
+      })}
+      onCall={callPhone}
+      onNavigate={openDirections}
+      onPickPhoto={async () => `mock://photo-${Date.now()}`}
     />
   );
 }
