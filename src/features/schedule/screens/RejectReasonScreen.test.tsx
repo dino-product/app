@@ -230,20 +230,98 @@ describe('RejectReasonScreen', () => {
     expect(otherInput()).toHaveDisplayValue('개인 사정');
   });
 
-  it('펼친 채로 기타를 다시 누르면 아무것도 하지 않는다', async () => {
-    const timing = jest.spyOn(Animated, 'timing');
-    const dismiss = jest.spyOn(Keyboard, 'dismiss');
-    const focus = spyScreenReaderFocus();
-    await renderReject();
+  // 고른 사유를 다시 누르면 선택을 푼다 (#101)
+  describe('다시 눌러 선택 풀기', () => {
+    it('고른 사유를 다시 누르면 아무것도 고르지 않은 상태가 되고 거절 제출이 비활성이 된다', async () => {
+      const onSubmit = jest.fn();
+      await renderReject({ onSubmit });
+      const schedule = option('일정이 맞지 않습니다');
 
-    await userEvent.press(otherOption());
-    await finishAnimations();
-    await userEvent.press(otherOption());
-    await finishAnimations();
+      await userEvent.press(schedule);
+      expect(schedule).toBeChecked();
+      await userEvent.press(schedule);
 
-    expect(timing).toHaveBeenCalledTimes(1);
-    expect(dismiss).not.toHaveBeenCalled();
-    expect(focus).toHaveBeenCalledTimes(1);
+      // 스크린리더는 선택 해제(checked false)를 읽는다
+      expect(schedule).not.toBeChecked();
+      expect(
+        screen
+          .getAllByRole('radio')
+          .filter(radio => radio.props.accessibilityState?.checked),
+      ).toEqual([]);
+      expect(schedule).toHaveStyle({
+        borderColor: colors.gray[200],
+      });
+      expect(submitButton()).toBeDisabled();
+      await userEvent.press(submitButton());
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('푼 뒤 다른 사유를 누르면 그 사유를 고른다', async () => {
+      await renderReject();
+
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      await userEvent.press(option('작업 위치가 너무 멉니다'));
+
+      expect(option('작업 위치가 너무 멉니다')).toBeChecked();
+      expect(option('일정이 맞지 않습니다')).not.toBeChecked();
+      expect(submitButton()).toBeEnabled();
+    });
+
+    it('펼친 기타를 다시 누르면 선택이 풀리고 키보드를 내리며 입력란을 접는다', async () => {
+      const timing = jest.spyOn(Animated, 'timing');
+      const dismiss = jest.spyOn(Keyboard, 'dismiss');
+      await renderReject();
+
+      await userEvent.press(otherOption());
+      await finishAnimations();
+      await userEvent.type(otherInput()!, '개인 사정');
+      await userEvent.press(otherOption());
+
+      expect(otherOption()).not.toBeChecked();
+      expect(otherOption()).toBeCollapsed();
+      expect(dismiss).toHaveBeenCalledTimes(1);
+      expect(timing).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ toValue: 0, useNativeDriver: true }),
+      );
+      expect(submitButton()).toBeDisabled();
+      // 접히는 동안 화면에는 남지만 스크린리더에서는 바로 숨기고, 다 접히면 내린다
+      expect(otherInput()).toBeNull();
+      await finishAnimations();
+      expect(otherInputEvenHidden()).toBeNull();
+
+      // 다시 기타를 고르면 쓰던 글이 남아 있다
+      await userEvent.press(otherOption());
+      expect(otherInput()).toHaveDisplayValue('개인 사정');
+    });
+
+    it('기타를 펼치는 중에 다시 누르면 접히고, 스크린리더 포커스를 입력란으로 옮기지 않는다', async () => {
+      const focus = spyScreenReaderFocus();
+      await renderReject();
+
+      await userEvent.press(otherOption());
+      await userEvent.press(otherOption());
+      await finishAnimations();
+
+      expect(otherOption()).not.toBeChecked();
+      expect(otherInputEvenHidden()).toBeNull();
+      expect(focus).not.toHaveBeenCalled();
+    });
+
+    it('비워서 제출해 보인 안내도 기타를 풀면 지운다', async () => {
+      await renderReject();
+
+      await userEvent.press(otherOption());
+      await userEvent.press(submitButton());
+      expect(screen.getByText('기타 사유를 입력해 주세요.')).toBeOnTheScreen();
+
+      await userEvent.press(otherOption());
+      await finishAnimations();
+      await userEvent.press(otherOption());
+
+      expect(screen.queryByText('기타 사유를 입력해 주세요.')).toBeNull();
+    });
   });
 
   it('펼치거나 접히는 중에 눌러도 막히지 않고 마지막 선택대로 끝나며, 다 펼치기 전에는 스크린리더 포커스를 옮기지 않는다', async () => {
@@ -406,6 +484,44 @@ describe('RejectReasonScreen', () => {
         selected: 'schedule',
         otherText: '개인',
       });
+    });
+
+    // 앱이 종료돼도 푼 상태로 다시 열리도록 초안에 남긴다 (#101)
+    it('고른 사유를 다시 눌러 풀면 선택 없음과 쓴 글을 넘긴다', async () => {
+      const onDraftChange = jest.fn();
+      await renderReject({ onDraftChange });
+
+      await userEvent.press(otherOption());
+      await userEvent.type(otherInput()!, '개인');
+      await userEvent.press(otherOption());
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        selected: null,
+        otherText: '개인',
+      });
+
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        selected: null,
+        otherText: '개인',
+      });
+    });
+
+    it('선택을 푼 초안으로 열면 아무것도 고르지 않은 채 열리고, 기타를 고르면 남겨 둔 글이 보인다', async () => {
+      await renderReject({
+        initialDraft: { selected: null, otherText: '차량 고장' },
+      });
+
+      expect(
+        screen
+          .getAllByRole('radio')
+          .filter(radio => radio.props.accessibilityState?.checked),
+      ).toEqual([]);
+      expect(otherInputEvenHidden()).toBeNull();
+      expect(submitButton()).toBeDisabled();
+
+      await userEvent.press(otherOption());
+      expect(otherInput()).toHaveDisplayValue('차량 고장');
     });
   });
 

@@ -10,8 +10,9 @@ import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 
 // 달력을 좌우로 밀어 넘긴다. 새 의존성 없이 PanResponder 로 받고, 끄는 동안 트랙이 손가락을 따라 움직인다.
 // 한 손가락이 가로로 CLAIM_DISTANCE 를 넘고 세로보다 많이 움직여야 응답자가 되므로,
-// 날짜 탭은 안쪽 Pressable 이, 세로 끌기는 리스트가 받는다.
-// 밀던 중 리스트가 스크롤을 시작하면 iOS 는 응답자를 넘겨 주고(기본값), Android 는 취소된다. 둘 다 넘기지 않는다.
+// 날짜 탭은 안쪽 Pressable 이 받는다. 리스트 머리에 둔 달력은 만지는 동안 리스트 스크롤을 막는다(useTouchScrollLock).
+// 밀던 중에는 리스트가 응답자를 달라고 해도(iOS) 넘겨 주지 않고, 응답자가 되면 네이티브 부모의 가로채기도 막는다
+// (Android, PanResponder 기본값). 시스템이 끊으면(전화·시스템 제스처 등) 넘기지 않고 제자리로 돌아간다.
 // 스택 안쪽 화면에 두면 iOS 26 화면 전체 뒤로 가기와 오른쪽 밀기가 겹친다 (지금은 탭 첫 화면에만 있다).
 // Android 제스처 내비게이션은 어느 화면이든 가장자리에서 시작한 밀기를 먼저 가져가 뒤로 가기로 쓴다.
 // 그래서 미는 뷰 안에 GestureExclusionArea 를 둬 그 자리만 시스템 제스처에서 뺀다 (한쪽 가장자리당 세로 200dp 까지).
@@ -179,6 +180,8 @@ export function useHorizontalSwipe(callbacks: {
         const delta = !far && !flick ? 0 : dx < 0 ? 1 : -1;
         slideTo(current + delta, dragAt(dx));
       },
+      // 밀던 중 리스트 등이 응답자를 달라고 하면 거절한다 (#99)
+      onPanResponderTerminationRequest: () => false,
       onPanResponderTerminate: (_, { dx }) => slideTo(current, dragAt(dx)),
     });
 

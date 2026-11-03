@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,7 +7,7 @@ import {
   within,
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
-import { drag } from '../../../../jest/gesture';
+import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
@@ -73,6 +74,22 @@ const renderSchedule = (
   );
 
 const weekStrip = () => screen.getByTestId('week-strip').props;
+
+/** 선택(검정) 칸의 날짜. 넘기는 동안 드러나는 옆 페이지까지 본다 */
+const selectedDays = () =>
+  screen
+    .queryAllByRole('button', {
+      name: /월 \d+일 .요일$/,
+      includeHiddenElements: true,
+    })
+    .filter(day => day.props.accessibilityState?.selected)
+    .map(day => day.props.accessibilityLabel);
+/** 지금 보이는(스크린리더가 읽는) 페이지의 선택 칸 */
+const visibleSelectedDays = () =>
+  screen
+    .queryAllByRole('button', { name: /월 \d+일 .요일$/ })
+    .filter(day => day.props.accessibilityState?.selected)
+    .map(day => day.props.accessibilityLabel);
 
 describe('ScheduleScreen — 확정 일정', () => {
   it('헤더와 탭(선택한 날의 확정 건수, 응답 필요 건수)을 보여준다', async () => {
@@ -141,39 +158,80 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
   });
 
-  it('주간 줄을 왼쪽으로 밀면 다음 주의 같은 요일을 고른다', async () => {
+  // 검정 선택 칸은 고른 날 하나에만 있다. 주를 넘겨도 고른 날은 그대로다 (#100)
+  it('처음에는 오늘 칸 하나만 선택돼 있다', async () => {
+    await renderSchedule();
+
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+  });
+
+  it('주간 줄을 왼쪽으로 밀면 다음 주를 보여 주고, 고른 날·날짜 머리·일정은 그대로다', async () => {
     await renderSchedule();
 
     await drag(weekStrip(), { dx: -80 });
 
-    expect(screen.getByText('2026년 12월 22일 (화)')).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: '12월 22일 화요일' }),
-    ).toBeSelected();
     expect(
       screen.getByRole('button', { name: '12월 20일 일요일' }),
     ).toBeOnTheScreen();
     expect(
       screen.queryByRole('button', { name: '12월 15일 화요일' }),
     ).not.toBeOnTheScreen();
-    expect(screen.getByText('예정된 일정이 없습니다')).toBeOnTheScreen();
+    // 다음 주에는 검정 칸이 없다
+    expect(
+      screen.getByRole('button', { name: '12월 22일 화요일' }),
+    ).not.toBeSelected();
+    expect(visibleSelectedDays()).toEqual([]);
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+    expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('tab', { name: '확정 일정 2건' }),
+    ).toBeOnTheScreen();
   });
 
-  it('주간 줄을 오른쪽으로 밀면 이전 주의 같은 요일을 고른다', async () => {
+  it('주간 줄을 오른쪽으로 밀면 이전 주를 보여 주고, 고른 날은 그대로다', async () => {
     await renderSchedule();
 
     await drag(weekStrip(), { dx: 80 });
 
-    expect(screen.getByText('2026년 12월 8일 (화)')).toBeOnTheScreen();
     expect(
       screen.getByRole('button', { name: '12월 6일 일요일' }),
     ).toBeOnTheScreen();
     expect(
       screen.queryByRole('button', { name: '12월 13일 일요일' }),
     ).not.toBeOnTheScreen();
+    expect(visibleSelectedDays()).toEqual([]);
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
   });
 
-  it('주간 줄을 끌어 넘기면 다 넘어간 뒤에 날짜와 일정이 바뀐다', async () => {
+  it('넘긴 주에서 날짜를 누르면 선택이 그 날로 옮겨 가고 날짜 머리·일정이 바뀐다', async () => {
+    await renderSchedule();
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    );
+
+    expect(selectedDays()).toEqual(['1월 4일 월요일']);
+    expect(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    ).toBeSelected();
+    expect(screen.getByText('2027년 1월 4일 (월)')).toBeOnTheScreen();
+    expect(screen.getByText('에어컨 청소')).toBeOnTheScreen();
+
+    // 고른 날의 주로 돌아가도 앞서 고른 날은 선택되지 않는다
+    await drag(weekStrip(), { dx: 80 });
+    await drag(weekStrip(), { dx: 80 });
+    await drag(weekStrip(), { dx: 80 });
+    expect(
+      screen.getByRole('button', { name: '12월 15일 화요일' }),
+    ).not.toBeSelected();
+    expect(selectedDays()).toEqual([]);
+  });
+
+  it('주간 줄을 끌어 넘기면 다 넘어간 뒤에 보이는 주가 바뀌고, 날짜와 일정은 그대로다', async () => {
     const { finish } = holdNativeAnimations();
     try {
       await renderSchedule();
@@ -182,30 +240,118 @@ describe('ScheduleScreen — 확정 일정', () => {
       });
 
       await drag(weekStrip(), { dx: -80 });
-      expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
-      expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '12월 15일 화요일' }),
+      ).toBeSelected();
 
       await finish();
-      expect(screen.getByText('2026년 12월 22일 (화)')).toBeOnTheScreen();
-      expect(screen.getByText('예정된 일정이 없습니다')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '12월 22일 화요일' }),
+      ).not.toBeSelected();
+      expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+      expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
     } finally {
       jest.restoreAllMocks();
     }
   });
 
-  it('주를 넘겨 달이 바뀌면 달력도 그 달을 펼친다', async () => {
+  it('주가 미끄러져 넘어가는 중에 날짜를 누르면 그 날을 고르고, 다 넘어간 주에는 검정 칸이 없다', async () => {
+    const { finish } = holdNativeAnimations();
+    try {
+      await renderSchedule();
+      await fireEvent(screen.getByTestId('week-strip-track'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 69 } },
+      });
+
+      await drag(weekStrip(), { dx: -80 });
+      await fireEvent.press(
+        screen.getByRole('button', { name: '12월 17일 목요일' }),
+      );
+      expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+
+      await finish();
+      expect(
+        screen.getByRole('button', { name: '12월 24일 목요일' }),
+      ).not.toBeSelected();
+      expect(visibleSelectedDays()).toEqual([]);
+      expect(selectedDays()).toEqual(['12월 17일 목요일']);
+      expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  it('주를 넘겨 다른 달을 보고 있어도 달력을 펼치면 고른 날의 달을 보여 준다', async () => {
     await renderSchedule();
 
     await drag(weekStrip(), { dx: -80 });
     await drag(weekStrip(), { dx: -80 });
     await drag(weekStrip(), { dx: -80 });
+    expect(
+      screen.getByRole('button', { name: '1월 5일 화요일' }),
+    ).toBeOnTheScreen();
 
-    expect(screen.getByText('2027년 1월 5일 (화)')).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+  });
+
+  it('넘긴 주에서 다른 달의 날을 고르고 달력을 펼치면 그 달을 보여 준다', async () => {
+    await renderSchedule();
+
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 5일 화요일' }),
+    );
+
     await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
     expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
   });
 
-  it('VoiceOver 로 날짜의 다음 주 동작을 부르면 그 요일을 다음 주에서 고르고 읽어 준다', async () => {
+  it('달력에서 다른 달을 넘겨 보다 접으면 주간 줄은 고른 날의 주를 보여 준다', async () => {
+    await renderSchedule();
+    await drag(weekStrip(), { dx: -80 });
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(screen.getByRole('button', { name: '달력 접기' }));
+
+    expect(
+      screen.getByRole('button', { name: '12월 15일 화요일' }),
+    ).toBeSelected();
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+  });
+
+  it('펼친 달력에서 다른 주의 날을 고르고 접으면 주간 줄은 그 날의 주를 보여 준다', async () => {
+    await renderSchedule();
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    await userEvent.press(
+      screen.getByRole('button', { name: '12월 29일 화요일' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '달력 접기' }));
+
+    expect(
+      screen.getByRole('button', { name: '12월 29일 화요일' }),
+    ).toBeSelected();
+    expect(selectedDays()).toEqual(['12월 29일 화요일']);
+  });
+
+  it('펼친 달력도 검정 칸은 고른 날 하나이고, 달을 넘겨 고른 날이 없는 달에는 없다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+    expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    expect(visibleSelectedDays()).toEqual([]);
+  });
+
+  it('VoiceOver 로 날짜의 다음 주 동작을 부르면 보이는 주만 넘기고, 고른 날은 그대로 두고 넘긴 주를 읽어 준다', async () => {
     const announce = jest.mocked(
       AccessibilityInfo.announceForAccessibilityWithOptions,
     );
@@ -218,11 +364,14 @@ describe('ScheduleScreen — 확정 일정', () => {
       { nativeEvent: { actionName: 'nextWeek' } },
     );
 
-    expect(screen.getByText('2026년 12월 23일 (수)')).toBeOnTheScreen();
     expect(
       screen.getByRole('button', { name: '12월 23일 수요일' }),
-    ).toBeSelected();
-    expect(announce).toHaveBeenCalledWith('12월 23일 수요일', { queue: true });
+    ).not.toBeSelected();
+    expect(visibleSelectedDays()).toEqual([]);
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledWith('12월 20일부터 12월 26일까지', {
+      queue: true,
+    });
   });
 
   it('주간 줄을 가로로 밀 때 확정 일정 리스트가 세로로 따라 움직이지 않게 방향을 고정한다', async () => {
@@ -342,6 +491,169 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(
       screen.getByRole('button', { name: '12월 15일 화요일' }),
     ).toBeOnTheScreen();
+  });
+});
+
+// 주간 줄·월 달력은 리스트 머리에 있다. 달력을 만지는 동안(닿은 뒤 뗄 때까지)은 리스트가 세로로 움직이지 않는다 (#99)
+describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** 확정 일정 리스트 (네이티브 스크롤 뷰) */
+  const list = () => {
+    let node = screen.getByText(/^\d{4}년 \d+월 \d+일 \(.\)$/) as HostElement;
+    while (node.parent && node.type !== 'RCTScrollView') {
+      node = node.parent;
+    }
+    expect(node.type).toBe('RCTScrollView');
+    return node;
+  };
+  // RNTL fireEvent 는 터치 시작을 거절하는 응답자(밀기)가 있는 뷰의 이벤트를 막아 props 의 핸들러를 직접 부른다.
+  // RN 은 터치 시작을 리스트(조상)의 capture 로 먼저 보내고 닿은 뷰에서 위로(bubble) 올린다
+  const touchStart = (target: HostElement | null, id = 0) =>
+    act(() => {
+      const event = touchesEvent({ changed: [id], touches: [id] });
+      list().props.onTouchStartCapture(event);
+      target?.props.onTouchStart?.(event);
+    });
+  const touchEnd = (target: HostElement, id = 0) =>
+    act(() =>
+      target.props.onTouchEnd(touchesEvent({ changed: [id], touches: [] })),
+    );
+  const touchCancel = (target: HostElement, id = 0) =>
+    act(() =>
+      target.props.onTouchCancel(touchesEvent({ changed: [id], touches: [] })),
+    );
+
+  it.each(['ios', 'android'] as const)(
+    '%s: 주간 줄에 손가락이 닿으면 리스트 스크롤을 막고, 떼면 다시 스크롤한다',
+    async os => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderSchedule();
+      expect(list().props.scrollEnabled).not.toBe(false);
+
+      await touchStart(screen.getByTestId('week-strip'));
+      expect(list().props.scrollEnabled).toBe(false);
+
+      await touchEnd(screen.getByTestId('week-strip'));
+      expect(list().props.scrollEnabled).toBe(true);
+    },
+  );
+
+  it('주간 줄 터치가 취소돼도 다시 스크롤한다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    await touchCancel(screen.getByTestId('week-strip'));
+
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('펼친 달력도 손가락이 닿은 동안 리스트 스크롤을 막는다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    await touchStart(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(false);
+
+    await touchEnd(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(true);
+
+    await touchStart(screen.getByTestId('month-calendar'));
+    await touchCancel(screen.getByTestId('month-calendar'));
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('달력 밖(날짜 머리·일정 목록)에서 시작한 터치는 리스트 스크롤을 막지 않는다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByText('세탁기 설치') as HostElement);
+    expect(list().props.scrollEnabled).not.toBe(false);
+
+    await touchStart(screen.getByText('2026년 12월 15일 (화)') as HostElement);
+    expect(list().props.scrollEnabled).not.toBe(false);
+  });
+
+  // 만지던 칸이 그사이 사라지면 뗀 이벤트가 오지 않을 수 있다. 리스트에서 새로 시작한 터치가 바로잡는다
+  it('달력에서 뗀 이벤트를 놓쳐도, 손가락이 모두 떨어진 뒤 일정 목록에서 새로 시작한 터치는 리스트를 스크롤한다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    expect(list().props.scrollEnabled).toBe(false);
+    // 뗀 이벤트 없이 새 손가락이 일정 목록에 닿는다 (iOS 는 손가락 번호를 다시 쓴다)
+    await touchStart(screen.getByText('세탁기 설치') as HostElement);
+
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('주간 줄을 만지는 동안에도 날짜를 누르면 고르고, 손을 떼면 다시 스크롤한다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await touchStart(strip);
+    await fireEvent.press(
+      screen.getByRole('button', { name: '12월 16일 수요일' }),
+    );
+    await touchEnd(strip);
+
+    expect(screen.getByText('2026년 12월 16일 (수)')).toBeOnTheScreen();
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  it('주간 줄을 만지는 동안 밀어서 주를 넘기고, 손을 떼면 다시 스크롤한다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await touchStart(strip);
+    // 밀던 중 리스트가 응답자를 달라고 해도 넘겨 주지 않는다
+    const { released } = await drag(strip.props, { dx: -80, cancelAt: 6 });
+    await touchEnd(screen.getByTestId('week-strip'));
+
+    expect(released).toBe(false);
+    expect(
+      screen.getByRole('button', { name: '12월 20일 일요일' }),
+    ).toBeOnTheScreen();
+    expect(list().props.scrollEnabled).toBe(true);
+  });
+
+  // 막고 푸는 렌더는 리스트만 다시 그리고 달력은 그대로 둔다 (끄는 손가락을 따라가는 JS 를 붙잡지 않는다)
+  it.each([
+    { label: '주간 줄', testID: 'week-strip', open: false },
+    { label: '달력', testID: 'month-calendar', open: true },
+  ])(
+    '$label 을 만지기 시작하고 떼도 $label 은 다시 그리지 않는다',
+    async ({ testID, open }) => {
+      await renderSchedule();
+      if (open) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+      }
+      const before = screen.getByTestId(testID).props;
+
+      await touchStart(screen.getByTestId(testID));
+      expect(list().props.scrollEnabled).toBe(false);
+      await touchEnd(screen.getByTestId(testID));
+      expect(list().props.scrollEnabled).toBe(true);
+
+      // 다시 그리면 루트 뷰가 새 props 를 받는다
+      const same = screen.getByTestId(testID).props === before;
+      expect(same).toBe(true);
+    },
+  );
+
+  it('응답 필요 리스트는 막지 않는다', async () => {
+    await renderSchedule();
+
+    await touchStart(screen.getByTestId('week-strip'));
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+
+    let node = screen.getByText('에어컨 필터 교체') as HostElement;
+    while (node.parent && node.type !== 'RCTScrollView') {
+      node = node.parent;
+    }
+    expect(node.props.scrollEnabled).not.toBe(false);
   });
 });
 

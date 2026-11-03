@@ -4,9 +4,14 @@ import { WEEKDAYS } from '../model';
 // 주간 줄·월 달력이 함께 쓰는 날짜 표기. 색은 Figma DesignSystem › Calendar Contents 를 따른다
 
 export function dayA11yLabel(date: Date): string {
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${
-    WEEKDAYS[date.getDay()]
-  }요일`;
+  return `${monthDay(date)} ${WEEKDAYS[date.getDay()]}요일`;
+}
+
+const monthDay = (date: Date) => `${date.getMonth() + 1}월 ${date.getDate()}일`;
+
+/** 한 주(일요일~토요일)를 읽는 말. 달이 바뀌는 주도 양 끝에 달을 붙인다 */
+export function weekA11yLabel(days: readonly Date[]): string {
+  return `${monthDay(days[0])}부터 ${monthDay(days[days.length - 1])}까지`;
 }
 
 /** 날짜 숫자(주간 줄은 요일 글자도) 색. 일요일 Warning1, 토요일 Accents/Blue, 평일은 주간 Gray900·달력 Gray800 */

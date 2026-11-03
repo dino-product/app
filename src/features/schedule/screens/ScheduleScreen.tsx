@@ -17,6 +17,7 @@ import {
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
+import { useTouchScrollLock } from '../components/useTouchScrollLock';
 import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
@@ -72,6 +73,10 @@ export function ScheduleScreen({
     year: today.getFullYear(),
     month: today.getMonth(),
   });
+  // 주간 줄이 보이는 주의 일요일 0시. 고른 날이 없는 주일 수 있다
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(today).getTime(),
+  );
 
   const selectedKey = toDateKey(selected);
   const daySchedules = useMemo(
@@ -84,18 +89,35 @@ export function ScheduleScreen({
   );
   const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
+  // 고른 날의 주·달을 보여 준다
   const selectDate = useCallback((date: Date) => {
     setSelected(date);
     setViewMonth({ year: date.getFullYear(), month: date.getMonth() });
+    setWeekStart(startOfWeek(date).getTime());
   }, []);
+  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
+  const toggleCalendar = useCallback(() => {
+    setCalendarOpen(open => !open);
+    selectDate(selected);
+  }, [selectDate, selected]);
 
-  const moveMonth = (delta: number) =>
-    setViewMonth(prev => addMonths(prev.year, prev.month, delta));
+  const moveMonth = useCallback(
+    (delta: number) =>
+      setViewMonth(prev => addMonths(prev.year, prev.month, delta)),
+    [],
+  );
 
-  // 주간 줄은 선택한 날의 주를 그린다. 밀어서 주를 넘기면 같은 요일을 고른다 (iOS 캘린더 일 보기)
-  const moveWeek = (delta: number) => selectDate(addWeeks(selected, delta));
-  const weekStart = startOfWeek(selected).getTime();
+  // 주간 줄은 보이는 주를 따로 둔다. 주를 넘겨도 고른 날은 그대로다 (#100)
+  const moveWeek = useCallback(
+    (delta: number) =>
+      setWeekStart(prev => addWeeks(new Date(prev), delta).getTime()),
+    [],
+  );
   const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
+
+  // 달력을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99)
+  const scrollLock = useTouchScrollLock();
+  const calendarTouch = scrollLock.areaTouchHandlers;
 
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
@@ -113,52 +135,69 @@ export function ScheduleScreen({
     [onAccept, onReject, onOpenRequest],
   );
 
-  const dateHeader = (
-    <View style={styles.dateArea}>
-      <View style={styles.dateRow}>
-        <Text variant="Body/M/SemiBold">{formatDateHeader(selected)}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
-          hitSlop={ICON_HIT_SLOP}
-          onPress={() => setCalendarOpen(open => !open)}
-        >
-          {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
-          {calendarOpen ? (
-            <Icon name="calendar-switch-open" color={colors.gray[800]} />
-          ) : (
-            <Icon name="calendar-switch" color={colors.gray[500]} />
-          )}
-        </Pressable>
+  // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)
+  const dateHeader = useMemo(
+    () => (
+      <View style={styles.dateArea}>
+        <View style={styles.dateRow}>
+          <Text variant="Body/M/SemiBold">{formatDateHeader(selected)}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
+            hitSlop={ICON_HIT_SLOP}
+            onPress={toggleCalendar}
+          >
+            {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
+            {calendarOpen ? (
+              <Icon name="calendar-switch-open" color={colors.gray[800]} />
+            ) : (
+              <Icon name="calendar-switch" color={colors.gray[500]} />
+            )}
+          </Pressable>
+        </View>
+        {/* Figma 는 주간 줄과 펼친 달력의 여백이 다르고, 구분선은 주간 줄에만 있다 */}
+        {calendarOpen ? (
+          <View style={styles.monthArea}>
+            <MonthCalendar
+              year={viewMonth.year}
+              month={viewMonth.month}
+              selected={selected}
+              eventCounts={eventCounts}
+              edgeInset={styles.monthArea.paddingHorizontal}
+              touchHandlers={calendarTouch}
+              onSelect={selectDate}
+              onPrev={() => moveMonth(-1)}
+              onNext={() => moveMonth(1)}
+            />
+          </View>
+        ) : (
+          <View style={styles.weekArea}>
+            <View style={styles.rule} />
+            <WeekStrip
+              days={week}
+              selected={selected}
+              edgeInset={styles.weekArea.paddingHorizontal}
+              touchHandlers={calendarTouch}
+              onSelect={selectDate}
+              onPrev={() => moveWeek(-1)}
+              onNext={() => moveWeek(1)}
+            />
+          </View>
+        )}
       </View>
-      {/* Figma 는 주간 줄과 펼친 달력의 여백이 다르고, 구분선은 주간 줄에만 있다 */}
-      {calendarOpen ? (
-        <View style={styles.monthArea}>
-          <MonthCalendar
-            year={viewMonth.year}
-            month={viewMonth.month}
-            selected={selected}
-            eventCounts={eventCounts}
-            edgeInset={styles.monthArea.paddingHorizontal}
-            onSelect={selectDate}
-            onPrev={() => moveMonth(-1)}
-            onNext={() => moveMonth(1)}
-          />
-        </View>
-      ) : (
-        <View style={styles.weekArea}>
-          <View style={styles.rule} />
-          <WeekStrip
-            days={week}
-            selected={selected}
-            edgeInset={styles.weekArea.paddingHorizontal}
-            onSelect={selectDate}
-            onPrev={() => moveWeek(-1)}
-            onNext={() => moveWeek(1)}
-          />
-        </View>
-      )}
-    </View>
+    ),
+    [
+      selected,
+      calendarOpen,
+      viewMonth,
+      week,
+      eventCounts,
+      selectDate,
+      toggleCalendar,
+      moveMonth,
+      moveWeek,
+      calendarTouch,
+    ],
   );
 
   return (
@@ -194,6 +233,9 @@ export function ScheduleScreen({
           ref={listRef}
           // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
           directionalLockEnabled
+          // 달력에 손가락이 닿아 있는 동안은 세로로도 움직이지 않는다 (#99)
+          scrollEnabled={!scrollLock.locked}
+          onTouchStartCapture={scrollLock.onListTouchStartCapture}
           data={daySchedules}
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}
