@@ -255,6 +255,32 @@ describe('ScheduleScreen — 확정 일정', () => {
     }
   });
 
+  it('주가 미끄러져 넘어가는 중에 날짜를 누르면 그 날을 고르고, 다 넘어간 주에는 검정 칸이 없다', async () => {
+    const { finish } = holdNativeAnimations();
+    try {
+      await renderSchedule();
+      await fireEvent(screen.getByTestId('week-strip-track'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 69 } },
+      });
+
+      await drag(weekStrip(), { dx: -80 });
+      await fireEvent.press(
+        screen.getByRole('button', { name: '12월 17일 목요일' }),
+      );
+      expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+
+      await finish();
+      expect(
+        screen.getByRole('button', { name: '12월 24일 목요일' }),
+      ).not.toBeSelected();
+      expect(visibleSelectedDays()).toEqual([]);
+      expect(selectedDays()).toEqual(['12월 17일 목요일']);
+      expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
   it('주를 넘겨 다른 달을 보고 있어도 달력을 펼치면 고른 날의 달을 보여 준다', async () => {
     await renderSchedule();
 
