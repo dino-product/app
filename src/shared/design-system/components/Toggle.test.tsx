@@ -11,6 +11,22 @@ describe('Toggle', () => {
     expect(screen.getByRole('switch', { name: '알림' })).toBeChecked();
   });
 
+  it('설명은 스크린리더 힌트로 넘긴다', async () => {
+    await render(
+      <Toggle
+        value
+        accessibilityLabel="알림"
+        accessibilityHint="새 작업을 알려드려요"
+        onValueChange={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('switch', { name: '알림' })).toHaveProp(
+      'accessibilityHint',
+      '새 작업을 알려드려요',
+    );
+  });
+
   it('누르면 반대 값으로 onValueChange 를 호출한다', async () => {
     const onValueChange = jest.fn();
     await render(

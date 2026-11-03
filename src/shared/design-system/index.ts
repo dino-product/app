@@ -16,12 +16,18 @@ export { Text, type TextProps } from './components/Text';
 export { CTA, type CTAProps, type CTAVariant } from './components/CTA';
 export { Icon, type IconName, type IconProps } from './components/Icon';
 export {
+  ShadowView,
+  type DropShadow,
+  type ShadowViewProps,
+} from './components/ShadowView';
+export {
   StatusChip,
   type StatusChipProps,
   type WorkStatus,
   workStatusLabels,
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
+export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
 export { TextArea, type TextAreaProps } from './components/TextArea';
 export {
   UnderlineTabs,

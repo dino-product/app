@@ -7,7 +7,7 @@ import {
   Text,
   touchSlop,
 } from '../../../shared/design-system';
-import { formatWon, type WorkDetail } from '../model';
+import { formatPrice, type WorkDetail } from '../model';
 import { InfoCard, InfoField, Section, SectionBand } from './InfoCard';
 import { PhotoThumb } from './PhotoThumb';
 
@@ -108,14 +108,15 @@ export function WorkInfoSections({
       </Section>
 
       <Section title="작업 내용">
-        <InfoCard>
+        {/* Figma 는 아래 작업 요청 이미지 카드처럼 회색 채움이다 */}
+        <InfoCard filled testID="work-content-card">
           <InfoField label="작업 메모" value={work.memo} />
           <View style={styles.divider} />
           <View style={styles.priceRow}>
             <Text variant="Caption/M/Medium" color={colors.gray[600]}>
               가격
             </Text>
-            <Text variant="Body/M/SemiBold">{formatWon(work.price)}</Text>
+            <Text variant="Body/M/SemiBold">{formatPrice(work.price)}</Text>
           </View>
         </InfoCard>
         <View style={styles.requestImages}>

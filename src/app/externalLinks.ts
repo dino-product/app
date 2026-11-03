@@ -13,3 +13,5 @@ export const openDirections = (address: string) =>
       Platform.OS === 'ios' ? 'https://maps.apple.com/?q=' : 'geo:0,0?q='
     }${encodeURIComponent(address)}`,
   );
+
+export const openWebPage = (url: string) => openExternal(url);

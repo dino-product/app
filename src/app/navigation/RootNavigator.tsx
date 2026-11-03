@@ -10,24 +10,49 @@ import {
 } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { MyStateProvider } from '../../features/my/MyStateProvider';
 import { MainTabBar } from './MainTabBar';
 import {
+  AccountRoute,
+  MyPageRoute,
+  NotificationCenterRoute,
+  NotificationSettingsRoute,
+  ProfileEditRoute,
+  TermsRoute,
+  WithdrawalBlockedRoute,
+  WithdrawalRoute,
+} from './myRoutes';
+import {
+  JoinRejectedRoute,
+  JoinRequestedRoute,
+  JoinRequestsRoute,
+  OrgJoinRoute,
+  RoleSelectRoute,
+} from './orgRoutes';
+import {
+  CompletedWorkDetailRoute,
   RejectReasonRoute,
   RequestDetailRoute,
   ScheduleRoute,
   WorkDetailRoute,
+  WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
 import {
   HOME_INITIAL_ROUTE,
+  MY_INITIAL_ROUTE,
+  type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
+  type MyStackParamList,
   type RootStackParamList,
 } from './types';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
+const MyStack = createNativeStackNavigator<MyStackParamList>();
 
 // iOS 26 은 화면 어디서든 오른쪽으로 밀면 뒤로 간다. 화면 안 가로 제스처(달력 넘기기 등)와 겹치지 않게
 // 창 폭의 이 비율까지인 왼쪽 영역에서만 받는다. iOS 전용 옵션이다. 지금은 iPhone 세로 전용(#23)이라 폭이 바뀌지 않지만,
@@ -84,6 +109,12 @@ const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 
 // 같은 항목은 한 번만 쌓고(연달아 누름), 다른 항목은 새 화면으로 쌓아 입력 상태가 섞이지 않게 한다
 const byId = ({ params }: { params: { id: string } }) => params.id;
+// 항목이 없는 화면은 하나만 쌓는다 (전환 중에 연달아 눌러도)
+const once = () => 'once';
+const byOrganization = ({ params }: { params: { organizationId: string } }) =>
+  params.organizationId;
+const byRequest = ({ params }: { params: { requestId: string } }) =>
+  params.requestId;
 
 function HomeTab() {
   const stackOptions = useStackOptions();
@@ -103,6 +134,88 @@ function HomeTab() {
   );
 }
 
+function HistoryTab() {
+  const stackOptions = useStackOptions();
+  return (
+    <HistoryStack.Navigator
+      screenOptions={stackOptions}
+      screenLayout={stackScreenLayout}
+    >
+      <HistoryStack.Screen name="WorkHistory" component={WorkHistoryRoute} />
+      <HistoryStack.Screen
+        name="CompletedWorkDetail"
+        component={CompletedWorkDetailRoute}
+        getId={byId}
+      />
+    </HistoryStack.Navigator>
+  );
+}
+
+// 마이 탭 (#72). 하위 화면 상태는 이 탭 안에서만 쓰므로 탭 스택을 감싼다
+function MyTab() {
+  const stackOptions = useStackOptions();
+  return (
+    <MyStateProvider>
+      <MyStack.Navigator
+        initialRouteName={MY_INITIAL_ROUTE}
+        screenOptions={stackOptions}
+        screenLayout={stackScreenLayout}
+      >
+        <MyStack.Screen name="MyPage" component={MyPageRoute} />
+        <MyStack.Screen
+          name="ProfileEdit"
+          component={ProfileEditRoute}
+          getId={once}
+        />
+        <MyStack.Screen
+          name="NotificationSettings"
+          component={NotificationSettingsRoute}
+          getId={once}
+        />
+        <MyStack.Screen
+          name="NotificationCenter"
+          component={NotificationCenterRoute}
+          getId={once}
+        />
+        <MyStack.Screen name="Terms" component={TermsRoute} getId={once} />
+        <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
+        <MyStack.Screen
+          name="Withdrawal"
+          component={WithdrawalRoute}
+          getId={once}
+        />
+        <MyStack.Screen
+          name="WithdrawalBlocked"
+          component={WithdrawalBlockedRoute}
+          getId={once}
+        />
+        {/* 조직 참여 (#73) */}
+        <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
+        <MyStack.Screen
+          name="OrgRoleSelect"
+          component={RoleSelectRoute}
+          getId={byOrganization}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequested"
+          component={JoinRequestedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRejected"
+          component={JoinRejectedRoute}
+          getId={byRequest}
+        />
+        <MyStack.Screen
+          name="OrgJoinRequests"
+          component={JoinRequestsRoute}
+          getId={once}
+        />
+      </MyStack.Navigator>
+    </MyStateProvider>
+  );
+}
+
 function MainTabs() {
   return (
     // Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
@@ -113,6 +226,8 @@ function MainTabs() {
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
+      <Tab.Screen name="history" component={HistoryTab} />
+      <Tab.Screen name="my" component={MyTab} />
     </Tab.Navigator>
   );
 }

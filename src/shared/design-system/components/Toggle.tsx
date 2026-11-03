@@ -8,6 +8,8 @@ export type ToggleProps = {
   value: boolean;
   onValueChange: (value: boolean) => void;
   accessibilityLabel: string;
+  /** 스위치가 무엇을 바꾸는지 덧붙이는 설명 (알림 설정의 설명 문구 등) */
+  accessibilityHint?: string;
   disabled?: boolean;
   testID?: string;
 };
@@ -16,6 +18,7 @@ export const Toggle = memo(function DesignSystemToggle({
   value,
   onValueChange,
   accessibilityLabel,
+  accessibilityHint,
   disabled = false,
   testID,
 }: ToggleProps) {
@@ -23,6 +26,7 @@ export const Toggle = memo(function DesignSystemToggle({
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
       hitSlop={HIT_SLOP}

@@ -54,4 +54,20 @@ describe('TextArea', () => {
       borderColor: colors.warning[1],
     });
   });
+
+  it('readOnly 면 값은 보이고 고칠 수 없다', async () => {
+    await render(
+      <TextArea
+        label="메모"
+        placeholder=""
+        value="배관 교체"
+        onChangeText={jest.fn()}
+        readOnly
+      />,
+    );
+
+    const input = screen.getByLabelText('메모');
+    expect(input).toHaveDisplayValue('배관 교체');
+    expect(input).toHaveProp('editable', false);
+  });
 });
