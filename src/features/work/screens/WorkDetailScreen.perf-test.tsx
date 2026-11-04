@@ -14,7 +14,7 @@ const detail = (
     onDone={() => {}}
     onCall={() => {}}
     onNavigate={() => {}}
-    onPickPhoto={async () => null}
+    onPickPhoto={async () => []}
   />
 );
 

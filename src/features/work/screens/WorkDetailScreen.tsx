@@ -61,8 +61,8 @@ export type WorkDetailScreenProps = {
   onDone: () => void;
   onCall: (phone: string) => void;
   onNavigate: (address: string) => void;
-  /** 촬영·앨범 연동. 고르지 않으면 null */
-  onPickPhoto: () => Promise<string | null>;
+  /** 촬영·앨범. 더 붙일 수 있는 장수를 받아 고른 사진 URI 를 고른 순서대로 돌려준다. 고르지 않으면 빈 배열 */
+  onPickPhoto: (remaining: number) => Promise<string[]>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
   /** 제출하지 않은 완료 보고 입력이 있는지 처음과 바뀔 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
@@ -138,15 +138,16 @@ export function WorkDetailScreen({
     }
     picking.current = true;
     try {
-      const uri = await onPickPhoto();
-      if (uri) {
+      const uris = await onPickPhoto(PHOTO_LIMIT - report[key].length);
+      if (uris.length > 0) {
+        // 남은 칸보다 많이 돌아와도 최대 장수까지만 붙인다
         setReport(prev => ({
           ...prev,
-          [key]: [...prev[key], uri].slice(0, PHOTO_LIMIT),
+          [key]: [...prev[key], ...uris].slice(0, PHOTO_LIMIT),
         }));
       }
     } catch {
-      // 권한 거부·취소 등은 사진을 추가하지 않고 넘어간다 (안내 UI 는 카메라 연동 때)
+      // 취소·실패면 보고를 그대로 둔다. 권한·실패 안내는 고르는 쪽이 띄운다
     } finally {
       picking.current = false;
     }

@@ -16,7 +16,7 @@ describe('WorkDetailScreen 터치 영역', () => {
         onDone={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
-        onPickPhoto={jest.fn(async () => 'mock://photo')}
+        onPickPhoto={jest.fn(async () => ['mock://photo'])}
       />,
     );
 

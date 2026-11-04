@@ -33,7 +33,7 @@ const renderDetail = (
       onDone={jest.fn()}
       onCall={jest.fn()}
       onNavigate={jest.fn()}
-      onPickPhoto={jest.fn(async () => 'mock://photo')}
+      onPickPhoto={jest.fn(async () => ['mock://photo'])}
       {...overrides}
     />,
   );
@@ -179,7 +179,7 @@ describe('WorkDetailScreen', () => {
 
   it('사진은 단계별 6장까지 추가하고 7장째는 추가되지 않는다', async () => {
     let n = 0;
-    await renderDetail({ onPickPhoto: jest.fn(async () => `mock://${++n}`) });
+    await renderDetail({ onPickPhoto: jest.fn(async () => [`mock://${++n}`]) });
 
     const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
     for (let i = 0; i < 7; i += 1) {
@@ -191,6 +191,82 @@ describe('WorkDetailScreen', () => {
     expect(
       screen.queryByRole('button', { name: '작업 전 사진 7 삭제' }),
     ).not.toBeOnTheScreen();
+  });
+
+  // 촬영은 한 장, 앨범은 남은 칸 수만큼 여러 장을 돌려준다 (#111)
+  it('남은 칸 수를 넘겨 고르고, 돌려받은 사진을 고른 순서대로 붙인다', async () => {
+    const onPickPhoto = jest
+      .fn()
+      .mockResolvedValueOnce(['file:///b.jpg', 'file:///a.jpg'])
+      .mockResolvedValueOnce(['file:///c.jpg']);
+    const onReportChange = jest.fn();
+    await renderDetail({ onPickPhoto, onReportChange });
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    await userEvent.press(add);
+    expect(onPickPhoto).toHaveBeenLastCalledWith(6);
+    await userEvent.press(add);
+    expect(onPickPhoto).toHaveBeenLastCalledWith(4);
+
+    expect(add).toHaveAccessibilityValue({ text: '3/6' });
+    expect(onReportChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        beforePhotos: ['file:///b.jpg', 'file:///a.jpg', 'file:///c.jpg'],
+        afterPhotos: [],
+      }),
+    );
+  });
+
+  it('단계마다 남은 칸을 따로 센다', async () => {
+    const onPickPhoto = jest
+      .fn()
+      .mockResolvedValueOnce(['mock://1', 'mock://2'])
+      .mockResolvedValueOnce(['mock://3']);
+    await renderDetail({ onPickPhoto });
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '작업 전 사진 추가' }),
+    );
+    await userEvent.press(
+      screen.getByRole('button', { name: '작업 후 사진 추가' }),
+    );
+
+    expect(onPickPhoto).toHaveBeenNthCalledWith(1, 6);
+    expect(onPickPhoto).toHaveBeenNthCalledWith(2, 6);
+    expect(
+      screen.getByRole('button', { name: '작업 후 사진 추가' }),
+    ).toHaveAccessibilityValue({ text: '1/6' });
+  });
+
+  it('남은 칸보다 많이 돌아와도 6장까지만 붙이고 추가 칸을 막는다', async () => {
+    const onPickPhoto = jest
+      .fn()
+      .mockResolvedValueOnce(['mock://1', 'mock://2', 'mock://3', 'mock://4'])
+      .mockResolvedValueOnce(['mock://5', 'mock://6', 'mock://7']);
+    const onReportChange = jest.fn();
+    await renderDetail({ onPickPhoto, onReportChange });
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    await userEvent.press(add);
+    await userEvent.press(add);
+    await userEvent.press(add);
+
+    expect(onPickPhoto).toHaveBeenCalledTimes(2);
+    expect(onPickPhoto).toHaveBeenLastCalledWith(2);
+    expect(add).toHaveAccessibilityValue({ text: '6/6' });
+    expect(add).toBeDisabled();
+    expect(onReportChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        beforePhotos: [
+          'mock://1',
+          'mock://2',
+          'mock://3',
+          'mock://4',
+          'mock://5',
+          'mock://6',
+        ],
+      }),
+    );
   });
 
   it('수행 메모·사용 부품 제목 뒤에 회색 "(선택)" 을 붙이고 "…, 선택" 으로 읽는다', async () => {
@@ -266,7 +342,7 @@ describe('WorkDetailScreen', () => {
     });
 
     it('제출한 사진을 보여주고 더 넣거나 지울 수 없다', async () => {
-      const onPickPhoto = jest.fn(async () => 'mock://photo');
+      const onPickPhoto = jest.fn(async () => ['mock://photo']);
       await renderDetail({ work: submittedWork, onPickPhoto });
 
       expect(screen.getByText('2/6')).toBeOnTheScreen();
@@ -302,7 +378,7 @@ describe('WorkDetailScreen', () => {
         onDone: jest.fn(),
         onCall: jest.fn(),
         onNavigate: jest.fn(),
-        onPickPhoto: jest.fn(async () => null),
+        onPickPhoto: jest.fn(async () => []),
         onUnsavedReportChange,
       };
       await render(<WorkDetailScreen work={workDetail} {...props} />);
@@ -590,9 +666,11 @@ describe('WorkDetailScreen', () => {
   it('사진을 고르지 않거나 실패하면 아무것도 추가하지 않는다', async () => {
     const onPickPhoto = jest
       .fn()
-      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error('denied'));
-    await renderDetail({ onPickPhoto });
+    const onReportChange = jest.fn();
+    await renderDetail({ onPickPhoto, onReportChange });
+    onReportChange.mockClear();
 
     await userEvent.press(
       screen.getByRole('button', { name: '작업 전 사진 추가' }),
@@ -602,6 +680,7 @@ describe('WorkDetailScreen', () => {
     );
 
     expect(screen.getAllByText('0/6')).toHaveLength(2);
+    expect(onReportChange).not.toHaveBeenCalled();
   });
 
   describe('작성 중인 완료 보고 알림', () => {
@@ -725,6 +804,44 @@ describe('WorkDetailScreen', () => {
       expect(onReportChange).toHaveBeenLastCalledWith(
         expect.objectContaining({ beforePhotos: [], memo: '배관' }),
       );
+    });
+
+    // 촬영·앨범 사진은 임시 파일이라 다시 열 때 OS 가 지웠을 수 있다
+    it('복원한 사진이 열리지 않으면 회색 자리로 보이고 지울 수 있다', async () => {
+      const onReportChange = jest.fn();
+      await renderDetail({
+        initialReport: {
+          ...draft,
+          beforePhotos: ['file:///tmp/gone.jpg', 'file:///tmp/kept.jpg'],
+        },
+        onReportChange,
+      });
+      // 추가 칸과 썸네일은 같은 격자 안에 있다
+      const beforeThumbs = () =>
+        within(
+          screen.getByRole('button', { name: '작업 전 사진 추가' }).parent!,
+        ).getAllByTestId('photo-thumb');
+
+      await fireEvent(beforeThumbs()[0]!, 'error', {
+        nativeEvent: { error: 'not found' },
+      });
+      expect(beforeThumbs()[0]).not.toHaveProp('source');
+      expect(beforeThumbs()[0]).toHaveStyle({
+        backgroundColor: colors.gray[200],
+      });
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 1 삭제' }),
+      );
+
+      expect(onReportChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ beforePhotos: ['file:///tmp/kept.jpg'] }),
+      );
+      // 지운 자리로 당겨진 사진은 열리는 사진이라 이미지로 그린다
+      expect(beforeThumbs()).toHaveLength(1);
+      expect(beforeThumbs()[0]).toHaveProp('source', {
+        uri: 'file:///tmp/kept.jpg',
+      });
     });
 
     it('제출을 마친 작업은 넘길 보고가 없다', async () => {

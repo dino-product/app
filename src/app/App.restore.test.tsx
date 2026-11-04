@@ -1,5 +1,9 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import {
+  pickOnePhotoFromLibrary,
+  resetPhotoLibrary,
+} from '../../jest/photoPicker';
 import { signedInAuth } from '../features/onboarding/model';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
 import App from './App';
@@ -60,8 +64,11 @@ const pressAlertButton = (alert: ReturnType<typeof spyAlert>, text: string) =>
   );
 
 describe('App — 종료 후 다시 열기 (#34)', () => {
+  beforeEach(pickOnePhotoFromLibrary);
+
   afterEach(() => {
     jest.restoreAllMocks();
+    resetPhotoLibrary();
   });
 
   describe('로그인 상태 (#85)', () => {

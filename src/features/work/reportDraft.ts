@@ -13,7 +13,8 @@ import {
 } from './model';
 
 // 작성 중인 완료 보고 (#34). 전화·지도·카메라 앱에 다녀오는 사이 앱이 종료돼도 이어 쓰도록 작업 id 별로 기기에 둔다.
-// 제출하거나 나가기로 확정하면(#24) 지운다. 사진은 카메라 연동 때 앱 디렉터리에 저장하고 여기에는 경로만 남긴다
+// 제출하거나 나가기로 확정하면(#24) 지운다. 사진은 촬영·앨범이 남긴 임시 파일의 경로만 남긴다.
+// 다시 열 때 OS 가 그 파일을 지웠으면 썸네일이 회색 자리로 보이고 지울 수 있다 (#111, PhotoThumb)
 const draftKey = (workId: string) => `work.reportDraft.${workId}`;
 
 export function loadReportDraft(workId: string): WorkReport | undefined {
