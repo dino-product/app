@@ -6,10 +6,11 @@ import {
 import type { QueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import type { WorkRepository } from '../features/work/data/types';
+import { WorkRepositoryProvider } from '../features/work/data/WorkRepositoryProvider';
 import { ApiProvider, type ApiClient } from '../shared/api';
 import { colors } from '../shared/design-system';
 import { useFrameMonitor } from '../shared/perf/useFrameMonitor';
-import { AppStateProvider } from './AppStateProvider';
 import { AuthProvider } from './AuthProvider';
 import { useNavigationPersistence } from './navigation/persistence';
 import { RootNavigator } from './navigation/RootNavigator';
@@ -20,14 +21,22 @@ const navigationTheme: Theme = {
   colors: { ...DefaultTheme.colors, background: colors.white[100] },
 };
 
-// 화면 상태는 API 를 붙이기 전까지 AppStateProvider 가 목 데이터로 들고 있다.
 // ApiProvider 는 서버 API 클라이언트와 서버 상태 캐시(React Query)를 준다 (#110).
-// 로그인 상태는 AuthProvider 가 서버 세션으로 정한다(#113). 켤 때는 기기에 남긴 가입 단계로 바로 그리고 뒤에서 세션을 확인한다
+// 작업·일정·이력 화면은 WorkRepositoryProvider 의 작업 저장소를 React Query 훅으로 쓴다 (#114).
+// 로그인 상태는 AuthProvider 가 서버 세션으로 정한다(#113). 켤 때는 기기에 남긴 가입 단계로 바로 그리고 뒤에서 세션을 확인한다.
+// AuthProvider 는 로그아웃 상태로 돌릴 때 작업 저장소도 처음으로 돌리므로 그 안에 둔다
 export default function App({
   api,
 }: {
-  /** 테스트가 가짜 서버에 붙인 클라이언트와 캐시를 준다 (src/app/testing). 없으면 실제 서버와 Keychain 세션 */
-  api?: { client: ApiClient; queryClient: QueryClient };
+  /**
+   * 테스트가 가짜 서버에 붙인 클라이언트와 캐시, 작업 저장소를 준다 (src/app/testing).
+   * 없으면 실제 서버와 Keychain 세션, 저장소는 config 의 것
+   */
+  api?: {
+    client: ApiClient;
+    queryClient: QueryClient;
+    workRepository?: WorkRepository;
+  };
 }) {
   useFrameMonitor();
   // 앱이 백그라운드에서 종료돼도 보던 화면으로 다시 연다 (#34)
@@ -37,8 +46,8 @@ export default function App({
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
       <ApiProvider client={api?.client} queryClient={api?.queryClient}>
-        <AuthProvider>
-          <AppStateProvider>
+        <WorkRepositoryProvider repository={api?.workRepository}>
+          <AuthProvider>
             <NavigationContainer
               ref={persistence.ref}
               theme={navigationTheme}
@@ -48,8 +57,8 @@ export default function App({
             >
               <RootNavigator />
             </NavigationContainer>
-          </AppStateProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </WorkRepositoryProvider>
       </ApiProvider>
     </SafeAreaProvider>
   );

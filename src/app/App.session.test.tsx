@@ -27,6 +27,7 @@ import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   accountProfile,
   accountServer,
+  fixAppTestClock,
   LOGOUT_PATH,
   PROFILE_PATH,
   renderApp,
@@ -37,6 +38,8 @@ import {
 // 세션 (#113): 다시 켜면 마지막으로 확인한 가입 단계 화면을 바로 그리고, 뒤에서 저장된 세션으로 프로필을 조회해 맞춘다.
 // 만료·로그아웃이면 로그인으로 간다.
 // "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같다)
+// 로컬 작업 시드와 홈 '진행할 작업' 이 지금 시각을 기준으로 정해진다. 자정 직후에도 같은 화면이 되게 시각을 고정한다
+fixAppTestClock();
 const header = (name: string) => screen.queryByRole('header', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
 const REFRESH_PATH = '/api/v1/auth/refresh';
@@ -405,11 +408,13 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       }),
       now: () => now,
     });
+    // 홈은 작업 저장소에서 진행할 작업을 불러온다 (#114)
     await userEvent.press(
-      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      await screen.findByRole('button', { name: '보일러 점검 상세 보기' }),
     );
     app.queryClient.setQueryData(['notifications'], ['알림']);
     seedDrafts();
+    const resetWork = jest.spyOn(app.workRepository, 'reset');
 
     // 1시간이 지나 access token 이 만료됐다
     now += 2 * 60 * 60 * 1000;
@@ -426,6 +431,8 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
     expect(readSignedInStep()).toBeNull();
     expect(draftKeys()).toEqual([]);
     expect(app.queryClient.getQueryData(['notifications'])).toBeUndefined();
+    // 이 기기에 든 작업 상태(로컬 작업 저장소)도 처음으로 돌린다 (#114)
+    expect(resetWork).toHaveBeenCalledTimes(1);
     // 저장한 화면은 로그인 화면뿐이라 다시 켜도 앞 계정의 작업 상세가 열리지 않는다
     const saved = readJson(NAVIGATION_STATE_KEY, value => value);
     expect(JSON.stringify(saved ?? null)).not.toContain('WorkDetail');

@@ -3,22 +3,24 @@ import { StyleSheet, View } from 'react-native';
 import { colors, Text } from '../../../shared/design-system';
 
 // Figma 작업이력 › 요약 카드 (132건 / 누적 완료). 스크린리더는 카드 하나로 "누적 완료 132건" 처럼 읽는다.
-// 달을 바꿔도 숫자가 같은 카드(누적)는 다시 그리지 않는다
+// 달을 바꿔도 숫자가 같은 카드(누적)는 다시 그리지 않는다. 수를 모르면(불러오는 중·서버가 주지 않음) '-' 다 (기본안)
 export const SummaryCard = memo(function SummaryCardView({
   label,
   count,
 }: {
   label: string;
-  count: number;
+  count: number | null;
 }) {
   return (
     <View
       accessible
-      accessibilityLabel={`${label} ${count}건`}
+      accessibilityLabel={
+        count === null ? `${label}, 알 수 없음` : `${label} ${count}건`
+      }
       style={styles.card}
     >
       <Text variant="Body/XL/Bold" color={colors.gray[900]}>
-        {`${count}건`}
+        {count === null ? '-' : `${count}건`}
       </Text>
       <Text variant="Body/XS/Medium" color={colors.gray[700]}>
         {label}

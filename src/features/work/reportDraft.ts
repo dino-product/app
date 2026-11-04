@@ -22,9 +22,13 @@ export function loadReportDraft(workId: string): WorkReport | undefined {
   return readJson(draftKey(workId), parseReport);
 }
 
-/** 입력이 하나도 없으면(공백만 쓴 메모 포함) 남길 것이 없어 지운다 */
-export function saveReportDraft(workId: string, report: WorkReport) {
-  if (hasReportInput(report)) {
+/** 입력이 하나도 없으면(공백만 쓴 메모, 계획값으로 미리 채운 그대로 포함) 남길 것이 없어 지운다. base 는 아무것도 쓰지 않은 보고 */
+export function saveReportDraft(
+  workId: string,
+  report: WorkReport,
+  base?: WorkReport,
+) {
+  if (hasReportInput(report, base)) {
     writeJson(draftKey(workId), report);
   } else {
     clearReportDraft(workId);

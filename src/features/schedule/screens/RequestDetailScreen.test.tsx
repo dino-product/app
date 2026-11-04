@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../../work/mockData';
@@ -9,24 +9,61 @@ jest.mock('../../../shared/haptics', () => ({
 }));
 
 describe('RequestDetailScreen', () => {
-  it('수락하면 성공 햅틱을, 거절 화면으로 갈 때는 울리지 않는다', async () => {
-    jest.mocked(haptic.success).mockClear();
-    await render(
+  const renderRequest = (
+    overrides: Partial<Parameters<typeof RequestDetailScreen>[0]> = {},
+  ) =>
+    render(
       <RequestDetailScreen
         work={workDetail}
         onBack={jest.fn()}
-        onAccept={jest.fn()}
+        onAccept={jest.fn(async () => true)}
         onReject={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        {...overrides}
       />,
     );
+
+  // #32: 햅틱은 결과다. 수락이 서버에서 성공한 뒤에만 울린다
+  it('수락이 성공하면 성공 햅틱을, 거절 화면으로 갈 때는 울리지 않는다', async () => {
+    jest.mocked(haptic.success).mockClear();
+    await renderRequest();
 
     await userEvent.press(screen.getByRole('button', { name: '거절' }));
     expect(haptic.success).not.toHaveBeenCalled();
 
     await userEvent.press(screen.getByRole('button', { name: '수락' }));
     expect(haptic.success).toHaveBeenCalledTimes(1);
+  });
+
+  it('수락이 실패하면 햅틱을 울리지 않는다', async () => {
+    jest.mocked(haptic.success).mockClear();
+    await renderRequest({ onAccept: jest.fn(async () => false) });
+
+    await userEvent.press(screen.getByRole('button', { name: '수락' }));
+
+    expect(haptic.success).not.toHaveBeenCalled();
+  });
+
+  it('수락하는 동안 수락·거절이 잠기고, 끝나면 풀린다 (다시 눌러도 한 번만 보낸다)', async () => {
+    let finish: (accepted: boolean) => void = () => {};
+    const onAccept = jest.fn(
+      () =>
+        new Promise<boolean>(resolve => {
+          finish = resolve;
+        }),
+    );
+    await renderRequest({ onAccept });
+
+    await userEvent.press(screen.getByRole('button', { name: '수락' }));
+    await userEvent.press(screen.getByRole('button', { name: '수락' }));
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: '수락' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '거절' })).toBeDisabled();
+
+    await act(async () => finish(false));
+    expect(screen.getByRole('button', { name: '수락' })).toBeEnabled();
   });
 
   it('작업 정보를 보여주고 하단의 거절·수락·뒤로가 콜백을 부른다', async () => {

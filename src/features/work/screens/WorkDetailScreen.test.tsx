@@ -61,6 +61,15 @@ function comesBefore(
   expect(siblings.indexOf(a)).toBeLessThan(siblings.indexOf(b));
 }
 
+const workDetailReport = {
+  beforePhotos: [],
+  afterPhotos: [],
+  memo: '',
+  parts: '',
+  amount: '',
+  paymentMethod: null,
+};
+
 const submittedWork: WorkDetail = {
   ...workDetail,
   submission: {
@@ -712,6 +721,130 @@ describe('WorkDetailScreen', () => {
     expect(onReportChange).not.toHaveBeenCalled();
   });
 
+  // #114 리뷰: 서버는 작업중(IN_PROGRESS)인 작업의 완료 보고만 받는다 (-002)
+  describe('작업중이 아닌 작업', () => {
+    const beforeWork: WorkDetail = {
+      ...workDetail,
+      status: 'beforeWork',
+      workStatus: 'ACCEPTED',
+    };
+
+    it('작업전이면 보고 영역 대신 "작업을 시작하면…" 안내와 "작업 시작" 을 보인다', async () => {
+      const onStartWork = jest.fn();
+      await renderDetail({ work: beforeWork, onStartWork });
+
+      expect(
+        screen.getByText('작업을 시작하면 완료 보고를 쓸 수 있어요'),
+      ).toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: '완료보고 제출' }),
+      ).not.toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: '작업 전 사진 추가' }),
+      ).not.toBeOnTheScreen();
+      expect(
+        screen.queryByRole('button', { name: '완료 보고 작성하기' }),
+      ).not.toBeOnTheScreen();
+
+      await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+      expect(onStartWork).toHaveBeenCalledTimes(1);
+    });
+
+    it('시작하는 동안 "작업 시작" 이 잠기고, 다시 눌러도 한 번만 보낸다', async () => {
+      let finish: () => void = () => {};
+      const onStartWork = jest.fn(
+        () =>
+          new Promise<void>(resolve => {
+            finish = resolve;
+          }),
+      );
+      await renderDetail({ work: beforeWork, onStartWork });
+      const start = () => screen.getByRole('button', { name: '작업 시작' });
+
+      await userEvent.press(start());
+      await userEvent.press(start());
+
+      expect(onStartWork).toHaveBeenCalledTimes(1);
+      expect(start()).toBeDisabled();
+      await act(async () => finish());
+      expect(start()).toBeEnabled();
+    });
+
+    it('시작해 작업중이 되면 보고 영역이 열린다 (계획값으로 채운 채)', async () => {
+      const plannedReport = {
+        beforePhotos: [],
+        afterPhotos: [],
+        memo: '',
+        parts: '',
+        amount: '75000',
+        paymentMethod: 'card' as const,
+      };
+      const { rerender } = await renderDetail({
+        work: beforeWork,
+        plannedReport,
+      });
+
+      await rerender(
+        <WorkDetailScreen
+          work={{ ...workDetail, workStatus: 'IN_PROGRESS' }}
+          plannedReport={plannedReport}
+          onBack={jest.fn()}
+          onSubmitReport={jest.fn()}
+          onDone={jest.fn()}
+          onCall={jest.fn()}
+          onNavigate={jest.fn()}
+          onPickPhoto={jest.fn(async () => [])}
+        />,
+      );
+
+      expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
+        '75,000',
+      );
+      expect(
+        screen.queryByText('작업을 시작하면 완료 보고를 쓸 수 있어요'),
+      ).not.toBeOnTheScreen();
+    });
+
+    it.each<[string, WorkDetail['workStatus'], string]>([
+      [
+        '배정됨(수락 전)',
+        'PENDING_ACCEPT',
+        '수락하고 작업을 시작하면 완료 보고를 쓸 수 있어요',
+      ],
+      ['취소', 'CANCELED', '취소된 작업이라 완료 보고를 쓸 수 없어요'],
+    ])(
+      '%s 이면 그 안내만 보이고 시작할 수 없다',
+      async (_, workStatus, text) => {
+        await renderDetail({
+          work: { ...workDetail, workStatus },
+          onStartWork: jest.fn(),
+        });
+
+        expect(screen.getByText(text)).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('button', { name: '작업 시작' }),
+        ).not.toBeOnTheScreen();
+        expect(
+          screen.queryByRole('button', { name: '완료보고 제출' }),
+        ).not.toBeOnTheScreen();
+      },
+    );
+
+    it('잃을 입력이 없어 작성 중이라고 알리지 않고 초안도 넘기지 않는다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      const onReportChange = jest.fn();
+      await renderDetail({
+        work: beforeWork,
+        onUnsavedReportChange,
+        onReportChange,
+        initialReport: { ...workDetailReport, memo: '쓰던 글' },
+      });
+
+      expect(onUnsavedReportChange).not.toHaveBeenCalledWith(true);
+      expect(onReportChange).not.toHaveBeenCalled();
+    });
+  });
+
   describe('작성 중인 완료 보고 알림', () => {
     it('입력하면 작성 중으로, 다 지우면 작성 중이 아니라고 알린다', async () => {
       const onUnsavedReportChange = jest.fn();
@@ -771,6 +904,73 @@ describe('WorkDetailScreen', () => {
   });
 
   // 앱이 종료됐다가 다시 열리면 기기에 남긴 초안으로 이어 쓴다 (#34)
+  describe('계획값으로 미리 채운 완료 보고 (plannedReport)', () => {
+    const plannedReport = {
+      beforePhotos: [],
+      afterPhotos: [],
+      memo: '',
+      parts: '',
+      amount: '75000',
+      paymentMethod: 'card' as const,
+    };
+
+    it('결제 금액·결제 방식을 계획값으로 채워 연다', async () => {
+      await renderDetail({ plannedReport });
+
+      expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
+        '75,000',
+      );
+      expect(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      ).toHaveAccessibilityValue({ text: '현장 카드' });
+    });
+
+    it('미리 채운 값은 잃을 입력이 아니라 작성 중이라고 알리지 않고, 바꾸면 알린다', async () => {
+      const onUnsavedReportChange = jest.fn();
+      await renderDetail({ plannedReport, onUnsavedReportChange });
+      expect(onUnsavedReportChange).not.toHaveBeenCalledWith(true);
+
+      await userEvent.clear(screen.getByLabelText('결제 금액 입력'));
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(true);
+
+      await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
+      expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
+    });
+
+    it('사진만 넣으면 미리 채운 금액·방식으로 바로 제출할 수 있다', async () => {
+      const onSubmitReport = jest.fn(() => ({
+        kind: 'submitted' as const,
+        at: '10.01 15:15',
+      }));
+      await renderDetail({ plannedReport, onSubmitReport });
+
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 전 사진 추가' }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '작업 후 사진 추가' }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      );
+
+      expect(onSubmitReport).toHaveBeenCalledWith({
+        ...plannedReport,
+        beforePhotos: ['mock://photo'],
+        afterPhotos: ['mock://photo'],
+      });
+    });
+
+    it('이어 쓸 보고가 있으면 미리 채운 값보다 그 보고로 연다', async () => {
+      await renderDetail({
+        plannedReport,
+        initialReport: { ...plannedReport, amount: '', paymentMethod: null },
+      });
+
+      expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('');
+    });
+  });
+
   describe('작성하던 보고 이어 쓰기', () => {
     const draft = {
       beforePhotos: ['mock://before-1'],

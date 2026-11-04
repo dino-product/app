@@ -1,5 +1,6 @@
 module.exports = {
   preset: '@react-native/jest-preset',
+  globalSetup: '<rootDir>/jest/globalSetup.js',
   setupFiles: ['<rootDir>/jest/setup.js'],
   setupFilesAfterEnv: ['<rootDir>/jest/setupAfterEnv.js'],
   // 프리셋 기본값 + React Navigation·MMKV·Nitro (ESM 으로만 배포돼 변환이 필요하다)

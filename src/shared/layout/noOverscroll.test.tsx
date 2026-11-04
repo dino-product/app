@@ -133,7 +133,7 @@ const blocked: [string, ReactElement][] = [
     <RequestDetailScreen
       work={workDetail}
       onBack={noop}
-      onAccept={noop}
+      onAccept={async () => true}
       onReject={noop}
       onCall={noop}
       onNavigate={noop}
@@ -210,7 +210,7 @@ const refreshable: [string, ReactElement][] = [
       today={today}
       confirmed={schedule.confirmed}
       pending={schedule.pending}
-      onAccept={noop}
+      onAccept={async () => true}
       onReject={noop}
       onOpenRequest={noop}
     />,

@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useApiClient, type ApiClient } from '../../../shared/api';
+import { membershipsQueryKey } from '../memberships';
 import {
   hasNewApproval,
   upsertRequest,
@@ -26,8 +27,6 @@ import {
 // 받아 둔 목록을 응답으로 바로 고친 뒤 다시 받는다
 
 export const participationRequestsKey = ['participationRequests'] as const;
-/** 내 소속 목록 (GET /api/v1/memberships). 기사 작업 화면이 쓰는 소속 조회(#114)와 같은 키다 */
-export const membershipsKey = ['memberships'] as const;
 
 /** 신청 현황 쿼리. 다시 받은 목록에 새로 승인된 요청이 있으면 소속 조회를 다시 부르게 무효로 만든다 */
 function participationRequestsQuery(api: ApiClient, queryClient: QueryClient) {
@@ -39,7 +38,8 @@ function participationRequestsQuery(api: ApiClient, queryClient: QueryClient) {
       );
       const requests = await fetchParticipationRequests(api, { signal });
       if (hasNewApproval(previous, requests)) {
-        queryClient.invalidateQueries({ queryKey: membershipsKey });
+        // 내 소속 목록(작업 화면의 발주사, #114)을 다음에 쓸 때 다시 받게 한다
+        queryClient.invalidateQueries({ queryKey: membershipsQueryKey });
       }
       return requests;
     },

@@ -1,5 +1,9 @@
 import { render, screen } from '@testing-library/react-native';
-import { expectIconButtonTouchTarget } from '../../../shared/testing/touchTarget';
+import {
+  expectIconButtonTouchTarget,
+  expectMinTouchTarget,
+  stylePt,
+} from '../../../shared/testing/touchTarget';
 import { workDetail } from '../mockData';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -23,5 +27,23 @@ describe('WorkDetailScreen 터치 영역', () => {
     expectIconButtonTouchTarget(
       screen.getByRole('button', { name: '뒤로 가기' }),
     );
+  });
+
+  it('작업전 작업의 "작업 시작" 은 최소 터치 영역 이상이다', async () => {
+    await render(
+      <WorkDetailScreen
+        work={{ ...workDetail, workStatus: 'ACCEPTED' }}
+        onBack={jest.fn()}
+        onSubmitReport={jest.fn()}
+        onDone={jest.fn()}
+        onCall={jest.fn()}
+        onNavigate={jest.fn()}
+        onPickPhoto={jest.fn(async () => [])}
+        onStartWork={jest.fn()}
+      />,
+    );
+
+    const start = screen.getByRole('button', { name: '작업 시작' });
+    expectMinTouchTarget(start, { height: stylePt(start, 'minHeight') });
   });
 });

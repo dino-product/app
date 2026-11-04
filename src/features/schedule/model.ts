@@ -121,10 +121,17 @@ export type RejectReasonDraft = {
   otherText: string;
 };
 
+/** 서버로 보낼 거절. 메모는 기타일 때만 (서버 규칙) */
+export type Rejection = { key: RejectReasonKey; note: string | null };
+
+/** 기타 사유 최대 글자 수 (백엔드 Rejection.MAX_NOTE_LENGTH) */
+export const REJECTION_NOTE_MAX_LENGTH = 255;
+
 export type RejectionValidation =
-  | { ok: true; reason: string }
+  | ({ ok: true } & Rejection)
   | { ok: false; error: 'select' | 'otherText' };
 
+/** 기타는 앞뒤 공백을 뗀 글이 있어야 하고 그 글을 메모로 보낸다. 다른 사유는 메모를 보내지 않는다 */
 export function validateRejection(
   key: RejectReasonKey | null,
   otherText: string,
@@ -135,9 +142,8 @@ export function validateRejection(
   if (key === 'other') {
     const text = otherText.trim();
     return text
-      ? { ok: true, reason: text }
+      ? { ok: true, key, note: text }
       : { ok: false, error: 'otherText' };
   }
-  const reason = rejectReasons.find(item => item.key === key);
-  return { ok: true, reason: reason ? reason.label : key };
+  return { ok: true, key, note: null };
 }

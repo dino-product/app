@@ -24,11 +24,14 @@ export function CurrentWorkCard({
   started,
   onStart,
   onOpen,
+  starting = false,
 }: {
   work: CurrentWork;
   started: boolean;
   onStart: () => void;
   onOpen: () => void;
+  /** 시작을 보내는 동안 "작업 시작" 을 잠근다 */
+  starting?: boolean;
 }) {
   return (
     <ShadowView shadow={CARD_SHADOW} style={[styles.frame, styles.card]}>
@@ -67,6 +70,7 @@ export function CurrentWorkCard({
         variant={started ? 'primary' : 'brand'}
         label={started ? '작업 수행중' : '작업 시작'}
         onPress={started ? onOpen : onStart}
+        disabled={!started && starting}
         style={styles.cta}
       />
     </ShadowView>

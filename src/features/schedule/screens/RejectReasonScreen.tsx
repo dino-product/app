@@ -30,8 +30,10 @@ import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingA
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import {
+  REJECTION_NOTE_MAX_LENGTH,
   rejectReasons,
   validateRejection,
+  type Rejection,
   type RejectReasonDraft,
   type RejectReasonKey,
 } from '../model';
@@ -50,7 +52,8 @@ export function RejectReasonScreen({
 }: {
   /** 뒤로 가기·취소 */
   onBack: () => void;
-  onSubmit: (reason: string) => void;
+  /** 거절을 보낸다. 보내는 동안(약속이 끝날 때까지) 거절 제출을 잠근다. 실패 안내는 부른 쪽이 한다 */
+  onSubmit: (rejection: Rejection) => void | Promise<void>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
   /** 이어 고를 사유 (앱이 종료되기 전에 고르던 초안). 처음 열 때만 쓴다 */
@@ -72,6 +75,9 @@ export function RejectReasonScreen({
   const [focusOnOpen, setFocusOnOpen] = useState(!restoredExpanded);
   const reduceMotion = useReduceMotion();
   const reveal = useReveal(restoredExpanded);
+  // 보내는 동안 거절 제출을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const otherInputRef = useRef<TextInputInstance>(null);
   const expanded = selected === 'other';
@@ -148,11 +154,28 @@ export function RejectReasonScreen({
       ? () => scrollRef.current?.scrollToEnd()
       : undefined;
 
+  const send = async (rejection: Rejection) => {
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await onSubmit(rejection);
+      // 햅틱은 결과다: 서버가 거절을 받았을 때만 울린다 (#32)
+      haptic.warning();
+    } catch {
+      // 실패 안내는 부른 쪽이 한다. 고른 사유를 둔 채 다시 보낼 수 있게 한다
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
   const submit = () => {
     const result = validateRejection(selected, otherText);
     if (result.ok) {
-      haptic.warning();
-      onSubmit(result.reason);
+      send({ key: result.key, note: result.note });
     } else if (result.error === 'otherText') {
       setOtherTextError(true);
       // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 도 알린다
@@ -282,7 +305,7 @@ export function RejectReasonScreen({
         <CTA
           label="거절 제출"
           onPress={submit}
-          disabled={selected === null}
+          disabled={selected === null || submitting}
           style={styles.action}
         />
       </View>
@@ -315,6 +338,7 @@ function OtherReason({
         accessibilityLabel="기타 거절 사유 입력"
         autoFocus={autoFocus}
         multiline
+        maxLength={REJECTION_NOTE_MAX_LENGTH}
         placeholder="거절 사유를 입력해 주세요."
         placeholderTextColor={colors.gray[600]}
         value={value}

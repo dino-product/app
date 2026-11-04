@@ -1,13 +1,11 @@
-import { workDetail } from '../work/mockData';
-import type { WorkDetail } from '../work/model';
 import {
   toDateKey,
-  WEEKDAYS,
   type ConfirmedSchedule,
   type PendingRequest,
 } from './model';
 
-// Figma 스케줄 섹션의 예시 데이터. 어느 날 열어도 보이도록 오늘을 기준으로 만든다.
+// Figma 스케줄 섹션의 예시 데이터. 화면 테스트의 픽스처다 (운영 경로는 작업 저장소 features/work/data 를 쓴다).
+// 어느 날 열어도 보이도록 오늘을 기준으로 만든다.
 
 const place = {
   company: '한빛 설비',
@@ -62,19 +60,5 @@ export function makeScheduleMock(today: Date): {
       status: 'assigned',
       timeRange: '14:00 – 15:00',
     })),
-  };
-}
-
-/** 응답 필요 상세에 보여줄 작업 정보 (요청 + 작업 상세 예시) */
-export function requestToWorkDetail(request: PendingRequest): WorkDetail {
-  const [year, month, day] = request.dateKey.split('-').map(Number);
-  const weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()];
-  return {
-    ...workDetail,
-    title: request.title,
-    date: `${request.dateKey} (${weekday})`,
-    status: request.status,
-    timeRange: request.timeRange,
-    address: request.address,
   };
 }

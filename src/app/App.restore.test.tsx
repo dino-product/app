@@ -10,13 +10,18 @@ import {
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
-import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   accountServer,
+  findHomeLoaded,
+  findWorkDetailLoaded,
+  fixAppTestClock,
+  openStartedWorkDetail,
   relaunch as relaunchApp,
   renderApp,
   renderSignedInApp,
+  testWorkRepository,
 } from './testing';
+import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 
 // #34 앱이 백그라운드에서 종료됐다가 다시 열려도 보던 화면과 작성 중인 입력을 복원한다.
 // 테스트의 저장소는 react-native-mmkv 의 메모리 목이라, 앱을 언마운트하고 다시 렌더하면 '종료 후 다시 열기' 와 같다.
@@ -26,9 +31,18 @@ const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
 
+// 지금을 먼저 고정한다: 작업 저장소의 처음 데이터가 지금 기준이다
+fixAppTestClock();
+
+// 작업 상태는 서버에 있어 앱을 다시 열어도 그대로다. 테스트마다 저장소 하나를 두고 다시 열 때도 같은 저장소를 준다
+let workRepository: ReturnType<typeof testWorkRepository>;
+beforeEach(() => {
+  workRepository = testWorkRepository();
+});
+
 // 메인 화면 복원은 가입을 마친 계정의 세션이 기기에 남아 있는 채로 다시 연 경우를 본다 (#113: 켜면 세션을 복원한다)
 async function launch() {
-  const { unmount } = await renderSignedInApp();
+  const { unmount } = await renderSignedInApp({ workRepository });
   // 테스트 환경에서는 언마운트가 OS 의 앱 종료와 같다. 정리 코드만 돌고 내비게이션 동작은 일어나지 않는다
   return () => unmount();
 }
@@ -38,26 +52,35 @@ async function relaunch(kill: () => Promise<void>) {
   return launch();
 }
 
-const openWorkDetail = () =>
-  userEvent.press(
-    screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
-  );
+const openWorkDetail = openStartedWorkDetail;
 
+// 결제 금액·방식은 계획값(75,000원·현장 카드)으로 미리 채워져 있어 다른 값으로 바꾼다
 async function writeReport() {
   await openWorkDetail();
   await userEvent.press(
     screen.getByRole('button', { name: '작업 전 사진 추가' }),
   );
   await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관 교체');
-  await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
+  await userEvent.clear(screen.getByLabelText('결제 금액 입력'));
+  await userEvent.type(screen.getByLabelText('결제 금액 입력'), '80000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
-  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 현금' }));
+}
+
+// 응답 필요 첫 요청의 상세를 연다 (상세를 불러올 때까지 기다린다)
+async function openFirstRequest() {
+  await userEvent.press(
+    (
+      await screen.findAllByRole('button', { name: / 상세,/ })
+    )[0],
+  );
+  await screen.findByRole('button', { name: '수락' });
 }
 
 async function openRejectFromRequestDetail() {
   await userEvent.press(tab('내 일정'));
   await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
-  await userEvent.press(screen.getAllByRole('button', { name: / 상세,/ })[0]);
+  await openFirstRequest();
   await userEvent.press(screen.getByRole('button', { name: '거절' }));
 }
 
@@ -65,6 +88,27 @@ async function openRejectFromRequestDetail() {
 const seedNavigation = (state: unknown) =>
   writeJson(NAVIGATION_STATE_KEY, { savedAt: Date.now(), state });
 const HOUR = 60 * 60 * 1000;
+
+const homeStackAt = (params: unknown) => ({
+  index: 0,
+  routes: [
+    {
+      name: 'Main',
+      state: {
+        index: 0,
+        routes: [
+          {
+            name: 'home',
+            state: {
+              index: 1,
+              routes: [{ name: 'WorkHome' }, { name: 'WorkDetail', params }],
+            },
+          },
+        ],
+      },
+    },
+  ],
+});
 
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 const pressAlertButton = (alert: ReturnType<typeof spyAlert>, text: string) =>
@@ -136,6 +180,7 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       await writeReport();
 
       await relaunch(kill);
+      await findWorkDetailLoaded();
 
       expect(header('작업 상세')).toBeOnTheScreen();
       expect(tab('홈')).toBeSelected();
@@ -143,11 +188,11 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
         '배관 교체',
       );
       expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
-        '75,000',
+        '80,000',
       );
       expect(
         screen.getByRole('button', { name: '결제 방식 선택' }),
-      ).toHaveAccessibilityValue({ text: '현장 카드' });
+      ).toHaveAccessibilityValue({ text: '현장 현금' });
       expect(
         screen.getByRole('button', { name: '작업 전 사진 추가' }),
       ).toHaveAccessibilityValue({ text: '1/6' });
@@ -158,6 +203,7 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       const kill = await launch();
       await writeReport();
       await relaunch(kill);
+      await findWorkDetailLoaded();
 
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
       expect(alert).toHaveBeenCalledTimes(1);
@@ -165,6 +211,8 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       await pressAlertButton(alert, '나가기');
       expect(header('내 작업')).toBeOnTheScreen();
       expect(header('작업 상세')).not.toBeOnTheScreen();
+      // 돌아온 홈은 포커스를 받으며 작업을 불러온다
+      await findHomeLoaded();
     });
 
     it('"나가기" 로 버린 초안은 다시 열어도 없다', async () => {
@@ -183,6 +231,7 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     it('제출한 보고는 초안에서 지운다', async () => {
       const kill = await launch();
       await writeReport();
+      expect(appStorage.contains('work.reportDraft.101')).toBe(true);
       await userEvent.press(
         screen.getByRole('button', { name: '작업 후 사진 추가' }),
       );
@@ -192,8 +241,11 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       await screen.findByRole('header', { name: '제출 완료' });
 
       await relaunch(kill);
-      // 제출 기록은 API 연동 전까지 메모리에만 있어 다시 연 앱은 빈 보고로 연다. 초안이 되살아나지 않아야 한다
-      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue('');
+      // 다시 연 상세는 서버가 준 제출 내용으로 읽기 전용이고, 기기의 초안은 남지 않는다
+      expect(
+        await screen.findByRole('button', { name: '제출 완료' }),
+      ).toBeDisabled();
+      expect(appStorage.contains('work.reportDraft.101')).toBe(false);
     });
   });
 
@@ -251,7 +303,9 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
 
       await relaunch(kill);
       expect(header('작업 상세')).toBeOnTheScreen();
-      await userEvent.press(screen.getByRole('button', { name: '거절' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: '거절' }),
+      );
       expect(
         screen.getByRole('radio', { name: '작업 위치가 너무 멉니다' }),
       ).not.toBeChecked();
@@ -264,14 +318,14 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
         screen.getByRole('radio', { name: '작업 위치가 너무 멉니다' }),
       );
       await userEvent.press(screen.getByRole('button', { name: '거절 제출' }));
-      expect(header('내 일정')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: '내 일정' }),
+      ).toBeOnTheScreen();
 
-      // 거절은 API 연동 전까지 메모리에만 있어 다시 연 앱에는 같은 요청이 남아 있다
+      // 로컬 작업 저장소는 메모리에만 있어 다시 연 앱에는 같은 요청이 남아 있다
       await relaunch(kill);
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
-      await userEvent.press(
-        screen.getAllByRole('button', { name: / 상세,/ })[0],
-      );
+      await openFirstRequest();
       await userEvent.press(screen.getByRole('button', { name: '거절' }));
       expect(
         screen.getByRole('radio', { name: '작업 위치가 너무 멉니다' }),
@@ -338,7 +392,10 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
   // 하위 내비게이터는 남아 있는 하위 이동 파라미터(screen)를 저장한 하위 상태보다 먼저 쓴다 (useNavigationBuilder)
   it('바깥에서 하위 화면을 골라 옮긴 뒤(탈퇴 불가 › 진행 중인 작업 보기)에도 보던 하위 화면을 복원한다', async () => {
     const kill = await launch();
-    await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+    await userEvent.press(
+      await screen.findByRole('button', { name: '작업 시작' }),
+    );
+    await screen.findByRole('button', { name: '작업 수행중' });
     await userEvent.press(tab('마이'));
     await userEvent.press(screen.getByRole('button', { name: '계정 관리' }));
     await userEvent.press(screen.getByRole('button', { name: '계정 탈퇴' }));
@@ -349,6 +406,7 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관 교체');
 
     await relaunch(kill);
+    await findWorkDetailLoaded();
 
     expect(header('작업 상세')).toBeOnTheScreen();
     expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
@@ -415,8 +473,48 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
 
     await launch();
 
-    expect(header('내 작업')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '내 작업' }),
+    ).toBeOnTheScreen();
     expect(appStorage.contains('schedule.rejectDraft.gone')).toBe(false);
+  });
+
+  // 작업 id 가 숫자가 된 뒤 앞 버전이 저장한 목 작업 id(work-boiler) 로 열린 경우
+  it('저장한 작업 상세의 id 가 작업 id 가 아니면 저장소를 부르지 않고 "볼 수 없는 작업이에요" 를 보인다', async () => {
+    const read = jest.spyOn(workRepository, 'getWorkDetail');
+    seedNavigation(homeStackAt({ id: 'work-boiler' }));
+
+    await launch();
+
+    expect(await screen.findByText('볼 수 없는 작업이에요')).toBeOnTheScreen();
+    expect(read).not.toHaveBeenCalled();
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(header('내 작업')).toBeOnTheScreen();
+  });
+
+  // #117: 알림에서 연 작업 상세는 알림이 생긴 발주사를 들고 있다
+  it('작업 상세 경로에 발주사가 있으면 그 발주사로 상세를 부르고 다시 열어도 복원한다', async () => {
+    const read = jest.spyOn(workRepository, 'getWorkDetail');
+    seedNavigation(homeStackAt({ id: '101', organizationId: '7' }));
+
+    await launch();
+
+    expect(
+      await screen.findByRole('button', { name: '작업 시작' }),
+    ).toBeOnTheScreen();
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(read).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({ organizationId: 7 }),
+    );
+  });
+
+  it('작업 상세 경로의 발주사가 숫자가 아니면 볼 수 없는 작업이다', async () => {
+    seedNavigation(homeStackAt({ id: '101', organizationId: 'org-7' }));
+
+    await launch();
+
+    expect(await screen.findByText('볼 수 없는 작업이에요')).toBeOnTheScreen();
   });
 
   // 검증표가 없으면 작업 상세가 route.params.id 를 읽다 죽는다. React Navigation 은 모르는 화면만 빼 주고 파라미터는 보지 않는다

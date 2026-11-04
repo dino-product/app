@@ -20,7 +20,7 @@ import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
-import { ScheduleScreen } from './ScheduleScreen';
+import { ScheduleScreen, type ScheduleScreenProps } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15); // 화요일
 
@@ -64,15 +64,13 @@ const pending: PendingRequest[] = [
   },
 ];
 
-const renderSchedule = (
-  overrides: Partial<Parameters<typeof ScheduleScreen>[0]> = {},
-) =>
+const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
   render(
     <ScheduleScreen
       today={today}
       confirmed={confirmed}
       pending={pending}
-      onAccept={jest.fn()}
+      onAccept={jest.fn(async () => true)}
       onReject={jest.fn()}
       onOpenRequest={jest.fn()}
       {...overrides}
@@ -666,7 +664,8 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
 });
 
 describe('ScheduleScreen — 응답 필요', () => {
-  it('수락하면 성공 햅틱을 울리고, 거절·상세에서는 울리지 않는다', async () => {
+  // #32: 햅틱은 결과다. 수락이 서버에서 성공한 뒤에만 울린다
+  it('수락이 성공하면 성공 햅틱을 울리고, 거절·상세에서는 울리지 않는다', async () => {
     jest.mocked(haptic.success).mockClear();
     await renderSchedule();
     await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
@@ -683,6 +682,47 @@ describe('ScheduleScreen — 응답 필요', () => {
       screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),
     );
     expect(haptic.success).toHaveBeenCalledTimes(1);
+  });
+
+  it('수락이 실패하면 햅틱을 울리지 않는다', async () => {
+    jest.mocked(haptic.success).mockClear();
+    await renderSchedule({ onAccept: jest.fn(async () => false) });
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),
+    );
+
+    expect(haptic.success).not.toHaveBeenCalled();
+  });
+
+  it('수락하는 동안 그 요청의 수락·거절이 잠기고, 다시 눌러도 한 번만 보낸다', async () => {
+    let finish: (accepted: boolean) => void = () => {};
+    const onAccept = jest.fn(
+      () =>
+        new Promise<boolean>(resolve => {
+          finish = resolve;
+        }),
+    );
+    await renderSchedule({ onAccept });
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+    const acceptButton = () =>
+      screen.getByRole('button', { name: '에어컨 필터 교체 수락' });
+
+    await userEvent.press(acceptButton());
+    await userEvent.press(acceptButton());
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    expect(acceptButton()).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: '에어컨 필터 교체 거절' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: '수전 교체 수락' }),
+    ).toBeEnabled();
+
+    await act(async () => finish(false));
+    expect(acceptButton()).toBeEnabled();
   });
 
   it('요청 카드를 보여주고 수락·거절·상세 콜백을 부른다', async () => {
@@ -829,5 +869,112 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
     );
 
     expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+  });
+});
+
+describe('ScheduleScreen — 불러오기', () => {
+  const loading = { status: 'loading' } as const;
+  const failed = (onRetry = jest.fn()) =>
+    ({ status: 'error', message: '네트워크 문구', onRetry } as const);
+
+  it('확정 일정을 불러오는 동안 목록 자리에 진행 표시를 보인다 (빈 안내 대신)', async () => {
+    await renderSchedule({ confirmed: [], confirmedLoad: loading });
+
+    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expect(screen.queryByText('예정된 일정이 없습니다')).not.toBeOnTheScreen();
+  });
+
+  it('응답 필요를 불러오지 못하면 문구와 다시 시도를 보인다', async () => {
+    const onRetry = jest.fn();
+    await renderSchedule({ pending: [], pendingLoad: failed(onRetry) });
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 0건' }));
+
+    expect(screen.getByText('네트워크 문구')).toBeOnTheScreen();
+    expect(screen.queryByText('응답할 요청이 없습니다')).not.toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('두 목록 모두 당겨서 새로고침한다', async () => {
+    const onRefresh = jest.fn();
+    await renderSchedule({ onRefresh, refreshing: true });
+    const confirmedList = screen.getByTestId('schedule-confirmed-list');
+
+    expect(confirmedList.props.refreshing).toBe(true);
+    await fireEvent(confirmedList, 'refresh');
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+    await fireEvent(screen.getByTestId('schedule-pending-list'), 'refresh');
+
+    expect(onRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('고른 날의 달과 펼친 달력의 달이 바뀔 때마다 그 달들을 알린다 (그 달의 일정을 불러온다)', async () => {
+    const onVisibleMonthsChange = jest.fn();
+    await renderSchedule({ onVisibleMonthsChange });
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2026, month: 11 },
+      { year: 2027, month: 0 },
+    ]);
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    );
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2027, month: 0 },
+    ]);
+  });
+});
+
+// 켜 둔 채 날짜가 바뀌면(자정, 다른 날 active) 오늘을 보던 화면은 새 오늘로 옮기고, 직접 고른 날은 그대로 둔다 (#114 리뷰)
+describe('ScheduleScreen — 날짜가 바뀌면', () => {
+  const props = {
+    confirmed,
+    pending,
+    onAccept: jest.fn(async () => true),
+    onReject: jest.fn(),
+    onOpenRequest: jest.fn(),
+  };
+
+  it('오늘을 고르고 있었으면 새 오늘을 고르고 그 달을 알린다', async () => {
+    const onVisibleMonthsChange = jest.fn();
+    const { rerender } = await render(
+      <ScheduleScreen
+        {...props}
+        today={new Date(2026, 11, 31)}
+        onVisibleMonthsChange={onVisibleMonthsChange}
+      />,
+    );
+
+    await rerender(
+      <ScheduleScreen
+        {...props}
+        today={new Date(2027, 0, 1)}
+        onVisibleMonthsChange={onVisibleMonthsChange}
+      />,
+    );
+
+    expect(screen.getByText('2027년 1월 1일 (금)')).toBeOnTheScreen();
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2027, month: 0 },
+    ]);
+  });
+
+  it('다른 날을 직접 골라 보고 있었으면 그대로 둔다', async () => {
+    const { rerender } = await render(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 15)} />,
+    );
+    await userEvent.press(
+      screen.getByRole('button', { name: '12월 17일 목요일' }),
+    );
+
+    await rerender(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 16)} />,
+    );
+
+    expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
   });
 });

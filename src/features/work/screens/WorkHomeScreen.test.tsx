@@ -1,4 +1,6 @@
 import {
+  act,
+  fireEvent,
   render,
   screen,
   userEvent,
@@ -12,11 +14,9 @@ import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import type { ScheduleItem } from '../model';
-import { WorkHomeScreen } from './WorkHomeScreen';
+import { WorkHomeScreen, type WorkHomeScreenProps } from './WorkHomeScreen';
 
-const renderHome = (
-  overrides: Partial<Parameters<typeof WorkHomeScreen>[0]> = {},
-) =>
+const renderHome = (overrides: Partial<WorkHomeScreenProps> = {}) =>
   render(
     <WorkHomeScreen
       currentWork={currentWork}
@@ -283,9 +283,7 @@ describe('WorkHomeScreen 블록 보기', () => {
     item('b', '2026-09-19', '세탁기 설치'),
     item('c', '2026-09-19', '보일러 점검'),
   ];
-  const renderBlock = async (
-    overrides: Partial<Parameters<typeof WorkHomeScreen>[0]> = {},
-  ) => {
+  const renderBlock = async (overrides: Partial<WorkHomeScreenProps> = {}) => {
     await renderHome({ schedule, ...overrides });
     await userEvent.press(toggle('블록 보기'));
   };
@@ -529,5 +527,92 @@ describe('WorkHomeScreen 블록 보기', () => {
       expect(list.children[0]).toHaveStyle({ width: 26, height: 26 });
       expect(list.parent).toHaveStyle({ flexDirection: 'row', gap: 4 });
     });
+  });
+});
+
+describe('WorkHomeScreen — 불러오기', () => {
+  it('불러오는 동안 제목 아래에 진행 표시만 보인다 (진행할 작업 없음 카드·빈 일정 대신)', async () => {
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getByRole('header', { name: '내 작업' })).toBeOnTheScreen();
+    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expect(
+      screen.queryByText('현재 진행 중인 작업이 없습니다'),
+    ).not.toBeOnTheScreen();
+    expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
+  });
+
+  it('불러오지 못하면 문구와 다시 시도를 보인다', async () => {
+    const onRetry = jest.fn();
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'error', message: '네트워크 문구', onRetry },
+    });
+
+    expect(screen.getByText('네트워크 문구')).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('당겨서 새로고침한다', async () => {
+    const onRefresh = jest.fn();
+    await renderHome({ onRefresh, refreshing: true });
+    const list = screen.getByTestId('work-home-list');
+
+    expect(list.props.refreshing).toBe(true);
+    await fireEvent(list, 'refresh');
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('작업을 시작하는 동안 "작업 시작" 이 잠기고, 다시 눌러도 한 번만 보낸다', async () => {
+    let finish: () => void = () => {};
+    const onStartWork = jest.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        }),
+    );
+    await renderHome({ onStartWork });
+    const start = () => screen.getByRole('button', { name: '작업 시작' });
+
+    await userEvent.press(start());
+    await userEvent.press(start());
+
+    expect(onStartWork).toHaveBeenCalledTimes(1);
+    expect(start()).toBeDisabled();
+
+    await act(async () => finish());
+    expect(start()).toBeEnabled();
+  });
+});
+
+// 켜 둔 채 날짜가 바뀌면 블록 보기에서 오늘을 고르고 있던 선택은 새 오늘로 옮긴다 (#114 리뷰)
+describe('WorkHomeScreen — 날짜가 바뀌면', () => {
+  const props = {
+    currentWork,
+    schedule: weeklySchedule,
+    weekLabel: '9. 14. – 9. 20.',
+    started: false,
+    onStartWork: jest.fn(),
+    onOpenWork: jest.fn(),
+    onOpenNotifications: jest.fn(),
+  };
+
+  it('블록 보기에서 오늘을 고르고 있었으면 새 오늘을 고른다', async () => {
+    const { rerender } = await render(
+      <WorkHomeScreen {...props} today={new Date(2026, 8, 19)} />,
+    );
+    await userEvent.press(screen.getByRole('button', { name: '블록 보기' }));
+
+    await rerender(<WorkHomeScreen {...props} today={new Date(2026, 8, 20)} />);
+
+    expect(screen.getByRole('button', { name: /^9월 20일 / })).toBeSelected();
   });
 });
