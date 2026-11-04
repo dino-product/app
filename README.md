@@ -43,9 +43,9 @@ npm start         # Metro (Debug 빌드용)
 
 - Debug 에 값이 없으면 `http://localhost:8080`. 실기기에서 localhost 는 기기 자신이라, iOS 는 맥의 IP 를 넣고 Android 는 `adb reverse tcp:8080 tcp:8080` 을 쓴다
   ```sh
-  ORBIT_API_BASE_URL=http://192.168.0.10:8080 npm start -- --reset-cache
+  ORBIT_API_BASE_URL=http://192.168.0.10:8080 npm start
   ```
-- 값을 바꾸면 babel 캐시 때문에 `--reset-cache` 로 다시 띄운다
+- Metro 는 값마다 변환 캐시를 따로 쓴다 (`metro.config.js` 의 `cacheVersion`). 값을 바꾸면 Metro 를 다시 띄우기만 하면 된다
 - Release 는 `https://` 주소만 쓴다. 값이 없으면 앱은 열리지만 서버 요청이 설정 오류로 실패한다. Xcode 빌드는 `ios/.xcode.env.local` 에 `export ORBIT_API_BASE_URL=…` 를 둔다
 
 ## 스크립트

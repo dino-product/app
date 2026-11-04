@@ -1,5 +1,6 @@
-// API 서버 주소. 사용법: `ORBIT_API_BASE_URL=http://192.168.0.10:8080 npm start -- --reset-cache`
-// 값은 빌드할 때 babel 이 번들에 넣는다 (babel.config.js, 이 이름 하나만). 배포 호스트가 아직 정해지지 않아 빌드 설정으로 받는다.
+// API 서버 주소. 사용법: `ORBIT_API_BASE_URL=http://192.168.0.10:8080 npm start`
+// 값은 빌드할 때 babel 이 번들에 넣는다 (babel.config.js, 이 이름 하나만. Metro 캐시는 값마다 따로: metro.config.js).
+// 배포 호스트가 아직 정해지지 않아 빌드 설정으로 받는다.
 // 실기기에서 localhost 는 기기 자신이라 맥의 서버에 닿지 않는다: iOS 는 맥의 IP 를 넣고, Android 는 `adb reverse tcp:8080 tcp:8080`.
 // Release(Xcode·gradle 이 만드는 번들)는 그 빌드를 돌리는 셸·ios/.xcode.env.local 에 값을 export 한다
 
