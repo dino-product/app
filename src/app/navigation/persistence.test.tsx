@@ -74,6 +74,29 @@ const withHomeRoutes = (routes: unknown[], index = routes.length - 1) => {
 
 const withRoot = (routes: unknown[]) => ({ index: 0, routes });
 
+// 마이 탭 스택만 바꾼 상태
+const withMyRoutes = (routes: unknown[]) =>
+  withRoot([
+    {
+      name: 'Main',
+      state: {
+        index: 0,
+        routes: [
+          {
+            name: 'my',
+            state: { index: routes.length - 1, routes },
+          },
+        ],
+      },
+    },
+  ]);
+const orbitTarget = {
+  organizationId: '9',
+  organizationName: 'Orbit',
+  companyCode: 'RBT124',
+  requestChannel: 'COMPANY_CODE',
+};
+
 describe('내비게이션 상태 저장', () => {
   describe('저장한 상태 확인', () => {
     it('지금 앱 구조에 맞는 상태는 그대로 쓴다', () => {
@@ -104,6 +127,37 @@ describe('내비게이션 상태 저장', () => {
             name: 'RequestDetail',
             params: { id: 'request-1' },
             state: { routes: [{ name: 'WorkHome' }] },
+          },
+        ]),
+      ],
+      // 참여 요청은 회사 코드로 보낸다 (#116). 그 전에 저장한 역할 선택(회사 id·이름만)은 열 수 없다
+      [
+        '회사 코드가 없는 역할 선택',
+        withMyRoutes([
+          { name: 'MyPage' },
+          {
+            name: 'OrgRoleSelect',
+            params: { organizationId: 'org-1', organizationName: 'Orbit' },
+          },
+        ]),
+      ],
+      [
+        '찾은 방법이 목록 밖인 역할 선택',
+        withMyRoutes([
+          { name: 'MyPage' },
+          {
+            name: 'OrgRoleSelect',
+            params: { ...orbitTarget, requestChannel: 'EMAIL' },
+          },
+        ]),
+      ],
+      [
+        '요청 경로가 목록 밖인 요청 완료',
+        withMyRoutes([
+          { name: 'MyPage' },
+          {
+            name: 'OrgJoinRequested',
+            params: { requestId: '3', requestChannel: 'EMAIL' },
           },
         ]),
       ],
@@ -156,13 +210,7 @@ describe('내비게이션 상태 저장', () => {
                   routes: [
                     { name: 'MyPage' },
                     { name: 'OrgJoin' },
-                    {
-                      name: 'OrgRoleSelect',
-                      params: {
-                        organizationId: 'org-1',
-                        organizationName: 'Orbit',
-                      },
-                    },
+                    { name: 'OrgRoleSelect', params: orbitTarget },
                   ],
                 },
               },
@@ -175,6 +223,20 @@ describe('내비게이션 상태 저장', () => {
       delete restored.routes[0].params;
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
+    });
+
+    it('요청 완료는 요청 경로가 있어도 없어도 연다 (경로는 이 앱이 보낸 요청에만 있다)', () => {
+      for (const params of [
+        { requestId: '3' },
+        { requestId: '101', requestChannel: 'COMPANY_CODE' },
+      ]) {
+        const state = withMyRoutes([
+          { name: 'MyPage' },
+          { name: 'OrgJoinRequested', params },
+        ]);
+
+        expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+      }
     });
 
     it('하위 상태가 없으면(아직 열지 않은 하위 내비게이터) 하위 이동 파라미터를 남긴다', () => {

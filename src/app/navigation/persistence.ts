@@ -4,6 +4,7 @@ import {
   type NavigationState,
 } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
+import { requestChannelLabels } from '../../features/my/org/model';
 import {
   appStorage,
   isRecord,
@@ -77,6 +78,23 @@ const historyStack = {
   CompletedWorkDetail: byId,
 } satisfies Record<keyof HistoryStackParamList, ScreenSchema>;
 const byRequest = { params: stringFields('requestId') };
+// 회사 참여 (#116). 참여 요청은 회사 코드와 찾은 방법으로 보내고, 요청 경로는 이 앱이 보낸 요청에만 있다
+const isRequestChannel = (value: unknown) =>
+  typeof value === 'string' &&
+  Object.prototype.hasOwnProperty.call(requestChannelLabels, value);
+const joinTarget = {
+  params: (params: unknown) =>
+    stringFields('organizationId', 'organizationName', 'companyCode')(params) &&
+    isRecord(params) &&
+    isRequestChannel(params.requestChannel),
+};
+const joinRequest = {
+  params: (params: unknown) =>
+    byRequest.params(params) &&
+    isRecord(params) &&
+    (params.requestChannel === undefined ||
+      isRequestChannel(params.requestChannel)),
+};
 const myStack = {
   MyPage: once,
   ProfileEdit: once,
@@ -87,8 +105,8 @@ const myStack = {
   Withdrawal: once,
   WithdrawalBlocked: once,
   OrgJoin: once,
-  OrgRoleSelect: { params: stringFields('organizationId', 'organizationName') },
-  OrgJoinRequested: byRequest,
+  OrgRoleSelect: joinTarget,
+  OrgJoinRequested: joinRequest,
   OrgJoinRejected: byRequest,
   OrgJoinRequests: once,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
@@ -110,10 +128,8 @@ const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
   CompanyFind: once,
-  JoinRoleSelect: {
-    params: stringFields('organizationId', 'organizationName'),
-  },
-  JoinPending: byRequest,
+  JoinRoleSelect: joinTarget,
+  JoinPending: joinRequest,
   JoinApproved: byRequest,
   JoinRejected: byRequest,
 } satisfies Record<keyof OnboardingStackParamList, ScreenSchema>;
