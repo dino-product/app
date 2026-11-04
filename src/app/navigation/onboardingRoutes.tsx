@@ -1,6 +1,6 @@
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
 import type { ProfileInput } from '../../features/my/model';
 import { decideParticipationMock } from '../../features/my/org/mockData';
@@ -20,6 +20,7 @@ import { useOnboarding } from '../../features/onboarding/OnboardingProvider';
 import {
   agreeToTerms,
   currentAccountId,
+  fetchProfile,
   ProfileErrorCode,
   saveProfile,
   type NextStep,
@@ -137,16 +138,16 @@ export function ProfileRegisterRoute({
     mutationFn: async (input: ProfileInput) =>
       saveProfile(api, await currentAccountId(api), input),
   });
-  // 가입을 마치지 않고 다시 로그인했으면 서버에 입력해 둔 값으로 채운다
-  const entered =
-    profile?.name && profile.phoneNumber
-      ? { name: profile.name, phoneNumber: profile.phoneNumber }
-      : undefined;
+  // 가입을 마치지 않고 다시 로그인했으면 서버에 입력해 둔 값으로 채운다. 켠 직후 늦게 오면 화면이 고치지 않았을 때만 채운다
+  const name = profile?.name;
+  const phoneNumber = profile?.phoneNumber;
+  const entered = useMemo(
+    () => (name && phoneNumber ? { name, phoneNumber } : undefined),
+    [name, phoneNumber],
+  );
 
   return (
     <ProfileRegisterScreen
-      // 켠 직후 뒤에서 확인한 프로필이 늦게 오면 그 값으로 다시 채운다
-      key={entered ? 'entered' : 'empty'}
       titleRef={titleRef}
       initialProfile={entered}
       submitting={save.isPending}
@@ -188,21 +189,27 @@ export function TermsAgreementRoute({
       [navigation],
     ),
   );
+  // 가입을 마친 계정이 약관 개정으로 다시 동의하는 경우(PROFILE-005)는 회사 참여 없이 메인으로 돌아간다.
+  // 첫 가입인지는 서버 프로필의 가입 시각(signedUpAt)으로 본다. 켠 직후 확인에 실패해 모르면 보내기 전에 받는다
   const agree = useMutation({
-    mutationFn: async (agreement: TermsAgreement) =>
-      agreeToTerms(api, await currentAccountId(api), agreement),
+    mutationFn: async (agreement: TermsAgreement) => {
+      const accountId = await currentAccountId(api);
+      const before = profile ?? (await fetchProfile(api, accountId));
+      const saved = await agreeToTerms(api, accountId, agreement);
+      return { saved, firstSignUp: before.signedUpAt === null };
+    },
   });
-  // 가입을 마친 계정이 약관 개정으로 다시 동의하는 경우(PROFILE-005)는 회사 참여 없이 메인으로 돌아간다
-  const firstSignUp = profile?.status !== 'ACTIVE';
 
   return (
     <TermsAgreementScreen
       titleRef={titleRef}
+      // 재동의면 서버에 남은 마케팅 동의로 미리 켜 둔다. 건드리지 않으면 그 값을 보낸다
+      initialMarketing={profile?.marketingAgreed ?? undefined}
       submitting={agree.isPending}
       onBack={() => navigation.goBack()}
       onSignUp={agreement =>
         agree.mutate(agreement, {
-          onSuccess: saved => {
+          onSuccess: ({ saved, firstSignUp }) => {
             agreedToTerms(saved, firstSignUp);
             // 소속이 없는 새 사용자라 회사 코드 입력으로 간다 (Spec_프로필 입력 화면)
             if (firstSignUp) {

@@ -1,5 +1,9 @@
 import { appleAuth } from '@invertase/react-native-apple-authentication';
-import { login as loginWithKakao } from '@react-native-seoul/kakao-login';
+import {
+  login as loginWithKakao,
+  type KakaoLoginOptions,
+  type KakaoOAuthToken,
+} from '@react-native-seoul/kakao-login';
 import {
   act,
   fireEvent,
@@ -11,14 +15,17 @@ import {
 import {
   AccessibilityInfo,
   Alert,
+  AppState,
   BackHandler,
   Platform,
   StatusBar,
   type AlertButton,
+  type AppStateStatus,
 } from 'react-native';
 import { escapeFrom } from '../../jest/voiceOver';
 import type { NextStep } from '../features/onboarding/profileApi';
 import { fail, networkError, ok } from '../shared/testing/fakeServer';
+import { SDK_RETURN_GRACE_MS } from './AuthProvider';
 import {
   accountProfile,
   accountServer,
@@ -39,6 +46,10 @@ const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
 const KAKAO_NONCE_PATH = '/api/v1/auth/kakao/nonces';
 const APPLE_NONCE_PATH = '/api/v1/auth/apple/nonces';
 const RECENT_LOGIN = '최근에 로그인 했어요!';
+// login 은 겹쳐 정의돼(웹·네이티브) 앱이 쓰는 네이티브 모양으로 본다
+const kakaoLogin = loginWithKakao as unknown as jest.MockedFunction<
+  (options: KakaoLoginOptions) => Promise<KakaoOAuthToken>
+>;
 
 // Android 뒤로가기: 등록된 핸들러를 최근 것부터 부른다. 아무도 처리하지 않으면 앱을 나간다
 type Handler = Parameters<typeof BackHandler.addEventListener>[1];
@@ -494,6 +505,102 @@ describe('App — 온보딩', () => {
       expect(app.server.callsTo('POST', APPLE_NONCE_PATH)).toHaveLength(0);
       expect(loginWithKakao).toHaveBeenCalledTimes(1);
       expect(appleAuth.performRequest).not.toHaveBeenCalled();
+    });
+
+    // iOS: 카카오톡으로 넘어갔다가 로그인을 마치지 않고 앱으로 직접 돌아오면 카카오 SDK 가 끝을 알리지 않는다
+    describe('카카오톡에서 마치지 않고 돌아온 경우', () => {
+      let appStateListeners: Array<(status: AppStateStatus) => void>;
+      const changeAppState = (status: AppStateStatus) =>
+        act(() => appStateListeners.forEach(listener => listener(status)));
+      // 카카오 SDK 가 끝나지 않는다. 테스트가 늦게 끝낼 수 있다
+      const hangKakao = () => {
+        let finish: () => void = () => {};
+        kakaoLogin.mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              finish = () =>
+                resolve({
+                  accessToken: 'kakao-access',
+                  refreshToken: 'kakao-refresh',
+                  idToken: 'late-id-token',
+                  accessTokenExpiresAt: new Date(),
+                  refreshTokenExpiresAt: new Date(),
+                  scopes: [],
+                });
+            }),
+        );
+        return () => act(async () => finish());
+      };
+
+      beforeEach(() => {
+        appStateListeners = [];
+        jest
+          .spyOn(AppState, 'addEventListener')
+          .mockImplementation((_type, handler) => {
+            appStateListeners.push(handler as (status: AppStateStatus) => void);
+            return { remove: () => undefined };
+          });
+      });
+
+      async function leaveForKakaoTalkAndComeBack() {
+        await login('카카오로 시작하기');
+        await waitFor(() => expect(loginWithKakao).toHaveBeenCalledTimes(1));
+        await changeAppState('inactive');
+        await changeAppState('background');
+        await changeAppState('active');
+      }
+
+      it('돌아온 뒤 잠시(2초) 지나도 SDK 가 끝나지 않으면 그 시도를 그만두어 버튼이 다시 동작하고, 늦게 온 SDK 결과는 버린다', async () => {
+        const alert = spyAlert();
+        const app = await launch();
+        const finishLate = hangKakao();
+
+        await leaveForKakaoTalkAndComeBack();
+        await new Promise<void>(resolve =>
+          setTimeout(resolve, SDK_RETURN_GRACE_MS + 100),
+        );
+        await login('카카오로 시작하기');
+
+        expect(
+          await screen.findByRole('header', { name: '프로필 등록' }),
+        ).toBeOnTheScreen();
+        await finishLate();
+        expect(
+          app.server.callsTo('POST', '/api/v1/auth/kakao/login'),
+        ).toHaveLength(1);
+        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(2);
+        expect(alert).not.toHaveBeenCalled();
+      });
+
+      it('돌아와서 바로 다시 누르면 끝나지 않은 앞 시도를 버리고 새로 로그인한다', async () => {
+        const app = await launch();
+        const finishLate = hangKakao();
+
+        await leaveForKakaoTalkAndComeBack();
+        await login('카카오로 시작하기');
+
+        expect(
+          await screen.findByRole('header', { name: '프로필 등록' }),
+        ).toBeOnTheScreen();
+        await finishLate();
+        expect(
+          app.server.callsTo('POST', '/api/v1/auth/kakao/login'),
+        ).toHaveLength(1);
+      });
+
+      it('앱을 떠나지 않은 채(카카오계정 로그인 창이 떠 있는 동안) 다시 누르면 겹치지 않게 무시한다', async () => {
+        const app = await launch();
+        hangKakao();
+
+        await login('카카오로 시작하기');
+        await waitFor(() => expect(loginWithKakao).toHaveBeenCalledTimes(1));
+        await changeAppState('inactive');
+        await changeAppState('active');
+        await login('카카오로 시작하기');
+
+        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(1);
+        expect(loginWithKakao).toHaveBeenCalledTimes(1);
+      });
     });
 
     it("'최근에 로그인 했어요' 는 마지막으로 성공한 방식이고 앱을 다시 켜도 남는다. 실패한 방식으로 바뀌지 않는다", async () => {

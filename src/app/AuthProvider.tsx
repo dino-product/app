@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import {
   forgetRecentLoginMethod,
   forgetSignedInStep,
@@ -22,6 +22,8 @@ import {
   saveSignedInStep,
 } from '../features/onboarding/login';
 import type { LoginMethod } from '../features/onboarding/model';
+import { clearAllRejectDrafts } from '../features/schedule/rejectDraft';
+import { clearAllReportDrafts } from '../features/work/reportDraft';
 import {
   currentAccountId,
   fetchProfile,
@@ -62,6 +64,17 @@ const initialState = (): AuthState => {
 
 /** 로그인 버튼 결과. busy: 앞 로그인이 아직 진행 중이라 무시했다 */
 export type LoginOutcome = 'signedIn' | 'cancelled' | 'failed' | 'busy';
+
+/** 카카오톡에서 돌아온 뒤 SDK 가 끝을 알리기를 기다리는 시간. 카카오톡이 로그인을 마치고 돌려준 주소를 SDK 가 처리할 만큼 둔다 */
+export const SDK_RETURN_GRACE_MS = 2000;
+
+type LoginAttempt = {
+  controller: AbortController;
+  /** SDK 로그인 화면(카카오톡·카카오계정·Apple)을 기다리는 중 */
+  inSdk: boolean;
+  /** SDK 를 기다리는 동안 앱이 백그라운드에 갔다가(카카오톡) 돌아왔다 */
+  returned: boolean;
+};
 
 // 로그인한 계정의 프로필(이름·연락처 등). 쓰는 화면(가입 단계)만 구독해, 뒤에서 확인한 프로필이 와도 다른 화면은 다시 그리지 않는다
 type ProfileStore = {
@@ -138,6 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     stateRef.current = state;
   }, [state]);
 
+  // 세대: 로그아웃·만료와 사용자 동작(로그인·프로필 저장·약관 동의·참여 완료)마다 올린다.
+  // 뒤에서 온 결과(켤 때 확인, PROFILE-005 재조회)는 시작할 때의 세대가 그대로일 때만 반영해 더 새 상태를 덮지 않는다
+  const epoch = useRef(0);
+
   // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다
   const applyProfile = useCallback(
     (profile: AccountProfile, joining?: boolean) => {
@@ -160,31 +177,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [profileStore],
   );
 
-  // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·보던 화면을 지운다 (로그아웃·만료)
+  // 사용자 동작의 결과 (뒤에서 오던 옛 결과는 버려진다)
+  const applyUserProfile = useCallback(
+    (profile: AccountProfile, joining?: boolean) => {
+      epoch.current += 1;
+      applyProfile(profile, joining);
+    },
+    [applyProfile],
+  );
+
+  // 뒤에서 온 결과. 그사이 세대가 바뀌었거나(로그아웃·다른 저장) 다른 계정의 프로필이면 버린다
+  const applyBackgroundProfile = useCallback(
+    (profile: AccountProfile, startedAt: number) => {
+      const known = profileStore.get();
+      if (
+        epoch.current !== startedAt ||
+        (known !== null && known.accountId !== profile.accountId)
+      ) {
+        return;
+      }
+      applyProfile(profile);
+    },
+    [applyProfile, profileStore],
+  );
+
+  // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·보던 화면·작성 중이던 초안을 지운다 (로그아웃·탈퇴·만료).
+  // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유가 열리지 않게 한다
   const resetToSignedOut = useCallback(() => {
+    epoch.current += 1;
     forgetSignedInStep();
     profileStore.set(null);
     queryClient.clear();
     clearNavigationState();
+    clearAllReportDrafts();
+    clearAllRejectDrafts();
     setState(SIGNED_OUT);
   }, [profileStore, queryClient]);
 
   // 켤 때 로그인해 둔 기기면 뒤에서 세션을 확인한다. 세션이 없으면 로그인 화면, 서버가 계정을 모르면(PROFILE-002 등)
-  // 세션을 지우고 로그인 화면, 서버에 닿지 못하면 지금 화면에 머문다(화면마다 다시 시도). 만료(AUTH-009)는 onExpired 가 받는다
+  // 세션을 지우고 로그인 화면 + 다시 로그인해 주세요. 서버에 닿지 못하거나 Keychain 을 잠시 읽지 못하면 지금 화면에 머문다
+  // (화면마다 다시 시도). 만료(AUTH-009)는 onExpired 가 받는다
   useEffect(() => {
     if (stateRef.current.status !== 'signedIn') {
       return;
     }
+    const startedAt = epoch.current;
+    const stale = () => epoch.current !== startedAt;
     (async () => {
-      const session = await api.session.getSession().catch(() => null);
+      let session;
+      try {
+        session = await api.session.getSession();
+      } catch {
+        return;
+      }
+      if (stale()) {
+        return;
+      }
       if (session === null) {
         resetToSignedOut();
         return;
       }
       try {
-        applyProfile(await fetchProfile(api, session.accountId));
+        applyBackgroundProfile(
+          await fetchProfile(api, session.accountId),
+          startedAt,
+        );
       } catch (error) {
         if (
+          stale() ||
           isApiError(error, ApiErrorCode.refreshRejected) ||
           isTransient(error)
         ) {
@@ -192,11 +252,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await logOut(api);
         resetToSignedOut();
+        Alert.alert(
+          '다시 로그인해 주세요',
+          '계정 정보를 확인하지 못해 로그아웃됐어요.',
+        );
       }
     })();
-  }, [api, applyProfile, resetToSignedOut]);
+  }, [api, applyBackgroundProfile, resetToSignedOut]);
 
-  // 재발급이 거절됐다(AUTH-009). 로그인해 있었으면 로그인 화면으로 가고 다시 로그인해 달라고 알린다
+  // 재발급이 거절됐다(AUTH-009). 로그인해 있었으면 로그인 화면으로 가고 다시 로그인해 달라고 알린다.
+  // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다
   useEffect(
     () =>
       api.session.onExpired(() => {
@@ -224,10 +289,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       refreshing = true;
+      const startedAt = epoch.current;
       currentAccountId(api)
         .then(accountId => fetchProfile(api, accountId))
         .then(
-          profile => applyProfile(profile),
+          profile => applyBackgroundProfile(profile, startedAt),
           () => undefined,
         )
         .finally(() => {
@@ -250,34 +316,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribeQueries();
       unsubscribeMutations();
     };
-  }, [api, queryClient, signedIn, applyProfile]);
+  }, [api, queryClient, signedIn, applyBackgroundProfile]);
 
-  const loggingIn = useRef(false);
+  // 진행 중인 로그인 시도. 겹치지 않게 하나만 둔다
+  const attempt = useRef<LoginAttempt | null>(null);
+
+  // 카카오톡으로 넘어갔다가(백그라운드) 돌아왔는데 SDK 가 잠시 안에 끝을 알리지 않으면 그 시도를 그만둔다.
+  // iOS 카카오 SDK 는 카카오톡에서 로그인을 마치지 않고 돌아오면 콜백을 부르지 않아 그대로 두면 버튼이 앱을 다시 켤 때까지 잠긴다.
+  // 앱 안에 뜨는 카카오계정·Apple 로그인 창은 백그라운드로 가지 않아 그만두지 않는다
+  useEffect(() => {
+    let wentBackground = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const subscription = AppState.addEventListener('change', status => {
+      if (status === 'background') {
+        wentBackground = true;
+        return;
+      }
+      if (status !== 'active' || !wentBackground) {
+        return;
+      }
+      wentBackground = false;
+      const current = attempt.current;
+      if (!current?.inSdk) {
+        return;
+      }
+      current.returned = true;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (current.inSdk) {
+          current.controller.abort();
+        }
+      }, SDK_RETURN_GRACE_MS);
+    });
+    return () => {
+      subscription.remove();
+      clearTimeout(timer);
+    };
+  }, []);
+
   const logIn = useCallback(
     async (method: LoginMethod): Promise<LoginOutcome> => {
-      if (loggingIn.current) {
-        return 'busy';
+      const previous = attempt.current;
+      if (previous) {
+        // 카카오톡에서 돌아왔는데 끝나지 않은 앞 시도는 버리고 새로 한다. 그 밖에는 겹치지 않게 무시한다
+        if (!(previous.inSdk && previous.returned)) {
+          return 'busy';
+        }
+        previous.controller.abort();
       }
-      loggingIn.current = true;
+      const current: LoginAttempt = {
+        controller: new AbortController(),
+        inSdk: false,
+        returned: false,
+      };
+      attempt.current = current;
       try {
-        const result = await logInWith(api, method);
+        const result = await logInWith(api, method, {
+          signal: current.controller.signal,
+          onSdkStage: inSdk => {
+            current.inSdk = inSdk;
+          },
+        });
         if (result.status === 'cancelled') {
           return 'cancelled';
         }
         saveRecentLoginMethod(method);
         setRecentMethod(method);
-        applyProfile(result.profile, false);
+        applyUserProfile(result.profile, false);
         return 'signedIn';
       } catch {
-        return 'failed';
+        return current.controller.signal.aborted ? 'cancelled' : 'failed';
       } finally {
-        loggingIn.current = false;
+        if (attempt.current === current) {
+          attempt.current = null;
+        }
       }
     },
-    [api, applyProfile],
+    [api, applyUserProfile],
   );
 
-  // 표식을 먼저 지워, 로그아웃 응답을 기다리다 앱이 꺼져도 다시 켜면 로그인 화면이다
+  // 세션을 떼어 기기에서 먼저 지우고 바로 로그인 화면으로 간다. 서버 로그아웃은 떼어 둔 토큰으로 뒤에서 보낸다 (logOut)
   const signingOut = useRef<Promise<void> | null>(null);
   const signOut = useCallback(() => {
     signingOut.current ??= (async () => {
@@ -297,23 +415,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
   const updateProfile = useCallback(
-    (profile: AccountProfile) => applyProfile(profile),
-    [applyProfile],
+    (profile: AccountProfile) => applyUserProfile(profile),
+    [applyUserProfile],
   );
   const agreedToTerms = useCallback(
     (profile: AccountProfile, firstSignUp: boolean) =>
-      applyProfile(profile, firstSignUp),
-    [applyProfile],
+      applyUserProfile(profile, firstSignUp),
+    [applyUserProfile],
   );
-  const completeOnboarding = useCallback(
-    () =>
-      setState(current =>
-        current.status === 'signedIn'
-          ? { ...current, joining: false }
-          : current,
-      ),
-    [],
-  );
+  const completeOnboarding = useCallback(() => {
+    epoch.current += 1;
+    setState(current =>
+      current.status === 'signedIn' ? { ...current, joining: false } : current,
+    );
+  }, []);
 
   const auth = useMemo<Auth>(
     () => ({
