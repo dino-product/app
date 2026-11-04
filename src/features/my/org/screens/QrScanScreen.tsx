@@ -164,7 +164,8 @@ export function QrScanScreen({
         </View>
       </SafeAreaView>
 
-      <NoticeModal notice={notice} onClose={closeNotice} />
+      {/* 보이지 않는 동안(다른 화면이 올라옴) 온 안내는 그 화면 위에 띄우지 않고 돌아올 때까지 미룬다 */}
+      <NoticeModal notice={focused ? notice : null} onClose={closeNotice} />
     </View>
   );
 }

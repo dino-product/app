@@ -11,7 +11,10 @@ import {
 } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
-import { COMPANY_LOOKUP_PATH } from '../participationApi';
+import {
+  COMPANY_LOOKUP_PATH,
+  OrganizationErrorCode,
+} from '../participationApi';
 import { createParticipationServer, EXISTING_REQUESTS } from '../testing';
 import { QrScanScreen } from './QrScanScreen';
 
@@ -352,6 +355,22 @@ describe('QrScanScreen', () => {
         expect(lookups(server)).toHaveLength(2);
       },
     );
+
+    // 확인하는 사이 다른 화면이 올라오면(알림 등) RN Modal 이 그 화면 위에 뜬다 (#116 회사 찾기와 같다)
+    it('화면이 보이지 않는 동안 온 안내는 띄우지 않고, 돌아오면 띄운다', async () => {
+      const { server, props, rerender } = await renderScan();
+      const respond = holdLookup(server);
+      await scanQr(JOIN_LINK);
+
+      await rerender(<QrScanScreen {...props} focused={false} />);
+      await respond(fail(429, OrganizationErrorCode.tooManyFailures));
+      expect(header('잠시 후 다시 시도해 주세요')).toBeNull();
+
+      await rerender(<QrScanScreen {...props} focused />);
+      expect(
+        screen.getByRole('header', { name: '잠시 후 다시 시도해 주세요' }),
+      ).toBeOnTheScreen();
+    });
 
     it('확인하는 동안 화면을 떠나면 요청을 끊고 늦은 결과로 넘기지 않는다', async () => {
       const { server, props, unmount } = await renderScan();
