@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -661,6 +662,34 @@ describe('WorkDetailScreen', () => {
 
     expect(screen.getByRole('button', { name: '완료보고 제출' })).toBeEnabled();
     expect(screen.queryByRole('header', { name: '제출 완료' })).toBeNull();
+  });
+
+  // 선택지·카메라·앨범이 떠 있는 동안 같은 칸이나 다른 단계 칸을 다시 눌러도 하나만 연다
+  it('고르는 중에 사진 추가 칸을 다시 눌러도 한 번만 고른다', async () => {
+    let finish: (uris: string[]) => void = () => {};
+    const onPickPhoto = jest.fn(
+      () =>
+        new Promise<string[]>(resolve => {
+          finish = resolve;
+        }),
+    );
+    await renderDetail({ onPickPhoto });
+    const before = screen.getByRole('button', { name: '작업 전 사진 추가' });
+
+    await userEvent.press(before);
+    await userEvent.press(before);
+    await userEvent.press(
+      screen.getByRole('button', { name: '작업 후 사진 추가' }),
+    );
+    expect(onPickPhoto).toHaveBeenCalledTimes(1);
+
+    await act(async () => finish(['mock://1']));
+    expect(before).toHaveAccessibilityValue({ text: '1/6' });
+
+    // 다 고르고 나면 다시 고를 수 있다
+    await userEvent.press(before);
+    expect(onPickPhoto).toHaveBeenCalledTimes(2);
+    expect(onPickPhoto).toHaveBeenLastCalledWith(5);
   });
 
   it('사진을 고르지 않거나 실패하면 아무것도 추가하지 않는다', async () => {
