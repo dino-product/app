@@ -1,74 +1,12 @@
 import { isValidProfile, type ProfileInput } from '../my/model';
 
-// 온보딩(#85)의 데이터 모양과 규칙. 실제 로그인을 붙이기 전까지 더미 계정으로 흐름을 끝까지 볼 수 있게 한다.
-// 백엔드: 카카오 /api/v1/auth/kakao, Apple /api/v1/auth/apple, 프로필 PUT /api/v1/profiles/{accountId},
-// 약관 POST /api/v1/profiles/{accountId}/terms-agreements, 마케팅 POST .../marketing-consents
+// 온보딩(#85)의 데이터 모양과 규칙. 서버 연동(로그인·가입 단계)은 login.ts·profileApi.ts (#113)
 
 export type LoginMethod = 'KAKAO' | 'APPLE';
 
 /** Apple 로그인은 Apple 기기에서만 보인다 (프로젝트 결정). 백엔드 Android 용 Apple 경로는 없앨 예정이다 */
 export function loginMethodsFor(os: string): LoginMethod[] {
   return os === 'ios' ? ['KAKAO', 'APPLE'] : ['KAKAO'];
-}
-
-/**
- * 더미 로그인 상태. 메모리에만 두므로 앱을 다시 켜면 처음(로그아웃)으로 돌아간다 (영구 저장은 실제 로그인 연동 티켓).
- * 카카오와 Apple 은 서버에서 다른 계정이라 방식마다 가입 여부를 따로 둔다
- */
-export type AuthState = {
-  /** 로그인한 방식. null 이면 로그아웃 상태다 */
-  signedIn: LoginMethod | null;
-  /** 온보딩을 마친(가입한) 방식. 이 방식으로 로그인하면 기존 사용자라 바로 메인으로 간다 */
-  registered: readonly LoginMethod[];
-  /** 마지막으로 로그인한 방식. 로그인 화면이 그 버튼 위에 '최근에 로그인 했어요!' 를 띄운다 */
-  lastMethod: LoginMethod | null;
-};
-
-export const initialAuthState: AuthState = {
-  signedIn: null,
-  registered: [],
-  lastMethod: null,
-};
-
-export function isRegistered(state: AuthState, method: LoginMethod): boolean {
-  return state.registered.includes(method);
-}
-
-/** 가입한 계정으로 로그인한다. 신규 사용자는 이 대신 온보딩으로 가서 completeOnboarding 으로 끝낸다 */
-export function signIn(state: AuthState, method: LoginMethod): AuthState {
-  return { ...state, signedIn: method, lastMethod: method };
-}
-
-/** 온보딩을 마치면 그 방식의 계정이 생기고 로그인 상태가 된다 */
-export function completeOnboarding(
-  state: AuthState,
-  method: LoginMethod,
-): AuthState {
-  return {
-    signedIn: method,
-    registered: isRegistered(state, method)
-      ? state.registered
-      : [...state.registered, method],
-    lastMethod: method,
-  };
-}
-
-export function signOut(state: AuthState): AuthState {
-  return { ...state, signedIn: null };
-}
-
-/** 탈퇴하면 그 계정이 사라진다. 다시 로그인하면 신규 사용자이고, 최근 로그인 표시도 지운다 */
-export function withdraw(state: AuthState): AuthState {
-  return {
-    signedIn: null,
-    registered: state.registered.filter(method => method !== state.signedIn),
-    lastMethod: null,
-  };
-}
-
-/** 온보딩을 마친 계정으로 로그인해 있는 상태. 테스트가 메인에서 시작할 때 쓴다 */
-export function signedInAuth(method: LoginMethod = 'KAKAO'): AuthState {
-  return completeOnboarding(initialAuthState, method);
 }
 
 /** 이름 2~20자 한글·영문과 010 으로 시작하는 연락처 11자리를 모두 넣어야 등록할 수 있다 (Spec_프로필 입력 화면) */
@@ -78,7 +16,7 @@ export function canRegisterProfile(input: ProfileInput): boolean {
 
 /**
  * 약관 종류. 백엔드 TermsType 은 SERVICE·PRIVACY(필수)·MARKETING(선택) 셋이고,
- * Figma 는 제3자 제공·위치기반 서비스를 더한 다섯이다. 앱은 Figma 대로 보이고 연동 티켓에서 맞춘다
+ * Figma 는 제3자 제공·위치기반 서비스를 더한 다섯이다. 앱은 Figma 대로 보이고, 서버에는 셋만 보낸다 (toTermsAgreementRequest, #112 G10)
  */
 export type TermsType =
   | 'SERVICE'

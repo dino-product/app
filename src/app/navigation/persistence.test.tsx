@@ -1,7 +1,6 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
-import { signedInAuth } from '../../features/onboarding/model';
+import { screen, userEvent } from '@testing-library/react-native';
 import { appStorage, isRecord } from '../../shared/storage/appStorage';
-import App from '../App';
+import { accountServer, renderApp, renderSignedInApp } from '../testing';
 import {
   NAVIGATION_STATE_KEY,
   NAVIGATION_STATE_MAX_AGE_MS,
@@ -279,20 +278,24 @@ describe('내비게이션 상태 저장', () => {
   });
 
   // 화면을 더하거나 이름을 바꾸고 검증표를 그대로 두면, 저장한 상태를 늘 버리거나 틀린 상태를 받는다.
-  // 루트는 로그인 상태에 따라 화면 묶음(로그인·온보딩 / 메인)만 그리므로(#85), 두 상태로 그려 루트 화면 이름을 합친다
+  // 루트는 로그인 상태에 따라 화면 묶음(로그인 / 가입 단계 / 메인)만 그리므로(#85, #113), 세 상태로 그려 루트 화면 이름을 합친다
   it('검증표가 실제 내비게이터의 화면 이름과 같다', async () => {
     const savedState = () =>
       JSON.parse(appStorage.getString(NAVIGATION_STATE_KEY) ?? 'null').state;
 
-    const signedOut = await render(<App />);
+    const signedOut = await renderApp({
+      server: accountServer({ nextStep: 'PROFILE' }),
+    });
+    const login = savedState();
     await userEvent.press(
       screen.getByRole('button', { name: '카카오로 시작하기' }),
     );
+    await screen.findByRole('header', { name: '프로필 등록' });
     const onboarding = savedState();
     await signedOut.unmount();
     appStorage.clearAll();
 
-    await render(<App initialAuth={signedInAuth()} />);
+    await renderSignedInApp();
     for (const name of ['내 일정', '작업 이력', '마이', '홈']) {
       await userEvent.press(screen.getByRole('tab', { name }));
     }
@@ -330,10 +333,13 @@ describe('내비게이션 상태 저장', () => {
       compareRoutes(state, schema, path);
     };
 
-    expect([...onboarding.routeNames, ...main.routeNames]).toEqual(
-      Object.keys(navigationSchema),
-    );
-    compareRoutes(onboarding, navigationSchema, 'Root(로그아웃)');
+    expect([
+      ...login.routeNames,
+      ...onboarding.routeNames,
+      ...main.routeNames,
+    ]).toEqual(Object.keys(navigationSchema));
+    compareRoutes(login, navigationSchema, 'Root(로그아웃)');
+    compareRoutes(onboarding, navigationSchema, 'Root(가입 단계)');
     compareRoutes(main, navigationSchema, 'Root(로그인)');
   });
 });

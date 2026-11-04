@@ -10,6 +10,7 @@ import {
 } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import type { NextStep } from '../../features/onboarding/profileApi';
 import { MyStateProvider } from '../../features/my/MyStateProvider';
 import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider';
 import { useAuth } from '../AuthProvider';
@@ -60,7 +61,6 @@ import {
   type MainTabParamList,
   type MyStackParamList,
   type OnboardingStackParamList,
-  type RootScreenProps,
   type RootStackParamList,
 } from './types';
 
@@ -236,53 +236,73 @@ function MyTab() {
   );
 }
 
-// 온보딩 (#85). 상태는 이 온보딩 안에서만 쓰므로 스택을 감싼다. 첫 화면에서 뒤로 가면 루트의 로그인으로 돌아가고 상태도 사라진다
-function OnboardingFlow({ route }: RootScreenProps<'Onboarding'>) {
+// 가입 단계 (#85, #113). 상태는 이 가입 안에서만 쓰므로 스택을 감싼다.
+// 첫 화면(프로필 등록)에서 뒤로 가면 가입을 그만두고 로그아웃한다(로그인 화면). 두 손가락 Z 는 첫 화면에서 여기까지 올라온다.
+// 뒤로 가기 버튼·Android 뒤로가기는 프로필 등록이 직접 받는다
+function OnboardingFlow() {
   const stackOptions = useStackOptions();
+  const { signOut } = useAuth();
   return (
-    <OnboardingProvider method={route.params.method}>
-      <OnboardingStack.Navigator
-        initialRouteName={ONBOARDING_INITIAL_ROUTE}
-        screenOptions={stackOptions}
-        screenLayout={stackScreenLayout}
+    <OnboardingProvider>
+      <View
+        collapsable={false}
+        onAccessibilityEscape={() => {
+          signOut();
+        }}
+        style={styles.screen}
       >
-        <OnboardingStack.Screen
-          name="ProfileRegister"
-          component={ProfileRegisterRoute}
-        />
-        <OnboardingStack.Screen
-          name="TermsAgreement"
-          component={TermsAgreementRoute}
-          getId={once}
-        />
-        <OnboardingStack.Screen
-          name="CompanyFind"
-          component={CompanyFindRoute}
-          getId={once}
-        />
-        <OnboardingStack.Screen
-          name="JoinRoleSelect"
-          component={JoinRoleSelectRoute}
-          getId={byOrganization}
-        />
-        <OnboardingStack.Screen
-          name="JoinPending"
-          component={JoinPendingRoute}
-          getId={byRequest}
-        />
-        <OnboardingStack.Screen
-          name="JoinApproved"
-          component={JoinApprovedRoute}
-          getId={byRequest}
-        />
-        <OnboardingStack.Screen
-          name="JoinRejected"
-          component={OnboardingJoinRejectedRoute}
-          getId={byRequest}
-        />
-      </OnboardingStack.Navigator>
+        <OnboardingStack.Navigator
+          initialRouteName={ONBOARDING_INITIAL_ROUTE}
+          screenOptions={stackOptions}
+          screenLayout={stackScreenLayout}
+        >
+          <OnboardingStack.Screen
+            name="ProfileRegister"
+            component={ProfileRegisterRoute}
+          />
+          <OnboardingStack.Screen
+            name="TermsAgreement"
+            component={TermsAgreementRoute}
+            getId={once}
+          />
+          <OnboardingStack.Screen
+            name="CompanyFind"
+            component={CompanyFindRoute}
+            getId={once}
+          />
+          <OnboardingStack.Screen
+            name="JoinRoleSelect"
+            component={JoinRoleSelectRoute}
+            getId={byOrganization}
+          />
+          <OnboardingStack.Screen
+            name="JoinPending"
+            component={JoinPendingRoute}
+            getId={byRequest}
+          />
+          <OnboardingStack.Screen
+            name="JoinApproved"
+            component={JoinApprovedRoute}
+            getId={byRequest}
+          />
+          <OnboardingStack.Screen
+            name="JoinRejected"
+            component={OnboardingJoinRejectedRoute}
+            getId={byRequest}
+          />
+        </OnboardingStack.Navigator>
+      </View>
     </OnboardingProvider>
   );
+}
+
+// 약관 동의부터면 그 아래에 프로필 등록을 두어(initial: false), 뒤로 가면 입력해 둔 값을 고칠 수 있다
+function onboardingStart(
+  nextStep: NextStep | undefined,
+): RootStackParamList['Onboarding'] {
+  return nextStep === 'TERMS'
+    ? { screen: 'TermsAgreement', initial: false }
+    : undefined;
 }
 
 // 로그아웃하면 로그인이 메인을 대신한다. 뒤로 가는 모양으로 바꾼다
@@ -308,28 +328,28 @@ function MainTabs() {
 }
 
 // 로그인 상태에 따라 화면 묶음을 바꾼다 (React Navigation 인증 흐름). 묶음이 바뀌면 이전 묶음의 화면이 스택에서 모두 빠져,
-// 메인에 들어간 뒤에는 뒤로 가기로 온보딩·로그인에, 로그아웃한 뒤에는 메인에 돌아가지 않는다
+// 메인에 들어간 뒤에는 뒤로 가기로 온보딩·로그인에, 로그아웃한 뒤에는 메인에 돌아가지 않는다.
+// 세션 복원 중·복원 실패는 바깥(SessionGate)이 내비게이터 대신 그린다
 export function RootNavigator() {
   const stackOptions = useStackOptions();
-  const { signedIn } = useAuth();
+  const { phase, profile } = useAuth();
   return (
     <RootStack.Navigator
       screenOptions={stackOptions}
       screenLayout={stackScreenLayout}
     >
-      {signedIn === null ? (
-        <>
-          <RootStack.Screen
-            name="Login"
-            component={LoginRoute}
-            options={loginOptions}
-          />
-          <RootStack.Screen
-            name="Onboarding"
-            component={OnboardingFlow}
-            getId={once}
-          />
-        </>
+      {phase === 'signUp' ? (
+        <RootStack.Screen
+          name="Onboarding"
+          component={OnboardingFlow}
+          initialParams={onboardingStart(profile?.nextStep)}
+        />
+      ) : phase !== 'main' ? (
+        <RootStack.Screen
+          name="Login"
+          component={LoginRoute}
+          options={loginOptions}
+        />
       ) : (
         <>
           <RootStack.Screen name="Main" component={MainTabs} />

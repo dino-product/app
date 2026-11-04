@@ -4,12 +4,39 @@ import {
   createNavigationContainerRef,
 } from '@react-navigation/native';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
+import type { ReactNode } from 'react';
 import { escapeTarget } from '../../../jest/voiceOver';
-import { signedInAuth } from '../../features/onboarding/model';
+import { ApiProvider } from '../../shared/api';
+import { createTestApi } from '../../shared/testing/renderWithApi';
 import { AppStateProvider } from '../AppStateProvider';
 import { AuthProvider } from '../AuthProvider';
+import { SessionGate } from '../SessionGate';
+import {
+  accountServer,
+  signedInSession,
+  waitForSessionRestore,
+} from '../testing';
 import { RootNavigator } from './RootNavigator';
 import type { RootStackParamList } from './types';
+
+// 가입을 마친 계정으로 로그인해 둔 상태(가짜 서버와 저장된 세션)에서 내비게이터를 그린다. 복원이 끝날 때까지 기다린다
+async function renderSignedIn(navigator: ReactNode) {
+  const api = createTestApi({
+    server: accountServer(),
+    session: signedInSession(),
+  });
+  const view = await render(
+    <ApiProvider client={api.client} queryClient={api.queryClient}>
+      <AuthProvider>
+        <AppStateProvider>
+          <SessionGate>{navigator}</SessionGate>
+        </AppStateProvider>
+      </AuthProvider>
+    </ApiProvider>,
+  );
+  await waitForSessionRestore();
+  return view;
+}
 
 type Route = {
   name: 'Main' | 'RequestDetail' | 'RejectReason';
@@ -19,17 +46,13 @@ type Route = {
 const navigation = createNavigationContainerRef<RootStackParamList>();
 
 const renderAt = (routes: Route[]) =>
-  render(
-    <AuthProvider initialState={signedInAuth()}>
-      <AppStateProvider>
-        <NavigationContainer
-          ref={navigation}
-          initialState={{ index: routes.length - 1, routes }}
-        >
-          <RootNavigator />
-        </NavigationContainer>
-      </AppStateProvider>
-    </AuthProvider>,
+  renderSignedIn(
+    <NavigationContainer
+      ref={navigation}
+      initialState={{ index: routes.length - 1, routes }}
+    >
+      <RootNavigator />
+    </NavigationContainer>,
   );
 
 // 목록에 없는 요청(이미 처리됐거나 서버에서 취소됨)으로 화면이 열린 경우.
@@ -62,30 +85,26 @@ const renderHistoryAt = (
     params?: { id: string };
   }[],
 ) =>
-  render(
-    <AuthProvider initialState={signedInAuth()}>
-      <AppStateProvider>
-        <NavigationContainer
-          initialState={{
-            routes: [
-              {
-                name: 'Main',
-                state: {
-                  routes: [
-                    {
-                      name: 'history',
-                      state: { index: routes.length - 1, routes },
-                    },
-                  ],
+  renderSignedIn(
+    <NavigationContainer
+      initialState={{
+        routes: [
+          {
+            name: 'Main',
+            state: {
+              routes: [
+                {
+                  name: 'history',
+                  state: { index: routes.length - 1, routes },
                 },
-              },
-            ],
-          }}
-        >
-          <RootNavigator />
-        </NavigationContainer>
-      </AppStateProvider>
-    </AuthProvider>,
+              ],
+            },
+          },
+        ],
+      }}
+    >
+      <RootNavigator />
+    </NavigationContainer>,
   );
 
 describe('RootNavigator — 없는 완료 작업', () => {

@@ -1,13 +1,22 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import {
   pickOnePhotoFromLibrary,
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
-import { signedInAuth } from '../features/onboarding/model';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
-import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
+import {
+  accountServer,
+  relaunch as relaunchApp,
+  renderApp,
+  renderSignedInApp,
+} from './testing';
 
 // #34 앱이 백그라운드에서 종료됐다가 다시 열려도 보던 화면과 작성 중인 입력을 복원한다.
 // 테스트의 저장소는 react-native-mmkv 의 메모리 목이라, 앱을 언마운트하고 다시 렌더하면 '종료 후 다시 열기' 와 같다.
@@ -17,9 +26,9 @@ const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 const tabBar = () => screen.queryByRole('tab', { name: '홈' });
 
-// 더미 로그인 세션은 아직 저장하지 않아(#85 은 메모리에만 둔다) 메인 화면 복원은 로그인한 계정으로 다시 연 경우를 본다
+// 메인 화면 복원은 가입을 마친 계정의 세션이 기기에 남아 있는 채로 다시 연 경우를 본다 (#113: 켜면 세션을 복원한다)
 async function launch() {
-  const { unmount } = await render(<App initialAuth={signedInAuth()} />);
+  const { unmount } = await renderSignedInApp();
   // 테스트 환경에서는 언마운트가 OS 의 앱 종료와 같다. 정리 코드만 돌고 내비게이션 동작은 일어나지 않는다
   return () => unmount();
 }
@@ -71,30 +80,46 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     resetPhotoLibrary();
   });
 
-  describe('로그인 상태 (#85)', () => {
+  describe('로그인 상태 (#85, #113)', () => {
     it('로그아웃 상태로 다시 열면 저장한 메인 화면 대신 로그인 화면부터 연다', async () => {
       const kill = await launch();
       await openWorkDetail();
       await kill();
 
-      await render(<App />);
+      await renderApp();
 
       expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
       expect(tabBar()).not.toBeOnTheScreen();
     });
 
-    it('온보딩 도중 종료되면 다시 열 때 로그인부터 시작한다', async () => {
-      const { unmount } = await render(<App />);
+    it('가입 단계 도중 종료되면 다시 열 때 보던 화면이 아니라 서버의 가입 단계부터 연다', async () => {
+      const app = await renderApp({
+        server: accountServer({ nextStep: 'PROFILE' }),
+      });
       await userEvent.press(
         screen.getByRole('button', { name: '카카오로 시작하기' }),
       );
-      expect(header('프로필 등록')).toBeOnTheScreen();
-      await unmount();
+      await fireEvent.changeText(
+        await screen.findByLabelText('이름'),
+        '박기사',
+      );
+      await fireEvent.changeText(
+        screen.getByLabelText('연락처'),
+        '01012345678',
+      );
+      await userEvent.press(screen.getByRole('button', { name: '완료' }));
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
+      // 약관 시트를 열어 둔 채 종료된다
+      await userEvent.press(
+        screen.getByRole('button', { name: '서비스 이용약관 (필수) 보기' }),
+      );
 
-      await render(<App />);
+      await relaunchApp(app);
 
-      expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
-      expect(header('프로필 등록')).not.toBeOnTheScreen();
+      expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
+      expect(header('오늘의 현장, 한눈에. Orbit')).not.toBeOnTheScreen();
     });
   });
 

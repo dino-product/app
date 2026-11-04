@@ -104,8 +104,8 @@ const mainTabs = {
   history: nested(historyStack),
   my: nested(myStack),
 } satisfies Record<keyof MainTabParamList, ScreenSchema>;
-// 온보딩 (#85). 더미 로그인과 온보딩 진행(약관 체크·참여 요청)은 메모리에만 있어, 온보딩 도중 종료되면 다시 열 때
-// 로그인부터 시작한다. 그래서 Onboarding 화면이 든 상태는 맞지 않는 것으로 보고 통째로 버린다. 하위 검증표는 구조를 적어 둔다
+// 가입 단계 (#85, #113). 어느 단계부터 열지는 다시 열 때 서버 프로필(nextStep)로 정하고, 진행(약관 체크·참여 요청)은
+// 메모리에만 있다. 그래서 Onboarding 화면이 든 상태는 맞지 않는 것으로 보고 통째로 버린다. 하위 검증표는 구조를 적어 둔다
 const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
@@ -227,6 +227,11 @@ export function takeNavigationState(): RestoredNavigation | undefined {
   });
   appStorage.remove(NAVIGATION_STATE_KEY);
   return restored;
+}
+
+/** 저장한 화면을 지운다. 로그아웃·세션 만료 뒤 다시 열 때 앞 계정이 보던 화면으로 열지 않게 한다 (#113) */
+export function clearNavigationState() {
+  appStorage.remove(NAVIGATION_STATE_KEY);
 }
 
 /** savedAt 을 주지 않으면 지금 바뀐 것으로 남긴다 */

@@ -5,14 +5,10 @@ import {
   useParticipationStore,
   type ParticipationStore,
 } from '../my/org/useParticipationStore';
-import type { LoginMethod } from './model';
 
-// 온보딩 하나(더미 로그인 → 참여 완료) 동안 남아야 하는 상태. 온보딩 스택을 감싸므로
-// 로그인 화면으로 돌아가면(더미 로그인 취소) 처음 값으로 돌아간다
-type OnboardingState = ParticipationStore & {
-  /** 이 온보딩을 시작한 로그인 방식. 마치면 그 방식의 계정이 생긴다 */
-  method: LoginMethod;
-};
+// 가입 단계 하나(프로필 등록 → 참여 완료) 동안 남아야 하는 상태. 온보딩 스택을 감싸므로
+// 가입을 그만두고 로그인 화면으로 돌아가면 처음 값으로 돌아간다. 회사 참여는 아직 목이다 (#116 에서 서버에 붙인다)
+type OnboardingState = ParticipationStore;
 
 const OnboardingContext = createContext<OnboardingState | null>(null);
 
@@ -20,13 +16,7 @@ const OnboardingContext = createContext<OnboardingState | null>(null);
 const NO_REQUESTS: readonly ParticipationRequest[] = [];
 const NO_MEMBERSHIPS: readonly Membership[] = [];
 
-export function OnboardingProvider({
-  method,
-  children,
-}: {
-  method: LoginMethod;
-  children: ReactNode;
-}) {
+export function OnboardingProvider({ children }: { children: ReactNode }) {
   const {
     requests,
     lookupCompany,
@@ -36,7 +26,6 @@ export function OnboardingProvider({
   } = useParticipationStore(NO_REQUESTS, NO_MEMBERSHIPS);
   const state = useMemo(
     () => ({
-      method,
       requests,
       lookupCompany,
       requestParticipation,
@@ -44,7 +33,6 @@ export function OnboardingProvider({
       decideRequest,
     }),
     [
-      method,
       requests,
       lookupCompany,
       requestParticipation,

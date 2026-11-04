@@ -1,7 +1,6 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   userEvent,
   waitFor,
@@ -15,8 +14,7 @@ import {
 } from 'react-native';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
-import { signedInAuth } from '../features/onboarding/model';
-import App from './App';
+import { renderSignedInApp } from './testing';
 
 // 마이 탭(#72). 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로
 // "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식)
@@ -35,7 +33,7 @@ const pressAlertButton = async (
 };
 
 async function openMyPage() {
-  await render(<App initialAuth={signedInAuth()} />);
+  await renderSignedInApp();
   await userEvent.press(tab('마이'));
 }
 
@@ -213,7 +211,7 @@ describe('App — 마이 탭', () => {
     });
 
     it('진행 중인 작업이 있으면 그 사유도 보이고, > 를 누르면 홈으로 간다', async () => {
-      await render(<App initialAuth={signedInAuth()} />);
+      await renderSignedInApp();
       await userEvent.press(button('작업 시작'));
       await userEvent.press(tab('마이'));
 
@@ -231,7 +229,7 @@ describe('App — 마이 탭', () => {
 
     it('막는 사유가 없으면 계정 탈퇴로 가고, 최종 확인 뒤 로그인 화면으로 간다', async () => {
       const alert = spyAlert();
-      await render(<App initialAuth={signedInAuth()} />);
+      await renderSignedInApp();
       // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
@@ -356,7 +354,7 @@ describe('App — 마이 탭', () => {
     ] as const;
     // 응답 필요 요청을 모두 수락했는지에 따라 계정 탈퇴·탈퇴 불가로 간다
     async function openDeep(name: (typeof deepScreens)[number][0]) {
-      await render(<App initialAuth={signedInAuth()} />);
+      await renderSignedInApp();
       if (name === '계정 탈퇴') {
         await userEvent.press(tab('내 일정'));
         await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));

@@ -207,6 +207,7 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
     <AccountScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
+      // POST /api/v1/auth/logout 을 부르고(실패해도) 기기 세션·캐시를 지운다 (#113).
       // 로그아웃 상태가 되면 루트가 메인을 로그인 화면으로 바꾼다. 탭이 사라져 화면 상태도 처음으로 돌아간다
       onLogout={signOut}
       // API 연동 때 GET /api/v1/users/{accountId}/withdrawal-eligibility 로 묻는다
@@ -235,7 +236,7 @@ export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
     <WithdrawalScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
-      // 더미 계정이 사라지고 로그인 화면으로 간다. 다시 로그인하면 신규 사용자다
+      // 탈퇴 API 는 #115 에서 붙인다. 지금은 로그아웃하고 최근 로그인 표시를 지운 뒤 로그인 화면으로 간다
       onWithdraw={withdraw}
     />
   );

@@ -1,14 +1,12 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   userEvent,
 } from '@testing-library/react-native';
 import { AccessibilityInfo, Dimensions, NativeModules } from 'react-native';
 import { escapeFrom } from '../../jest/voiceOver';
-import { signedInAuth } from '../features/onboarding/model';
-import App from './App';
+import { renderSignedInApp } from './testing';
 
 // 마이 › 조직 참여 (#73). "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식)
 const header = (name: string) => screen.queryByRole('header', { name });
@@ -23,7 +21,7 @@ const finishAnimations = () =>
   });
 
 async function openMyPage() {
-  await render(<App initialAuth={signedInAuth()} />);
+  await renderSignedInApp();
   await userEvent.press(tab('마이'));
 }
 

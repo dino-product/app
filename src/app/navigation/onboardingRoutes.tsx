@@ -1,6 +1,8 @@
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
-import { Platform, StatusBar } from 'react-native';
+import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
+import type { ProfileInput } from '../../features/my/model';
 import { decideParticipationMock } from '../../features/my/org/mockData';
 import type {
   Organization,
@@ -10,18 +12,29 @@ import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedSc
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
-import { isRegistered, loginMethodsFor } from '../../features/onboarding/model';
+import {
+  loginMethodsFor,
+  type TermsAgreement,
+} from '../../features/onboarding/model';
 import { useOnboarding } from '../../features/onboarding/OnboardingProvider';
+import {
+  agreeToTerms,
+  ProfileErrorCode,
+  saveProfile,
+} from '../../features/onboarding/profileApi';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { LoginScreen } from '../../features/onboarding/screens/LoginScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
+import { isApiError, useApiClient } from '../../shared/api';
 import { useAuth } from '../AuthProvider';
 import { useFocusTitleOnOpen } from './routes';
-import type { OnboardingScreenProps, RootScreenProps } from './types';
+import type { OnboardingScreenProps } from './types';
 
-// 로그인·온보딩 화면들 (#85). 더미 로그인 상태(AuthProvider)와 온보딩 상태(OnboardingProvider)를 화면 props 로 이어 준다.
-// 회사 찾기~거절은 마이 › 조직 참여(#73) 화면을 flow="onboarding" 으로 다시 쓴다.
+// 로그인·가입 단계 화면들 (#85, #113). 로그인 상태(AuthProvider)와 온보딩 상태(OnboardingProvider)를 화면 props 로 이어 준다.
+// 프로필 등록·약관 동의는 서버에 저장하고, 그 응답(프로필)으로 가입 단계를 바꾼다.
+// 회사 찾기~거절은 마이 › 조직 참여(#73) 화면을 flow="onboarding" 으로 다시 쓴다 (아직 목, #116).
+// 실패 안내 문구는 Figma 에 없어 기본안이다 (Figma 미확인)
 
 // 보라 배경이라 로그인 화면이 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다.
 // 온보딩을 위에 쌓아도 로그인 화면은 아래에 남아 있으므로, 마운트가 아니라 포커스로 켜고 끈다
@@ -34,42 +47,95 @@ function useLightStatusBar() {
   );
 }
 
-export function LoginRoute({ navigation }: RootScreenProps<'Login'>) {
-  const auth = useAuth();
+export function LoginRoute() {
+  const { logIn, recentMethod } = useAuth();
   useLightStatusBar();
 
   return (
     <LoginScreen
       methods={loginMethodsFor(Platform.OS)}
-      recentMethod={auth.lastMethod}
-      onLogin={method => {
-        // 화면이 바뀌기 전에 다른 버튼을 눌러도 처음 누른 방식만 쓴다 (온보딩 방식이 바뀌지 않게)
-        if (!navigation.isFocused()) {
-          return;
-        }
-        // 가입한 계정이면 바로 메인으로 (루트가 화면 묶음을 바꾼다), 신규 사용자는 프로필 등록부터
-        if (isRegistered(auth, method)) {
-          auth.signIn(method);
-        } else {
-          navigation.navigate('Onboarding', { method });
+      recentMethod={recentMethod}
+      // 로그인하면 루트가 가입 단계(nextStep) 또는 메인으로 화면 묶음을 바꾼다. 진행 중에 다시 눌러도 겹치지 않는다
+      onLogin={async method => {
+        if ((await logIn(method)) === 'failed') {
+          Alert.alert('로그인하지 못했어요', '잠시 후 다시 시도해 주세요.');
         }
       }}
     />
   );
 }
 
+// 가입 단계 첫 화면에서 Android 뒤로가기는 가입을 그만두고 로그아웃한다 (돌아갈 화면이 없어 앱을 나가지 않게)
+function useBackToLogin(signOut: () => Promise<void>) {
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          signOut();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [signOut]),
+  );
+}
+
+const profileSaveFailure = (error: unknown): [string, string] =>
+  // 서버는 어느 칸이 틀렸는지 알려 주지 않는다 (앱도 같은 규칙으로 미리 막는다)
+  isApiError(error, ProfileErrorCode.invalidInput)
+    ? [
+        '입력한 정보를 확인해 주세요',
+        '이름은 한글·영문 2~20자, 연락처는 010으로 시작하는 11자리로 입력해 주세요.',
+      ]
+    : ['프로필을 저장하지 못했어요', '잠시 후 다시 시도해 주세요.'];
+
 export function ProfileRegisterRoute({
   navigation,
 }: OnboardingScreenProps<'ProfileRegister'>) {
+  const api = useApiClient();
+  const { profile, updateProfile, signOut } = useAuth();
   const titleRef = useFocusTitleOnOpen(navigation);
+  useBackToLogin(signOut);
+  const save = useMutation({
+    mutationFn: ({
+      accountId,
+      input,
+    }: {
+      accountId: number;
+      input: ProfileInput;
+    }) => saveProfile(api, accountId, input),
+  });
+  if (!profile) {
+    return null;
+  }
 
   return (
     <ProfileRegisterScreen
       titleRef={titleRef}
-      // 온보딩 첫 화면이라 뒤로 가면 루트의 로그인으로 돌아가 더미 로그인이 취소된다 (온보딩 상태도 사라진다)
-      onBack={() => navigation.goBack()}
-      // API 연동 때 PUT /api/v1/profiles/{accountId} 로 보낸다
-      onSubmit={() => navigation.navigate('TermsAgreement')}
+      // 가입을 마치지 않고 다시 로그인했으면 입력해 둔 값으로 채운다
+      initialProfile={
+        profile.name !== null && profile.phoneNumber !== null
+          ? { name: profile.name, phoneNumber: profile.phoneNumber }
+          : undefined
+      }
+      submitting={save.isPending}
+      // 가입 단계 첫 화면이라 뒤로 가면 가입을 그만두고 로그아웃한다 (로그인 화면)
+      onBack={() => {
+        signOut();
+      }}
+      onSubmit={input =>
+        save.mutate(
+          { accountId: profile.accountId, input },
+          {
+            onSuccess: saved => {
+              updateProfile(saved);
+              navigation.navigate('TermsAgreement');
+            },
+            onError: error => Alert.alert(...profileSaveFailure(error)),
+          },
+        )
+      }
     />
   );
 }
@@ -77,15 +143,45 @@ export function ProfileRegisterRoute({
 export function TermsAgreementRoute({
   navigation,
 }: OnboardingScreenProps<'TermsAgreement'>) {
+  const api = useApiClient();
+  const { profile, agreedToTerms } = useAuth();
   const titleRef = useFocusTitleOnOpen(navigation);
+  const agree = useMutation({
+    mutationFn: ({
+      accountId,
+      agreement,
+    }: {
+      accountId: number;
+      agreement: TermsAgreement;
+    }) => agreeToTerms(api, accountId, agreement),
+  });
+  if (!profile) {
+    return null;
+  }
+  // 가입을 마친 계정이 약관 개정으로 다시 동의하는 경우(PROFILE-005)는 회사 참여 없이 메인으로 돌아간다
+  const firstSignUp = profile.status !== 'ACTIVE';
 
   return (
     <TermsAgreementScreen
       titleRef={titleRef}
+      submitting={agree.isPending}
       onBack={() => navigation.goBack()}
-      // API 연동 때 POST /api/v1/profiles/{accountId}/terms-agreements, /marketing-consents 로 보낸다.
-      // 소속이 없는 새 사용자라 회사 코드 입력으로 간다 (Spec_프로필 입력 화면)
-      onSignUp={() => navigation.navigate('CompanyFind')}
+      onSignUp={agreement =>
+        agree.mutate(
+          { accountId: profile.accountId, agreement },
+          {
+            onSuccess: saved => {
+              agreedToTerms(saved, firstSignUp);
+              // 소속이 없는 새 사용자라 회사 코드 입력으로 간다 (Spec_프로필 입력 화면)
+              if (firstSignUp) {
+                navigation.navigate('CompanyFind');
+              }
+            },
+            onError: () =>
+              Alert.alert('가입하지 못했어요', '잠시 후 다시 시도해 주세요.'),
+          },
+        )
+      }
     />
   );
 }
@@ -233,7 +329,6 @@ export function JoinApprovedRoute({
   navigation,
   route,
 }: OnboardingScreenProps<'JoinApproved'>) {
-  const { method } = useOnboarding();
   const { completeOnboarding } = useAuth();
   const request = useOnboardingRequest(route.params.requestId, navigation);
   const titleRef = useFocusTitleOnOpen(navigation);
@@ -245,8 +340,8 @@ export function JoinApprovedRoute({
     <JoinApprovedScreen
       request={request}
       titleRef={titleRef}
-      // 로그인 상태가 되면 루트가 로그인·온보딩을 메인으로 바꾼다. 뒤로 가기로 온보딩에 돌아갈 수 없다
-      onStart={() => completeOnboarding(method)}
+      // 가입 단계를 마치면 루트가 온보딩을 메인으로 바꾼다. 뒤로 가기로 온보딩에 돌아갈 수 없다
+      onStart={completeOnboarding}
       onBack={() => navigation.goBack()}
     />
   );

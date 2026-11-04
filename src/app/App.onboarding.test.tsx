@@ -1,7 +1,8 @@
+import { appleAuth } from '@invertase/react-native-apple-authentication';
+import { login as loginWithKakao } from '@react-native-seoul/kakao-login';
 import {
   act,
   fireEvent,
-  render,
   screen,
   userEvent,
   waitFor,
@@ -16,14 +17,28 @@ import {
   type AlertButton,
 } from 'react-native';
 import { escapeFrom } from '../../jest/voiceOver';
-import App from './App';
+import type { NextStep } from '../features/onboarding/profileApi';
+import { fail, networkError, ok } from '../shared/testing/fakeServer';
+import {
+  accountProfile,
+  accountServer,
+  loginResponse,
+  LOGOUT_PATH,
+  PROFILE_PATH,
+  relaunch,
+  renderApp,
+} from './testing';
 
-// 온보딩 (#85). 앱을 처음 켜면 로그인부터 시작한다. "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다.
+// 로그인·가입 단계 (#85, #113). 앱을 처음 켜면 로그인부터 시작한다. 로그인·가입 단계는 가짜 서버가 답한다 (src/app/testing).
+// "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다.
 // 로그인부터 참여 결과까지 한 번에 지나가는 흐름이라 커버리지·병렬 실행에서 기본 5초를 넘을 수 있다
 jest.setTimeout(20_000);
 const header = (name: string) => screen.queryByRole('header', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
+const KAKAO_NONCE_PATH = '/api/v1/auth/kakao/nonces';
+const APPLE_NONCE_PATH = '/api/v1/auth/apple/nonces';
+const RECENT_LOGIN = '최근에 로그인 했어요!';
 
 // Android 뒤로가기: 등록된 핸들러를 최근 것부터 부른다. 아무도 처리하지 않으면 앱을 나간다
 type Handler = Parameters<typeof BackHandler.addEventListener>[1];
@@ -37,6 +52,9 @@ const pressBack = async () => {
   });
   return handled;
 };
+
+// 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막는다
+const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 beforeEach(() => {
   backHandlers = new Set();
@@ -52,27 +70,34 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+/** 로그아웃 상태로 켠다. nextStep 은 로그인하면 서버가 줄 가입 단계 */
+const launch = (nextStep: NextStep = 'PROFILE') =>
+  renderApp({ server: accountServer({ nextStep }) });
+
 async function login(name: '카카오로 시작하기' | 'Apple로 시작하기') {
   await userEvent.press(button(name));
 }
 
 // 글자 단위 입력·서식은 화면 테스트가 확인한다. 여기서는 흐름만 보므로 값을 한 번에 넣는다
 async function registerProfile() {
-  await fireEvent.changeText(screen.getByLabelText('이름'), '박기사');
+  await fireEvent.changeText(await screen.findByLabelText('이름'), '박기사');
   await fireEvent.changeText(screen.getByLabelText('연락처'), '01012345678');
   await userEvent.press(button('완료'));
 }
 
 async function agreeTerms() {
   await userEvent.press(
-    screen.getByRole('checkbox', { name: '모든 약관에 동의합니다.' }),
+    await screen.findByRole('checkbox', { name: '모든 약관에 동의합니다.' }),
   );
   await userEvent.press(button('가입하기'));
 }
 
 // 회사 찾기로 돌아오면 앞서 넣은 코드가 입력칸에 남아 있어 값을 바꿔 넣는다
 async function findCompany(code: string) {
-  await fireEvent.changeText(screen.getByLabelText('회사 코드 입력'), code);
+  await fireEvent.changeText(
+    await screen.findByLabelText('회사 코드 입력'),
+    code,
+  );
   await userEvent.press(button('회사 확인'));
 }
 
@@ -85,12 +110,13 @@ async function requestAs(type: '기사' | '직원') {
 
 /** 로그인부터 승인 대기까지 */
 async function requestToJoin(code = '123456', type: '기사' | '직원' = '기사') {
-  await render(<App />);
+  const app = await launch();
   await login('카카오로 시작하기');
   await registerProfile();
   await agreeTerms();
   await findCompany(code);
   await requestAs(type);
+  return app;
 }
 
 async function approveAndStart() {
@@ -105,11 +131,17 @@ async function logoutFromMyPage() {
   await userEvent.press(button('계정 관리'));
   await userEvent.press(button('로그아웃'));
   await userEvent.press(button('확인'));
+  await screen.findByRole('header', { name: LOGIN_TITLE });
 }
+
+const recentBubble = (method: 'KAKAO' | 'APPLE') =>
+  within(screen.getByTestId(`login-${method}`)).queryByText(RECENT_LOGIN, {
+    includeHiddenElements: true,
+  });
 
 describe('App — 온보딩', () => {
   it('처음 켜면 하단 탭 없이 로그인 화면이 열리고, iOS 는 카카오·Apple 버튼이 다 보인다', async () => {
-    await render(<App />);
+    await launch();
 
     expect(header(LOGIN_TITLE)).toBeOnTheScreen();
     expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
@@ -120,7 +152,7 @@ describe('App — 온보딩', () => {
   it('보라 배경인 로그인 화면이 보이는 동안만 상태 표시줄 글자가 흰색이고, 프로필 등록으로 가면 되돌린다', async () => {
     const push = jest.spyOn(StatusBar, 'pushStackEntry');
     const pop = jest.spyOn(StatusBar, 'popStackEntry');
-    await render(<App />);
+    await launch();
     const lightEntries = push.mock.results
       .filter(
         (_, index) => push.mock.calls[index][0].barStyle === 'light-content',
@@ -130,6 +162,7 @@ describe('App — 온보딩', () => {
     expect(pop).not.toHaveBeenCalledWith(lightEntries[0]);
 
     await login('카카오로 시작하기');
+    await screen.findByRole('header', { name: '프로필 등록' });
 
     expect(pop).toHaveBeenCalledWith(lightEntries[0]);
   });
@@ -139,12 +172,12 @@ describe('App — 온보딩', () => {
       .spyOn(AccessibilityInfo, 'sendAccessibilityEvent')
       .mockClear();
     // 네이티브 스택은 전환이 끝나면 화면의 onAppear 를 부른다. 테스트 환경에는 전환이 없어 직접 보낸다
-    const appear = (title: string) =>
-      fireEvent(screen.getByRole('header', { name: title }), 'appear');
+    const appear = async (title: string) =>
+      fireEvent(await screen.findByRole('header', { name: title }), 'appear');
     const titleNode = expect.objectContaining({
       props: expect.objectContaining({ accessibilityRole: 'header' }),
     });
-    await render(<App />);
+    await launch();
 
     await login('카카오로 시작하기');
     await appear('프로필 등록');
@@ -159,31 +192,9 @@ describe('App — 온보딩', () => {
     expect(focus).toHaveBeenCalledTimes(3);
   });
 
-  it('카카오를 누르고 화면이 바뀌기 전에 Apple 을 눌러도 처음 누른 방식으로 온보딩을 한다', async () => {
-    await render(<App />);
-    const kakao = button('카카오로 시작하기');
-    const apple = button('Apple로 시작하기');
-
-    await fireEvent.press(kakao);
-    await fireEvent.press(apple);
-    await registerProfile();
-    await agreeTerms();
-    await findCompany('123456');
-    await requestAs('기사');
-    await approveAndStart();
-    await logoutFromMyPage();
-
-    expect(
-      within(screen.getByTestId('login-KAKAO')).getByText(
-        '최근에 로그인 했어요!',
-        { includeHiddenElements: true },
-      ),
-    ).toBeOnTheScreen();
-  });
-
   it('Android 에서는 카카오 버튼만 보인다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
-    await render(<App />);
+    await launch();
 
     expect(button('카카오로 시작하기')).toBeOnTheScreen();
     expect(
@@ -192,16 +203,24 @@ describe('App — 온보딩', () => {
   });
 
   it('첫 실행부터 프로필·약관·회사 참여를 지나 메인(홈 탭)까지 한 번에 간다', async () => {
-    await render(<App />);
+    await launch();
 
     await login('카카오로 시작하기');
-    expect(header('프로필 등록')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '프로필 등록' }),
+    ).toBeOnTheScreen();
 
     await registerProfile();
-    expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      }),
+    ).toBeOnTheScreen();
 
     await agreeTerms();
-    expect(header('회사 참여')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '회사 참여' }),
+    ).toBeOnTheScreen();
     expect(header('회사 찾기')).toBeOnTheScreen();
 
     await findCompany('123456');
@@ -235,21 +254,17 @@ describe('App — 온보딩', () => {
     expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
   });
 
-  it('로그아웃하면 로그인으로 가고, 최근 방식에 말풍선이 보이며, 다시 로그인하면 바로 메인으로 간다', async () => {
+  it('로그아웃하면 로그인으로 가고, 최근 방식에 말풍선이 보이며, 다시 로그인하면 가입을 마친 계정이라 바로 메인으로 간다', async () => {
     await requestToJoin();
     await approveAndStart();
 
     await logoutFromMyPage();
-    expect(header(LOGIN_TITLE)).toBeOnTheScreen();
-    expect(
-      within(screen.getByTestId('login-KAKAO')).getByText(
-        '최근에 로그인 했어요!',
-        { includeHiddenElements: true },
-      ),
-    ).toBeOnTheScreen();
+    expect(recentBubble('KAKAO')).toBeOnTheScreen();
 
     await login('카카오로 시작하기');
-    expect(header('내 작업')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '내 작업' }),
+    ).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
   });
 
@@ -262,23 +277,37 @@ describe('App — 온보딩', () => {
     await logoutFromMyPage();
     await login('카카오로 시작하기');
 
-    expect(button('작업 시작')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('button', { name: '작업 시작' }),
+    ).toBeOnTheScreen();
   });
 
-  it('카카오로 가입한 뒤 Apple 로 로그인하면 다른 계정이라 프로필 등록부터 한다', async () => {
-    await requestToJoin();
+  it('카카오로 가입한 뒤 Apple 로 로그인하면 서버에서 다른 계정이라 프로필 등록부터 한다', async () => {
+    const app = await requestToJoin();
     await approveAndStart();
     await logoutFromMyPage();
+    app.server
+      .on(
+        'POST',
+        '/api/v1/auth/apple/login',
+        ok({ ...loginResponse(), accountId: 2 }),
+      )
+      .on(
+        'GET',
+        '/api/v1/profiles/2',
+        ok({ ...accountProfile('PROFILE'), accountId: 2 }),
+      );
 
     await login('Apple로 시작하기');
 
-    expect(header('프로필 등록')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '프로필 등록' }),
+    ).toBeOnTheScreen();
   });
 
-  it('탈퇴하면 로그인으로 가고, 다시 로그인하면 신규 사용자로 프로필 등록부터 한다', async () => {
-    // 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막고 버튼을 직접 누른다
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    await requestToJoin();
+  it('탈퇴하면 로그인으로 가고 최근 로그인 표시를 지우며, 다시 로그인한 새 계정은 프로필 등록부터 한다', async () => {
+    const alert = spyAlert();
+    const app = await requestToJoin();
     await approveAndStart();
     // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
     await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
@@ -297,21 +326,310 @@ describe('App — 온보딩', () => {
     const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
     await act(() => buttons.find(item => item.text === '탈퇴')?.onPress?.());
 
-    expect(header(LOGIN_TITLE)).toBeOnTheScreen();
     expect(
-      within(screen.getByTestId('login-KAKAO')).queryByText(
-        '최근에 로그인 했어요!',
-        { includeHiddenElements: true },
-      ),
-    ).not.toBeOnTheScreen();
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(recentBubble('KAKAO')).not.toBeOnTheScreen();
 
+    // 탈퇴한 카카오 계정으로 다시 로그인하면 서버가 새 계정을 만든다
+    app.server.on('GET', PROFILE_PATH, ok(accountProfile('PROFILE')));
     await login('카카오로 시작하기');
-    expect(header('프로필 등록')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '프로필 등록' }),
+    ).toBeOnTheScreen();
+  });
+
+  describe('로그인 (#113)', () => {
+    it.each([
+      ['PROFILE', '프로필 등록'],
+      ['TERMS', '서비스 이용을 위해 동의가 필요해요'],
+      ['COMPLETED', '내 작업'],
+    ] as const)(
+      '서버 가입 단계가 %s 면 %s 로 간다',
+      async (nextStep, title) => {
+        await launch(nextStep);
+
+        await login('카카오로 시작하기');
+
+        expect(
+          await screen.findByRole('header', { name: title }),
+        ).toBeOnTheScreen();
+        expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
+      },
+    );
+
+    it('Apple 로도 같은 순서로 로그인해 가입 단계로 간다', async () => {
+      const app = await launch('PROFILE');
+
+      await login('Apple로 시작하기');
+
+      expect(
+        await screen.findByRole('header', { name: '프로필 등록' }),
+      ).toBeOnTheScreen();
+      expect(app.server.calls.map(call => call.path)).toEqual([
+        APPLE_NONCE_PATH,
+        '/api/v1/auth/apple/login',
+        PROFILE_PATH,
+      ]);
+    });
+
+    it('사용자가 SDK 로그인을 취소하면 로그인 화면에 그대로 있고 오류를 띄우지 않는다', async () => {
+      const alert = spyAlert();
+      const app = await launch();
+      jest
+        .mocked(loginWithKakao)
+        .mockRejectedValueOnce(new Error('ClientFailed(Cancelled)'));
+
+      await login('카카오로 시작하기');
+
+      await waitFor(() =>
+        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(1),
+      );
+      expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
+      expect(app.tokenStore.current).toBeNull();
+    });
+
+    it.each([
+      ['AUTH-002', fail(401, 'AUTH-002')],
+      ['AUTH-003', fail(401, 'AUTH-003')],
+      ['네트워크', networkError()],
+    ])(
+      '서버 로그인이 실패하면(%s) 로그인하지 못했다고 알리고, 다시 누르면 nonce 부터 다시 받는다',
+      async (_, response) => {
+        const alert = spyAlert();
+        const app = await launch();
+        app.server.on(
+          'POST',
+          '/api/v1/auth/kakao/login',
+          response,
+          ok(loginResponse()),
+        );
+
+        await login('카카오로 시작하기');
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '로그인하지 못했어요',
+            '잠시 후 다시 시도해 주세요.',
+          ),
+        );
+        expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+
+        await login('카카오로 시작하기');
+
+        expect(
+          await screen.findByRole('header', { name: '프로필 등록' }),
+        ).toBeOnTheScreen();
+        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(2);
+      },
+    );
+
+    it.each([
+      ['AUTH-005', fail(401, 'AUTH-005')],
+      ['AUTH-006', fail(502, 'AUTH-006')],
+    ])('Apple 서버 로그인이 실패해도(%s) 알린다', async (_, response) => {
+      const alert = spyAlert();
+      const app = await launch();
+      app.server.on('POST', '/api/v1/auth/apple/login', response);
+
+      await login('Apple로 시작하기');
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '로그인하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+    });
+
+    it('카카오 앱 키가 없는 빌드면 카카오 로그인만 실패 안내를 띄운다', async () => {
+      const alert = spyAlert();
+      await launch();
+      jest
+        .mocked(loginWithKakao)
+        .mockRejectedValueOnce(
+          new Error(
+            'ClientFailed(MustInitAppKey): the Kakao SDK was never initialized.',
+          ),
+        );
+
+      await login('카카오로 시작하기');
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '로그인하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+
+      await login('Apple로 시작하기');
+      expect(
+        await screen.findByRole('header', { name: '프로필 등록' }),
+      ).toBeOnTheScreen();
+    });
+
+    it('로그인 중에 다시 누르거나 다른 방식을 눌러도 요청이 겹치지 않고 처음 누른 방식으로 로그인한다', async () => {
+      const app = await launch();
+      const kakao = button('카카오로 시작하기');
+      const apple = button('Apple로 시작하기');
+
+      await fireEvent.press(kakao);
+      await fireEvent.press(kakao);
+      await fireEvent.press(apple);
+
+      expect(
+        await screen.findByRole('header', { name: '프로필 등록' }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(1);
+      expect(app.server.callsTo('POST', APPLE_NONCE_PATH)).toHaveLength(0);
+      expect(loginWithKakao).toHaveBeenCalledTimes(1);
+      expect(appleAuth.performRequest).not.toHaveBeenCalled();
+    });
+
+    it("'최근에 로그인 했어요' 는 마지막으로 성공한 방식이고 앱을 다시 켜도 남는다. 실패한 방식으로 바뀌지 않는다", async () => {
+      spyAlert();
+      const app = await launch('COMPLETED');
+      expect(recentBubble('KAKAO')).not.toBeOnTheScreen();
+      expect(recentBubble('APPLE')).not.toBeOnTheScreen();
+
+      await login('Apple로 시작하기');
+      await screen.findByRole('header', { name: '내 작업' });
+      await logoutFromMyPage();
+      expect(recentBubble('APPLE')).toBeOnTheScreen();
+
+      // 카카오는 실패한다
+      app.server.on('POST', '/api/v1/auth/kakao/login', fail(401, 'AUTH-002'));
+      await login('카카오로 시작하기');
+      await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
+
+      await relaunch(app);
+      expect(recentBubble('APPLE')).toBeOnTheScreen();
+      expect(recentBubble('KAKAO')).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('가입 단계 저장 (#113)', () => {
+    it('프로필 등록은 PUT /profiles/{accountId} 에 성공한 뒤 약관 동의로 간다', async () => {
+      const app = await launch();
+      await login('카카오로 시작하기');
+
+      await registerProfile();
+
+      expect(
+        await screen.findByRole('header', {
+          name: '서비스 이용을 위해 동의가 필요해요',
+        }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('PUT', PROFILE_PATH)[0]).toMatchObject({
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' }),
+        body: { name: '박기사', phoneNumber: '01012345678' },
+      });
+    });
+
+    it('서버가 입력 규칙(PROFILE-001)으로 거절하면 화면에 머물고 규칙을 안내한다', async () => {
+      const alert = spyAlert();
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await screen.findByRole('header', { name: '프로필 등록' });
+      app.server.on('PUT', PROFILE_PATH, fail(400, 'PROFILE-001'));
+
+      await registerProfile();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '입력한 정보를 확인해 주세요',
+          '이름은 한글·영문 2~20자, 연락처는 010으로 시작하는 11자리로 입력해 주세요.',
+        ),
+      );
+      expect(header('프로필 등록')).toBeOnTheScreen();
+      expect(button('완료')).toBeEnabled();
+    });
+
+    it('프로필 저장이 다른 이유로 실패하면 화면에 머물고 다시 시도하라고 알린다', async () => {
+      const alert = spyAlert();
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await screen.findByRole('header', { name: '프로필 등록' });
+      app.server.on('PUT', PROFILE_PATH, networkError());
+
+      await registerProfile();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '프로필을 저장하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(header('프로필 등록')).toBeOnTheScreen();
+    });
+
+    it("약관 동의 '가입하기' 는 서비스·개인정보·마케팅만 보내고, 성공하면 회사 찾기로 간다", async () => {
+      const app = await launch('TERMS');
+      await login('카카오로 시작하기');
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
+
+      // 필수 넷만 켜고 마케팅(선택)은 끈다
+      for (const name of [
+        '서비스 이용약관 (필수)',
+        '개인정보 처리방침 (필수)',
+        '제3자 제공 동의 (필수)',
+        '위치기반 서비스 이용약관 (필수)',
+      ]) {
+        await userEvent.press(screen.getByRole('checkbox', { name }));
+      }
+      await userEvent.press(button('가입하기'));
+
+      expect(
+        await screen.findByRole('header', { name: '회사 찾기' }),
+      ).toBeOnTheScreen();
+      expect(
+        app.server.callsTo('POST', `${PROFILE_PATH}/terms-agreements`)[0].body,
+      ).toEqual({ serviceTerms: true, privacyPolicy: true, marketing: false });
+    });
+
+    it('약관 동의 저장이 실패하면 화면에 머물고 안내한다', async () => {
+      const alert = spyAlert();
+      const app = await launch('TERMS');
+      await login('카카오로 시작하기');
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
+      app.server.on(
+        'POST',
+        `${PROFILE_PATH}/terms-agreements`,
+        fail(409, 'COMMON-409'),
+      );
+
+      await agreeTerms();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '가입하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
+      expect(header('회사 찾기')).not.toBeOnTheScreen();
+    });
+
+    it('약관까지 마친 뒤 회사 참여 중에 앱을 다시 켜면 가입을 마친 계정이라 메인으로 연다', async () => {
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await screen.findByRole('header', { name: '회사 찾기' });
+
+      await relaunch(app);
+
+      expect(header('내 작업')).toBeOnTheScreen();
+    });
   });
 
   describe('회사 참여 결과', () => {
     it('없는 코드면 유효하지 않은 회사 코드로 바뀐다', async () => {
-      await render(<App />);
+      await launch();
       await login('카카오로 시작하기');
       await registerProfile();
       await agreeTerms();
@@ -419,40 +737,53 @@ describe('App — 온보딩', () => {
   });
 
   describe('뒤로 가기', () => {
-    it('프로필 등록의 뒤로 가기는 로그인으로 돌아가 더미 로그인을 취소한다', async () => {
-      await render(<App />);
+    it('프로필 등록의 뒤로 가기는 가입을 그만두고 로그아웃해 로그인으로 돌아간다', async () => {
+      const app = await launch();
       await login('카카오로 시작하기');
+      await screen.findByRole('header', { name: '프로필 등록' });
 
       await userEvent.press(button('뒤로 가기'));
 
-      expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: LOGIN_TITLE }),
+      ).toBeOnTheScreen();
       expect(header('프로필 등록')).not.toBeOnTheScreen();
+      expect(app.server.callsTo('POST', LOGOUT_PATH)).toHaveLength(1);
+      expect(app.tokenStore.current).toBeNull();
     });
 
-    it('온보딩 하위 화면은 Android 뒤로가기로 이전 단계에 간다', async () => {
-      await render(<App />);
+    it('온보딩 하위 화면은 Android 뒤로가기로 이전 단계에 가고, 첫 화면에서는 로그인으로 간다', async () => {
+      await launch();
       await login('카카오로 시작하기');
       await registerProfile();
       await agreeTerms();
+      await screen.findByRole('header', { name: '회사 찾기' });
 
       expect(await pressBack()).toBe(true);
       expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
       expect(await pressBack()).toBe(true);
       expect(header('프로필 등록')).toBeOnTheScreen();
       expect(await pressBack()).toBe(true);
-      await waitFor(() => expect(header(LOGIN_TITLE)).toBeOnTheScreen());
+      expect(
+        await screen.findByRole('header', { name: LOGIN_TITLE }),
+      ).toBeOnTheScreen();
     });
 
-    it('온보딩 하위 화면은 VoiceOver 두 손가락 Z 로 이전 단계에 간다', async () => {
-      await render(<App />);
+    it('온보딩 하위 화면은 VoiceOver 두 손가락 Z 로 이전 단계에 가고, 첫 화면에서는 로그인으로 간다', async () => {
+      await launch();
       await login('카카오로 시작하기');
       await registerProfile();
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
 
       await escapeFrom('서비스 이용을 위해 동의가 필요해요');
       expect(header('프로필 등록')).toBeOnTheScreen();
 
       await escapeFrom('프로필 등록');
-      expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: LOGIN_TITLE }),
+      ).toBeOnTheScreen();
     });
   });
 });
