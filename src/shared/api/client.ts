@@ -45,7 +45,7 @@ export const MAX_RETRY_AFTER_MS = 5 * 1000;
 const PUBLIC_PATH_PREFIXES = ['/api/v1/auth/kakao/', '/api/v1/auth/apple/'];
 /** POST, 본문 { refreshToken } 선택. Bearer 도 같이 보내야 그 access token 까지 폐기된다 */
 export const LOGOUT_PATH = '/api/v1/auth/logout';
-/** 떼어 둔 토큰으로 보내는 로그아웃(logOut)의 타임아웃. 화면은 기다리지 않으니 짧게 끝낸다 (#113) */
+/** 떼어 둔 토큰으로 보내는 요청(logOut·detachedRequest)의 타임아웃. 화면은 기다리지 않으니 짧게 끝낸다 (#113) */
 export const LOGOUT_TIMEOUT_MS = 5 * 1000;
 const isPublicPath = (path: string) =>
   path === REFRESH_PATH ||
@@ -305,6 +305,25 @@ export function createApiClient({
         'POST',
         LOGOUT_PATH,
         { body: { refreshToken } },
+        {
+          accessToken,
+          timeoutMs: LOGOUT_TIMEOUT_MS,
+          resendUnavailable: false,
+        },
+      ),
+    /**
+     * 기기 세션을 지운 뒤 떼어 둔 access token 으로 한 번 보낸다 (#118, 로그아웃 서버 요청 전의 푸시 기기 해제).
+     * logOut 과 같이 재발급·재시도·503 재전송 없이 짧은 타임아웃이다
+     */
+    detachedRequest: <T = unknown>(
+      method: HttpMethod,
+      path: string,
+      accessToken: string,
+    ) =>
+      send<T>(
+        method,
+        path,
+        {},
         {
           accessToken,
           timeoutMs: LOGOUT_TIMEOUT_MS,
