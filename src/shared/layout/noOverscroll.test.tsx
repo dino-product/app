@@ -1,12 +1,8 @@
 import type { ReactElement } from 'react';
 import { makeHistoryMock } from '../../features/history/mockData';
 import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
-import {
-  makeNotificationsMock,
-  membershipsMock,
-  notificationSettingsMock,
-  profileMock,
-} from '../../features/my/mockData';
+import { membershipsMock, profileMock } from '../../features/my/mockData';
+import { cachedNotificationTestApi } from '../../features/my/notificationTesting';
 import type { ParticipationRequest } from '../../features/my/org/model';
 import { createParticipationServer } from '../../features/my/org/testing';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
@@ -46,6 +42,12 @@ const noop = () => {};
 const today = new Date(2026, 8, 19);
 const schedule = makeScheduleMock(today);
 
+// 서버에서 받는 화면(알림센터·알림 설정, #117)은 캐시에 넣어 둔 값으로 바로 그린다
+const notificationApi = cachedNotificationTestApi(today);
+const withNotificationApi = (element: ReactElement) => (
+  <notificationApi.wrapper>{element}</notificationApi.wrapper>
+);
+
 const request: ParticipationRequest = {
   requestId: 'request-1',
   organizationId: 'org-9',
@@ -82,11 +84,7 @@ const blocked: [string, ReactElement][] = [
   ],
   [
     '알림 설정',
-    <NotificationSettingsScreen
-      settings={notificationSettingsMock}
-      onChange={noop}
-      onBack={noop}
-    />,
+    withNotificationApi(<NotificationSettingsScreen onBack={noop} />),
   ],
   [
     '약관 및 앱 정보',
@@ -226,15 +224,7 @@ const refreshable: [string, ReactElement][] = [
       onOpenWork={noop}
     />,
   ],
-  [
-    '알림센터',
-    <NotificationCenterScreen
-      notifications={makeNotificationsMock(today)}
-      now={today}
-      onRead={noop}
-      onBack={noop}
-    />,
-  ],
+  ['알림센터', withNotificationApi(<NotificationCenterScreen onBack={noop} />)],
   ['신청 현황', <JoinRequestsScreen onJoin={noop} onBack={noop} />],
 ];
 
