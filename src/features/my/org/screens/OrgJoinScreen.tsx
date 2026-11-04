@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Platform,
@@ -23,21 +23,14 @@ import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
-import { NoticeModal, type Notice } from '../components/NoticeModal';
+import { NoticeModal } from '../components/NoticeModal';
 import {
   isCompanyCodeComplete,
   sanitizeCompanyCodeInput,
   type JoinFlow,
-  type JoinTarget,
-  type Organization,
 } from '../model';
-import {
-  alreadyMemberNotice,
-  invalidCodeNotice,
-  lookupFailureNotice,
-  pendingRequestNotice,
-} from '../notices';
-import { useLookupCompany } from '../participationQueries';
+import { invalidCodeNotice } from '../notices';
+import { useCompanyCheck, type CompanyCheckHandlers } from '../useCompanyCheck';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
@@ -60,98 +53,43 @@ export function OrgJoinScreen({
   onAlreadyMember,
   screenFocused = true,
   titleRef,
-}: {
+}: CompanyCheckHandlers & {
   flow?: JoinFlow;
   onBack: () => void;
-  /** 찾은 회사 (회사 코드·찾은 방법을 담은 참여 대상). 역할 선택으로 넘긴다 */
-  onFound: (target: JoinTarget) => void;
-  /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 그 요청 id 와 함께 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
-  onPending?: (organization: Organization, requestId: string) => void;
-  /**
-   * 이미 참여 중인 회사일 때. 주면 먼저 부르고, 처리했으면(true) 알림을 띄우지 않는다.
-   * 온보딩은 그 회사의 참여 완료로 돌아간다. 처리하지 못했으면(그 회사의 승인 요청이 없음) 알림을 띄운다
-   */
-  onAlreadyMember?: (organization: Organization) => Promise<boolean>;
   /** 화면이 보이는지. 아니면(다른 탭으로 옮김) 늦게 온 안내를 다른 화면 위에 띄우지 않고 돌아올 때까지 미룬다 */
   screenFocused?: boolean;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  const lookup = useLookupCompany();
+  const { check, checking, notice, closeNotice } = useCompanyCheck({
+    onFound,
+    onPending,
+    onAlreadyMember,
+  });
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
   const [invalid, setInvalid] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [checking, setChecking] = useState(false);
-  // 다시 그리기 전에 연달아 눌러도 한 번만 찾는다
-  const checkingRef = useRef(false);
-  // 찾는 동안 화면을 떠나면 요청을 끊고 늦게 온 결과를 버린다
-  const mounted = useRef(false);
-  const request = useRef<AbortController | null>(null);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      request.current?.abort();
-    };
-  }, []);
 
   // 입력은 늘 규칙대로 정리돼 있다 (대문자, 허용 문자, 6자까지). 6자를 채워야 찾는다 (#97)
   const complete = isCompanyCodeComplete(code);
   const shownIntro = invalid ? invalidIntro : intro;
   const look = looks[flow];
 
-  const check = async () => {
-    if (checkingRef.current || !complete) {
+  const submit = async () => {
+    if (!complete) {
       return;
     }
-    checkingRef.current = true;
-    setChecking(true);
-    const controller = new AbortController();
-    request.current = controller;
-    try {
-      const outcome = await lookup(code, 'COMPANY_CODE', {
-        signal: controller.signal,
-      });
-      if (!mounted.current) {
-        return;
-      }
-      setInvalid(outcome.kind === 'invalid');
-      if (outcome.kind === 'found') {
-        onFound(outcome.target);
-      } else if (outcome.kind === 'pending') {
-        const { organization, requestId } = outcome;
-        if (onPending && requestId !== undefined) {
-          onPending(organization, requestId);
-        } else {
-          setNotice(pendingRequestNotice(organization.organizationName));
-        }
-      } else if (outcome.kind === 'alreadyMember') {
-        const { organization } = outcome;
-        const handled = (await onAlreadyMember?.(organization)) ?? false;
-        if (!handled && mounted.current) {
-          setNotice(alreadyMemberNotice(organization.organizationName));
-        }
-      } else if (Platform.OS === 'ios') {
-        // 유효하지 않은 코드. accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
-        AccessibilityInfo.announceForAccessibility(
-          `${invalidIntro.title}. ${invalidIntro.description.replace(
-            '\n',
-            ' ',
-          )}`,
-        );
-      }
-    } catch (error) {
-      // 실패 한도(429)·네트워크·서버 오류. 입력은 그대로 두고 다시 누를 수 있다
-      if (mounted.current) {
-        setNotice(lookupFailureNotice(error));
-      }
-    } finally {
-      request.current = null;
-      checkingRef.current = false;
-      if (mounted.current) {
-        setChecking(false);
-      }
+    const kind = await check(code, 'COMPANY_CODE');
+    if (kind === null) {
+      // 이미 찾는 중이거나 확인하지 못했다(안내를 띄웠다). 입력은 그대로 두고 다시 누를 수 있다
+      return;
+    }
+    setInvalid(kind === 'invalid');
+    if (kind === 'invalid' && Platform.OS === 'ios') {
+      // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
+      AccessibilityInfo.announceForAccessibility(
+        `${invalidIntro.title}. ${invalidIntro.description.replace('\n', ' ')}`,
+      );
     }
   };
 
@@ -216,7 +154,7 @@ export function OrgJoinScreen({
                   autoCorrect={false}
                   autoComplete="off"
                   returnKeyType="done"
-                  onSubmitEditing={check}
+                  onSubmitEditing={submit}
                   onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
                   style={[
@@ -228,7 +166,7 @@ export function OrgJoinScreen({
                 <CTA
                   label="회사 확인"
                   size={look.checkSize}
-                  onPress={check}
+                  onPress={submit}
                   disabled={!complete || checking}
                   style={look.styles.checkButton}
                 />
@@ -262,7 +200,7 @@ export function OrgJoinScreen({
 
       <NoticeModal
         notice={screenFocused ? notice : null}
-        onClose={() => setNotice(null)}
+        onClose={closeNotice}
       />
     </SafeAreaView>
   );
