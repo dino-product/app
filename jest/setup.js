@@ -17,3 +17,6 @@ jest.mock('react-native-image-picker', () => ({
   launchCamera: jest.fn(),
   launchImageLibrary: jest.fn(),
 }));
+
+// 토큰 보관(Keychain)은 네이티브 모듈이라 메모리 목으로 바꾼다
+jest.mock('react-native-keychain', () => require('./keychain'));
