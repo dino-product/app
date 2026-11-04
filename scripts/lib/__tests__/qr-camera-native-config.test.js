@@ -48,11 +48,14 @@ describe('QR 인식 카메라 설정 (#108)', () => {
 
   // vision-camera 5.2.4 iOS 는 녹화용 마이크 코드(AVCaptureDevice.requestAccess(for: .audio), 마이크 입력 추가)를 늘 컴파일하고,
   // 빼는 빌드 플래그(podspec·Podfile 변수)가 없다. 문구가 없으면 App Store 업로드가 Missing Purpose String(ITMS-90683)으로 거절될 수 있다
-  it('vision-camera 가 참조하는 마이크 권한 문구를 한국어로 둔다', () => {
+  // 앱에 없는 기능(영상 녹화)을 적지 않고, 사실(카메라 기능이 요청할 수 있음, 앱은 녹음하지 않음)만 적는다
+  it('vision-camera 가 참조하는 마이크 권한 문구를 한국어 사실 문구로 둔다', () => {
     const text = plistString('NSMicrophoneUsageDescription');
 
     expect(text).toMatch(/[가-힣]/);
     expect(text).toMatch(/마이크/);
+    expect(text).toMatch(/녹음하지 않습니다/);
+    expect(text).not.toMatch(/영상|촬영/);
   });
 
   // 그래서 마이크 권한 대화상자는 뜨지 않는다. 녹음이 필요해지면 문구와 함께 다시 본다
