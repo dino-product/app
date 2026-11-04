@@ -1,0 +1,410 @@
+import { appleAuth } from '@invertase/react-native-apple-authentication';
+import {
+  login as loginWithKakao,
+  type KakaoLoginOptions,
+  type KakaoOAuthToken,
+} from '@react-native-seoul/kakao-login';
+import { isApiError } from '../../shared/api';
+import {
+  createFakeServer,
+  fail,
+  networkError,
+  noContent,
+  ok,
+  type RecordedCall,
+} from '../../shared/testing/fakeServer';
+import { createTestApi } from '../../shared/testing/renderWithApi';
+import { testSession } from '../../shared/testing/session';
+import { appStorage } from '../../shared/storage/appStorage';
+import {
+  isLoginCancelled,
+  logIn,
+  logOut,
+  readRecentLoginMethod,
+  saveRecentLoginMethod,
+} from './login';
+
+// 로그인 흐름 (#113): nonce → SDK → 서버 로그인 → 세션 저장 → 프로필 조회. SDK 는 jest/loginSdk.js 의 목이다
+// login 은 겹쳐 정의돼(웹·네이티브) 앱이 쓰는 네이티브 모양으로 본다
+const kakaoLogin = loginWithKakao as unknown as jest.MockedFunction<
+  (options: KakaoLoginOptions) => Promise<KakaoOAuthToken>
+>;
+const kakaoToken = (idToken: string): KakaoOAuthToken => ({
+  accessToken: 'kakao-access',
+  refreshToken: 'kakao-refresh',
+  idToken,
+  accessTokenExpiresAt: new Date(),
+  refreshTokenExpiresAt: new Date(),
+  scopes: [],
+});
+const appleRequest = jest.mocked(appleAuth.performRequest);
+
+const loginResponse = {
+  accountId: 7,
+  registered: true,
+  accessToken: 'server-access',
+  accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+  refreshToken: 'server-refresh',
+  refreshTokenExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+};
+const profile = {
+  accountId: 7,
+  status: 'PENDING_SIGNUP',
+  nextStep: 'PROFILE',
+  name: null,
+  phoneNumber: null,
+  signedUpAt: null,
+  marketingAgreed: null,
+};
+
+const PATHS = {
+  KAKAO: {
+    nonce: '/api/v1/auth/kakao/nonces',
+    login: '/api/v1/auth/kakao/login',
+  },
+  APPLE: {
+    nonce: '/api/v1/auth/apple/nonces',
+    login: '/api/v1/auth/apple/login',
+  },
+} as const;
+const PROFILE_PATH = '/api/v1/profiles/7';
+const LOGOUT_PATH = '/api/v1/auth/logout';
+
+// nonce 를 부를 때마다 새 값을 준다 (서버는 5분·1회용으로 발급한다)
+function nonces() {
+  let issued = 0;
+  return () => {
+    issued += 1;
+    return ok({
+      nonce: `nonce-${issued}`,
+      expiresAt: '2026-11-04T00:05:00Z',
+    });
+  };
+}
+
+function loginServer(method: 'KAKAO' | 'APPLE' = 'KAKAO') {
+  return createFakeServer()
+    .on('POST', PATHS[method].nonce, nonces())
+    .on('POST', PATHS[method].login, ok(loginResponse))
+    .on('GET', PROFILE_PATH, ok(profile))
+    .on('POST', LOGOUT_PATH, noContent());
+}
+
+const requests = (calls: RecordedCall[]) =>
+  calls.map(call => `${call.method} ${call.path}`);
+
+describe('logIn — 카카오', () => {
+  it('nonce 발급 → 카카오 SDK(nonce 그대로) → 서버 로그인 → 세션 저장 → 프로필 조회 순서로 부르고 프로필을 돌려준다', async () => {
+    const order: string[] = [];
+    const server = loginServer();
+    kakaoLogin.mockImplementationOnce(async options => {
+      order.push(`sdk ${JSON.stringify(options)}`);
+      return kakaoToken('kakao-id-token');
+    });
+    const api = createTestApi({ server });
+    server.on('GET', PROFILE_PATH, call => {
+      order.push(`profile ${call.headers.Authorization}`);
+      return ok(profile);
+    });
+
+    const result = await logIn(api.client, 'KAKAO');
+
+    expect(requests(server.calls)).toEqual([
+      `POST ${PATHS.KAKAO.nonce}`,
+      `POST ${PATHS.KAKAO.login}`,
+      `GET ${PROFILE_PATH}`,
+    ]);
+    expect(order).toEqual([
+      'sdk {"nonce":"nonce-1"}',
+      'profile Bearer server-access',
+    ]);
+    expect(server.callsTo('POST', PATHS.KAKAO.login)[0].body).toEqual({
+      idToken: 'kakao-id-token',
+    });
+    expect(api.tokenStore.current).toEqual({
+      accountId: 7,
+      accessToken: 'server-access',
+      accessTokenExpiresAt: loginResponse.accessTokenExpiresAt,
+      refreshToken: 'server-refresh',
+      refreshTokenExpiresAt: loginResponse.refreshTokenExpiresAt,
+    });
+    expect(result).toEqual({ status: 'signedIn', profile });
+  });
+
+  it('nonce·로그인은 토큰 없이 부른다 (공개 경로)', async () => {
+    const server = loginServer();
+    const api = createTestApi({ server });
+
+    await logIn(api.client, 'KAKAO');
+
+    expect(
+      server.callsTo('POST', PATHS.KAKAO.nonce)[0].headers.Authorization,
+    ).toBeUndefined();
+    expect(
+      server.callsTo('POST', PATHS.KAKAO.login)[0].headers.Authorization,
+    ).toBeUndefined();
+  });
+
+  it('카카오가 빈 idToken 을 주면 서버에 보내지 않고 실패로 다룬다', async () => {
+    const server = loginServer();
+    kakaoLogin.mockResolvedValueOnce(kakaoToken(''));
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'KAKAO')).rejects.toThrow();
+    expect(server.callsTo('POST', PATHS.KAKAO.login)).toHaveLength(0);
+    expect(api.tokenStore.current).toBeNull();
+  });
+
+  it.each([
+    ['iOS 취소', 'ClientFailed(Cancelled): no message'],
+    ['iOS 동의 화면 취소', 'AuthFailed(AccessDenied): User denied access'],
+    ['Android 취소', 'user cancelled.'],
+    ['Android 동의 화면 취소', 'access_denied'],
+  ])(
+    '사용자가 SDK 로그인을 취소하면(%s) 서버에 보내지 않고 취소로 끝낸다',
+    async (_, message) => {
+      const server = loginServer();
+      kakaoLogin.mockRejectedValueOnce(
+        Object.assign(new Error(message), { code: 'RNKakaoLogins' }),
+      );
+      const api = createTestApi({ server });
+
+      await expect(logIn(api.client, 'KAKAO')).resolves.toEqual({
+        status: 'cancelled',
+      });
+      expect(server.callsTo('POST', PATHS.KAKAO.login)).toHaveLength(0);
+    },
+  );
+
+  it('앱 키가 없는 빌드처럼 SDK 가 다른 이유로 실패하면 실패로 다룬다', async () => {
+    kakaoLogin.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'ClientFailed(MustInitAppKey): the Kakao SDK was never initialized.',
+        ),
+        { code: 'RNKakaoLogins' },
+      ),
+    );
+    const api = createTestApi({ server: loginServer() });
+
+    await expect(logIn(api.client, 'KAKAO')).rejects.toThrow('MustInitAppKey');
+  });
+
+  it.each([
+    ['AUTH-002', fail(401, 'AUTH-002')],
+    ['AUTH-003', fail(401, 'AUTH-003')],
+    ['네트워크', networkError()],
+  ])(
+    '서버 로그인이 실패하면(%s) 세션을 남기지 않고 던지며, 다시 부르면 nonce 부터 새로 받는다',
+    async (_, response) => {
+      const server = loginServer().on(
+        'POST',
+        PATHS.KAKAO.login,
+        response,
+        ok(loginResponse),
+      );
+      const api = createTestApi({ server });
+
+      await expect(logIn(api.client, 'KAKAO')).rejects.toBeDefined();
+      expect(api.tokenStore.current).toBeNull();
+
+      await expect(logIn(api.client, 'KAKAO')).resolves.toMatchObject({
+        status: 'signedIn',
+      });
+      expect(kakaoLogin.mock.calls.map(([options]) => options)).toEqual([
+        { nonce: 'nonce-1' },
+        { nonce: 'nonce-2' },
+      ]);
+    },
+  );
+
+  it('nonce 를 받지 못하면 SDK 를 열지 않고 던진다', async () => {
+    const server = loginServer().on(
+      'POST',
+      PATHS.KAKAO.nonce,
+      fail(503, 'COMMON-503'),
+    );
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'KAKAO')).rejects.toMatchObject({
+      code: 'COMMON-503',
+    });
+    expect(kakaoLogin).not.toHaveBeenCalled();
+  });
+
+  it('로그인 응답 모양이 다르면 세션을 세우지 않고 던진다', async () => {
+    const server = loginServer().on(
+      'POST',
+      PATHS.KAKAO.login,
+      ok({ accountId: 7 }),
+    );
+    const api = createTestApi({ server });
+
+    const error = await logIn(api.client, 'KAKAO').catch(caught => caught);
+
+    expect(isApiError(error)).toBe(true);
+    expect(api.tokenStore.current).toBeNull();
+  });
+
+  it('프로필 조회가 실패하면 서버 세션을 끝내고 기기 세션도 지운 뒤 던진다', async () => {
+    const server = loginServer().on('GET', PROFILE_PATH, networkError());
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'KAKAO')).rejects.toMatchObject({
+      kind: 'network',
+    });
+    expect(server.callsTo('POST', LOGOUT_PATH)[0]).toMatchObject({
+      headers: expect.objectContaining({
+        Authorization: 'Bearer server-access',
+      }),
+      body: { refreshToken: 'server-refresh' },
+    });
+    expect(api.tokenStore.current).toBeNull();
+  });
+});
+
+describe('logIn — Apple (iOS)', () => {
+  it('nonce 발급 → Apple 요청(raw nonce, 라이브러리가 SHA-256 소문자 hex 로 바꿔 넣음) → 서버 로그인에 idToken·authorizationCode 를 보낸다', async () => {
+    const server = loginServer('APPLE');
+    const api = createTestApi({ server });
+
+    const result = await logIn(api.client, 'APPLE');
+
+    expect(requests(server.calls)).toEqual([
+      `POST ${PATHS.APPLE.nonce}`,
+      `POST ${PATHS.APPLE.login}`,
+      `GET ${PROFILE_PATH}`,
+    ]);
+    expect(appleRequest).toHaveBeenCalledWith({
+      requestedOperation: appleAuth.Operation.LOGIN,
+      requestedScopes: [],
+      nonce: 'nonce-1',
+    });
+    expect(server.callsTo('POST', PATHS.APPLE.login)[0].body).toEqual({
+      idToken: 'apple-id-token',
+      authorizationCode: 'apple-authorization-code',
+    });
+    expect(result).toEqual({ status: 'signedIn', profile });
+  });
+
+  it.each([
+    ['identityToken', { identityToken: null }],
+    ['authorizationCode', { authorizationCode: null }],
+  ])('%s 가 없으면 서버에 보내지 않고 실패로 다룬다', async (_, missing) => {
+    const server = loginServer('APPLE');
+    appleRequest.mockImplementationOnce(async options => ({
+      user: 'apple-user',
+      fullName: null,
+      email: null,
+      realUserStatus: 1,
+      authorizedScopes: [],
+      state: null,
+      nonce: options?.nonce ?? '',
+      identityToken: 'apple-id-token',
+      authorizationCode: 'apple-authorization-code',
+      ...missing,
+    }));
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'APPLE')).rejects.toThrow();
+    expect(server.callsTo('POST', PATHS.APPLE.login)).toHaveLength(0);
+  });
+
+  it('사용자가 Apple 로그인을 취소하면(1001) 취소로 끝낸다', async () => {
+    const server = loginServer('APPLE');
+    appleRequest.mockRejectedValueOnce(
+      Object.assign(new Error('The operation couldn’t be completed.'), {
+        code: appleAuth.Error.CANCELED,
+      }),
+    );
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'APPLE')).resolves.toEqual({
+      status: 'cancelled',
+    });
+    expect(server.callsTo('POST', PATHS.APPLE.login)).toHaveLength(0);
+  });
+
+  it.each([
+    ['AUTH-005', fail(401, 'AUTH-005')],
+    ['AUTH-006', fail(502, 'AUTH-006')],
+  ])('서버가 Apple 로그인을 거절하면(%s) 던진다', async (code, response) => {
+    const server = loginServer('APPLE').on('POST', PATHS.APPLE.login, response);
+    const api = createTestApi({ server });
+
+    await expect(logIn(api.client, 'APPLE')).rejects.toMatchObject({ code });
+    expect(api.tokenStore.current).toBeNull();
+  });
+});
+
+describe('isLoginCancelled', () => {
+  it('카카오는 취소·동의 거절 메시지만 취소로 본다', () => {
+    expect(
+      isLoginCancelled('KAKAO', new Error('ClientFailed(Cancelled)')),
+    ).toBe(true);
+    expect(isLoginCancelled('KAKAO', new Error('Token is null'))).toBe(false);
+    expect(isLoginCancelled('KAKAO', 'cancelled')).toBe(false);
+  });
+
+  it('Apple 은 1001(CANCELED) 만 취소로 본다', () => {
+    const withCode = (code: string) =>
+      Object.assign(new Error('Apple'), { code });
+
+    expect(isLoginCancelled('APPLE', withCode('1001'))).toBe(true);
+    expect(isLoginCancelled('APPLE', withCode('1000'))).toBe(false);
+  });
+});
+
+describe('logOut', () => {
+  it('Bearer 와 refreshToken 을 함께 보내 서버 세션을 끝내고 기기 세션을 지운다', async () => {
+    const server = createFakeServer().on('POST', LOGOUT_PATH, noContent());
+    const api = createTestApi({ server, session: testSession() });
+
+    await logOut(api.client);
+
+    expect(server.callsTo('POST', LOGOUT_PATH)).toEqual([
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' }),
+        body: { refreshToken: 'refresh-1' },
+      }),
+    ]);
+    expect(api.tokenStore.current).toBeNull();
+  });
+
+  it.each([
+    ['네트워크', networkError()],
+    ['서버 오류', fail(500, 'COMMON-500')],
+  ])('로그아웃 API 가 실패해도(%s) 기기 세션을 지운다', async (_, response) => {
+    const server = createFakeServer().on('POST', LOGOUT_PATH, response);
+    const api = createTestApi({ server, session: testSession() });
+
+    await expect(logOut(api.client)).resolves.toBeUndefined();
+    expect(api.tokenStore.current).toBeNull();
+  });
+
+  it('세션이 없으면 서버를 부르지 않는다', async () => {
+    const server = createFakeServer();
+    const api = createTestApi({ server });
+
+    await logOut(api.client);
+
+    expect(server.calls).toHaveLength(0);
+  });
+});
+
+describe('최근 로그인 방식', () => {
+  it('저장한 방식을 기기에 남겨 다시 읽는다 (토큰이 아니다)', () => {
+    expect(readRecentLoginMethod()).toBeNull();
+
+    saveRecentLoginMethod('APPLE');
+
+    expect(readRecentLoginMethod()).toBe('APPLE');
+  });
+
+  it('모르는 값이 남아 있으면 없는 것으로 보고 지운다', () => {
+    appStorage.set('auth.recentLoginMethod', 'NAVER');
+
+    expect(readRecentLoginMethod()).toBeNull();
+    expect(appStorage.contains('auth.recentLoginMethod')).toBe(false);
+  });
+});

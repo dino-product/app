@@ -11,6 +11,7 @@ export {
   type ApiErrorKind,
 } from './ApiError';
 export { ApiProvider, useApiClient } from './ApiProvider';
+export { LOGOUT_PATH } from './client';
 export type {
   ApiClient,
   HttpMethod,
