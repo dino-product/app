@@ -22,6 +22,8 @@ import {
   type AlertButton,
   type AppStateStatus,
 } from 'react-native';
+import { mockAppState } from '../../jest/appState';
+import { scanQr } from '../../jest/qrCamera';
 import { escapeFrom } from '../../jest/voiceOver';
 import { PARTICIPATION_REQUESTS_PATH } from '../features/my/org/participationApi';
 import {
@@ -1049,6 +1051,70 @@ describe('App — 온보딩', () => {
       expect(
         await screen.findByRole('header', { name: '역할을 선택해주세요' }),
       ).toBeOnTheScreen();
+    });
+  });
+
+  // 마이 › 조직 참여와 같은 QR 스캔 화면을 온보딩 흐름에서 연다. 카메라는 jest/qrCamera 의 목이다
+  describe('QR 코드 인식 (#108)', () => {
+    async function openQrScan() {
+      await userEvent.press(
+        await screen.findByRole('button', { name: 'QR 코드 인식' }),
+      );
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+    }
+
+    it('회사 찾기에서 QR 로 회사를 찾아 요청하면 요청 경로가 QR 코드다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+
+      await scanQr('https://orbit.example/join/123456');
+      await requestAs('기사');
+
+      expect(
+        await screen.findByRole('header', { name: '참여 요청을 보냈어요' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByLabelText('요청 경로, QR 코드')).toBeOnTheScreen();
+      expect(
+        app.server.callsTo('POST', PARTICIPATION_REQUESTS_PATH)[0].body,
+      ).toEqual({
+        companyCode: '123456',
+        desiredType: 'TECHNICIAN',
+        requestChannel: 'QR_CODE',
+      });
+    });
+
+    // 회사 코드 입력과 같은 갈래다. 카메라는 결과 화면으로 바뀌어 뒤로 가면 회사 찾기로 간다
+    it('승인 대기 요청이 있는 회사의 QR 이면 그 요청의 승인 대기로 가고, 뒤로 가면 카메라가 아니라 회사 찾기로 간다', async () => {
+      mockAppState('active');
+      await requestToJoin();
+      await escapeFrom('승인 대기');
+      await openQrScan();
+
+      await scanQr('123456');
+
+      expect(
+        await screen.findByRole('header', { name: '승인 대기' }),
+      ).toBeOnTheScreen();
+      await escapeFrom('승인 대기');
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+    });
+
+    it('닫으면 회사 찾기로 돌아온다', async () => {
+      mockAppState('active');
+      await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+
+      await userEvent.press(button('닫기'));
+
+      expect(header('회사 찾기')).toBeOnTheScreen();
     });
   });
 

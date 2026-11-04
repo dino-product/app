@@ -177,6 +177,11 @@ describe('내비게이션 상태 저장', () => {
           },
         ]),
       ],
+      // 다시 열자마자 카메라를 켜지 않는다 (#108)
+      [
+        'QR 코드 인식 화면이 든 상태',
+        withRoot([{ name: 'Main' }, { name: 'OrgQrScan' }]),
+      ],
       ['범위 밖 index', withHomeRoutes([{ name: 'WorkHome' }], 3)],
       ['빈 routes', withHomeRoutes([])],
       ['routes 가 배열이 아님', { routes: 'Main' }],

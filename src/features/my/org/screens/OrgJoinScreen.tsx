@@ -1,4 +1,4 @@
-import { useState, type Ref } from 'react';
+import { useRef, useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Platform,
@@ -19,6 +19,10 @@ import {
   withOpacity,
 } from '../../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../../shared/keyboard/KeyboardAvoidingArea';
+import {
+  requestCameraPermission,
+  showCameraPermissionGuide,
+} from '../../../../shared/native/cameraPermission';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
@@ -35,7 +39,7 @@ import { useCompanyCheck, type CompanyCheckHandlers } from '../useCompanyCheck';
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
 // 회사 확인은 서버(GET /api/v1/organizations/lookup)에 묻는다 (#116). 실패 안내는 Figma 에 없어 기본안이다 (notices).
-// QR 코드 인식은 카메라 모듈·권한 문구가 필요해 별도 티켓이라 비활성이다
+// QR 코드 인식(#108)은 카메라 권한을 받은 뒤 QR 스캔 화면(QrScanScreen)을 연다. 권한 안내는 Figma 에 없어 시스템 대화상자다
 const intro = {
   title: '회사 찾기',
   description: '회사 코드·참여 링크·QR로 회사를 찾을 수 있습니다.',
@@ -52,12 +56,15 @@ export function OrgJoinScreen({
   onPending,
   onAlreadyMember,
   screenFocused = true,
+  onScanQr,
   titleRef,
 }: CompanyCheckHandlers & {
   flow?: JoinFlow;
   onBack: () => void;
   /** 화면이 보이는지. 아니면(다른 탭으로 옮김) 늦게 온 안내를 다른 화면 위에 띄우지 않고 돌아올 때까지 미룬다 */
   screenFocused?: boolean;
+  /** 카메라 권한을 받았다. QR 스캔 화면을 연다 */
+  onScanQr: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -69,6 +76,8 @@ export function OrgJoinScreen({
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
   const [invalid, setInvalid] = useState(false);
+  // 권한을 묻는 동안 다시 눌러도 한 번만 묻는다
+  const askingCamera = useRef(false);
 
   // 입력은 늘 규칙대로 정리돼 있다 (대문자, 허용 문자, 6자까지). 6자를 채워야 찾는다 (#97)
   const complete = isCompanyCodeComplete(code);
@@ -90,6 +99,25 @@ export function OrgJoinScreen({
       AccessibilityInfo.announceForAccessibility(
         `${invalidIntro.title}. ${invalidIntro.description.replace('\n', ' ')}`,
       );
+    }
+  };
+
+  // 거부했거나 '다시 묻지 않음'(iOS 는 거부·제한)이면 열지 않고 설정으로 가는 안내를 띄운다
+  const scanQr = async () => {
+    if (askingCamera.current) {
+      return;
+    }
+    askingCamera.current = true;
+    try {
+      if (await requestCameraPermission()) {
+        onScanQr();
+      } else {
+        showCameraPermissionGuide(
+          'QR 코드를 인식하려면 설정에서 카메라 접근을 허용해 주세요.',
+        );
+      }
+    } finally {
+      askingCamera.current = false;
     }
   };
 
@@ -192,8 +220,7 @@ export function OrgJoinScreen({
           <CTA
             label="QR 코드 인식"
             icon={<Icon name="qr" color={colors.white[100]} />}
-            disabled
-            onPress={noop}
+            onPress={scanQr}
           />
         </ScrollView>
       </KeyboardAvoidingArea>
@@ -205,8 +232,6 @@ export function OrgJoinScreen({
     </SafeAreaView>
   );
 }
-
-const noop = () => {};
 
 const styles = StyleSheet.create({
   codeRow: { flexDirection: 'row' },

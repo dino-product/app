@@ -88,6 +88,7 @@ describe('조직 참여 터치 영역', () => {
         flow="onboarding"
         onBack={jest.fn()}
         onFound={jest.fn()}
+        onScanQr={jest.fn()}
       />,
     );
 

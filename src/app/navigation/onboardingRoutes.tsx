@@ -1,5 +1,6 @@
 import {
   CommonActions,
+  StackActions,
   useFocusEffect,
   useIsFocused,
 } from '@react-navigation/native';
@@ -15,7 +16,9 @@ import { useFetchParticipationRequests } from '../../features/my/org/participati
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
+import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
+import type { CompanyCheckHandlers } from '../../features/my/org/useCompanyCheck';
 import {
   loginMethodsFor,
   type TermsAgreement,
@@ -229,47 +232,85 @@ export function TermsAgreementRoute({
   );
 }
 
+type FoundScreen = 'JoinRoleSelect' | 'JoinPending' | 'JoinApproved';
+
+/**
+ * 회사 찾기(코드 입력·QR 인식, #108)의 회사 확인 결과로 갈 곳. 찾음 → 역할 선택,
+ * 승인 대기·참여 완료에서 뒤로 왔다가 같은 회사를 다시 찾음 → 그 요청의 화면 (알림만 띄우면 '시작하기' 로 갈 길이 없어진다).
+ * replace: QR 인식은 카메라로 돌아오지 않게 자기 자리를 결과 화면으로 바꾼다. 뒤로 가면 회사 찾기로 간다
+ */
+function useCompanyFound(
+  navigation: OnboardingScreenProps<
+    'CompanyFind' | 'CompanyQrScan'
+  >['navigation'],
+  { replace }: { replace: boolean },
+): CompanyCheckHandlers {
+  const fetchRequests = useFetchParticipationRequests();
+  // 찾는 동안 화면을 옮겼으면 늦게 온 결과로 데려가지 않는다
+  const open = <Name extends FoundScreen>(
+    name: Name,
+    params: OnboardingStackParamList[Name],
+  ) => {
+    if (navigation.isFocused()) {
+      navigation.dispatch(
+        replace
+          ? StackActions.replace(name, params)
+          : CommonActions.navigate(name, params),
+      );
+    }
+  };
+
+  return {
+    onFound: target => open('JoinRoleSelect', target),
+    onPending: (_, requestId) => open('JoinPending', { requestId }),
+    // 서버는 이미 참여 중이라고만 알려 준다. 신청 현황에서 그 회사의 승인 요청을 찾아 참여 완료로 간다.
+    // 없거나 신청 현황을 받지 못하면 화면이 '이미 참여 중인 회사예요' 를 알린다 (회사 확인 자체는 성공했다)
+    onAlreadyMember: async organization => {
+      const approved = await fetchRequests().then(
+        requests =>
+          latestRequestOf(requests, organization.organizationId, 'APPROVED'),
+        () => undefined,
+      );
+      if (approved) {
+        open('JoinApproved', { requestId: approved.requestId });
+      }
+      return approved !== undefined;
+    },
+  };
+}
+
 export function CompanyFindRoute({
   navigation,
 }: OnboardingScreenProps<'CompanyFind'>) {
-  const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
+  const found = useCompanyFound(navigation, { replace: false });
 
   return (
     <OrgJoinScreen
       flow="onboarding"
       titleRef={titleRef}
       screenFocused={screenFocused}
-      onFound={target => {
-        // 찾는 동안 화면을 옮겼으면 늦게 온 결과로 데려가지 않는다
-        if (navigation.isFocused()) {
-          navigation.navigate('JoinRoleSelect', target);
-        }
-      }}
-      // 승인 대기·참여 완료에서 뒤로 왔다가 같은 회사를 다시 찾으면 그 요청의 화면으로 돌아간다.
-      // 알림만 띄우면 '시작하기' 로 갈 길이 없어진다
-      onPending={(_, requestId) => {
-        if (navigation.isFocused()) {
-          navigation.navigate('JoinPending', { requestId });
-        }
-      }}
-      // 서버는 이미 참여 중이라고만 알려 준다. 신청 현황에서 그 회사의 승인 요청을 찾아 참여 완료로 간다.
-      // 없거나 신청 현황을 받지 못하면 화면이 '이미 참여 중인 회사예요' 를 알린다 (회사 확인 자체는 성공했다)
-      onAlreadyMember={async organization => {
-        const approved = await fetchRequests().then(
-          requests =>
-            latestRequestOf(requests, organization.organizationId, 'APPROVED'),
-          () => undefined,
-        );
-        if (approved && navigation.isFocused()) {
-          navigation.navigate('JoinApproved', {
-            requestId: approved.requestId,
-          });
-        }
-        return approved !== undefined;
-      }}
+      {...found}
+      onScanQr={() => navigation.navigate('CompanyQrScan')}
       onBack={() => navigation.goBack()}
+    />
+  );
+}
+
+export function CompanyQrScanRoute({
+  navigation,
+}: OnboardingScreenProps<'CompanyQrScan'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const focused = useIsFocused();
+  const found = useCompanyFound(navigation, { replace: true });
+
+  return (
+    <QrScanScreen
+      focused={focused}
+      titleRef={titleRef}
+      {...found}
+      onClose={() => navigation.goBack()}
     />
   );
 }

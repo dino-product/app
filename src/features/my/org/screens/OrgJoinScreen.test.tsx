@@ -5,7 +5,15 @@ import {
   userEvent,
   waitFor,
 } from '@testing-library/react-native';
-import { AccessibilityInfo, Platform } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  Linking,
+  PermissionsAndroid,
+  Platform,
+  type AlertButton,
+} from 'react-native';
+import * as cameraPermissionModule from '../../../../shared/native/NativeCameraPermissionIOS';
 import {
   fail,
   networkError,
@@ -22,6 +30,13 @@ import {
 import { createParticipationServer, EXISTING_REQUESTS } from '../testing';
 import { OrgJoinScreen } from './OrgJoinScreen';
 
+// iOS 카메라 권한 앱 모듈. 테스트에는 네이티브 모듈이 없어 목으로 둔다 (QR 코드 인식, #108)
+jest.mock('../../../../shared/native/NativeCameraPermissionIOS', () => ({
+  __esModule: true,
+  default: { getStatus: jest.fn(), request: jest.fn() },
+}));
+const cameraPermission = jest.mocked(cameraPermissionModule.default!);
+
 // 회사 확인은 가짜 서버(src/features/my/org/testing)가 답한다. 가입을 마친 계정이라 한빛 설비(HB0010)에 승인 대기 요청이 있다
 const orbit = { organizationId: '9', organizationName: 'Orbit' };
 const orbitFound = {
@@ -35,7 +50,12 @@ function renderJoin(extra: Partial<Parameters<typeof OrgJoinScreen>[0]> = {}) {
   const participation = createParticipationServer({
     requests: EXISTING_REQUESTS,
   });
-  const props = { onBack: jest.fn(), onFound: jest.fn(), ...extra };
+  const props = {
+    onBack: jest.fn(),
+    onFound: jest.fn(),
+    onScanQr: jest.fn(),
+    ...extra,
+  };
   return renderWithApi(<OrgJoinScreen {...props} />, {
     server: participation.server,
     session: testSession(),
@@ -156,11 +176,122 @@ describe('OrgJoinScreen', () => {
     });
   });
 
-  // 카메라 네이티브 모듈과 권한 문구가 필요해 별도 티켓이다
-  it('QR 코드 인식은 비활성이다', async () => {
-    await renderJoin();
+  // 카메라 권한을 받은 뒤 QR 스캔 화면을 연다 (#108). 권한은 shared/native/cameraPermission 이 묻는다
+  describe('QR 코드 인식 (#108)', () => {
+    const qrButton = () => screen.getByRole('button', { name: 'QR 코드 인식' });
+    // 안내(Alert)는 띄우지 않고 기록만 한다
+    const spyAlert = () =>
+      jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const pressAlertButton = (
+      alert: ReturnType<typeof spyAlert>,
+      text: string,
+    ) =>
+      ((alert.mock.calls[0]?.[2] ?? []) as AlertButton[])
+        .find(button => button.text === text)
+        ?.onPress?.();
+    const GUIDE_TITLE = '카메라 권한이 필요해요';
+    const GUIDE_MESSAGE =
+      'QR 코드를 인식하려면 설정에서 카메라 접근을 허용해 주세요.';
 
-    expect(screen.getByRole('button', { name: 'QR 코드 인식' })).toBeDisabled();
+    afterEach(() => {
+      // 모듈 목은 restoreAllMocks 로 호출 기록이 지워지지 않는다
+      cameraPermission.getStatus.mockReset();
+      cameraPermission.request.mockReset();
+      jest.mocked(Linking.openSettings).mockReset();
+    });
+
+    it.each(['my', 'onboarding'] as const)(
+      '%s: QR 코드 인식을 누르면 카메라 권한을 묻고, 허용하면 QR 스캔 화면을 연다',
+      async flow => {
+        cameraPermission.getStatus.mockReturnValue('not-determined');
+        cameraPermission.request.mockResolvedValue(true);
+        const { props } = await renderJoin({ flow });
+
+        expect(qrButton()).toBeEnabled();
+        await userEvent.press(qrButton());
+
+        expect(cameraPermission.request).toHaveBeenCalledTimes(1);
+        expect(props.onScanQr).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('이미 허용했으면 묻지 않고 연다', async () => {
+      cameraPermission.getStatus.mockReturnValue('granted');
+      const { props } = await renderJoin();
+
+      await userEvent.press(qrButton());
+
+      expect(cameraPermission.request).not.toHaveBeenCalled();
+      expect(props.onScanQr).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      { status: 'not-determined', asked: false },
+      { status: 'denied', asked: undefined },
+      { status: 'restricted', asked: undefined },
+    ])(
+      'iOS 권한이 $status(물은 결과 $asked)면 열지 않고 설정으로 가는 안내를 띄운다',
+      async ({ status, asked }) => {
+        cameraPermission.getStatus.mockReturnValue(status);
+        if (asked !== undefined) {
+          cameraPermission.request.mockResolvedValue(asked);
+        }
+        jest.mocked(Linking.openSettings).mockResolvedValue(undefined);
+        const alert = spyAlert();
+        const { props } = await renderJoin();
+
+        await userEvent.press(qrButton());
+
+        expect(props.onScanQr).not.toHaveBeenCalled();
+        expect(alert).toHaveBeenCalledTimes(1);
+        expect(alert.mock.calls[0]?.[0]).toBe(GUIDE_TITLE);
+        expect(alert.mock.calls[0]?.[1]).toBe(GUIDE_MESSAGE);
+        pressAlertButton(alert, '설정으로 이동');
+        expect(Linking.openSettings).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it.each([
+      ['granted', true],
+      ['denied', false],
+      ['never_ask_again', false],
+    ] as const)(
+      'Android 는 런타임 CAMERA 권한이 %s 면 여는가: %s',
+      async (result, opens) => {
+        jest.replaceProperty(Platform, 'OS', 'android');
+        const request = jest
+          .spyOn(PermissionsAndroid, 'request')
+          .mockResolvedValue(result);
+        const alert = spyAlert();
+        const { props } = await renderJoin();
+
+        await userEvent.press(qrButton());
+
+        expect(request).toHaveBeenCalledWith(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+        );
+        expect(props.onScanQr).toHaveBeenCalledTimes(opens ? 1 : 0);
+        expect(alert).toHaveBeenCalledTimes(opens ? 0 : 1);
+      },
+    );
+
+    it('권한을 묻는 동안 다시 눌러도 한 번만 묻고 한 번만 연다', async () => {
+      cameraPermission.getStatus.mockReturnValue('not-determined');
+      let allow: (granted: boolean) => void = () => {};
+      cameraPermission.request.mockReturnValue(
+        new Promise(done => {
+          allow = done;
+        }),
+      );
+      const { props } = await renderJoin();
+
+      await userEvent.press(qrButton());
+      await userEvent.press(qrButton());
+      await act(async () => allow(true));
+
+      expect(cameraPermission.request).toHaveBeenCalledTimes(1);
+      expect(props.onScanQr).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('찾은 회사면 회사 코드·찾은 방법(코드 입력)을 담은 참여 대상으로 역할 선택에 넘긴다', async () => {
