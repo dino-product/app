@@ -1,4 +1,10 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import {
   createFakeServer,
@@ -32,12 +38,22 @@ const eligibilityServer = (...responses: WithdrawalEligibility[]) =>
   );
 
 /** 가짜 서버로 열고 사유를 받을 때까지 기다린다 */
-async function renderBlocked(server: FakeServer, onOpenBlock = jest.fn()) {
+/** 가짜 서버로 열고 받은 결과(사유·안내 또는 실패)가 그려질 때까지 기다린다. loaded: false 면 기다리지 않는다 */
+async function renderBlocked(
+  server: FakeServer,
+  onOpenBlock = jest.fn(),
+  { loaded = true } = {},
+) {
   const view = await renderWithApi(
     <WithdrawalBlockedScreen onOpenBlock={onOpenBlock} onBack={jest.fn()} />,
     { server, session: testSession() },
   );
   await screen.findByRole('header', { name: '계정 탈퇴 불가' });
+  if (loaded) {
+    await waitFor(() =>
+      expect(screen.queryByLabelText('불러오는 중')).toBeNull(),
+    );
+  }
   return view;
 }
 
@@ -129,6 +145,8 @@ describe('WithdrawalBlockedScreen', () => {
     it('받는 동안 안내 아래에 진행 표시를 보인다', async () => {
       await renderBlocked(
         createFakeServer().on('GET', MY_ELIGIBILITY_PATH, hang()),
+        jest.fn(),
+        { loaded: false },
       );
 
       expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
