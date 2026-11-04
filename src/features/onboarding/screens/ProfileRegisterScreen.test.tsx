@@ -112,6 +112,40 @@ describe('ProfileRegisterScreen', () => {
     });
   });
 
+  // 켠 직후 뒤에서 확인한 프로필이 화면을 그린 뒤에 온 경우 (#113 낙관적 복원). 화면을 다시 만들지 않고 채운다
+  it('입력해 둔 값이 늦게 오면 아직 고치지 않았을 때만 채운다', async () => {
+    const props = { onBack: jest.fn(), onSubmit: jest.fn() };
+    await render(<ProfileRegisterScreen {...props} />);
+    const name = nameInput();
+
+    await screen.rerender(
+      <ProfileRegisterScreen
+        {...props}
+        initialProfile={{ name: '홍길동', phoneNumber: '01012345678' }}
+      />,
+    );
+
+    expect(nameInput()).toBe(name);
+    expect(nameInput()).toHaveDisplayValue('홍길동');
+    expect(phoneInput()).toHaveDisplayValue('010-1234-5678');
+  });
+
+  it('이미 고쳤으면 늦게 온 값으로 덮어쓰지 않는다 (저장한 뒤 같은 값이 와도 그대로다)', async () => {
+    const props = { onBack: jest.fn(), onSubmit: jest.fn() };
+    await render(<ProfileRegisterScreen {...props} />);
+    await userEvent.type(nameInput(), '박기사');
+
+    await screen.rerender(
+      <ProfileRegisterScreen
+        {...props}
+        initialProfile={{ name: '홍길동', phoneNumber: '01012345678' }}
+      />,
+    );
+
+    expect(nameInput()).toHaveDisplayValue('박기사');
+    expect(phoneInput()).toHaveDisplayValue('');
+  });
+
   it('서버에 저장하는 동안에는 완료가 꺼져 있다', async () => {
     await renderRegister({
       initialProfile: { name: '홍길동', phoneNumber: '01012345678' },

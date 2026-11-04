@@ -30,7 +30,7 @@ export function ProfileRegisterScreen({
   onSubmit,
   titleRef,
 }: {
-  /** 서버에 입력해 둔 이름·연락처(숫자 11자리). 처음 그릴 때만 쓴다 */
+  /** 서버에 입력해 둔 이름·연락처(숫자 11자리). 늦게 오면 아직 고치지 않았을 때만 채운다 */
   initialProfile?: ProfileInput;
   /** 서버에 저장하는 동안 '완료' 를 끈다 */
   submitting?: boolean;
@@ -43,11 +43,29 @@ export function ProfileRegisterScreen({
   const [phone, setPhone] = useState(() =>
     formatPhoneNumber(initialProfile?.phoneNumber ?? ''),
   );
+  const [edited, setEdited] = useState(false);
+  // 켠 직후 뒤에서 확인한 프로필이 그린 뒤에 오면, 아직 고치지 않았을 때만 그 값으로 채운다.
+  // 화면을 다시 만들지 않고 렌더 중에 맞춘다 (React 문서 '이전 렌더의 정보 저장')
+  const incoming = initialProfile
+    ? `${initialProfile.name}\n${initialProfile.phoneNumber}`
+    : null;
+  const [received, setReceived] = useState(incoming);
+  if (incoming !== received) {
+    setReceived(incoming);
+    if (initialProfile && !edited) {
+      setName(initialProfile.name);
+      setPhone(formatPhoneNumber(initialProfile.phoneNumber));
+    }
+  }
   // FormField 가 memo 라 입력 처리 함수를 렌더마다 새로 만들지 않는다
-  const changePhone = useCallback(
-    (text: string) => setPhone(formatPhoneNumber(text)),
-    [],
-  );
+  const changeName = useCallback((text: string) => {
+    setEdited(true);
+    setName(text);
+  }, []);
+  const changePhone = useCallback((text: string) => {
+    setEdited(true);
+    setPhone(formatPhoneNumber(text));
+  }, []);
   const canSubmit = canRegisterProfile({ name, phoneNumber: phone });
 
   const submit = () =>
@@ -81,7 +99,7 @@ export function ProfileRegisterScreen({
             <FormField
               label="이름"
               value={name}
-              onChangeText={setName}
+              onChangeText={changeName}
               placeholder="김기사"
             />
             <View style={styles.phone}>

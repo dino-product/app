@@ -120,6 +120,40 @@ describe('TermsAgreementScreen', () => {
     expect(signUp()).toBeDisabled();
   });
 
+  // 약관 개정으로 다시 동의하는 계정 (#113). 마케팅 동의를 건드리지 않으면 서버의 기존 값을 그대로 보낸다
+  it('서버의 마케팅 동의로 선택 약관을 미리 켜고, 그대로 가입하기를 누르면 그 값을 보낸다', async () => {
+    const { onSignUp } = await renderTerms({ initialMarketing: true });
+
+    expect(checkbox(rows[4])).toBeChecked();
+    for (const row of rows.slice(0, 4)) {
+      await userEvent.press(checkbox(row));
+    }
+    await userEvent.press(signUp());
+
+    expect(onSignUp).toHaveBeenCalledWith({
+      SERVICE: true,
+      PRIVACY: true,
+      THIRD_PARTY: true,
+      LOCATION: true,
+      MARKETING: true,
+    });
+  });
+
+  it('마케팅 동의 값이 늦게 오면 선택 약관을 건드리지 않았을 때만 반영한다', async () => {
+    const props = { onBack: jest.fn(), onSignUp: jest.fn() };
+    await render(<TermsAgreementScreen {...props} />);
+    await screen.rerender(
+      <TermsAgreementScreen {...props} initialMarketing={true} />,
+    );
+    expect(checkbox(rows[4])).toBeChecked();
+
+    await userEvent.press(checkbox(rows[4]));
+    await screen.rerender(
+      <TermsAgreementScreen {...props} initialMarketing={true} />,
+    );
+    expect(checkbox(rows[4])).not.toBeChecked();
+  });
+
   it('행을 하나씩 모두 켜면 전체 동의도 켜진다', async () => {
     await renderTerms();
 

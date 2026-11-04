@@ -39,11 +39,14 @@ import {
 // Figma 약관 동의 (3284:22327 빈 / 3278:19869 전체 체크). 필수 네 개에 모두 동의해야 '가입하기' 가 켜진다.
 // 행의 > 를 누르면 약관 시트를 연다 (Figma 에 연결이 없어 기본안, 디자인 확인 항목)
 export function TermsAgreementScreen({
+  initialMarketing,
   submitting = false,
   onBack,
   onSignUp,
   titleRef,
 }: {
+  /** 서버에 남은 마케팅(선택) 동의. 약관 개정으로 다시 동의할 때 미리 켜 두어, 건드리지 않으면 그 값을 보낸다 (#113) */
+  initialMarketing?: boolean;
   /** 서버에 동의를 보내는 동안 '가입하기' 를 끈다 */
   submitting?: boolean;
   onBack: () => void;
@@ -52,7 +55,20 @@ export function TermsAgreementScreen({
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  const [agreement, setAgreement] = useState(noTermsAgreed);
+  const [agreement, setAgreement] = useState(() => ({
+    ...noTermsAgreed,
+    MARKETING: initialMarketing ?? false,
+  }));
+  // 마케팅 동의 값이 그린 뒤에 오면(켠 직후 서버 확인), 선택 약관을 건드리지 않았을 때만 반영한다. 렌더 중에 맞춘다
+  const [appliedMarketing, setAppliedMarketing] = useState(
+    initialMarketing ?? false,
+  );
+  if ((initialMarketing ?? false) !== appliedMarketing) {
+    setAppliedMarketing(initialMarketing ?? false);
+    if (agreement.MARKETING === appliedMarketing) {
+      setAgreement({ ...agreement, MARKETING: initialMarketing ?? false });
+    }
+  }
   const [sheetOpen, setSheetOpen] = useState(false);
   // > 를 누른 약관. 시트가 그 약관이 보이게 열린다
   const [focusType, setFocusType] = useState<TermsType | null>(null);
