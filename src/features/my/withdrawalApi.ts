@@ -112,11 +112,17 @@ export async function withdrawAccount(
   }
 }
 
+// 409 뒤 계정이 살아 있는지 확인하는 중인지. 다른 탈퇴가 먼저 끝났으면 이 확인에서 토큰이 거부돼 세션이 만료로 끝나는데,
+// 그건 탈퇴 완료라 AuthProvider 가 만료 안내를 띄우지 않는다. 앱에 API 클라이언트가 하나라 모듈에 둔다
+let checkingWithdrawn = 0;
+export const isCheckingWithdrawn = () => checkingWithdrawn > 0;
+
 /**
  * 계정이 아직 살아 있는지. 탈퇴한 계정은 프로필이 PROFILE-002 이거나, 토큰이 거부돼 재발급까지 AUTH-009 로 끝난다.
  * 확인하지 못하면(네트워크 등) 탈퇴하지 못한 쪽으로 본다 (다시 시도하면 서버가 판정한다)
  */
 async function isAlive(api: ApiClient, accountId: number): Promise<boolean> {
+  checkingWithdrawn += 1;
   try {
     await api.get(profilePath(accountId));
     return true;
@@ -125,5 +131,7 @@ async function isAlive(api: ApiClient, accountId: number): Promise<boolean> {
       isApiError(error, ProfileErrorCode.notFound) ||
       isApiError(error, ApiErrorCode.refreshRejected)
     );
+  } finally {
+    checkingWithdrawn -= 1;
   }
 }

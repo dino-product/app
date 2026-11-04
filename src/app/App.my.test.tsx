@@ -730,6 +730,49 @@ describe('App — 마이 탭', () => {
       expect(button('탈퇴하기')).toBeEnabled();
     });
 
+    // 만료 안내를 거르는 것은 409 뒤 계정 확인 구간뿐이다. 탈퇴를 보내기 전에 세션이 끝난 것은 그냥 만료다
+    it('탈퇴를 보내기 직전 재발급이 AUTH-009 면(계정은 살아 있음) 만료 안내를 보이고 최근 로그인 표시는 남긴다', async () => {
+      const alert = spyAlert();
+      let now = Date.now();
+      saveRecentLoginMethod('KAKAO');
+      saveSignedInStep('COMPLETED');
+      const app = await renderApp({
+        server: accountServer().on(
+          'POST',
+          '/api/v1/auth/refresh',
+          fail(401, 'AUTH-009'),
+        ),
+        session: signedInSession({
+          accessTokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
+        }),
+        now: () => now,
+      });
+      app.server.on('GET', ELIGIBILITY_PATH, ok(withdrawable));
+      await userEvent.press(tab('마이'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: '계정 관리' }),
+      );
+      await userEvent.press(button('계정 탈퇴'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: '탈퇴하기' }),
+      );
+      // 그사이 access token 이 만료됐고 서버에서 세션이 끝났다
+      now += 2 * 60 * 60 * 1000;
+      await pressAlertButton(alert, '탈퇴');
+
+      expect(
+        await screen.findByRole('header', {
+          name: '오늘의 현장, 한눈에. Orbit',
+        }),
+      ).toBeOnTheScreen();
+      expect(alert).toHaveBeenCalledWith(
+        '다시 로그인해 주세요',
+        expect.any(String),
+      );
+      expect(app.server.callsTo('POST', WITHDRAWALS_PATH)).toHaveLength(0);
+      expect(readRecentLoginMethod()).toBe('KAKAO');
+    });
+
     it('탈퇴가 COMMON-409 이고 계정의 토큰이 거부되면(이미 탈퇴됨) 탈퇴를 마친 것으로 보고, 만료 안내 없이 로그인 화면으로 간다', async () => {
       const alert = spyAlert();
       saveRecentLoginMethod('KAKAO');
