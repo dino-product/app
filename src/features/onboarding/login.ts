@@ -3,7 +3,6 @@ import { login as loginWithKakao } from '@react-native-seoul/kakao-login';
 import {
   ApiError,
   ApiErrorMessage,
-  LOGOUT_PATH,
   type ApiClient,
   type LoginResponse,
 } from '../../shared/api';
@@ -47,9 +46,17 @@ const invalidResponse = () =>
     message: ApiErrorMessage.invalidResponse,
   });
 
-// 카카오 SDK 는 취소를 메시지로만 알린다. iOS 'ClientFailed(Cancelled)', 동의 화면에서 닫으면 'AuthFailed(AccessDenied)',
-// Android 'user cancelled', 'access_denied'
-const KAKAO_CANCEL_PATTERN = /cancel|denied/i;
+// 카카오 로그인 라이브러리는 취소를 메시지로만 알린다 (오류 code 는 늘 'RNKakaoLogins').
+// iOS: 라이브러리가 SdkError 를 '종류(이유): 메시지' 로 바꾼다(RNKakaoLogins.describe). 로그인 창을 닫으면 ClientFailed(Cancelled),
+//      동의 화면에서 취소하면 AuthFailed(AccessDenied) — 다른 카카오 래퍼(@react-native-kakao/user)도 이 둘을 사용자 취소로 본다.
+// Android: 라이브러리가 SDK 오류의 message 를 그대로 준다. ClientError(Cancelled) 'user cancelled.',
+//      AuthError(AccessDenied) 는 서버 error_description 'User denied access'. 모르는 메시지는 실패로 안내한다
+const KAKAO_CANCEL_MESSAGES = [
+  /^ClientFailed\(Cancelled\)/,
+  /^AuthFailed\(AccessDenied\)/,
+  /^user cancel/i,
+  /^User denied access/,
+];
 
 /** 사용자가 SDK 로그인을 그만뒀는지 (실패 안내를 띄우지 않는다) */
 export function isLoginCancelled(method: LoginMethod, error: unknown): boolean {
@@ -59,7 +66,7 @@ export function isLoginCancelled(method: LoginMethod, error: unknown): boolean {
   if (method === 'APPLE') {
     return (error as { code?: unknown }).code === appleAuth.Error.CANCELED;
   }
-  return KAKAO_CANCEL_PATTERN.test(error.message);
+  return KAKAO_CANCEL_MESSAGES.some(pattern => pattern.test(error.message));
 }
 
 async function issueNonce(api: ApiClient, method: LoginMethod) {
@@ -114,26 +121,66 @@ function parseLoginResponse(value: unknown): LoginResponse {
   return value as LoginResponse;
 }
 
+export type LoginOptions = {
+  /**
+   * 이 시도를 버린다. SDK 를 기다리는 중이면 취소로 끝내고, 늦게 온 SDK 결과로는 서버에 로그인하지 않는다.
+   * 카카오톡에서 로그인을 마치지 않고 앱으로 돌아오면 SDK(iOS)가 끝을 알리지 않아 부른 쪽이 버린다
+   */
+  signal?: AbortSignal;
+  /** SDK 로그인 화면을 기다리기 시작할 때 true, 끝나면 false */
+  onSdkStage?: (inSdk: boolean) => void;
+};
+
+type Credential = { idToken: string; authorizationCode?: string };
+
+// SDK 로그인을 기다린다. 시도를 버리면 null (늦게 온 결과·실패는 버린다)
+function awaitSdk(
+  method: LoginMethod,
+  nonce: string,
+  signal: AbortSignal | undefined,
+): Promise<Credential | null> {
+  const credential =
+    method === 'KAKAO' ? kakaoCredential(nonce) : appleCredential(nonce);
+  if (signal === undefined) {
+    return credential;
+  }
+  credential.catch(() => undefined);
+  const abandoned = new Promise<null>(resolve => {
+    if (signal.aborted) {
+      resolve(null);
+    }
+    signal.addEventListener('abort', () => resolve(null));
+  });
+  return Promise.race([credential, abandoned]);
+}
+
 /**
- * 로그인하고 가입 단계(프로필)를 받는다. 취소면 { status: 'cancelled' }, 그 밖의 실패는 던진다
+ * 로그인하고 가입 단계(프로필)를 받는다. 취소(사용자·버린 시도)면 { status: 'cancelled' }, 그 밖의 실패는 던진다
  * (SDK 오류, 서버 AUTH-002·003·005·006, 네트워크). 프로필을 받지 못하면 세운 세션을 끝내고 던진다
  */
 export async function logIn(
   api: ApiClient,
   method: LoginMethod,
+  { signal, onSdkStage }: LoginOptions = {},
 ): Promise<LoginResult> {
   const nonce = await issueNonce(api, method);
-  let credential: { idToken: string; authorizationCode?: string };
+  if (signal?.aborted) {
+    return { status: 'cancelled' };
+  }
+  let credential: Credential | null;
+  onSdkStage?.(true);
   try {
-    credential =
-      method === 'KAKAO'
-        ? await kakaoCredential(nonce)
-        : await appleCredential(nonce);
+    credential = await awaitSdk(method, nonce, signal);
   } catch (error) {
     if (isLoginCancelled(method, error)) {
       return { status: 'cancelled' };
     }
     throw error;
+  } finally {
+    onSdkStage?.(false);
+  }
+  if (credential === null || signal?.aborted) {
+    return { status: 'cancelled' };
   }
 
   const response = parseLoginResponse(
@@ -152,17 +199,16 @@ export async function logIn(
 }
 
 /**
- * 서버 세션을 끝내고 기기 세션을 지운다. 이 기기의 access token(Bearer)과 refresh token 을 함께 보내야 둘 다 폐기된다.
- * 서버는 늘 204 를 주지만, 닿지 못해도(네트워크 등) 기기 세션은 지운다
+ * 기기 세션을 먼저 지우고, 떼어 둔 access token(Bearer)과 refresh token 으로 서버 세션을 끝낸다(둘 다 보내야 둘 다 폐기된다).
+ * 서버 응답은 기다리지 않는다(짧은 타임아웃, 실패해도 무시). 지운 뒤에는 다른 요청의 재발급 거절이 만료로 알려지지 않는다
  */
 export async function logOut(api: ApiClient): Promise<void> {
   const session = await api.session.getSession().catch(() => null);
+  const ended = api.session.end().catch(() => undefined);
   if (session !== null) {
-    await api
-      .post(LOGOUT_PATH, { refreshToken: session.refreshToken })
-      .catch(() => undefined);
+    api.logOut(session).catch(() => undefined);
   }
-  await api.session.end().catch(() => undefined);
+  await ended;
 }
 
 // '최근에 로그인 했어요' (마지막으로 성공한 로그인 방식). 토큰이 아니라 방식 이름만 MMKV 에 둔다

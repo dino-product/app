@@ -39,6 +39,8 @@ export const MAX_RETRY_AFTER_MS = 5 * 1000;
 const PUBLIC_PATH_PREFIXES = ['/api/v1/auth/kakao/', '/api/v1/auth/apple/'];
 /** POST, 본문 { refreshToken } 선택. Bearer 도 같이 보내야 그 access token 까지 폐기된다 */
 export const LOGOUT_PATH = '/api/v1/auth/logout';
+/** 떼어 둔 토큰으로 보내는 로그아웃(logOut)의 타임아웃. 화면은 기다리지 않으니 짧게 끝낸다 (#113) */
+export const LOGOUT_TIMEOUT_MS = 5 * 1000;
 const isPublicPath = (path: string) =>
   path === REFRESH_PATH ||
   PUBLIC_PATH_PREFIXES.some(prefix => path.startsWith(prefix));
@@ -280,6 +282,24 @@ export function createApiClient({
       request<T>('PUT', path, { ...options, body }),
     delete: <T = unknown>(path: string, options?: ReadOptions) =>
       request<T>('DELETE', path, options),
+    /**
+     * 기기 세션을 지운 뒤 떼어 둔 토큰으로 서버 세션을 끝낸다 (#113). 지금 세션과 상관없이 받은 토큰을 붙이고,
+     * 재발급·재시도 없이 짧은 타임아웃으로 보낸다. 서버는 무효 토큰이어도 204 다
+     */
+    logOut: ({
+      accessToken,
+      refreshToken,
+    }: {
+      accessToken: string;
+      refreshToken: string;
+    }) =>
+      send<void>(
+        'POST',
+        LOGOUT_PATH,
+        { body: { refreshToken } },
+        accessToken,
+        LOGOUT_TIMEOUT_MS,
+      ),
     /** 로그인 세션 (start·end·subscribe·onExpired) */
     session,
   };

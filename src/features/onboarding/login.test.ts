@@ -5,9 +5,11 @@ import {
   type KakaoOAuthToken,
 } from '@react-native-seoul/kakao-login';
 import { isApiError } from '../../shared/api';
+import { waitFor } from '@testing-library/react-native';
 import {
   createFakeServer,
   fail,
+  hang,
   networkError,
   noContent,
   ok,
@@ -159,10 +161,12 @@ describe('logIn — 카카오', () => {
   });
 
   it.each([
-    ['iOS 취소', 'ClientFailed(Cancelled): no message'],
+    // iOS 는 라이브러리 RNKakaoLogins.describe 가 SdkError 를 '종류(이유): 메시지' 로 바꿔 준다
+    ['iOS 로그인 창 닫음', 'ClientFailed(Cancelled): no message'],
     ['iOS 동의 화면 취소', 'AuthFailed(AccessDenied): User denied access'],
-    ['Android 취소', 'user cancelled.'],
-    ['Android 동의 화면 취소', 'access_denied'],
+    // Android 는 라이브러리가 SDK 오류의 message 를 그대로 준다 (ClientError(Cancelled), AuthError(AccessDenied))
+    ['Android 로그인 창 닫음', 'user cancelled.'],
+    ['Android 동의 화면 취소', 'User denied access'],
   ])(
     '사용자가 SDK 로그인을 취소하면(%s) 서버에 보내지 않고 취소로 끝낸다',
     async (_, message) => {
@@ -266,13 +270,15 @@ describe('logIn — 카카오', () => {
     await expect(logIn(api.client, 'KAKAO')).rejects.toMatchObject({
       kind: 'network',
     });
-    expect(server.callsTo('POST', LOGOUT_PATH)[0]).toMatchObject({
-      headers: expect.objectContaining({
-        Authorization: 'Bearer server-access',
-      }),
-      body: { refreshToken: 'server-refresh' },
-    });
     expect(api.tokenStore.current).toBeNull();
+    await waitFor(() =>
+      expect(server.callsTo('POST', LOGOUT_PATH)[0]).toMatchObject({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer server-access',
+        }),
+        body: { refreshToken: 'server-refresh' },
+      }),
+    );
   });
 });
 
@@ -359,6 +365,19 @@ describe('isLoginCancelled', () => {
     expect(isLoginCancelled('KAKAO', 'cancelled')).toBe(false);
   });
 
+  it.each([
+    'ClientFailed(MustInitAppKey): the Kakao SDK was never initialized.',
+    'ClientFailed(TokenNotFound): no message',
+    'ApiFailed(Unknown): request cancelled by server',
+    'AuthFailed(InvalidGrant): access denied for this app key',
+    'Current activity is null. Call login() while the app is in the foreground.',
+  ])(
+    '취소·거절이란 말이 들어 있어도 다른 실패(%s)는 취소로 보지 않는다',
+    message => {
+      expect(isLoginCancelled('KAKAO', new Error(message))).toBe(false);
+    },
+  );
+
   it('Apple 은 1001(CANCELED) 만 취소로 본다', () => {
     const withCode = (code: string) =>
       Object.assign(new Error('Apple'), { code });
@@ -369,19 +388,33 @@ describe('isLoginCancelled', () => {
 });
 
 describe('logOut', () => {
-  it('Bearer 와 refreshToken 을 함께 보내 서버 세션을 끝내고 기기 세션을 지운다', async () => {
+  it('기기 세션을 먼저 지우고, 떼어 둔 Bearer 와 refreshToken 으로 서버 세션을 끝낸다', async () => {
     const server = createFakeServer().on('POST', LOGOUT_PATH, noContent());
     const api = createTestApi({ server, session: testSession() });
 
     await logOut(api.client);
 
-    expect(server.callsTo('POST', LOGOUT_PATH)).toEqual([
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer access-1' }),
-        body: { refreshToken: 'refresh-1' },
-      }),
-    ]);
     expect(api.tokenStore.current).toBeNull();
+    await waitFor(() =>
+      expect(server.callsTo('POST', LOGOUT_PATH)).toEqual([
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer access-1',
+          }),
+          body: { refreshToken: 'refresh-1' },
+        }),
+      ]),
+    );
+  });
+
+  it('서버 응답을 기다리지 않고 끝난다', async () => {
+    const server = createFakeServer().on('POST', LOGOUT_PATH, hang());
+    const api = createTestApi({ server, session: testSession() });
+
+    await logOut(api.client);
+
+    expect(api.tokenStore.current).toBeNull();
+    expect(server.callsTo('POST', LOGOUT_PATH)).toHaveLength(1);
   });
 
   it.each([
@@ -393,6 +426,9 @@ describe('logOut', () => {
 
     await expect(logOut(api.client)).resolves.toBeUndefined();
     expect(api.tokenStore.current).toBeNull();
+    await waitFor(() =>
+      expect(server.callsTo('POST', LOGOUT_PATH)).toHaveLength(1),
+    );
   });
 
   it('세션이 없으면 서버를 부르지 않는다', async () => {
@@ -402,6 +438,69 @@ describe('logOut', () => {
     await logOut(api.client);
 
     expect(server.calls).toHaveLength(0);
+  });
+});
+
+// 카카오톡으로 넘어갔다가 로그인을 마치지 않고 앱으로 돌아오면 SDK 가 끝을 알리지 않는다 (iOS KakaoSDKAuth).
+// 부른 쪽이 그 시도를 버리면(signal) 취소로 끝내고, 늦게 온 SDK 결과로 서버에 로그인하지 않는다
+describe('logIn — 버린 시도', () => {
+  function pendingKakao() {
+    let finish: (token: KakaoOAuthToken) => void = () => {};
+    kakaoLogin.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        }),
+    );
+    return (idToken: string) => finish(kakaoToken(idToken));
+  }
+
+  it('SDK 를 기다리는 중에 버리면 취소로 끝나고, 늦게 온 SDK 결과로는 서버에 로그인하지 않는다', async () => {
+    const finish = pendingKakao();
+    const server = loginServer();
+    const api = createTestApi({ server });
+    const attempt = new AbortController();
+
+    const result = logIn(api.client, 'KAKAO', { signal: attempt.signal });
+    await waitFor(() => expect(kakaoLogin).toHaveBeenCalledTimes(1));
+    attempt.abort();
+
+    await expect(result).resolves.toEqual({ status: 'cancelled' });
+    finish('late-id-token');
+    await Promise.resolve();
+    expect(server.callsTo('POST', PATHS.KAKAO.login)).toHaveLength(0);
+    expect(api.tokenStore.current).toBeNull();
+  });
+
+  it('버린 시도의 SDK 가 늦게 실패해도 처리되지 않은 거절을 남기지 않는다', async () => {
+    let failLate: (error: Error) => void = () => {};
+    kakaoLogin.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failLate = reject;
+        }),
+    );
+    const api = createTestApi({ server: loginServer() });
+    const attempt = new AbortController();
+
+    const result = logIn(api.client, 'KAKAO', { signal: attempt.signal });
+    await waitFor(() => expect(kakaoLogin).toHaveBeenCalledTimes(1));
+    attempt.abort();
+    await expect(result).resolves.toEqual({ status: 'cancelled' });
+
+    failLate(new Error('ClientFailed(Unknown): late'));
+    await Promise.resolve();
+  });
+
+  it('SDK 단계에 들어가고 나올 때 알린다 (앱 복귀 감시용)', async () => {
+    const api = createTestApi({ server: loginServer() });
+    const stages: boolean[] = [];
+
+    await logIn(api.client, 'KAKAO', {
+      onSdkStage: inSdk => stages.push(inSdk),
+    });
+
+    expect(stages).toEqual([true, false]);
   });
 });
 

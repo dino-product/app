@@ -12,6 +12,8 @@ import { createMemoryTokenStore, testSession } from '../testing/session';
 import { ApiError, ApiErrorCode } from './ApiError';
 import {
   createApiClient,
+  LOGOUT_PATH,
+  LOGOUT_TIMEOUT_MS,
   MAX_RETRY_AFTER_MS,
   REQUEST_TIMEOUT_MS,
 } from './client';
@@ -424,6 +426,48 @@ describe('Authorization', () => {
       code: 'COMMON-401',
     });
     expect(server.calls[0].headers.Authorization).toBeUndefined();
+  });
+});
+
+// #113: 로그아웃은 기기 세션을 먼저 지우고 바로 로그인 화면으로 간 뒤, 떼어 둔 토큰으로 서버 세션을 끝낸다
+describe('떼어 둔 토큰으로 로그아웃', () => {
+  const tokens = {
+    accessToken: 'detached-access',
+    refreshToken: 'detached-refresh',
+  };
+
+  it('세션과 상관없이 받은 access token(Bearer)과 refreshToken 을 보낸다', async () => {
+    server.on('POST', LOGOUT_PATH, noContent());
+    const client = createApiClient({
+      baseUrl: server.baseUrl,
+      fetch: server.fetch,
+      tokenStore: createMemoryTokenStore(null),
+    });
+
+    await expect(client.logOut(tokens)).resolves.toBeUndefined();
+
+    expect(server.calls).toEqual([
+      expect.objectContaining({
+        method: 'POST',
+        path: LOGOUT_PATH,
+        headers: expect.objectContaining({
+          Authorization: 'Bearer detached-access',
+        }),
+        body: { refreshToken: 'detached-refresh' },
+      }),
+    ]);
+  });
+
+  it('짧은 타임아웃(5초)으로 끝내고 재발급·재시도는 하지 않는다', async () => {
+    jest.useFakeTimers();
+    server.on('POST', LOGOUT_PATH, hang());
+
+    const result = settle(clientFor().logOut(tokens));
+    await jest.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS);
+
+    expect(LOGOUT_TIMEOUT_MS).toBe(5_000);
+    expect(await result).toMatchObject({ error: { kind: 'timeout' } });
+    expect(server.calls).toHaveLength(1);
   });
 });
 
