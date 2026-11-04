@@ -67,10 +67,19 @@ const nested = (navigator: NavigatorSchema): ScreenSchema => ({
   },
 });
 
+// 알림에서 연 작업 상세는 발주사도 들고 있다 (#117)
+const workDetail = {
+  params: (params: unknown) =>
+    stringFields('id')(params) &&
+    isRecord(params) &&
+    (params.organizationId === undefined ||
+      typeof params.organizationId === 'string'),
+};
+
 // satisfies 로 화면 이름 빠짐·남음은 컴파일 때 잡는다. 파라미터 모양은 검사기가 본다
 const homeStack = {
   WorkHome: once,
-  WorkDetail: byId,
+  WorkDetail: workDetail,
   NotificationCenter: once,
 } satisfies Record<keyof HomeStackParamList, ScreenSchema>;
 const historyStack = {

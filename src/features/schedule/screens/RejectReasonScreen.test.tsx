@@ -104,7 +104,7 @@ describe('RejectReasonScreen', () => {
     expect(otherOption()).toBeCollapsed();
   });
 
-  it('사유를 고르거나 풀 때 선택 햅틱, 거절을 제출하면 경고 햅틱을 울린다', async () => {
+  it('사유를 고르거나 풀 때 선택 햅틱, 거절이 성공하면 경고 햅틱을 울린다', async () => {
     jest.mocked(haptic.selection).mockClear();
     jest.mocked(haptic.warning).mockClear();
     await renderReject();
@@ -117,6 +117,21 @@ describe('RejectReasonScreen', () => {
     await userEvent.press(option('일정이 맞지 않습니다'));
     await userEvent.press(submitButton());
     expect(haptic.warning).toHaveBeenCalledTimes(1);
+  });
+
+  // #32: 햅틱은 결과다. 서버가 거절을 받은 뒤에만 울린다
+  it('거절이 실패하면 경고 햅틱을 울리지 않는다', async () => {
+    jest.mocked(haptic.warning).mockClear();
+    await renderReject({
+      onSubmit: jest.fn(async () => {
+        throw new Error('실패');
+      }),
+    });
+
+    await userEvent.press(option('일정이 맞지 않습니다'));
+    await userEvent.press(submitButton());
+
+    expect(haptic.warning).not.toHaveBeenCalled();
   });
 
   it('사유 없이 누르거나 기타 내용이 비어 제출되지 않으면 경고 햅틱을 울리지 않는다', async () => {
@@ -404,7 +419,7 @@ describe('RejectReasonScreen', () => {
     await userEvent.press(option('작업 위치가 너무 멉니다'));
     await userEvent.press(submitButton());
 
-    expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
+    expect(onSubmit).toHaveBeenCalledWith({ key: 'distance', note: null });
   });
 
   it('기타를 고르고 내용을 비우면 안내하고, 채우면 그 내용으로 제출한다', async () => {
@@ -426,7 +441,36 @@ describe('RejectReasonScreen', () => {
     expect(screen.queryByText('기타 사유를 입력해 주세요.')).toBeNull();
     await userEvent.press(submitButton());
 
-    expect(onSubmit).toHaveBeenCalledWith('개인 사정');
+    expect(onSubmit).toHaveBeenCalledWith({ key: 'other', note: '개인 사정' });
+  });
+
+  it('기타 사유는 255자까지 쓸 수 있다 (서버 한도)', async () => {
+    await renderReject();
+
+    await userEvent.press(otherOption());
+
+    expect(otherInput()).toHaveProp('maxLength', 255);
+  });
+
+  it('제출을 보내는 동안 거절 제출이 잠기고, 다시 눌러도 한 번만 보낸다. 실패하면 풀린다', async () => {
+    let finish: () => void = () => {};
+    const onSubmit = jest.fn(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        }),
+    );
+    await renderReject({ onSubmit });
+
+    await userEvent.press(option('작업 위치가 너무 멉니다'));
+    await userEvent.press(submitButton());
+    await userEvent.press(submitButton());
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(submitButton()).toBeDisabled();
+
+    await act(async () => finish());
+    expect(submitButton()).toBeEnabled();
   });
 
   it('선택지 사유로 제출하고, 취소·뒤로는 onBack 을 부른다', async () => {
@@ -439,7 +483,7 @@ describe('RejectReasonScreen', () => {
     await userEvent.press(screen.getByRole('button', { name: '취소' }));
     await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
 
-    expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
+    expect(onSubmit).toHaveBeenCalledWith({ key: 'distance', note: null });
     expect(onBack).toHaveBeenCalledTimes(2);
   });
 
@@ -486,7 +530,7 @@ describe('RejectReasonScreen', () => {
       expect(option('작업 위치가 너무 멉니다')).toBeChecked();
       expect(otherInputEvenHidden()).toBeNull();
       await userEvent.press(submitButton());
-      expect(onSubmit).toHaveBeenCalledWith('작업 위치가 너무 멉니다');
+      expect(onSubmit).toHaveBeenCalledWith({ key: 'distance', note: null });
 
       await userEvent.press(otherOption());
       expect(otherInput()).toHaveDisplayValue('차량 고장');

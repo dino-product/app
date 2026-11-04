@@ -23,6 +23,7 @@ import {
 } from '../features/onboarding/login';
 import type { LoginMethod } from '../features/onboarding/model';
 import { clearAllRejectDrafts } from '../features/schedule/rejectDraft';
+import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
 import { clearAllReportDrafts } from '../features/work/reportDraft';
 import {
   currentAccountId,
@@ -102,7 +103,7 @@ type Auth = {
   phase: AuthPhase;
   /** 마지막으로 확인한 가입 단계. 로그아웃이면 null */
   nextStep: NextStep | null;
-  /** 로그인해 있는지. AppStateProvider 가 꺼지면 기기의 목 상태를 비운다 */
+  /** 로그인해 있는지 */
   signedIn: boolean;
   /** 마지막으로 로그인에 성공한 방식 ('최근에 로그인 했어요') */
   recentMethod: LoginMethod | null;
@@ -143,6 +144,7 @@ function phaseOf(state: AuthState): AuthPhase {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const workRepository = useWorkRepository();
   const [state, setState] = useState(initialState);
   const [recentMethod, setRecentMethod] = useState(readRecentLoginMethod);
   const [profileStore] = useState(createProfileStore);
@@ -202,18 +204,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyProfile, profileStore],
   );
 
-  // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·보던 화면·작성 중이던 초안을 지운다 (로그아웃·탈퇴·만료).
-  // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유가 열리지 않게 한다
+  // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·작업 저장소·보던 화면·작성 중이던 초안을 지운다 (로그아웃·탈퇴·만료).
+  // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유나 이 기기에 든 작업 상태(로컬 저장소, #114)가 남지 않게 한다
   const resetToSignedOut = useCallback(() => {
     epoch.current += 1;
     forgetSignedInStep();
     profileStore.set(null);
+    workRepository.reset();
     queryClient.clear();
     clearNavigationState();
     clearAllReportDrafts();
     clearAllRejectDrafts();
     setState(SIGNED_OUT);
-  }, [profileStore, queryClient]);
+  }, [profileStore, queryClient, workRepository]);
 
   // 켤 때 로그인해 둔 기기면 뒤에서 세션을 확인한다. 세션이 없으면 로그인 화면, 서버가 계정을 모르면(PROFILE-002 등)
   // 세션을 지우고 로그인 화면 + 다시 로그인해 주세요. 서버에 닿지 못하거나 Keychain 을 잠시 읽지 못하면 지금 화면에 머문다

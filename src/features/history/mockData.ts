@@ -1,9 +1,8 @@
-import { toDateKey, WEEKDAYS } from '../schedule/model';
-import { workDetail } from '../work/mockData';
-import type { WorkDetail, WorkReport } from '../work/model';
-import { parseDate, type CompletedWork } from './model';
+import { toDateKey } from '../schedule/model';
+import type { CompletedWork } from './model';
 
-// Figma 작업이력 섹션의 예시 데이터. 어느 날 열어도 이번 달에 보이도록 오늘을 기준으로 만든다.
+// Figma 작업이력 섹션의 예시 데이터. 화면 테스트의 픽스처다 (운영 경로는 작업 저장소 features/work/data 를 쓴다).
+// 어느 날 열어도 이번 달에 보이도록 오늘을 기준으로 만든다.
 
 const place = {
   company: '한빛 설비',
@@ -32,33 +31,4 @@ export function makeHistoryMock(today: Date): CompletedWork[] {
     dateKey: toDateKey(shift(today, -days)),
     title: titles[i % titles.length],
   }));
-}
-
-// 완료한 작업마다 제출된 완료 보고 예시. 사진은 회색 자리 사진이다
-const submittedReport: WorkReport = {
-  beforePhotos: ['mock://history-before-1', 'mock://history-before-2'],
-  afterPhotos: ['mock://history-after-1'],
-  memo: '작업 완료 후 정상 작동 확인',
-  parts: '배수 호스 1개',
-  amount: '75000',
-  paymentMethod: 'card',
-};
-
-/** 완료 작업 상세에 보여줄 작업 정보 (완료 작업 + 작업 상세 예시). 보고를 제출한 작업이라 읽기 전용으로 열린다 */
-export function completedToWorkDetail(work: CompletedWork): WorkDetail {
-  const weekday = WEEKDAYS[parseDate(work.dateKey).getDay()];
-  return {
-    ...workDetail,
-    title: work.title,
-    status: 'completed',
-    date: `${work.dateKey} (${weekday})`,
-    timeRange: `${work.start} - ${work.end}`,
-    customer: { ...workDetail.customer, name: work.customerName },
-    address: work.address,
-    // 완료 시각이 따로 없어 작업이 끝난 시각에 제출한 것으로 둔다
-    submission: {
-      submittedAt: `${work.dateKey} ${work.end}`,
-      report: submittedReport,
-    },
-  };
 }

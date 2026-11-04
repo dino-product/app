@@ -1,6 +1,6 @@
 import { act, screen, userEvent } from '@testing-library/react-native';
 import { BackHandler, FlatList } from 'react-native';
-import { renderSignedInApp } from './testing';
+import { fixAppTestClock, renderSignedInApp } from './testing';
 
 // #71 하단 탭 '작업 이력'. 화면 자체는 WorkHistoryScreen.test 가 보고, 여기서는 탭·스택 연결을 본다.
 // 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로 "지금 보이는 화면" 은 헤더로 확인한다 (App.test 와 같다)
@@ -19,6 +19,8 @@ async function openHistory() {
   await renderSignedInApp();
   await userEvent.press(tab('작업 이력'));
 }
+
+fixAppTestClock();
 
 describe('App — 작업 이력 탭', () => {
   afterEach(() => {

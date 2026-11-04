@@ -105,6 +105,16 @@ describe('내비게이션 상태 저장', () => {
       );
     });
 
+    // #117: 알림에서 연 작업 상세는 발주사도 들고 있다
+    it('발주사를 든 작업 상세도 그대로 쓴다', () => {
+      const state = withHomeRoutes([
+        { name: 'WorkHome' },
+        { name: 'WorkDetail', params: { id: 'w1', organizationId: '7' } },
+      ]);
+
+      expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+    });
+
     it.each([
       ['없는 루트 화면', withRoot([{ name: 'OldScreen' }])],
       [
@@ -115,6 +125,12 @@ describe('내비게이션 상태 저장', () => {
       [
         'id 가 문자열이 아닌 작업 상세',
         withHomeRoutes([{ name: 'WorkDetail', params: { id: 1 } }]),
+      ],
+      [
+        '발주사가 문자열이 아닌 작업 상세 (#117)',
+        withHomeRoutes([
+          { name: 'WorkDetail', params: { id: 'w1', organizationId: 7 } },
+        ]),
       ],
       [
         '파라미터가 없어야 하는 화면에 파라미터',

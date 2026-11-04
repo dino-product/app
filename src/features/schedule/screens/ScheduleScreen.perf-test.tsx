@@ -22,7 +22,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         today={today}
         confirmed={confirmed}
         pending={pending}
-        onAccept={() => {}}
+        onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
       />,
@@ -43,7 +43,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         today={today}
         confirmed={confirmed}
         pending={pending}
-        onAccept={() => {}}
+        onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
       />,
@@ -73,7 +73,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           today={today}
           confirmed={confirmed}
           pending={pending}
-          onAccept={() => {}}
+          onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
         />,
@@ -120,7 +120,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           today={today}
           confirmed={confirmed}
           pending={pending}
-          onAccept={() => {}}
+          onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
         />,
@@ -147,7 +147,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           today={today}
           confirmed={confirmed}
           pending={pending}
-          onAccept={() => {}}
+          onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
         />,
@@ -179,7 +179,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         today={today}
         confirmed={confirmed}
         pending={pending}
-        onAccept={() => {}}
+        onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
       />,

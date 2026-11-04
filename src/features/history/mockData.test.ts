@@ -1,7 +1,5 @@
 import { toDateKey } from '../schedule/model';
-import { workDetail } from '../work/mockData';
-import { canSubmitReport } from '../work/model';
-import { completedToWorkDetail, makeHistoryMock } from './mockData';
+import { makeHistoryMock } from './mockData';
 import { completedInMonth, monthOf } from './model';
 
 describe('makeHistoryMock', () => {
@@ -30,34 +28,5 @@ describe('makeHistoryMock', () => {
     const works = makeHistoryMock(new Date(2026, 8, 28));
 
     expect(new Set(works.map(work => work.id)).size).toBe(works.length);
-  });
-});
-
-describe('completedToWorkDetail', () => {
-  it('완료 작업의 제목·날짜(요일 포함)·시간·고객·주소를 상세에 옮기고 상태는 완료다', () => {
-    const [work] = makeHistoryMock(new Date(2026, 8, 28));
-
-    const detail = completedToWorkDetail(work);
-
-    expect(detail).toMatchObject({
-      title: work.title,
-      status: 'completed',
-      date: '2026-09-28 (월)',
-      timeRange: `${work.start} - ${work.end}`,
-      address: work.address,
-      customer: { name: work.customerName },
-    });
-    // 작업번호는 작업번호 형식을 유지한다
-    expect(detail.id).toBe(workDetail.id);
-  });
-
-  // 완료한 작업은 보고를 제출한 작업이라 상세가 제출 후 읽기 전용(#69)으로 열린다
-  it('제출 기록을 넣는다. 제출 시각은 작업한 날의 끝 시각이고, 보고는 필수 항목이 다 찬 것이다', () => {
-    const [work] = makeHistoryMock(new Date(2026, 8, 28));
-
-    const { submission } = completedToWorkDetail(work);
-
-    expect(submission?.submittedAt).toBe(`2026-09-28 ${work.end}`);
-    expect(submission && canSubmitReport(submission.report)).toBe(true);
   });
 });

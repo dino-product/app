@@ -10,6 +10,7 @@ import {
   mondayWeek,
   paymentMethodLabels,
   PHOTO_LIMIT,
+  reportFromPlan,
   type WorkReport,
 } from './model';
 
@@ -94,6 +95,50 @@ describe('hasReportInput', () => {
   it('공백만 쓴 메모·부품은 입력으로 보지 않는다', () => {
     expect(hasReportInput({ ...emptyReport, memo: '  ', parts: '\n' })).toBe(
       false,
+    );
+  });
+
+  describe('계획값으로 미리 채운 보고와 비교할 때', () => {
+    const planned = {
+      ...emptyReport,
+      amount: '75000',
+      paymentMethod: 'card',
+    } as const;
+
+    it('미리 채운 그대로면 입력이 없다', () => {
+      expect(hasReportInput(planned, planned)).toBe(false);
+    });
+
+    it('금액·결제 방식을 바꾸거나 비우면 입력이 있다', () => {
+      expect(hasReportInput({ ...planned, amount: '80000' }, planned)).toBe(
+        true,
+      );
+      expect(hasReportInput({ ...planned, amount: '' }, planned)).toBe(true);
+      expect(
+        hasReportInput({ ...planned, paymentMethod: 'cash' }, planned),
+      ).toBe(true);
+    });
+
+    it('사진·메모를 넣으면 입력이 있다', () => {
+      expect(hasReportInput({ ...planned, afterPhotos: ['a'] }, planned)).toBe(
+        true,
+      );
+    });
+  });
+});
+
+describe('reportFromPlan', () => {
+  it('완료 보고 결제 금액·방식을 작업의 계획값으로 미리 채운다', () => {
+    expect(reportFromPlan({ price: 75000, paymentMethod: 'invoice' })).toEqual({
+      ...emptyReport,
+      amount: '75000',
+      paymentMethod: 'invoice',
+    });
+  });
+
+  it('계획값이 없으면 빈 칸이다', () => {
+    expect(reportFromPlan({ price: null, paymentMethod: null })).toEqual(
+      emptyReport,
     );
   });
 });

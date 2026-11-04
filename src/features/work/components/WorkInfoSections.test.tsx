@@ -30,4 +30,28 @@ describe('WorkInfoSections', () => {
 
     expect(screen.getByText('- 원')).toBeOnTheScreen();
   });
+
+  it('칩 이름이 따로 있으면 그 이름을 보여준다 (취소 작업)', async () => {
+    await renderSections({
+      ...workDetail,
+      status: 'rejected',
+      statusLabel: '취소',
+    });
+
+    expect(screen.getByText('취소')).toBeOnTheScreen();
+    expect(screen.queryByText('거절')).not.toBeOnTheScreen();
+  });
+
+  // 서버 사진 주소가 아직 가짜(fake-photo://, #112 G4)라 이미지로 열 수 없다
+  it('가짜 사진 주소는 이미지 대신 회색 자리로 그린다', async () => {
+    await renderSections({
+      ...workDetail,
+      requestImages: ['fake-photo://abc123', 'https://cdn.example.com/a.jpg'],
+    });
+
+    expect(screen.getByText('2장')).toBeOnTheScreen();
+    // 그린 Image 는 실제 주소 하나뿐이다
+    const images = JSON.stringify(screen.toJSON()).split('"type":"Image"');
+    expect(images).toHaveLength(2);
+  });
 });

@@ -50,6 +50,7 @@ import {
   type WorkDetail,
   type WorkReport,
 } from '../model';
+import type { WorkStatusCode } from '../data/types';
 
 // Figma 작업 수행 › 작업수행-상세, 작업수행-상세/보고제출 활성 (입력 전·입력 완료·제출 후, 제출 완료·작업 취소 모달 포함)
 export type WorkDetailScreenProps = {
@@ -67,10 +68,14 @@ export type WorkDetailScreenProps = {
   titleRef?: Ref<TextInstance>;
   /** 제출하지 않은 완료 보고 입력이 있는지 처음과 바뀔 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
   onUnsavedReportChange?: (unsaved: boolean) => void;
+  /** 아무것도 쓰지 않은 보고 (결제 금액·방식을 계획값으로 미리 채운 것). 이어 쓸 보고가 없으면 이것으로 열고, 이것과 같으면 잃을 입력이 없다 */
+  plannedReport?: WorkReport;
   /** 이어 쓸 보고 (앱이 종료되기 전에 쓰던 초안). 처음 열 때만 쓴다 */
   initialReport?: WorkReport;
-  /** 작성 중인 보고가 바뀔 때마다 알린다. 바깥에서 초안으로 남길 때 쓴다. 제출을 마친 작업은 부르지 않는다 */
+  /** 작성 중인 보고가 바뀔 때마다 알린다. 바깥에서 초안으로 남길 때 쓴다. 제출을 마친 작업·작업중이 아닌 작업은 부르지 않는다 */
   onReportChange?: (report: WorkReport) => void;
+  /** 작업전인 작업을 시작한다. 보내는 동안(약속이 끝날 때까지) "작업 시작" 을 잠근다. 실패 안내는 부른 쪽이 한다 */
+  onStartWork?: () => void | Promise<void>;
 };
 
 type PhotoKey = 'beforePhotos' | 'afterPhotos';
@@ -88,11 +93,13 @@ export function WorkDetailScreen({
   onPickPhoto,
   titleRef,
   onUnsavedReportChange,
+  plannedReport = emptyReport,
   initialReport,
   onReportChange,
+  onStartWork,
 }: WorkDetailScreenProps) {
   const [report, setReport] = useState<WorkReport>(
-    initialReport ?? emptyReport,
+    initialReport ?? plannedReport,
   );
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showJump, setShowJump] = useState(true);
@@ -107,10 +114,13 @@ export function WorkDetailScreen({
   const submission = work.submission;
   const readOnly = submission !== undefined;
   const shown = submission?.report ?? report;
+  // 서버는 작업중인 작업의 완료 보고만 받는다. 그 밖(작업전·배정됨·취소)은 보고 영역 대신 안내를 보인다
+  const writable = !readOnly && work.workStatus === 'IN_PROGRESS';
 
-  // 제출을 마친 보고는 잃을 입력이 아니다. 제출 중에는 아직 결과가 없어 작성 중이다 (API 연동 때 다시 본다).
+  // 제출을 마친 보고와 쓸 수 없는 보고는 잃을 입력이 아니다. 제출 중에는 아직 결과가 없어 작성 중이다.
   // 글자마다가 아니라 여부가 바뀔 때만 알린다. 콜백이 바뀌어도 다시 부르지 않는다
-  const unsaved = !readOnly && result === null && hasReportInput(report);
+  const unsaved =
+    writable && result === null && hasReportInput(report, plannedReport);
   const notifyUnsaved = useEffectEvent((value: boolean) =>
     onUnsavedReportChange?.(value),
   );
@@ -123,10 +133,10 @@ export function WorkDetailScreen({
     onReportChange?.(value),
   );
   useEffect(() => {
-    if (!readOnly) {
+    if (writable) {
       notifyReport(report);
     }
-  }, [readOnly, report]);
+  }, [writable, report]);
 
   const update = (patch: Partial<WorkReport>) =>
     setReport(prev => ({ ...prev, ...patch }));
@@ -238,84 +248,91 @@ export function WorkDetailScreen({
           />
           <SectionBand />
 
-          <View
-            testID="work-report-section"
-            onLayout={(event: LayoutChangeEvent) => {
-              reportY.current = event.nativeEvent.layout.y;
-            }}
-          >
-            <Section title="현장 사진 등록">
-              <PhotoUploader
-                title="작업 전"
-                photos={shown.beforePhotos}
-                onAdd={() => addPhoto('beforePhotos')}
-                onRemove={index => removePhoto('beforePhotos', index)}
-                readOnly={readOnly}
-              />
-              <PhotoUploader
-                title="작업 후"
-                photos={shown.afterPhotos}
-                onAdd={() => addPhoto('afterPhotos')}
-                onRemove={index => removePhoto('afterPhotos', index)}
-                readOnly={readOnly}
-              />
-            </Section>
-            <Section title="수행 메모" optional>
-              <TextArea
-                label="수행 메모 입력"
-                placeholder="수행 메모 작성"
-                value={shown.memo}
-                onChangeText={memo => update({ memo })}
-                readOnly={readOnly}
-              />
-            </Section>
-            <Section title="사용 부품" optional>
-              <LineInput
-                label="사용 부품 입력"
-                placeholder="사용 부품 작성"
-                value={shown.parts}
-                onChangeText={parts => update({ parts })}
-                readOnly={readOnly}
-              />
-            </Section>
-            <Section title="결제 정보">
-              <FieldLabel>결제 금액</FieldLabel>
-              <AmountInput
-                value={shown.amount}
-                onChange={amount => update({ amount })}
-                readOnly={readOnly}
-              />
-              <FieldLabel>결제 방식</FieldLabel>
-              <PaymentMethodSelect
-                value={shown.paymentMethod}
-                onChange={paymentMethod => {
-                  haptic.selection();
-                  update({ paymentMethod });
-                }}
-                readOnly={readOnly}
-              />
-            </Section>
-            {/* 스크린리더가 버튼보다 먼저 읽도록 버튼 앞에 둔다 */}
-            <Text
-              variant="Caption/S/Medium"
-              color={colors.gray[500]}
-              style={styles.notice}
-            >
-              {submission
-                ? `제출 시각 ${submission.submittedAt}`
-                : '제출 후 수정 불가'}
-            </Text>
-            <CTA
-              label={readOnly ? '제출 완료' : '완료보고 제출'}
-              disabled={readOnly || submitting || !canSubmitReport(report)}
-              onPress={submit}
-              style={styles.submit}
+          {!readOnly && !writable ? (
+            <ReportLocked
+              workStatus={work.workStatus}
+              onStartWork={onStartWork}
             />
-          </View>
+          ) : (
+            <View
+              testID="work-report-section"
+              onLayout={(event: LayoutChangeEvent) => {
+                reportY.current = event.nativeEvent.layout.y;
+              }}
+            >
+              <Section title="현장 사진 등록">
+                <PhotoUploader
+                  title="작업 전"
+                  photos={shown.beforePhotos}
+                  onAdd={() => addPhoto('beforePhotos')}
+                  onRemove={index => removePhoto('beforePhotos', index)}
+                  readOnly={readOnly}
+                />
+                <PhotoUploader
+                  title="작업 후"
+                  photos={shown.afterPhotos}
+                  onAdd={() => addPhoto('afterPhotos')}
+                  onRemove={index => removePhoto('afterPhotos', index)}
+                  readOnly={readOnly}
+                />
+              </Section>
+              <Section title="수행 메모" optional>
+                <TextArea
+                  label="수행 메모 입력"
+                  placeholder="수행 메모 작성"
+                  value={shown.memo}
+                  onChangeText={memo => update({ memo })}
+                  readOnly={readOnly}
+                />
+              </Section>
+              <Section title="사용 부품" optional>
+                <LineInput
+                  label="사용 부품 입력"
+                  placeholder="사용 부품 작성"
+                  value={shown.parts}
+                  onChangeText={parts => update({ parts })}
+                  readOnly={readOnly}
+                />
+              </Section>
+              <Section title="결제 정보">
+                <FieldLabel>결제 금액</FieldLabel>
+                <AmountInput
+                  value={shown.amount}
+                  onChange={amount => update({ amount })}
+                  readOnly={readOnly}
+                />
+                <FieldLabel>결제 방식</FieldLabel>
+                <PaymentMethodSelect
+                  value={shown.paymentMethod}
+                  onChange={paymentMethod => {
+                    haptic.selection();
+                    update({ paymentMethod });
+                  }}
+                  readOnly={readOnly}
+                />
+              </Section>
+              {/* 스크린리더가 버튼보다 먼저 읽도록 버튼 앞에 둔다 */}
+              <Text
+                variant="Caption/S/Medium"
+                color={colors.gray[500]}
+                style={styles.notice}
+              >
+                {submission
+                  ? `제출 시각 ${submission.submittedAt}`
+                  : '제출 후 수정 불가'}
+              </Text>
+              <CTA
+                label={readOnly ? '제출 완료' : '완료보고 제출'}
+                disabled={readOnly || submitting || !canSubmitReport(report)}
+                onPress={submit}
+                style={styles.submit}
+              />
+            </View>
+          )}
         </ScrollView>
 
-        {/* 제출을 마친 작업은 작성할 보고가 없다 */}
-        {showJump && !readOnly && (
+        {/* 제출을 마친 작업·쓸 수 없는 작업은 작성할 보고가 없다 */}
+        {showJump && writable && (
           <>
             {/* 버튼 뒤 그라데이션 (#95). 버튼이 있을 때만 깔고, 터치는 아래 스크롤 뷰로 넘기고, 스크린리더에서 숨긴다 */}
             <View
@@ -351,6 +368,61 @@ export function WorkDetailScreen({
   );
 }
 
+const lockedNotices: Partial<Record<WorkStatusCode, string>> = {
+  ACCEPTED: '작업을 시작하면 완료 보고를 쓸 수 있어요',
+  PENDING_ACCEPT: '수락하고 작업을 시작하면 완료 보고를 쓸 수 있어요',
+  CANCELED: '취소된 작업이라 완료 보고를 쓸 수 없어요',
+};
+const LOCKED_NOTICE = '완료 보고를 쓸 수 없는 작업이에요';
+
+// 작업중이 아닌 작업의 보고 영역 자리. 작업전이면 여기서 바로 시작한다 (홈 진행할 작업 카드의 "작업 시작" 과 같은 동작).
+// Figma 에 없어 기존 컴포넌트로 최소 구성한 기본안이다 (Figma 미확인)
+function ReportLocked({
+  workStatus,
+  onStartWork,
+}: {
+  workStatus: WorkStatusCode;
+  onStartWork?: () => void | Promise<void>;
+}) {
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const start = async () => {
+    if (startingRef.current || !onStartWork) {
+      return;
+    }
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      await onStartWork();
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  };
+
+  return (
+    <View testID="work-report-locked" style={styles.locked}>
+      <Text
+        variant="Body/XS/Medium"
+        color={colors.gray[600]}
+        style={styles.lockedText}
+      >
+        {lockedNotices[workStatus] ?? LOCKED_NOTICE}
+      </Text>
+      {workStatus === 'ACCEPTED' && onStartWork && (
+        <CTA
+          size="M"
+          variant="brand"
+          label="작업 시작"
+          disabled={starting}
+          onPress={start}
+          style={styles.lockedStart}
+        />
+      )}
+    </View>
+  );
+}
+
 // '완료 보고 작성하기' 뒤 그라데이션. Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417):
 // 393×320, 프레임 위 532 에서 아래 끝(852)까지, 채움 #F0F0F0 (변수 없음) 투명 0% → 불투명 54.3%, 위→아래.
 // 변환 행렬(위치 = 1.065 × 높이 비율 − 0.065)로 레이어 높이의 6.1% 까지 투명, 57.1% 부터 불투명이다.
@@ -375,6 +447,9 @@ const styles = StyleSheet.create({
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 32 },
   notice: { marginTop: 24, textAlign: 'center' },
+  locked: { gap: 16, paddingHorizontal: 24, paddingTop: 32 },
+  lockedText: { textAlign: 'center' },
+  lockedStart: { minHeight: 48 },
   submit: { marginHorizontal: 24, marginTop: 40 },
   // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
   jump: { position: 'absolute', bottom: 16, paddingHorizontal: 24 },

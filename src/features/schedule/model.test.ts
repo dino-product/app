@@ -114,14 +114,16 @@ describe('validateRejection', () => {
     });
   });
 
-  it('기타는 입력한 내용을, 나머지는 사유 문구를 돌려준다', () => {
+  it('기타는 앞뒤 공백을 뗀 내용을 메모로, 나머지는 메모 없이 사유만 돌려준다 (서버는 기타에만 메모를 받는다)', () => {
     expect(validateRejection('other', ' 개인 사정 ')).toEqual({
       ok: true,
-      reason: '개인 사정',
+      key: 'other',
+      note: '개인 사정',
     });
-    expect(validateRejection('distance', '')).toEqual({
+    expect(validateRejection('distance', '쓰다 만 글')).toEqual({
       ok: true,
-      reason: '작업 위치가 너무 멉니다',
+      key: 'distance',
+      note: null,
     });
   });
 });

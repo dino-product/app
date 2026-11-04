@@ -1,5 +1,10 @@
-import { useScrollToTop, type ParamListBase } from '@react-navigation/native';
+import {
+  useIsFocused,
+  useScrollToTop,
+  type ParamListBase,
+} from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ScrollViewInstance } from 'react-native';
 import { checkWithdrawalEligibilityMock } from '../../features/my/mockData';
@@ -20,7 +25,19 @@ import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
 import { termsLinks } from '../../features/my/termsLinks';
-import { useSchedule, useWorkSession } from '../AppStateProvider';
+import {
+  myScheduleQuery,
+  useMySchedule,
+  useMySchedules,
+} from '../../features/work/data/queries';
+import type { ScheduledWork } from '../../features/work/data/types';
+import {
+  pendingOf,
+  pendingPeriods,
+  weekPeriod,
+} from '../../features/work/data/views';
+import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvider';
+import { useToday } from '../../shared/time/useToday';
 import { APP_VERSION } from '../appVersion';
 import { useAuth } from '../AuthProvider';
 import { openWebPage } from '../externalLinks';
@@ -34,18 +51,50 @@ import {
 // 마이 탭 스택에 올리는 화면들 (#72). 마이 탭 상태(MyStateProvider)와 앱 상태를 화면 props 로 이어 준다.
 
 // 탈퇴 가능 여부 (목). 서버는 기사 소속의 작업중·응답 전 작업을 센다.
-// 앱 상태로 계산해, 사유를 정리하고 돌아오면 탈퇴 불가 화면도 바로 바뀐다
-function useWithdrawalEligibility() {
-  const { started } = useWorkSession();
-  const { pending } = useSchedule();
+// 작업 저장소의 이번 주 작업중과 응답 필요 요청으로 센다. 사유를 정리하고 돌아오면 탈퇴 불가 화면도 바로 바뀐다
+// (API 연동 때 GET /api/v1/profiles/{accountId}/withdrawal-eligibility, #115)
+const eligibilityOf = (
+  week: readonly ScheduledWork[],
+  pending: readonly ScheduledWork[],
+) =>
+  checkWithdrawalEligibilityMock({
+    workInProgress: week.filter(work => work.status === 'IN_PROGRESS').length,
+    pendingAccept: pendingOf(pending).length,
+  });
+
+// 홈·내 일정과 같은 구간이라 같은 캐시를 쓴다
+function useWorkPeriods() {
+  const today = useToday();
   return useMemo(
-    () =>
-      checkWithdrawalEligibilityMock({
-        workInProgress: started ? 1 : 0,
-        pendingAccept: pending.length,
-      }),
-    [started, pending.length],
+    () => ({ week: weekPeriod(today), pending: pendingPeriods(today) }),
+    [today],
   );
+}
+
+function useWithdrawalEligibility() {
+  const periods = useWorkPeriods();
+  const subscribed = useIsFocused();
+  const week = useMySchedule(periods.week, { subscribed }).data?.works;
+  const pending = useMySchedules(periods.pending, { subscribed }).works;
+  return useMemo(() => eligibilityOf(week ?? [], pending), [week, pending]);
+}
+
+// 탈퇴를 누른 때의 작업으로 묻는다 (화면이 열려 있는 동안 받아 둔 값이 아니라 새로 받는다)
+function useCheckWithdrawal() {
+  const periods = useWorkPeriods();
+  const repository = useWorkRepository();
+  const queryClient = useQueryClient();
+  return useCallback(async () => {
+    const [week, ...pending] = await Promise.all(
+      [periods.week, ...periods.pending].map(period =>
+        queryClient.fetchQuery(myScheduleQuery(repository, period)),
+      ),
+    );
+    return eligibilityOf(
+      week.works,
+      pending.flatMap(schedule => schedule.works),
+    );
+  }, [periods, repository, queryClient]);
 }
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
@@ -196,7 +245,7 @@ export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {
 }
 
 export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
-  const eligibility = useWithdrawalEligibility();
+  const checkWithdrawal = useCheckWithdrawal();
   const titleRef = useFocusTitleOnOpen(navigation);
   const { signOut } = useAuth();
 
@@ -208,7 +257,7 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
       // 로그아웃 상태가 되면 루트가 메인을 로그인 화면으로 바꾼다. 탭이 사라져 화면 상태도 처음으로 돌아간다
       onLogout={signOut}
       // API 연동 때 GET /api/v1/users/{accountId}/withdrawal-eligibility 로 묻는다
-      checkWithdrawal={async () => eligibility}
+      checkWithdrawal={checkWithdrawal}
       // 확인하는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
       onOpenWithdrawal={() => {
         if (navigation.isFocused()) {

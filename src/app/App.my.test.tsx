@@ -14,7 +14,11 @@ import {
 } from 'react-native';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
-import { renderSignedInApp } from './testing';
+import {
+  fixAppTestClock,
+  renderSignedInApp,
+  renderSignedInHome,
+} from './testing';
 
 // 마이 탭(#72). 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로
 // "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식)
@@ -45,6 +49,8 @@ const subScreens = [
   ['약관 및 앱 정보', '약관 및 앱 정보'],
   ['계정 관리', '계정 관리'],
 ] as const;
+
+fixAppTestClock();
 
 describe('App — 마이 탭', () => {
   afterEach(() => {
@@ -191,6 +197,7 @@ describe('App — 마이 탭', () => {
       await userEvent.press(
         await screen.findByRole('button', { name: /^미완료 작업 배정/ }),
       );
+      await screen.findAllByRole('button', { name: /수락$/ });
 
       while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
         await userEvent.press(
@@ -211,8 +218,9 @@ describe('App — 마이 탭', () => {
     });
 
     it('진행 중인 작업이 있으면 그 사유도 보이고, > 를 누르면 홈으로 간다', async () => {
-      await renderSignedInApp();
+      await renderSignedInHome();
       await userEvent.press(button('작업 시작'));
+      await screen.findByRole('button', { name: '작업 수행중' });
       await userEvent.press(tab('마이'));
 
       await userEvent.press(button('계정 관리'));
@@ -233,6 +241,7 @@ describe('App — 마이 탭', () => {
       // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
       await userEvent.press(tab('내 일정'));
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      await screen.findAllByRole('button', { name: /수락$/ });
       while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
         await userEvent.press(
           screen.getAllByRole('button', { name: /수락$/ })[0],

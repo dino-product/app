@@ -301,11 +301,16 @@ describe('App — 온보딩', () => {
     expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
   });
 
-  it('로그아웃하면 이 기기에 들고 있던 목 상태(작업 시작 등)를 비워, 다시 로그인하면 처음 상태다', async () => {
+  // 로컬 작업 저장소(#114)는 이 기기 메모리에 작업 상태를 들고 있다. 다른 계정의 상태가 남지 않게 로그아웃 때 처음으로 돌린다
+  it('로그아웃하면 이 기기에 들고 있던 작업 상태(작업 시작 등)를 비워, 다시 로그인하면 처음 상태다', async () => {
     const app = await requestToJoin();
     await approveAndStart(app);
-    await userEvent.press(button('작업 시작'));
-    expect(button('작업 수행중')).toBeOnTheScreen();
+    await userEvent.press(
+      await screen.findByRole('button', { name: '작업 시작' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: '작업 수행중' }),
+    ).toBeOnTheScreen();
 
     await logoutFromMyPage();
     await login('카카오로 시작하기');
@@ -313,6 +318,9 @@ describe('App — 온보딩', () => {
     expect(
       await screen.findByRole('button', { name: '작업 시작' }),
     ).toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: '작업 수행중' }),
+    ).not.toBeOnTheScreen();
   });
 
   it('카카오로 가입한 뒤 Apple 로 로그인하면 서버에서 다른 계정이라 프로필 등록부터 한다', async () => {

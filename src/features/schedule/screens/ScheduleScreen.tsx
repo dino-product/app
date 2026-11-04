@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from 'react';
 import {
   FlatList,
   Pressable,
@@ -15,6 +22,10 @@ import {
   UnderlineTabs,
 } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
+import {
+  LoadStateView,
+  type LoadState,
+} from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
@@ -32,13 +43,15 @@ import {
   type ConfirmedSchedule,
   type PendingRequest,
 } from '../model';
+import type { YearMonth } from '../../history/model';
 
 // Figma 스케줄 › 내 일정 (확정 일정: 주간 / 달력 펼침, 응답 필요)
 export type ScheduleScreenProps = {
   today: Date;
   confirmed: readonly ConfirmedSchedule[];
   pending: readonly PendingRequest[];
-  onAccept: (id: string) => void;
+  /** 요청을 수락한다. 서버가 받았으면 true (실패 안내는 부른 쪽이 한다) */
+  onAccept: (id: string) => Promise<boolean>;
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
@@ -46,7 +59,30 @@ export type ScheduleScreenProps = {
   requestedTab?: ScheduleTab;
   /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
+  /** 고른 날의 확정 일정을 불러오는 상태. 준비되지 않았으면 목록 자리에 로딩·오류를 보인다 */
+  confirmedLoad?: LoadState;
+  /** 응답 필요를 불러오는 상태 */
+  pendingLoad?: LoadState;
+  /** 고른 날의 달과 펼친 달력의 달 (겹치면 하나). 바뀔 때마다 알린다. 바깥에서 그 달의 일정을 불러온다 */
+  onVisibleMonthsChange?: (months: YearMonth[]) => void;
+  /** 당겨서 새로고침 */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
+
+const READY: LoadState = { status: 'ready' };
+
+const monthOfDate = (date: Date): YearMonth => ({
+  year: date.getFullYear(),
+  month: date.getMonth(),
+});
+
+function visibleMonths(selected: Date, view: YearMonth): YearMonth[] {
+  const selectedMonth = monthOfDate(selected);
+  return selectedMonth.year === view.year && selectedMonth.month === view.month
+    ? [selectedMonth]
+    : [selectedMonth, view];
+}
 
 export type ScheduleTab = 'confirmed' | 'pending';
 
@@ -59,6 +95,11 @@ export function ScheduleScreen({
   onOpenRequest,
   requestedTab,
   listRef,
+  confirmedLoad = READY,
+  pendingLoad = READY,
+  onVisibleMonthsChange,
+  refreshing = false,
+  onRefresh,
 }: ScheduleScreenProps) {
   // 처음 열 때 요청이 있으면 바로 그 탭으로 그린다 (확정 일정을 먼저 그렸다 바꾸지 않게)
   const [tab, setTab] = useState<ScheduleTab>(
@@ -92,11 +133,15 @@ export function ScheduleScreen({
   const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
   // 고른 날의 주·달을 보여 준다
-  const selectDate = useCallback((date: Date) => {
-    setSelected(date);
-    setViewMonth({ year: date.getFullYear(), month: date.getMonth() });
-    setWeekStart(startOfWeek(date).getTime());
-  }, []);
+  const selectDate = useCallback(
+    (date: Date) => {
+      setSelected(date);
+      setViewMonth(monthOfDate(date));
+      setWeekStart(startOfWeek(date).getTime());
+      onVisibleMonthsChange?.(visibleMonths(date, monthOfDate(date)));
+    },
+    [onVisibleMonthsChange],
+  );
   // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
   const toggleCalendar = useCallback(() => {
     setCalendarOpen(open => !open);
@@ -104,9 +149,12 @@ export function ScheduleScreen({
   }, [selectDate, selected]);
 
   const moveMonth = useCallback(
-    (delta: number) =>
-      setViewMonth(prev => addMonths(prev.year, prev.month, delta)),
-    [],
+    (delta: number) => {
+      const next = addMonths(viewMonth.year, viewMonth.month, delta);
+      setViewMonth(next);
+      onVisibleMonthsChange?.(visibleMonths(selected, next));
+    },
+    [viewMonth, selected, onVisibleMonthsChange],
   );
 
   // 주간 줄은 보이는 주를 따로 둔다. 주를 넘겨도 고른 날은 그대로다 (#100)
@@ -125,10 +173,27 @@ export function ScheduleScreen({
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
     [],
   );
+  // 수락을 보내는 동안 그 요청의 버튼을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
+  const [accepting, setAccepting] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const acceptingRef = useRef(new Set<string>());
   const accept = useCallback(
-    (id: string) => {
-      haptic.success();
-      onAccept(id);
+    async (id: string) => {
+      if (acceptingRef.current.has(id)) {
+        return;
+      }
+      acceptingRef.current.add(id);
+      setAccepting(new Set(acceptingRef.current));
+      try {
+        // 햅틱은 결과다: 서버가 수락을 받았을 때만 울린다 (#32)
+        if (await onAccept(id)) {
+          haptic.success();
+        }
+      } finally {
+        acceptingRef.current.delete(id);
+        setAccepting(new Set(acceptingRef.current));
+      }
     },
     [onAccept],
   );
@@ -139,9 +204,10 @@ export function ScheduleScreen({
         onAccept={accept}
         onReject={onReject}
         onOpen={onOpenRequest}
+        disabled={accepting.has(item.id)}
       />
     ),
-    [accept, onReject, onOpenRequest],
+    [accept, onReject, onOpenRequest, accepting],
   );
 
   // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)
@@ -234,6 +300,7 @@ export function ScheduleScreen({
       {tab === 'confirmed' ? (
         <FlatList
           ref={listRef}
+          testID="schedule-confirmed-list"
           // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
           directionalLockEnabled
           // 달력에 손가락이 닿아 있는 동안은 세로로도 움직이지 않는다 (#99)
@@ -243,17 +310,34 @@ export function ScheduleScreen({
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}
           ListHeaderComponent={dateHeader}
-          ListEmptyComponent={<Empty text="예정된 일정이 없습니다" />}
+          ListEmptyComponent={
+            confirmedLoad.status === 'ready' ? (
+              <Empty text="예정된 일정이 없습니다" />
+            ) : (
+              <LoadStateView state={confirmedLoad} />
+            )
+          }
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           style={styles.list}
           contentContainerStyle={readableColumn}
         />
       ) : (
         <FlatList
           ref={listRef}
+          testID="schedule-pending-list"
           data={pending}
           keyExtractor={keyExtractor}
           renderItem={renderPending}
-          ListEmptyComponent={<Empty text="응답할 요청이 없습니다" />}
+          ListEmptyComponent={
+            pendingLoad.status === 'ready' ? (
+              <Empty text="응답할 요청이 없습니다" />
+            ) : (
+              <LoadStateView state={pendingLoad} />
+            )
+          }
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           style={styles.list}
           contentContainerStyle={readableColumn}
         />

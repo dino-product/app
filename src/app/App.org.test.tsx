@@ -28,7 +28,7 @@ import {
   REJECT_REASON,
 } from '../features/my/org/testing';
 import { fail, networkError, ok } from '../shared/testing/fakeServer';
-import { renderSignedInApp } from './testing';
+import { fixAppTestClock, renderSignedInApp } from './testing';
 
 // 마이 › 조직 참여 (#73). "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식)
 const header = (name: string) => screen.queryByRole('header', { name });
@@ -55,6 +55,8 @@ async function findCompany(code: string) {
   await userEvent.type(screen.getByLabelText('회사 코드 입력'), code);
   await userEvent.press(button('회사 확인'));
 }
+
+fixAppTestClock();
 
 describe('App — 조직 참여', () => {
   beforeEach(() => {

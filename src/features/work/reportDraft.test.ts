@@ -37,6 +37,18 @@ describe('완료 보고 초안', () => {
     expect(appStorage.getAllKeys()).toEqual([]);
   });
 
+  it('계획값으로 미리 채운 그대로면 남길 입력이 없어 지운다', () => {
+    const planned = {
+      ...emptyReport,
+      amount: '75000',
+      paymentMethod: 'card',
+    } as const;
+    saveReportDraft('w1', report, planned);
+    saveReportDraft('w1', planned, planned);
+
+    expect(loadReportDraft('w1')).toBeUndefined();
+  });
+
   it('제출하거나 나가기로 확정하면 지운다', () => {
     saveReportDraft('w1', report);
     clearReportDraft('w1');

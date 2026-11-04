@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Ref } from 'react';
+import { useCallback, useMemo, useRef, useState, type Ref } from 'react';
 import {
   FlatList,
   Pressable,
@@ -16,6 +16,10 @@ import {
   Text,
   touchSlop,
 } from '../../../shared/design-system';
+import {
+  LoadStateView,
+  type LoadState,
+} from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { toDateKey } from '../../schedule/model';
@@ -35,15 +39,23 @@ export type WorkHomeScreenProps = {
   /** 오늘. 블록 보기는 오늘이 속한 주(월~일)를 보여 주고 오늘을 먼저 고른다 */
   today: Date;
   weekLabel: string;
-  /** 진행할 작업을 시작했는지. 화면을 오가도 유지되도록 바깥에서 들고 있는다 */
+  /** 진행할 작업을 시작했는지 (작업중) */
   started: boolean;
-  onStartWork: () => void;
+  /** 진행할 작업을 시작한다. 보내는 동안(약속이 끝날 때까지) "작업 시작" 을 잠근다. 실패 안내는 부른 쪽이 한다 */
+  onStartWork: () => void | Promise<void>;
   onOpenWork: (id: string) => void;
   /** 종(Figma 메인화면에 늘 있다)을 눌렀을 때. 알림센터를 연다 (#96) */
   onOpenNotifications: () => void;
   /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 */
   listRef?: Ref<FlatListInstance>;
+  /** 진행할 작업·이번 주 일정을 불러오는 상태. 준비되지 않았으면 제목 아래에 로딩·오류만 보인다 */
+  load?: LoadState;
+  /** 당겨서 새로고침 */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
+
+const READY: LoadState = { status: 'ready' };
 
 /** 일정 보기: 이번 주 목록 / 날짜 칸으로 고른 날 (블록) */
 type ScheduleView = 'list' | 'block';
@@ -58,8 +70,27 @@ export function WorkHomeScreen({
   onOpenWork,
   onOpenNotifications,
   listRef,
+  load = READY,
+  refreshing = false,
+  onRefresh,
 }: WorkHomeScreenProps) {
   const [view, setView] = useState<ScheduleView>('list');
+  // 시작을 보내는 동안 "작업 시작" 을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const startWork = async () => {
+    if (startingRef.current) {
+      return;
+    }
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      await onStartWork();
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  };
   const [selected, setSelected] = useState(today);
   const week = useMemo(() => mondayWeek(today), [today]);
   const selectedKey = toDateKey(selected);
@@ -82,7 +113,8 @@ export function WorkHomeScreen({
         <CurrentWorkCard
           work={currentWork}
           started={started}
-          onStart={onStartWork}
+          starting={starting}
+          onStart={startWork}
           onOpen={() => onOpenWork(currentWork.id)}
         />
       ) : (
@@ -126,17 +158,29 @@ export function WorkHomeScreen({
     </View>
   );
 
+  if (load.status !== 'ready') {
+    return (
+      <SafeAreaView edges={['top']} style={styles.screen}>
+        <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
+        <LoadStateView state={load} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
       <FlatList
         ref={listRef}
+        testID="work-home-list"
         data={block ? daySchedule : schedule}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={header}
         ListEmptyComponent={block ? emptyDay : emptyWeek}
         ItemSeparatorComponent={Separator}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         contentContainerStyle={[readableColumn, styles.content]}
       />
     </SafeAreaView>

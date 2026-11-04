@@ -29,7 +29,12 @@ export function WorkInfoSections({
           <Text variant="Body/XL/Bold" style={styles.shrink}>
             {work.title}
           </Text>
-          <StatusChip status={work.status} size="S" style={styles.chip} />
+          <StatusChip
+            status={work.status}
+            label={work.statusLabel}
+            size="S"
+            style={styles.chip}
+          />
         </View>
         <View style={styles.metaRow}>
           <View style={styles.idPill}>

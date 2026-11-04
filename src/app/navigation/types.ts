@@ -48,7 +48,8 @@ export type MainTabParamList = {
 // 홈의 종으로 여는 알림센터도 홈 탭 안에 쌓아, 뒤로 가면 내 작업 홈으로 돌아온다 (#96)
 export type HomeStackParamList = {
   WorkHome: undefined;
-  WorkDetail: { id: string };
+  /** id: 작업 id. 알림에서 열면 알림이 생긴 발주사(organizationId)도 넘긴다 (#117) */
+  WorkDetail: { id: string; organizationId?: string };
   NotificationCenter: undefined;
 };
 

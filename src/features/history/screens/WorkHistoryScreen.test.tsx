@@ -1,4 +1,11 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from '@testing-library/react-native';
+import { useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import {
   colors,
@@ -305,5 +312,100 @@ describe('WorkHistoryScreen — Figma 값', () => {
       ...typography['Caption/M/Medium'],
       color: colors.gray[600],
     });
+  });
+});
+
+// 서버에서 달마다 불러온다 (#114)
+describe('WorkHistoryScreen — 불러오기', () => {
+  it('누적 완료는 주어진 수를 보인다 (서버가 달마다 주므로 목록 길이와 다르다)', async () => {
+    await renderHistory({ totalCompleted: 42 });
+
+    expect(screen.getByLabelText('누적 완료 42건')).toBeOnTheScreen();
+  });
+
+  it('누적 완료를 모르면(서버가 주지 않음·처음 불러오는 중) "-" 로 보인다', async () => {
+    await renderHistory({ totalCompleted: null });
+
+    expect(screen.getByLabelText('누적 완료, 알 수 없음')).toBeOnTheScreen();
+    expect(screen.getByText('-')).toBeOnTheScreen();
+  });
+
+  it('고른 달을 불러오는 동안 이번 달 완료는 0건 대신 "-" 다', async () => {
+    await renderHistory({ works: [], load: { status: 'loading' } });
+
+    expect(screen.getByLabelText('이번 달 완료, 알 수 없음')).toBeOnTheScreen();
+  });
+
+  it('불러오는 동안 목록 자리에 진행 표시를 보인다 (빈 상태 대신)', async () => {
+    await renderHistory({ works: [], load: { status: 'loading' } });
+
+    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expect(
+      screen.queryByText('이 달에 완료한 작업이 없어요'),
+    ).not.toBeOnTheScreen();
+  });
+
+  it('불러오지 못하면 문구와 다시 시도를 보인다', async () => {
+    const onRetry = jest.fn();
+    await renderHistory({
+      works: [],
+      load: { status: 'error', message: '네트워크 문구', onRetry },
+    });
+
+    await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(screen.getByText('네트워크 문구')).toBeOnTheScreen();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('달을 바꾸면 그 달을 알린다 (그 달의 이력을 불러온다)', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
+
+    await userEvent.press(prevMonth());
+
+    expect(onMonthChange).toHaveBeenLastCalledWith({ year: 2026, month: 7 });
+  });
+
+  it('바꾼 달을 다 불러온 뒤에 바뀐 달과 그 달 완료 건수를 알려 준다', async () => {
+    const announce = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {})
+      .mockClear();
+    // 바깥(경로)처럼 달이 바뀌면 그 달을 불러오는 중이 된다
+    let finishLoading = () => {};
+    function Harness() {
+      const [loading, setLoading] = useState(false);
+      finishLoading = () => setLoading(false);
+      return (
+        <WorkHistoryScreen
+          today={today}
+          works={loading ? [] : works}
+          load={loading ? { status: 'loading' } : undefined}
+          onMonthChange={() => setLoading(true)}
+          onOpenWork={jest.fn()}
+        />
+      );
+    }
+    await render(<Harness />);
+
+    await userEvent.press(prevMonth());
+    expect(announce).not.toHaveBeenCalled();
+
+    await act(() => finishLoading());
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenLastCalledWith('2026년 8월, 완료 1건');
+    announce.mockRestore();
+  });
+
+  it('당겨서 새로고침한다', async () => {
+    const onRefresh = jest.fn();
+    await renderHistory({ onRefresh, refreshing: true });
+    const list = screen.getByTestId('work-history-list');
+
+    expect(list.props.refreshing).toBe(true);
+    await fireEvent(list, 'refresh');
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,5 @@
 import type { WorkStatus } from '../../shared/design-system';
+import type { WorkStatusCode } from './data/types';
 
 // 작업 수행 화면의 데이터 모양. API 가 붙으면 응답을 이 타입으로 변환해 넣는다.
 
@@ -27,6 +28,10 @@ export type WorkDetail = {
   id: string;
   title: string;
   status: WorkStatus;
+  /** 칩 이름을 상태 이름 대신 쓸 때 (취소 작업은 디자인 시스템에 칩이 없어 거절 칩 색에 '취소') */
+  statusLabel?: string;
+  /** 서버의 작업 상태. 완료 보고는 작업중(IN_PROGRESS)일 때만 쓸 수 있다 (칩은 지연을 겹쳐 보여 따로 둔다) */
+  workStatus: WorkStatusCode;
   registeredAt: string;
   date: string;
   timeRange: string;
@@ -37,7 +42,11 @@ export type WorkDetail = {
   memo: string;
   /** 정해지지 않았으면 null */
   price: number | null;
+  /** 등록 때 정한 결제 방식. 정해지지 않았으면 null */
+  paymentMethod: PaymentMethod | null;
   requestImages: string[];
+  /** 수락·거절·시작·완료 보고에 함께 보내는 지금 배정의 순번. 배정이 없으면 null */
+  assignmentNumber: number | null;
   /** 완료 보고를 제출했으면 그 내용. 있으면 보고 영역을 읽기 전용으로 그린다 */
   submission?: ReportSubmission;
 };
@@ -95,16 +104,33 @@ export function canSubmitReport(report: WorkReport): boolean {
   );
 }
 
-/** 하나라도 입력했는지 (화면을 닫으면 사라질 입력). 공백만 쓴 메모·부품은 빈 것으로 본다 */
-export function hasReportInput(report: WorkReport): boolean {
+/**
+ * 하나라도 입력했는지 (화면을 닫으면 사라질 입력). 공백만 쓴 메모·부품은 빈 것으로 본다.
+ * base 는 아무것도 쓰지 않은 보고다: 계획값으로 미리 채운 금액·결제 방식은 그대로면 입력이 아니다
+ */
+export function hasReportInput(
+  report: WorkReport,
+  base: WorkReport = emptyReport,
+): boolean {
   return (
     report.beforePhotos.length > 0 ||
     report.afterPhotos.length > 0 ||
     report.memo.trim() !== '' ||
     report.parts.trim() !== '' ||
-    report.amount !== '' ||
-    report.paymentMethod !== null
+    report.amount !== base.amount ||
+    report.paymentMethod !== base.paymentMethod
   );
+}
+
+/** 아무것도 쓰지 않은 완료 보고: 결제 금액·방식을 작업의 계획값으로 미리 채운다 (계획값이 없으면 빈 칸) */
+export function reportFromPlan(
+  work: Pick<WorkDetail, 'price' | 'paymentMethod'>,
+): WorkReport {
+  return {
+    ...emptyReport,
+    amount: work.price === null ? '' : String(work.price),
+    paymentMethod: work.paymentMethod,
+  };
 }
 
 const groupThousands = (digits: string) =>

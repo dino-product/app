@@ -405,11 +405,13 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       }),
       now: () => now,
     });
+    // 홈은 작업 저장소에서 진행할 작업을 불러온다 (#114)
     await userEvent.press(
-      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      await screen.findByRole('button', { name: '보일러 점검 상세 보기' }),
     );
     app.queryClient.setQueryData(['notifications'], ['알림']);
     seedDrafts();
+    const resetWork = jest.spyOn(app.workRepository, 'reset');
 
     // 1시간이 지나 access token 이 만료됐다
     now += 2 * 60 * 60 * 1000;
@@ -426,6 +428,8 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
     expect(readSignedInStep()).toBeNull();
     expect(draftKeys()).toEqual([]);
     expect(app.queryClient.getQueryData(['notifications'])).toBeUndefined();
+    // 이 기기에 든 작업 상태(로컬 작업 저장소)도 처음으로 돌린다 (#114)
+    expect(resetWork).toHaveBeenCalledTimes(1);
     // 저장한 화면은 로그인 화면뿐이라 다시 켜도 앞 계정의 작업 상세가 열리지 않는다
     const saved = readJson(NAVIGATION_STATE_KEY, value => value);
     expect(JSON.stringify(saved ?? null)).not.toContain('WorkDetail');
