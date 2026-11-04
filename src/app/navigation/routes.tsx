@@ -30,6 +30,7 @@ import {
   workDetail,
 } from '../../features/work/mockData';
 import { formatResultTime, formatSubmittedAt } from '../../features/work/model';
+import { pickReportPhotos } from '../../features/work/photoPicker';
 import {
   clearReportDraft,
   loadReportDraft,
@@ -186,8 +187,7 @@ export function WorkDetailRoute({
       }}
       onCall={callPhone}
       onNavigate={openDirections}
-      // 카메라·앨범 연동 전까지 회색 자리 사진을 넣는다
-      onPickPhoto={async () => `mock://photo-${Date.now()}`}
+      onPickPhoto={pickReportPhotos}
     />
   );
 }
@@ -380,7 +380,7 @@ export function CompletedWorkDetailRoute({
         kind: 'submitted',
         at: formatResultTime(new Date()),
       })}
-      onPickPhoto={async () => null}
+      onPickPhoto={async () => []}
     />
   );
 }

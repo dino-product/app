@@ -11,3 +11,9 @@ jest.mock('react-native-haptic-feedback', () => ({
   __esModule: true,
   default: { trigger: jest.fn() },
 }));
+
+// 촬영·앨범은 네이티브 화면이라 띄우지 않는다. 돌려줄 응답은 테스트마다 정한다 (jest/photoPicker.ts)
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(),
+  launchImageLibrary: jest.fn(),
+}));

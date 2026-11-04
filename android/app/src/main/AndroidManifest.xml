@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- react-native-haptic-feedback 이 합치는 VIBRATE 는 쓰지 않는다. 햅틱은 View.performHapticFeedback 만 쓴다 -->
     <uses-permission android:name="android.permission.VIBRATE" tools:node="remove" />
+    <!-- 완료 보고 사진 촬영 (#111). 촬영 전에 런타임으로 받는다. 선언하지 않은 권한은 요청해도 바로 거부된다 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- CAMERA 권한이 카메라 하드웨어 필수로 읽히지 않게 한다. 카메라가 없어도 앨범으로 보고를 쓸 수 있다 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
       android:name=".MainApplication"
@@ -27,5 +32,17 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <!-- 완료 보고 앨범 선택 (#111). 시스템 Photo Picker 가 없는 Android 11 미만에서 Google Play 서비스가
+           백포트 모듈을 설치하게 알린다. 실행되는 서비스가 아니라 표시용이다 (developer.android.com › Photo picker › Device availability) -->
+      <service
+        android:name="com.google.android.gms.metadata.ModuleDependencies"
+        android:enabled="false"
+        android:exported="false"
+        tools:ignore="MissingClass">
+        <intent-filter>
+          <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+        </intent-filter>
+        <meta-data android:name="photopicker_activity:0:required" android:value="" />
+      </service>
     </application>
 </manifest>

@@ -5,9 +5,11 @@ import {
   screen,
   userEvent,
   waitFor,
+  within,
 } from '@testing-library/react-native';
 import {
   AccessibilityInfo,
+  ActionSheetIOS,
   Alert,
   BackHandler,
   DeviceEventEmitter,
@@ -16,7 +18,12 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { hideKeyboard, showKeyboard } from '../../jest/keyboard';
+import {
+  pickOnePhotoFromLibrary,
+  resetPhotoLibrary,
+} from '../../jest/photoPicker';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
 import { signedInAuth } from '../features/onboarding/model';
@@ -75,8 +82,11 @@ async function submitReport() {
 }
 
 describe('App', () => {
+  beforeEach(pickOnePhotoFromLibrary);
+
   afterEach(() => {
     jest.restoreAllMocks();
+    resetPhotoLibrary();
   });
 
   it('첫 화면은 작업 수행 메인화면(내 작업)이고 하단 탭은 홈이다', async () => {
@@ -111,6 +121,27 @@ describe('App', () => {
     await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
 
     expect(header('내 작업')).toBeOnTheScreen();
+  });
+
+  // #111 사진 추가 칸은 시스템 선택지를 거쳐 기기의 사진을 붙인다 (회색 자리 목 사진을 넣지 않는다)
+  it('완료 보고 사진 추가 칸은 선택지에서 앨범을 골라 남은 칸 수만큼 고른 사진을 붙인다', async () => {
+    await render(<App initialAuth={signedInAuth()} />);
+    await userEvent.press(
+      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+    );
+
+    const add = screen.getByRole('button', { name: '작업 전 사진 추가' });
+    await userEvent.press(add);
+
+    expect(ActionSheetIOS.showActionSheetWithOptions).toHaveBeenCalledTimes(1);
+    expect(launchImageLibrary).toHaveBeenCalledWith(
+      expect.objectContaining({ selectionLimit: 6 }),
+    );
+    expect(add).toHaveAccessibilityValue({ text: '1/6' });
+    expect(within(add.parent!).getByTestId('photo-thumb')).toHaveProp(
+      'source',
+      { uri: 'file:///tmp/photo-1.jpg' },
+    );
   });
 
   it('작업을 시작하고 상세에 다녀와도 "작업 수행중" 이 유지된다', async () => {

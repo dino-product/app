@@ -123,7 +123,7 @@ const blocked: [string, ReactElement][] = [
       onDone={noop}
       onCall={noop}
       onNavigate={noop}
-      onPickPhoto={async () => null}
+      onPickPhoto={async () => []}
     />,
   ],
   [
