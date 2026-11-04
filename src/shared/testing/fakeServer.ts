@@ -5,7 +5,7 @@ import { DEV_API_BASE_URL } from '../api/config';
 //   const server = createFakeServer().on('GET', '/api/v1/memberships', ok([...]));
 //   createApiClient({ baseUrl: server.baseUrl, fetch: server.fetch, tokenStore }) 또는 renderWithApi(<X />, { server })
 // 경로·메서드마다 응답을 차례로 주고(마지막 응답은 계속 되풀이), 받은 요청을 calls 에 남긴다.
-// 정하지 않은 경로는 501 FAKE-NO-ROUTE 로 답하고, 그런 요청이 있었으면 테스트가 끝날 때 실패한다(verifyFakeServers).
+// 정하지 않은 경로는 421 FAKE-NO-ROUTE 로 답하고, 그런 요청이 있었으면 테스트가 끝날 때 실패한다(verifyFakeServers).
 // 응답은 백엔드 봉투 모양을 만드는 ok·fail·noContent 로 만든다
 
 /** 가짜 서버가 받은 요청 */
@@ -111,8 +111,11 @@ const abortError = () =>
 
 /** 정하지 않은 경로에 주는 오류 코드. 서버에 없는 코드라 화면 오류 처리와 섞이지 않는다 */
 export const FAKE_NO_ROUTE_CODE = 'FAKE-NO-ROUTE';
+/** 421 Misdirected Request. 4xx 라 React Query 재시도·세션의 일시 오류 처리를 타지 않아 테스트가 기다리지 않는다 */
+export const FAKE_NO_ROUTE_STATUS = 421;
 
-// 이번 테스트에서 만든 가짜 서버들. verifyFakeServers 가 처리 못 한 요청을 모아 본다
+// 만든 가짜 서버들. verifyFakeServers 가 처리 못 한 요청을 모아 본다.
+// 목록은 비우지 않는다: 여러 테스트가 같이 쓰는 서버도 테스트마다 검사한다
 const servers = new Set<{ takeUnhandled: () => string[] }>();
 
 /**
@@ -121,7 +124,6 @@ const servers = new Set<{ takeUnhandled: () => string[] }>();
  */
 export function verifyFakeServers() {
   const unhandled = [...servers].flatMap(server => server.takeUnhandled());
-  servers.clear();
   if (unhandled.length > 0) {
     throw new Error(
       `가짜 서버에 응답을 정하지 않은 요청이 있었다 (server.on 으로 정한다):\n${unhandled.join(
@@ -162,7 +164,7 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
   const noRoute = (request: string) => {
     unhandled.push(request);
     return toResponse(
-      fail(501, FAKE_NO_ROUTE_CODE, {
+      fail(FAKE_NO_ROUTE_STATUS, FAKE_NO_ROUTE_CODE, {
         message: `가짜 서버에 없는 경로: ${request}`,
       }),
     );

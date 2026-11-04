@@ -1,12 +1,16 @@
+import { createApiClient } from '../api/client';
+import { shouldRetryQuery } from '../api/queryClient';
 import {
   createFakeServer,
   fail,
   FAKE_NO_ROUTE_CODE,
+  FAKE_NO_ROUTE_STATUS,
   hang,
   noContent,
   ok,
   verifyFakeServers,
 } from './fakeServer';
+import { createMemoryTokenStore, testSession } from './session';
 
 describe('가짜 서버', () => {
   it('경로·메서드별 응답을 차례로 주고 마지막 응답을 되풀이한다', async () => {
@@ -84,12 +88,12 @@ describe('가짜 서버', () => {
     await expect(response.text()).resolves.toBe('');
   });
 
-  it('정하지 않은 경로는 501 FAKE-NO-ROUTE 로 답하고 처리 못 한 요청으로 남긴다', async () => {
+  it('정하지 않은 경로는 FAKE-NO-ROUTE 로 답하고 처리 못 한 요청으로 남긴다', async () => {
     const server = createFakeServer();
 
     const response = await server.fetch(`${server.baseUrl}/api/v1/nothing`);
 
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(FAKE_NO_ROUTE_STATUS);
     expect(JSON.parse(await response.text())).toMatchObject({
       success: false,
       code: FAKE_NO_ROUTE_CODE,
@@ -106,8 +110,28 @@ describe('가짜 서버', () => {
       method: 'POST',
     });
 
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(FAKE_NO_ROUTE_STATUS);
     expect(server.takeUnhandled()).toEqual(['POST https://elsewhere.test/a']);
+  });
+
+  it('FAKE-NO-ROUTE 는 재시도·일시 오류로 보지 않는 4xx 라 테스트가 기다리지 않는다', async () => {
+    const server = createFakeServer();
+    const client = createApiClient({
+      baseUrl: server.baseUrl,
+      fetch: server.fetch,
+      tokenStore: createMemoryTokenStore(testSession()),
+    });
+
+    const error = await client.get('/api/v1/nothing').catch(caught => caught);
+
+    expect(FAKE_NO_ROUTE_STATUS).toBeGreaterThanOrEqual(400);
+    expect(FAKE_NO_ROUTE_STATUS).toBeLessThan(500);
+    expect(error).toMatchObject({
+      status: FAKE_NO_ROUTE_STATUS,
+      code: FAKE_NO_ROUTE_CODE,
+    });
+    expect(shouldRetryQuery(0, error)).toBe(false);
+    server.takeUnhandled();
   });
 
   it('처리 못 한 요청이 남은 채 테스트가 끝나면 실패시킨다 (jest/setupAfterEnv 가 테스트마다 부른다)', async () => {
@@ -117,6 +141,16 @@ describe('가짜 서버', () => {
     expect(() => verifyFakeServers()).toThrow('GET /api/v1/membership');
     // 한 번 알리면 비운다
     expect(() => verifyFakeServers()).not.toThrow();
+  });
+
+  it('여러 테스트가 같이 쓰는 서버도 테스트마다 검사한다', async () => {
+    const shared = createFakeServer();
+    await shared.fetch(`${shared.baseUrl}/api/v1/first`);
+    expect(() => verifyFakeServers()).toThrow('GET /api/v1/first');
+
+    await shared.fetch(`${shared.baseUrl}/api/v1/second`);
+
+    expect(() => verifyFakeServers()).toThrow('GET /api/v1/second');
   });
 
   it('이미 취소된 signal 이면 보내지 않고 바로 취소로 끝낸다', async () => {

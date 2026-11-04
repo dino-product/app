@@ -112,7 +112,6 @@ describe('useAppStateFocus', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     changeListener = undefined;
-    focusManager.setFocused(undefined);
   });
 
   it('앱이 background 로 가면 포커스를 잃고, 다시 active 가 되면 React Query 에 포커스를 알린다', async () => {
@@ -135,5 +134,18 @@ describe('useAppStateFocus', () => {
     await unmount();
 
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+});
+
+// jest/setupAfterEnv.js 가 테스트마다 되돌린다. 순서대로 도는 두 테스트로 확인한다
+describe('테스트 사이 focusManager', () => {
+  it('앞 테스트가 포커스를 끈 채 끝나도', () => {
+    focusManager.setFocused(false);
+
+    expect(focusManager.isFocused()).toBe(false);
+  });
+
+  it('다음 테스트는 포커스된 상태로 시작한다', () => {
+    expect(focusManager.isFocused()).toBe(true);
   });
 });

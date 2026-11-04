@@ -7,7 +7,6 @@ import App from './App';
 describe('App 서버 상태 캐시', () => {
   afterEach(() => {
     jest.restoreAllMocks();
-    focusManager.setFocused(undefined);
   });
 
   it('QueryClientProvider 가 QueryClient 를 앱에 붙인다', async () => {

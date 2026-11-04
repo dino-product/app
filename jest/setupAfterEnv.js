@@ -16,3 +16,10 @@ const { verifyFakeServers } = require('../src/shared/testing/fakeServer');
 afterEach(() => {
   verifyFakeServers();
 });
+
+// React Query focusManager 는 모듈 하나를 같이 쓴다. 앞 테스트가 끈 포커스(앱 background)로 다음 테스트가 시작하지 않게 되돌린다
+const { focusManager } = require('@tanstack/react-query');
+
+afterEach(() => {
+  focusManager.setFocused(undefined);
+});
