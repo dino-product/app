@@ -24,13 +24,19 @@ import {
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
+import type { NotificationResponse } from '../features/my/notificationApi';
+import { createHttpWorkRepository } from '../features/work/data/HttpWorkRepository';
 import { colors } from '../shared/design-system';
+import { createFakeServer, fail } from '../shared/testing/fakeServer';
+import { createTestApi } from '../shared/testing/renderWithApi';
 import {
   findHomeLoaded,
   findWorkDetailLoaded,
   fixAppTestClock,
   openStartedWorkDetail,
   renderSignedInHome,
+  signedInSession,
+  testWorkRepository,
 } from './testing';
 
 // 네이티브 스택은 아래 화면을 그대로 두고 스크린리더에서만 숨긴다 (aria-hidden).
@@ -85,6 +91,21 @@ async function submitReport() {
   await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
   await screen.findByRole('header', { name: '제출 완료' });
 }
+
+// 알림센터의 작업 알림 한 줄 (서버 응답 모양)
+const workNotification = (
+  overrides: Partial<NotificationResponse> = {},
+): NotificationResponse => ({
+  id: 1,
+  type: 'WORK_ASSIGNED',
+  organizationId: 1,
+  workId: 104,
+  participationRequestId: null,
+  message: '[에어컨 필터 교체] 작업이 배정되었습니다.',
+  read: false,
+  createdAt: new Date().toISOString(),
+  ...overrides,
+});
 
 fixAppTestClock();
 
@@ -161,7 +182,7 @@ describe('App', () => {
     ).toBeOnTheScreen();
   });
 
-  // #96: 탭 화면의 종은 알림센터로 가는 버튼이다
+  // #96: 탭 화면의 종은 알림센터로 가는 버튼이다. 알림 목록은 서버에서 받는다 (#117)
   describe('내 작업 홈의 종', () => {
     it('누르면 알림센터가 열리고, 뒤로 가면 내 작업 홈으로 돌아온다', async () => {
       await renderSignedInHome();
@@ -192,16 +213,167 @@ describe('App', () => {
         screen.getAllByRole('button', { name: /^읽지 않음/ }).length;
 
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await screen.findByRole('button', { name: /^읽지 않음, 작업 취소/ });
       const before = unread();
+      // 작업 알림은 작업 상세를 연다. 닫고 알림센터·홈으로 돌아온다
       await userEvent.press(
         screen.getByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+      );
+      await userEvent.press(
+        await screen.findByRole('button', { name: '뒤로 가기' }),
       );
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
 
       await userEvent.press(tab('마이'));
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
       expect(header('알림센터')).toBeOnTheScreen();
-      expect(unread()).toBe(before - 1);
+      await waitFor(() => expect(unread()).toBe(before - 1));
+    });
+
+    it('작업 알림을 누르면 그 작업 상세가 열리고, 뒤로 가면 알림센터로 돌아온다', async () => {
+      await renderSignedInHome();
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+      );
+
+      expect(
+        await screen.findByRole('header', { name: '작업 상세' }),
+      ).toBeOnTheScreen();
+      expect(tab('홈')).toBeSelected();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('button', { name: /^작업 취소/ }),
+      ).toBeOnTheScreen();
+    });
+
+    // 작업 알림만으로는 작업 상태를 모른다. 상세를 받아 수락 대기(배정됨)면 수락·거절하는 요청 상세로 연다
+    it('배정됨(수락 대기) 작업 알림을 누르면 수락·거절하는 요청 상세가 열리고, 뒤로 가면 알림센터로 돌아온다', async () => {
+      await renderSignedInHome({
+        notifications: [workNotification({ workId: 104 })],
+      });
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^읽지 않음, 신규 배정/ }),
+      );
+
+      expect(
+        await screen.findByRole('button', { name: '수락' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: '거절' })).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+    });
+
+    // 작업 상세를 미리 받는 동안(어느 화면을 열지 고르는 중)을 시험하려고, 처음 한 번의 상세 조회만 붙잡는다
+    function holdFirstDetail() {
+      const local = testWorkRepository();
+      let release: () => void = () => {};
+      const getWorkDetail = jest.fn(
+        async (...args: Parameters<typeof local.getWorkDetail>) => {
+          if (getWorkDetail.mock.calls.length === 1) {
+            await new Promise<void>(resolve => (release = resolve));
+          }
+          return local.getWorkDetail(...args);
+        },
+      );
+      return {
+        workRepository: { ...local, getWorkDetail },
+        getWorkDetail,
+        release: () => act(() => release()),
+      };
+    }
+
+    // 고르는 동안 누른 다른 알림은 무시한다 (먼저 누른 알림만 연다)
+    it('작업을 받는 동안 다른 작업 알림을 눌러도 먼저 누른 알림만 연다', async () => {
+      const held = holdFirstDetail();
+      await renderSignedInHome({
+        workRepository: held.workRepository,
+        notifications: [
+          workNotification({ id: 1, workId: 104 }),
+          workNotification({
+            id: 2,
+            type: 'WORK_CANCELED',
+            workId: 102,
+            message: '[세탁기 설치] 작업이 취소되었습니다.',
+          }),
+        ],
+      });
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /신규 배정/ }),
+      );
+
+      await userEvent.press(screen.getByRole('button', { name: /작업 취소/ }));
+      expect(held.getWorkDetail).toHaveBeenCalledTimes(1);
+      await held.release();
+
+      expect(
+        await screen.findByRole('button', { name: '수락' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    it('작업을 받는 사이 알림센터를 떠났으면 받은 뒤에도 열지 않는다', async () => {
+      const held = holdFirstDetail();
+      await renderSignedInHome({
+        workRepository: held.workRepository,
+        notifications: [workNotification({ workId: 104 })],
+      });
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /신규 배정/ }),
+      );
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await held.release();
+
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '수락' })).toBeNull();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    // 다른 기사에게 넘어간 작업(WORK_REASSIGNED_AWAY)은 서버 상세가 SCHEDULE-001(404)이다
+    it('다른 기사에게 넘어간 작업 알림을 누르면 작업 상세가 볼 수 없는 작업이라고 알린다', async () => {
+      const server = createFakeServer().on(
+        'GET',
+        '/api/v1/organizations/1/works/150',
+        fail(404, 'SCHEDULE-001', { message: '작업을 찾을 수 없습니다.' }),
+      );
+      // 작업 상세만 실제 서버(HTTP 저장소)로 받고, 홈의 일정은 로컬 저장소 그대로 둔다
+      const http = createHttpWorkRepository({
+        api: createTestApi({ server, session: signedInSession() }).client,
+        organizationId: async () => 1,
+      });
+      await renderSignedInHome({
+        server,
+        workRepository: {
+          ...testWorkRepository(),
+          getWorkDetail: http.getWorkDetail,
+        },
+        notifications: [
+          workNotification({
+            type: 'WORK_REASSIGNED_AWAY',
+            workId: 150,
+            message: '[누수 점검] 작업이 다른 기사에게 배정되었습니다.',
+          }),
+        ],
+      });
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^읽지 않음, 배정 변경/ }),
+      );
+
+      expect(
+        await screen.findByText('볼 수 없는 작업이에요'),
+      ).toBeOnTheScreen();
+      expect(tab('홈')).toBeSelected();
     });
 
     it('참여 거절 알림을 누르면 마이 탭의 거절 화면을 연다', async () => {
@@ -209,10 +381,14 @@ describe('App', () => {
 
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
       await userEvent.press(
-        screen.getByRole('button', { name: /참여 요청이 거절되었습니다/ }),
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
       );
 
-      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+      ).toBeOnTheScreen();
       expect(tab('마이')).toBeSelected();
     });
   });

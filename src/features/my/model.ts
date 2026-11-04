@@ -60,17 +60,49 @@ export type AppNotification = {
   read: boolean;
   /** 알림 시각 (ISO, UTC) */
   createdAt: string;
+  /** 알림이 생긴 발주사 */
+  organizationId?: string;
+  /** 작업 알림이면 그 작업 (눌렀을 때 열 작업 상세) */
+  workId?: string;
   /** 참여 요청 결과 알림이면 그 요청 (눌렀을 때 열 화면의 대상) */
   participationRequestId?: string;
 };
 
-/** 눌렀을 때 거절 화면(#73)을 열 참여 요청 id. 승인 결과 화면은 아직 없어 거절만 연다 */
-export function rejectedRequestOf(
-  notification: AppNotification,
-): string | null {
-  return notification.type === 'PARTICIPATION_REQUEST_REJECTED'
-    ? notification.participationRequestId ?? null
-    : null;
+/** 알림을 눌렀을 때 열 화면 */
+export type NotificationTarget =
+  | { kind: 'work'; organizationId: string; workId: string }
+  | { kind: 'participationRejected'; requestId: string };
+
+const WORK_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+  'WORK_ASSIGNED',
+  'WORK_RESCHEDULED',
+  'WORK_REASSIGNED_AWAY',
+  'WORK_CANCELED',
+  'COMPLETION_REPORT_REQUESTED',
+]);
+
+/**
+ * 눌렀을 때 열 화면. 작업 알림은 작업 상세(볼 수 없게 된 작업이면 상세가 그 상태를 보인다),
+ * 참여 거절은 거절 화면(#73). 승인 결과 화면은 아직 없어 참여 승인은 열 곳이 없다
+ */
+export function notificationTargetOf({
+  type,
+  organizationId,
+  workId,
+  participationRequestId,
+}: AppNotification): NotificationTarget | null {
+  if (WORK_NOTIFICATION_TYPES.has(type)) {
+    return organizationId !== undefined && workId !== undefined
+      ? { kind: 'work', organizationId, workId }
+      : null;
+  }
+  if (
+    type === 'PARTICIPATION_REQUEST_REJECTED' &&
+    participationRequestId !== undefined
+  ) {
+    return { kind: 'participationRejected', requestId: participationRequestId };
+  }
+  return null;
 }
 
 export type WithdrawalBlockReason =
