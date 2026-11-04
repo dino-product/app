@@ -1,6 +1,7 @@
 import {
   COMPANY_CODE_ALPHABET,
   COMPANY_CODE_LENGTH,
+  companyCodeFromQr,
   formatRequestDate,
   formatRequestedAt,
   isCompanyCodeComplete,
@@ -88,6 +89,67 @@ describe('회사 코드 규칙', () => {
       code => {
         expect(isCompanyCodeComplete(code)).toBe(false);
       },
+    );
+  });
+});
+
+// QR 에 담는 값은 웹 관리자와 아직 정하지 않았다 (#108). 회사 코드만 담은 값과 참여 링크 모양의 URL 을 모두 받는다
+describe('companyCodeFromQr', () => {
+  describe('받는 형식', () => {
+    it.each([
+      ['RBT124', 'RBT124'],
+      // 서버와 같은 정리: 대소문자·공백·하이픈은 무시한다
+      [' rbt-124\n', 'RBT124'],
+      // URL 의 마지막 경로 조각
+      ['https://orbit.example/join/RBT124', 'RBT124'],
+      ['https://orbit.example/join/rbt124/', 'RBT124'],
+      ['HTTPS://ORBIT.EXAMPLE/j/RBT124#top', 'RBT124'],
+      ['orbit://join/RBT124', 'RBT124'],
+      // code·companyCode 쿼리 (퍼센트 인코딩은 풀어서 본다)
+      ['https://orbit.example/join?code=RBT124', 'RBT124'],
+      ['https://orbit.example/join?utm=qr&companyCode=rbt%2D124', 'RBT124'],
+    ])('%p → %p', (value, expected) => {
+      expect(companyCodeFromQr(value)).toBe(expected);
+    });
+
+    it('쿼리와 경로에 모두 코드 모양이 있으면 이름이 붙은 쿼리를 쓴다', () => {
+      expect(
+        companyCodeFromQr('https://orbit.example/join/HB0010?code=RBT124'),
+      ).toBe('RBT124');
+    });
+
+    it('쿼리 값이 규칙 밖이면 마지막 경로 조각을 본다', () => {
+      expect(
+        companyCodeFromQr('https://orbit.example/join/RBT124?code=ABC'),
+      ).toBe('RBT124');
+    });
+  });
+
+  it.each([
+    '',
+    '   ',
+    // 6자가 아니거나 허용 밖 문자 (I·L·O·U, 한글)
+    'RBT12',
+    'RBT1245',
+    'RBT12I',
+    '회사 RBT124',
+    // 코드가 없는 URL
+    'https://orbit.example',
+    'https://orbit.example/',
+    'https://orbit.example/join/RBT1245',
+    'https://orbit.example/join?code=ABC',
+    'https://orbit.example/join?code=%E0%A4%A',
+    // 다른 QR (와이파이·메일)
+    'WIFI:S:office;T:WPA;P:secret;;',
+    'mailto:RBT124',
+  ])('%p 는 인식할 수 없는 값이다 (null)', value => {
+    expect(companyCodeFromQr(value)).toBeNull();
+  });
+
+  // 회사가 코드를 바꿨는지는 서버만 안다. 꺼낸 코드로 회사를 확인하면 서버가 유효하지 않은 코드로 답한다
+  it('이전 코드로 만든 QR 도 담긴 코드를 그대로 꺼낸다', () => {
+    expect(companyCodeFromQr('https://orbit.example/join/HB0010')).toBe(
+      'HB0010',
     );
   });
 });

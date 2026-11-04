@@ -119,6 +119,61 @@ export function isCompanyCodeComplete(code: string): boolean {
   return completeCode.test(code);
 }
 
+// scheme://주소/경로?쿼리#조각. RN 의 URL 은 pathname·searchParams 를 다 갖추지 않아 직접 나눈다
+const urlParts = /^[a-z][a-z\d+.-]*:\/\/[^/?#]*([^?#]*)(?:\?([^#]*))?/i;
+// 이름이 붙은 쿼리를 먼저 본다
+const CODE_QUERY_KEYS = ['companyCode', 'code'];
+
+const decode = (text: string) => {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    // 깨진 퍼센트 인코딩은 그대로 두어 코드 규칙에서 걸러진다
+    return text;
+  }
+};
+
+/** 정리한 값이 회사 코드 규칙(허용 문자 6자)에 맞으면 그 코드다. 입력칸과 달리 넘치는 글자를 잘라 맞추지 않는다 */
+const completeCodeOf = (text: string) => {
+  const code = normalizeCompanyCode(text);
+  return isCompanyCodeComplete(code) ? code : null;
+};
+
+/**
+ * QR 에 담긴 값에서 회사 코드를 꺼낸다 (#108). 없으면 null('인식할 수 없는 QR').
+ * QR 형식은 웹 관리자와 아직 정하지 않아 둘 다 받는다: 회사 코드만 담은 값, URL 의 code·companyCode 쿼리나
+ * 마지막 경로 조각에 코드가 든 값(참여 링크 https://…/join/RBT124). 형식이 정해지면 이 함수만 맞춘다.
+ * 코드가 바뀌어 폐기된 이전 코드인지는 서버만 알아, 꺼낸 코드로 회사를 확인한다
+ */
+export function companyCodeFromQr(value: string): string | null {
+  const text = value.trim();
+  const url = urlParts.exec(text);
+  if (!url) {
+    return completeCodeOf(text);
+  }
+  const [, path, query = ''] = url;
+  const params = new Map<string, string>();
+  for (const pair of query.split('&')) {
+    const [key, ...rest] = pair.split('=');
+    const name = decode(key);
+    if (!params.has(name)) {
+      params.set(name, decode(rest.join('=')));
+    }
+  }
+  const lastSegment = path.split('/').filter(Boolean).pop();
+  const candidates = [
+    ...CODE_QUERY_KEYS.map(key => params.get(key)),
+    lastSegment && decode(lastSegment),
+  ];
+  for (const candidate of candidates) {
+    const code = candidate ? completeCodeOf(candidate) : null;
+    if (code) {
+      return code;
+    }
+  }
+  return null;
+}
+
 /** 회사 확인 결과를 화면이 나눌 네 갈래로 바꾼다. 찾은 회사는 찾은 코드·방법과 함께 참여 대상이 된다 */
 export function lookupOutcome(
   lookup: CompanyLookup | null,
