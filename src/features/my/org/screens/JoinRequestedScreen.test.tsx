@@ -15,12 +15,14 @@ import {
 import {
   fail,
   networkError,
+  ok,
   type FakeResponse,
 } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
 import type { ParticipationRequest } from '../model';
 import { cancelRequestPath, OrganizationErrorCode } from '../participationApi';
+import { participationRequestsKey } from '../participationQueries';
 import { createParticipationServer } from '../testing';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 
@@ -235,6 +237,48 @@ describe('JoinRequestedScreen', () => {
       await waitFor(() => expect(props.onCanceled).toHaveBeenCalledTimes(1));
       expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(1);
       expect(participation.requests[0].status).toBe('CANCELED');
+    });
+
+    // 화면 이동은 화면의 몫이지만, 서버가 받은 취소를 신청 현황에 반영하는 일은 화면이 사라져도 일어나야 한다
+    it('취소하는 동안 화면을 떠나도 서버가 받은 취소는 받아 둔 신청 현황에 반영되고, 화면 이동은 하지 않는다', async () => {
+      const { props, server, unmount, queryClient, participation } =
+        await renderRequested();
+      queryClient.setQueryData(participationRequestsKey, [request]);
+      let release: () => void = () => {};
+      server.on(
+        'POST',
+        CANCEL_PATH,
+        () =>
+          new Promise<FakeResponse>(done => {
+            release = () => {
+              participation.requests[0].status = 'CANCELED';
+              done(
+                ok({
+                  requestId: 9,
+                  organizationId: 9,
+                  organizationName: 'Orbit',
+                  desiredType: 'TECHNICIAN',
+                  status: 'CANCELED',
+                  requestedAt: request.requestedAt,
+                }),
+              );
+            };
+          }),
+      );
+      await openCancel();
+      await confirmCancel();
+
+      await unmount();
+      await act(async () => release());
+
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryData<ParticipationRequest[]>(
+            participationRequestsKey,
+          )?.[0].status,
+        ).toBe('CANCELED'),
+      );
+      expect(props.onCanceled).not.toHaveBeenCalled();
     });
 
     it('취소하는 동안에는 확인·신청 취소가 잠기고, 연달아 눌러도 한 번만 취소한다', async () => {

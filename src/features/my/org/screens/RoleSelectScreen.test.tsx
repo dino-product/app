@@ -18,8 +18,10 @@ import { testSession } from '../../../../shared/testing/session';
 import type { JoinTarget } from '../model';
 import {
   OrganizationErrorCode,
+  parseParticipationRequest,
   PARTICIPATION_REQUESTS_PATH,
 } from '../participationApi';
+import { participationRequestsKey } from '../participationQueries';
 import { createParticipationServer, EXISTING_REQUESTS } from '../testing';
 import { RoleSelectScreen } from './RoleSelectScreen';
 
@@ -304,6 +306,49 @@ describe('RoleSelectScreen', () => {
     await act(async () => release());
 
     expect(props.onRequested).not.toHaveBeenCalled();
+  });
+
+  // 화면 이동은 화면의 몫이지만, 서버가 만든 요청을 신청 현황에 반영하는 일은 화면이 사라져도 일어나야 한다
+  it('보내는 동안 화면을 떠나도 서버가 만든 요청은 받아 둔 신청 현황에 반영되고 다시 받을 대상이 된다', async () => {
+    const { server, unmount, queryClient } = await renderRole();
+    queryClient.setQueryData(
+      participationRequestsKey,
+      EXISTING_REQUESTS.map(parseParticipationRequest),
+    );
+    let release: () => void = () => {};
+    server.on(
+      'POST',
+      PARTICIPATION_REQUESTS_PATH,
+      () =>
+        new Promise<FakeResponse>(done => {
+          release = () =>
+            done(
+              ok({
+                requestId: 31,
+                organizationId: 9,
+                organizationName: 'Orbit',
+                desiredType: 'TECHNICIAN',
+                status: 'PENDING',
+                requestedAt: '2026-11-04T01:24:00Z',
+              }),
+            );
+        }),
+    );
+    await requestAs('기사');
+
+    await unmount();
+    await act(async () => release());
+
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryData<{ requestId: string }[]>(participationRequestsKey)
+          ?.map(item => item.requestId),
+      ).toContain('31'),
+    );
+    expect(
+      queryClient.getQueryState(participationRequestsKey)?.isInvalidated,
+    ).toBe(true);
   });
 
   // 갈 곳을 서버에 묻는 동안(온보딩: 신청 현황 다시 받기) 다시 보내지 않게 한다
