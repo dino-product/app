@@ -8,6 +8,7 @@ import {
 import {
   AccessibilityInfo,
   Alert,
+  Keyboard,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -214,6 +215,17 @@ describe('OrgJoinScreen', () => {
         expect(props.onScanQr).toHaveBeenCalledTimes(1);
       },
     );
+
+    // 입력하던 키보드가 카메라 화면 위에 남지 않게 한다
+    it('누르면 키보드를 내린다', async () => {
+      cameraPermission.getStatus.mockReturnValue('granted');
+      const dismiss = jest.spyOn(Keyboard, 'dismiss');
+      await renderJoin();
+
+      await userEvent.press(qrButton());
+
+      expect(dismiss).toHaveBeenCalled();
+    });
 
     it('이미 허용했으면 묻지 않고 연다', async () => {
       cameraPermission.getStatus.mockReturnValue('granted');
@@ -508,6 +520,35 @@ describe('OrgJoinScreen', () => {
     expect(
       screen.getByRole('header', { name: '잠시 후 다시 시도해 주세요' }),
     ).toBeOnTheScreen();
+  });
+
+  // 확인 결과가 오면 갈래를 나누기 전에 제목·설명부터 맞춘다. 바깥 처리(온보딩 이미 참여 → 신청 현황 받기)를 기다리는 동안 옛 안내가 남지 않게
+  it('유효하지 않은 코드 뒤 다른 코드를 확인하면, 이미 참여 처리를 기다리는 동안에도 제목이 바로 회사 찾기로 돌아온다', async () => {
+    let finish: (handled: boolean) => void = () => {};
+    const onAlreadyMember = jest.fn(
+      () =>
+        new Promise<boolean>(done => {
+          finish = done;
+        }),
+    );
+    await renderJoin({
+      flow: 'onboarding',
+      onPending: jest.fn(),
+      onAlreadyMember,
+    });
+    await userEvent.type(codeInput(), 'WRNG99');
+    await userEvent.press(checkButton());
+    await screen.findByRole('header', {
+      name: '유효하지 않은 회사 코드입니다',
+    });
+
+    await fireEvent.changeText(codeInput(), 'BS0001');
+    await userEvent.press(checkButton());
+    await waitFor(() => expect(onAlreadyMember).toHaveBeenCalled());
+
+    expect(header('유효하지 않은 회사 코드입니다')).toBeNull();
+    expect(header('회사 찾기')).toBeOnTheScreen();
+    await act(async () => finish(true));
   });
 
   describe('온보딩 흐름 (#85)', () => {

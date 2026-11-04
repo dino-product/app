@@ -1,6 +1,7 @@
 import { useRef, useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -68,14 +69,16 @@ export function OrgJoinScreen({
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
+  const [invalid, setInvalid] = useState(false);
   const { check, checking, notice, closeNotice } = useCompanyCheck({
     onFound,
     onPending,
     onAlreadyMember,
+    // 바깥 처리(온보딩 이미 참여 → 신청 현황 받기)를 기다리는 동안 옛 안내가 남지 않게 결과가 오면 바로 맞춘다
+    onChecked: kind => setInvalid(kind === 'invalid'),
   });
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
-  const [invalid, setInvalid] = useState(false);
   // 권한을 묻는 동안 다시 눌러도 한 번만 묻는다
   const askingCamera = useRef(false);
 
@@ -88,12 +91,8 @@ export function OrgJoinScreen({
     if (!complete) {
       return;
     }
+    // 확인하지 못했으면(안내를 띄웠다) 입력은 그대로 두고 다시 누를 수 있다
     const kind = await check(code, 'COMPANY_CODE');
-    if (kind === null) {
-      // 이미 찾는 중이거나 확인하지 못했다(안내를 띄웠다). 입력은 그대로 두고 다시 누를 수 있다
-      return;
-    }
-    setInvalid(kind === 'invalid');
     if (kind === 'invalid' && Platform.OS === 'ios') {
       // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
       AccessibilityInfo.announceForAccessibility(
@@ -104,6 +103,8 @@ export function OrgJoinScreen({
 
   // 거부했거나 '다시 묻지 않음'(iOS 는 거부·제한)이면 열지 않고 설정으로 가는 안내를 띄운다
   const scanQr = async () => {
+    // 입력하던 키보드가 카메라 화면 위에 남지 않게 내린다
+    Keyboard.dismiss();
     if (askingCamera.current) {
       return;
     }

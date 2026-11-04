@@ -36,7 +36,11 @@ export function useCompanyCheck({
   onFound,
   onPending,
   onAlreadyMember,
-}: CompanyCheckHandlers) {
+  onChecked,
+}: CompanyCheckHandlers & {
+  /** 확인 결과가 오면 갈래를 나누기 전에 먼저 부른다 (화면의 제목·설명을 바로 맞출 때). 바깥 처리를 기다리지 않는다 */
+  onChecked?: (kind: LookupOutcome['kind']) => void;
+}) {
   const lookup = useLookupCompany();
   const [notice, setNoticeState] = useState<Notice | null>(null);
   const [checking, setChecking] = useState(false);
@@ -80,6 +84,7 @@ export function useCompanyCheck({
       if (!mounted.current) {
         return null;
       }
+      onChecked?.(outcome.kind);
       if (outcome.kind === 'found') {
         onFound(outcome.target);
       } else if (outcome.kind === 'pending') {
