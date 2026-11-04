@@ -17,6 +17,8 @@ import {
 import { haptic } from '../../../shared/haptics';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
+import { InfoCard, InfoField, Section } from '../../work/components/InfoCard';
+import { PhotoThumb } from '../../work/components/PhotoThumb';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
 import type { WorkDetail } from '../../work/model';
 
@@ -86,7 +88,23 @@ export function RequestDetailScreen({
         {...noOverscroll}
         contentContainerStyle={[readableColumn, styles.content]}
       >
-        <WorkInfoSections work={work} onCall={onCall} onNavigate={onNavigate} />
+        <WorkInfoSections
+          work={work}
+          onCall={onCall}
+          onNavigate={onNavigate}
+          showRequestImages={false}
+        />
+        {/* Figma 2714-12566: 제목은 카드 바깥. 업로드 UI(추가 칸·삭제)는 백엔드에 기능이 없어 보기 전용 (#104) */}
+        <Section title="현장 사진">
+          <InfoCard testID="site-photo-card" style={styles.sitePhotoCard}>
+            <InfoField label="주소" value={work.address} />
+            <View style={styles.sitePhotos}>
+              {work.requestImages.map(uri => (
+                <PhotoThumb key={uri} uri={uri} variant="site" />
+              ))}
+            </View>
+          </InfoCard>
+        </Section>
       </ScrollView>
       <View style={[readableColumn, styles.actions]}>
         <CTA
@@ -114,6 +132,8 @@ const styles = StyleSheet.create({
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 24 },
+  sitePhotoCard: { gap: 16 },
+  sitePhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   actions: {
     flexDirection: 'row',
     gap: 8,

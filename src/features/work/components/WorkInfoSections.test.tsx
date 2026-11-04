@@ -54,4 +54,18 @@ describe('WorkInfoSections', () => {
     const images = JSON.stringify(screen.toJSON()).split('"type":"Image"');
     expect(images).toHaveLength(2);
   });
+
+  // #104: 작업 수행 상세의 사진 섹션은 그대로다 (Figma 3235-16226)
+  it('기본은 작업 내용 카드 아래 "작업 요청 이미지 n장" 줄에 88 칸으로 보여준다', async () => {
+    await renderSections();
+
+    expect(screen.getByText('작업 요청 이미지')).toBeOnTheScreen();
+    expect(screen.getByText('2장')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('photo-thumb')[0]).toHaveStyle({
+      width: 88,
+      height: 88,
+      borderRadius: 8,
+    });
+    expect(screen.queryByText('현장 사진')).not.toBeOnTheScreen();
+  });
 });
