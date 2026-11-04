@@ -20,3 +20,10 @@ jest.mock('react-native-image-picker', () => ({
 
 // 토큰 보관(Keychain)은 네이티브 모듈이라 메모리 목으로 바꾼다
 jest.mock('react-native-keychain', () => require('./keychain'));
+
+// 카카오·Apple 로그인 SDK 도 네이티브 모듈이다. 기본은 로그인에 성공한다 (jest/loginSdk.js)
+jest.mock('@react-native-seoul/kakao-login', () => require('./loginSdk').kakao);
+jest.mock(
+  '@invertase/react-native-apple-authentication',
+  () => require('./loginSdk').apple,
+);

@@ -7,8 +7,10 @@ import {
 import { colors } from '../../../shared/design-system';
 import { ProfileRegisterScreen } from './ProfileRegisterScreen';
 
-const renderRegister = async () => {
-  const props = { onBack: jest.fn(), onSubmit: jest.fn() };
+const renderRegister = async (
+  overrides: Partial<Parameters<typeof ProfileRegisterScreen>[0]> = {},
+) => {
+  const props = { onBack: jest.fn(), onSubmit: jest.fn(), ...overrides };
   await render(<ProfileRegisterScreen {...props} />);
   return props;
 };
@@ -93,6 +95,64 @@ describe('ProfileRegisterScreen', () => {
     expect(nameInput()).toHaveStyle({ borderColor: colors.gray[200] });
     await fireEvent(nameInput(), 'focus');
     expect(nameInput()).toHaveStyle({ borderColor: colors.secondary });
+  });
+
+  // 가입을 마치지 않은 계정이 다시 로그인한 경우 (#113)
+  it('서버에 입력해 둔 이름·연락처가 있으면 채워서 열고 완료가 켜진다', async () => {
+    const { onSubmit } = await renderRegister({
+      initialProfile: { name: '홍길동', phoneNumber: '01012345678' },
+    });
+
+    expect(nameInput()).toHaveDisplayValue('홍길동');
+    expect(phoneInput()).toHaveDisplayValue('010-1234-5678');
+    await userEvent.press(doneButton());
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: '홍길동',
+      phoneNumber: '01012345678',
+    });
+  });
+
+  // 켠 직후 뒤에서 확인한 프로필이 화면을 그린 뒤에 온 경우 (#113 낙관적 복원). 화면을 다시 만들지 않고 채운다
+  it('입력해 둔 값이 늦게 오면 아직 고치지 않았을 때만 채운다', async () => {
+    const props = { onBack: jest.fn(), onSubmit: jest.fn() };
+    await render(<ProfileRegisterScreen {...props} />);
+    const name = nameInput();
+
+    await screen.rerender(
+      <ProfileRegisterScreen
+        {...props}
+        initialProfile={{ name: '홍길동', phoneNumber: '01012345678' }}
+      />,
+    );
+
+    expect(nameInput()).toBe(name);
+    expect(nameInput()).toHaveDisplayValue('홍길동');
+    expect(phoneInput()).toHaveDisplayValue('010-1234-5678');
+  });
+
+  it('이미 고쳤으면 늦게 온 값으로 덮어쓰지 않는다 (저장한 뒤 같은 값이 와도 그대로다)', async () => {
+    const props = { onBack: jest.fn(), onSubmit: jest.fn() };
+    await render(<ProfileRegisterScreen {...props} />);
+    await userEvent.type(nameInput(), '박기사');
+
+    await screen.rerender(
+      <ProfileRegisterScreen
+        {...props}
+        initialProfile={{ name: '홍길동', phoneNumber: '01012345678' }}
+      />,
+    );
+
+    expect(nameInput()).toHaveDisplayValue('박기사');
+    expect(phoneInput()).toHaveDisplayValue('');
+  });
+
+  it('서버에 저장하는 동안에는 완료가 꺼져 있다', async () => {
+    await renderRegister({
+      initialProfile: { name: '홍길동', phoneNumber: '01012345678' },
+      submitting: true,
+    });
+
+    expect(doneButton()).toBeDisabled();
   });
 
   it('뒤로 가기를 누르면 알린다', async () => {

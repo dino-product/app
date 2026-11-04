@@ -1,17 +1,37 @@
+import { useState } from 'react';
 import { measureRenders } from 'reassure';
+import { saveSignedInStep } from '../features/onboarding/login';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { perfBudget } from '../shared/perf/budget';
-import { signedInAuth } from '../features/onboarding/model';
+import { createTestApi } from '../shared/testing/renderWithApi';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
 import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
+import { accountServer, signedInSession } from './testing';
+
+// 렌더마다 새 기기(서버·세션·캐시)로 켠다. signedIn 이면 가입을 마친 계정의 세션이 Keychain 에 남아 있다.
+// 켤 때는 MMKV 의 가입 단계 표식으로 바로 그리고 세션 확인은 뒤에서 한다(#113). 단계가 같으면 다시 그리지 않는다
+function Launch({ signedIn }: { signedIn: boolean }) {
+  const [api] = useState(() =>
+    createTestApi({
+      server: accountServer(),
+      session: signedIn ? signedInSession() : null,
+    }),
+  );
+  return <App api={api} />;
+}
 
 // 앞 렌더가 저장한 화면으로 다음 렌더가 복원되지 않게 렌더마다 저장소를 비운다 (#34)
 const firstLaunch = () => appStorage.clearAll();
+// 가입을 마친 계정으로 로그인해 둔 기기
+const signedInLaunch = () => {
+  appStorage.clearAll();
+  saveSignedInStep('COMPLETED');
+};
 
 // 작업 상세를 보다 종료된 뒤 다시 연 경우. withDraft 면 완료 보고를 쓰던 중이었다
 const relaunchOnWorkDetail = (withDraft: boolean) => () => {
-  appStorage.clearAll();
+  signedInLaunch();
   writeJson(NAVIGATION_STATE_KEY, {
     savedAt: Date.now(),
     state: {
@@ -75,8 +95,8 @@ const expectWithinBudget = (
 describe('App 렌더 예산', () => {
   it('마운트 시 추가 렌더와 중복 렌더가 예산 이내다', async () => {
     expectWithinBudget(
-      await measureRenders(<App initialAuth={signedInAuth()} />, {
-        beforeEach: firstLaunch,
+      await measureRenders(<Launch signedIn />, {
+        beforeEach: signedInLaunch,
       }),
     );
   });
@@ -84,20 +104,22 @@ describe('App 렌더 예산', () => {
   // 처음 켜면 로그인 화면부터 연다 (#85)
   it('로그아웃 상태로 마운트해도 추가 렌더와 중복 렌더가 예산 이내다', async () => {
     expectWithinBudget(
-      await measureRenders(<App />, { beforeEach: firstLaunch }),
+      await measureRenders(<Launch signedIn={false} />, {
+        beforeEach: firstLaunch,
+      }),
     );
   });
 
   it('종료 후 보던 작업 상세로 다시 열 때도 예산 이내다', async () => {
     expectWithinBudget(
-      await measureRenders(<App initialAuth={signedInAuth()} />, {
+      await measureRenders(<Launch signedIn />, {
         beforeEach: relaunchOnWorkDetail(false),
       }),
     );
   });
 
   it(RESTORE_WITH_DRAFT, async () => {
-    const result = await measureRenders(<App initialAuth={signedInAuth()} />, {
+    const result = await measureRenders(<Launch signedIn />, {
       beforeEach: relaunchOnWorkDetail(true),
     });
 

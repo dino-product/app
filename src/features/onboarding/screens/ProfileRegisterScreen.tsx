@@ -21,24 +21,51 @@ import {
 } from '../../../shared/layout/standaloneScreen';
 
 // Figma 프로필 등록 (3267:11862 빈 입력 / 3267:11212 입력). 마이 › 프로필 수정(#72)과 같은 입력칸을 쓴다.
-// 이름 2~20자와 연락처 11자리를 모두 넣어야 '완료' 가 켜진다 (Spec_프로필 입력 화면)
+// 이름 2~20자와 연락처 11자리를 모두 넣어야 '완료' 가 켜진다 (Spec_프로필 입력 화면).
+// 가입을 마치지 않고 다시 로그인했으면 서버에 입력해 둔 값으로 채워 연다 (#113)
 export function ProfileRegisterScreen({
+  initialProfile,
+  submitting = false,
   onBack,
   onSubmit,
   titleRef,
 }: {
+  /** 서버에 입력해 둔 이름·연락처(숫자 11자리). 늦게 오면 아직 고치지 않았을 때만 채운다 */
+  initialProfile?: ProfileInput;
+  /** 서버에 저장하는 동안 '완료' 를 끈다 */
+  submitting?: boolean;
   onBack: () => void;
   onSubmit: (input: ProfileInput) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  // FormField 가 memo 라 입력 처리 함수를 렌더마다 새로 만들지 않는다
-  const changePhone = useCallback(
-    (text: string) => setPhone(formatPhoneNumber(text)),
-    [],
+  const [name, setName] = useState(initialProfile?.name ?? '');
+  const [phone, setPhone] = useState(() =>
+    formatPhoneNumber(initialProfile?.phoneNumber ?? ''),
   );
+  const [edited, setEdited] = useState(false);
+  // 켠 직후 뒤에서 확인한 프로필이 그린 뒤에 오면, 아직 고치지 않았을 때만 그 값으로 채운다.
+  // 화면을 다시 만들지 않고 렌더 중에 맞춘다 (React 문서 '이전 렌더의 정보 저장')
+  const incoming = initialProfile
+    ? `${initialProfile.name}\n${initialProfile.phoneNumber}`
+    : null;
+  const [received, setReceived] = useState(incoming);
+  if (incoming !== received) {
+    setReceived(incoming);
+    if (initialProfile && !edited) {
+      setName(initialProfile.name);
+      setPhone(formatPhoneNumber(initialProfile.phoneNumber));
+    }
+  }
+  // FormField 가 memo 라 입력 처리 함수를 렌더마다 새로 만들지 않는다
+  const changeName = useCallback((text: string) => {
+    setEdited(true);
+    setName(text);
+  }, []);
+  const changePhone = useCallback((text: string) => {
+    setEdited(true);
+    setPhone(formatPhoneNumber(text));
+  }, []);
   const canSubmit = canRegisterProfile({ name, phoneNumber: phone });
 
   const submit = () =>
@@ -72,7 +99,7 @@ export function ProfileRegisterScreen({
             <FormField
               label="이름"
               value={name}
-              onChangeText={setName}
+              onChangeText={changeName}
               placeholder="김기사"
             />
             <View style={styles.phone}>
@@ -98,7 +125,11 @@ export function ProfileRegisterScreen({
       </KeyboardAvoidingArea>
 
       <View style={[readableColumn, standaloneScreen.actions]}>
-        <CTA label="완료" onPress={submit} disabled={!canSubmit} />
+        <CTA
+          label="완료"
+          onPress={submit}
+          disabled={!canSubmit || submitting}
+        />
       </View>
     </SafeAreaView>
   );

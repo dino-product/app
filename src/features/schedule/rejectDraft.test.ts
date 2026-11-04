@@ -1,5 +1,6 @@
 import { appStorage, writeJson } from '../../shared/storage/appStorage';
 import {
+  clearAllRejectDrafts,
   clearRejectDraft,
   loadRejectDraft,
   saveRejectDraft,
@@ -64,5 +65,18 @@ describe('거절 사유 초안', () => {
 
     expect(loadRejectDraft('request-1')).toBeUndefined();
     expect(appStorage.getAllKeys()).toEqual([]);
+  });
+
+  // #113: 공용 기기에서 다음 계정에 앞 계정이 고르던 사유가 열리지 않게 로그아웃·탈퇴·세션 만료 때 모두 지운다
+  it('로그아웃하면 모든 요청의 초안을 지우고 다른 값은 남긴다', () => {
+    saveRejectDraft('request-1', { selected: 'other', otherText: '차량 고장' });
+    saveRejectDraft('request-2', { selected: 'schedule', otherText: '' });
+    appStorage.set('work.reportDraft.w1', '{}');
+
+    clearAllRejectDrafts();
+
+    expect(loadRejectDraft('request-1')).toBeUndefined();
+    expect(loadRejectDraft('request-2')).toBeUndefined();
+    expect(appStorage.getAllKeys()).toEqual(['work.reportDraft.w1']);
   });
 });

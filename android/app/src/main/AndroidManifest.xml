@@ -44,5 +44,16 @@
         </intent-filter>
         <meta-data android:name="photopicker_activity:0:required" android:value="" />
       </service>
+      <!-- 카카오계정 로그인 뒤 돌아오는 주소 kakao{네이티브 앱 키}://oauth (#113). 키는 build.gradle 이 넣는다 -->
+      <activity
+        android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:host="oauth" android:scheme="${kakaoScheme}" />
+        </intent-filter>
+      </activity>
     </application>
 </manifest>

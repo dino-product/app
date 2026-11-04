@@ -2,20 +2,12 @@ import {
   allTermsAgreed,
   canRegisterProfile,
   canSignUp,
-  completeOnboarding,
-  initialAuthState,
-  isRegistered,
   loginMethodsFor,
   noTermsAgreed,
-  signedInAuth,
-  signIn,
-  signOut,
   termsList,
   toggleAllTerms,
   toggleTerm,
-  withdraw,
   withRo,
-  type AuthState,
   type TermsAgreement,
 } from './model';
 
@@ -97,73 +89,6 @@ describe('loginMethodsFor', () => {
   it('iOS 는 카카오와 Apple, Android 는 카카오만', () => {
     expect(loginMethodsFor('ios')).toEqual(['KAKAO', 'APPLE']);
     expect(loginMethodsFor('android')).toEqual(['KAKAO']);
-  });
-});
-
-describe('더미 로그인', () => {
-  it('처음에는 로그아웃 상태이고 가입한 계정도, 최근 로그인도 없다', () => {
-    expect(initialAuthState).toEqual({
-      signedIn: null,
-      registered: [],
-      lastMethod: null,
-    });
-  });
-
-  it('온보딩을 마치기 전에는 신규 사용자다', () => {
-    expect(isRegistered(initialAuthState, 'KAKAO')).toBe(false);
-  });
-
-  it('온보딩을 마치면 그 방식의 계정이 생기고 로그인 상태가 된다', () => {
-    const state = completeOnboarding(initialAuthState, 'KAKAO');
-
-    expect(state).toEqual({
-      signedIn: 'KAKAO',
-      registered: ['KAKAO'],
-      lastMethod: 'KAKAO',
-    });
-    expect(isRegistered(state, 'KAKAO')).toBe(true);
-    // 카카오와 Apple 은 다른 계정이다 (서버도 /auth/kakao, /auth/apple 로 따로 받는다)
-    expect(isRegistered(state, 'APPLE')).toBe(false);
-  });
-
-  it('로그아웃하면 계정과 마지막 로그인 방식은 남는다', () => {
-    const state = signOut(completeOnboarding(initialAuthState, 'APPLE'));
-
-    expect(state).toEqual({
-      signedIn: null,
-      registered: ['APPLE'],
-      lastMethod: 'APPLE',
-    });
-  });
-
-  it('가입한 계정으로 다시 로그인하면 바로 로그인 상태가 되고 마지막 방식이 바뀐다', () => {
-    const both: AuthState = {
-      signedIn: null,
-      registered: ['KAKAO', 'APPLE'],
-      lastMethod: 'APPLE',
-    };
-
-    expect(signIn(both, 'KAKAO')).toEqual({
-      ...both,
-      signedIn: 'KAKAO',
-      lastMethod: 'KAKAO',
-    });
-  });
-
-  it('탈퇴하면 그 계정이 사라져 다시 신규 사용자가 되고, 최근 로그인도 지운다', () => {
-    const state = withdraw(completeOnboarding(initialAuthState, 'KAKAO'));
-
-    expect(state).toEqual(initialAuthState);
-    expect(isRegistered(state, 'KAKAO')).toBe(false);
-  });
-
-  it('테스트는 온보딩을 마친 계정으로 로그인한 상태에서 시작할 수 있다', () => {
-    expect(signedInAuth()).toEqual({
-      signedIn: 'KAKAO',
-      registered: ['KAKAO'],
-      lastMethod: 'KAKAO',
-    });
-    expect(signedInAuth('APPLE').signedIn).toBe('APPLE');
   });
 });
 

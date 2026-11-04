@@ -99,6 +99,12 @@ if (uploadKey && missingUploadKeyProperties) {
 }
 def hasUploadKey = missingUploadKeyProperties.isEmpty()
 
+/**
+ * 카카오 네이티브 앱 키 (#113). 저장소에 넣지 않고 ~/.gradle/gradle.properties 나 CI 비밀값
+ * (ORG_GRADLE_PROJECT_KAKAO_NATIVE_APP_KEY)에서 읽는다. 없으면 빈 값으로 빌드되고, 실행 중 카카오 로그인만 실패 안내를 띄운다
+ */
+def kakaoNativeAppKey = findProperty("KAKAO_NATIVE_APP_KEY")?.toString()?.trim() ?: ""
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -111,6 +117,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // 카카오 로그인 리다이렉트 스킴 kakao{앱 키} (AndroidManifest 의 AuthCodeHandlerActivity)
+        manifestPlaceholders["kakaoScheme"] = "kakao${kakaoNativeAppKey}"
+        // 카카오 로그인 라이브러리의 kakao_strings.xml 예제 키를 앱 리소스로 덮어쓴다 (앱 리소스가 라이브러리보다 먼저다)
+        resValue "string", "kakao_app_key", kakaoNativeAppKey
     }
     sourceSets {
         // 폰트 원본은 레포 루트 assets/fonts 한 곳에만 둔다 (iOS 와 공유)
