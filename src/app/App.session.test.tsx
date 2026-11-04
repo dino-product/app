@@ -27,6 +27,7 @@ import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   accountProfile,
   accountServer,
+  fixAppTestClock,
   LOGOUT_PATH,
   PROFILE_PATH,
   renderApp,
@@ -37,6 +38,8 @@ import {
 // 세션 (#113): 다시 켜면 마지막으로 확인한 가입 단계 화면을 바로 그리고, 뒤에서 저장된 세션으로 프로필을 조회해 맞춘다.
 // 만료·로그아웃이면 로그인으로 간다.
 // "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같다)
+// 로컬 작업 시드와 홈 '진행할 작업' 이 지금 시각을 기준으로 정해진다. 자정 직후에도 같은 화면이 되게 시각을 고정한다
+fixAppTestClock();
 const header = (name: string) => screen.queryByRole('header', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
 const REFRESH_PATH = '/api/v1/auth/refresh';

@@ -62,6 +62,10 @@ describe('탭 전환 렌더 예산', () => {
     await screen.findAllByRole('button', { name: /, 완료, / });
     await settle();
     const before = { ...mockRenders };
+    // 세기가 실제로 걸렸는지 (목 경로가 깨지면 0 으로 그냥 통과하지 않게)
+    expect(before.home).toBeGreaterThan(0);
+    expect(before.schedule).toBeGreaterThan(0);
+    expect(before.history).toBeGreaterThan(0);
 
     for (const name of ['홈', '내 일정', '작업 이력', '홈', '내 일정']) {
       await userEvent.press(tab(name));
