@@ -1,5 +1,5 @@
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { AccessibilityInfo, Platform, StatusBar } from 'react-native';
+import { AccessibilityInfo, AppState, Platform, StatusBar } from 'react-native';
 import { changeAppState, mockAppState } from '../../../../../jest/appState';
 import { failCamera, scanQr } from '../../../../../jest/qrCamera';
 import {
@@ -68,6 +68,8 @@ const camera = () =>
   screen.getByTestId('qr-camera', { includeHiddenElements: true });
 const header = (name: string) => screen.queryByRole('header', { name });
 const GUIDE = '회사에서 받은 QR 코드를 사각형 안에 비춰 주세요.';
+const CHECK_FAILED =
+  '회사를 확인하지 못했어요.\n다시 시도하거나 다른 QR 코드를 비춰 주세요.';
 const UNRECOGNIZED =
   '인식할 수 없는 QR 코드예요.\n회사 참여 QR 코드를 비춰 주세요.';
 
@@ -149,6 +151,25 @@ describe('QrScanScreen', () => {
           '카메라를 켜지 못했어요.\n설정에서 카메라 접근을 허용했는지 확인해 주세요.',
         ),
       ).toBeOnTheScreen();
+
+      // 다시 시도하면 카메라를 다시 연다
+      await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+      expect(camera()).toHaveProp('isActive', true);
+      expect(screen.getByText(GUIDE)).toBeOnTheScreen();
+    });
+
+    // iOS 첫 권한 대화상자가 닫히며 앱이 active 로 돌아오는 순간이 첫 렌더와 구독 사이에 끼면 이벤트를 놓친다
+    it('그린 뒤 구독하기 전에 앱이 active 가 됐어도 카메라를 켠다', async () => {
+      const { props } = await renderScan();
+      let reads = 0;
+      Object.defineProperty(AppState, 'currentState', {
+        get: () => (reads++ === 0 ? 'inactive' : 'active'),
+        configurable: true,
+      });
+
+      await screen.rerender(<QrScanScreen {...props} key="again" />);
+
+      expect(camera()).toHaveProp('isActive', true);
     });
   });
 
@@ -330,11 +351,12 @@ describe('QrScanScreen', () => {
       expect(header('이미 참여 중인 회사예요')).toBeNull();
     });
 
+    // 오프라인·실패 한도(429)에서 같은 QR 이 계속 보여도 안내가 되풀이되지 않게, 실패 뒤에는 저절로 다시 묻지 않는다
     it.each([
       ['네트워크 오류', networkError()],
       ['서버 오류(500)', fail(500, 'COMMON-500')],
     ])(
-      '%s 면 확인하지 못했다고 알리고, 닫은 뒤 같은 QR 로 다시 확인할 수 있다',
+      '%s 면 확인하지 못했다고 알리고, 닫은 뒤 같은 QR 이 계속 보여도 다시 묻지 않고 다시 시도로만 묻는다',
       async (_, response) => {
         const { props, server } = await renderScan();
         server.on('GET', COMPANY_LOOKUP_PATH, response, ok(orbitFound));
@@ -350,11 +372,67 @@ describe('QrScanScreen', () => {
 
         await userEvent.press(screen.getByRole('button', { name: '확인' }));
         await scanQr(JOIN_LINK);
+        await scanQr(JOIN_LINK);
+        expect(lookups(server)).toHaveLength(1);
+        expect(screen.getByText(CHECK_FAILED)).toBeOnTheScreen();
+
+        await userEvent.press(
+          screen.getByRole('button', { name: '다시 시도' }),
+        );
 
         await waitFor(() => expect(props.onFound).toHaveBeenCalledTimes(1));
         expect(lookups(server)).toHaveLength(2);
+        expect(lookups(server)[1].query).toEqual({ companyCode: 'RBT124' });
       },
     );
+
+    it('실패 한도(429 ORGANIZATION-018)도 닫은 뒤 같은 QR 로 다시 묻지 않는다. 다른 QR 은 확인한다', async () => {
+      const { server } = await renderScan();
+      server.on(
+        'GET',
+        COMPANY_LOOKUP_PATH,
+        fail(429, OrganizationErrorCode.tooManyFailures),
+      );
+
+      await scanQr(JOIN_LINK);
+      await userEvent.press(
+        await screen.findByRole('button', { name: '확인' }),
+      );
+      await scanQr(JOIN_LINK);
+      expect(lookups(server)).toHaveLength(1);
+
+      await scanQr('HB0010');
+      await waitFor(() => expect(lookups(server)).toHaveLength(2));
+    });
+
+    // 찾은 회사로 데려가지 못했으면(그사이 다른 화면이 올라옴) 돌아왔을 때 같은 QR 로 다시 찾는다
+    it('화면을 떠났다 돌아오면 같은 QR 도 다시 확인한다', async () => {
+      const { props, server, rerender } = await renderScan();
+      await scanQr(JOIN_LINK);
+      await waitFor(() => expect(props.onFound).toHaveBeenCalledTimes(1));
+
+      await rerender(<QrScanScreen {...props} focused={false} />);
+      await rerender(<QrScanScreen {...props} focused />);
+      await scanQr(JOIN_LINK);
+
+      await waitFor(() => expect(props.onFound).toHaveBeenCalledTimes(2));
+      expect(lookups(server)).toHaveLength(2);
+    });
+
+    it('돌아왔을 때 미뤄 둔 실패 안내가 있으면 닫은 뒤에도 같은 QR 로 다시 묻지 않는다', async () => {
+      const { server, props, rerender } = await renderScan();
+      server.on('GET', COMPANY_LOOKUP_PATH, networkError());
+      const respond = holdLookup(server);
+      await scanQr(JOIN_LINK);
+      await rerender(<QrScanScreen {...props} focused={false} />);
+      await respond(networkError());
+
+      await rerender(<QrScanScreen {...props} focused />);
+      await userEvent.press(screen.getByRole('button', { name: '확인' }));
+      await scanQr(JOIN_LINK);
+
+      expect(lookups(server)).toHaveLength(1);
+    });
 
     // 확인하는 사이 다른 화면이 올라오면(알림 등) RN Modal 이 그 화면 위에 뜬다 (#116 회사 찾기와 같다)
     it('화면이 보이지 않는 동안 온 안내는 띄우지 않고, 돌아오면 띄운다', async () => {

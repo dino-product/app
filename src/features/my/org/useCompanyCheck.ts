@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Notice } from './components/NoticeModal';
 import type {
   JoinTarget,
@@ -47,6 +47,10 @@ export function useCompanyCheck({
     noticeRef.current = next;
     setNoticeState(next);
   };
+  const isBusy = useCallback(
+    () => checkingRef.current || noticeRef.current !== null,
+    [],
+  );
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -115,6 +119,6 @@ export function useCompanyCheck({
     showNotice: setNotice,
     closeNotice: () => setNotice(null),
     /** 확인하는 중이거나 안내가 떠 있는지. 다시 그리기를 기다리지 않는다 (카메라 프레임마다 부르는 QR 인식이 쓴다) */
-    isBusy: () => checkingRef.current || noticeRef.current !== null,
+    isBusy,
   };
 }

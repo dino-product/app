@@ -12,11 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
+  CTA,
   Icon,
   ICON_HIT_SLOP,
   Text,
   withOpacity,
 } from '../../../../shared/design-system';
+import { RETRY_LABEL } from '../../../../shared/layout/LoadStateView';
 import { NoticeModal } from '../components/NoticeModal';
 import { QrCamera } from '../components/QrCamera';
 import { companyCodeFromQr } from '../model';
@@ -30,6 +32,8 @@ import { useCompanyCheck, type CompanyCheckHandlers } from '../useCompanyCheck';
 const messages = {
   guide: '회사에서 받은 QR 코드를 사각형 안에 비춰 주세요.',
   checking: '회사를 확인하고 있어요.',
+  checkFailed:
+    '회사를 확인하지 못했어요.\n다시 시도하거나 다른 QR 코드를 비춰 주세요.',
   unrecognized: '인식할 수 없는 QR 코드예요.\n회사 참여 QR 코드를 비춰 주세요.',
   cameraFailed:
     '카메라를 켜지 못했어요.\n설정에서 카메라 접근을 허용했는지 확인해 주세요.',
@@ -56,10 +60,36 @@ export function QrScanScreen({
     useCompanyCheck({ onFound, onPending, onAlreadyMember });
   const appActive = useAppActive();
   const [unrecognized, setUnrecognized] = useState(false);
+  // 회사를 확인하지 못했다(네트워크·서버·실패 한도). 같은 QR 로는 저절로 다시 묻지 않고 다시 시도로만 묻는다
+  const [checkFailed, setCheckFailed] = useState(false);
   const [cameraFailed, setCameraFailed] = useState(false);
   // 마지막으로 처리한 QR 값. QR 이 보이는 동안 프레임마다 같은 값이 와도 한 번만 처리한다
   const lastValue = useRef<string | null>(null);
+  // 마지막으로 확인한 회사 코드 (다시 시도)
+  const lastCode = useRef<string | null>(null);
   useLightStatusBar(focused);
+
+  // 돌아오면(그사이 다른 화면이 올라왔다 내려감) 같은 QR 에도 다시 반응한다. 찾은 회사로 데려가지 못했을 수 있다.
+  // 확인 중이거나 미뤄 둔 안내가 있으면 그대로 둔다 (안내를 닫은 직후 같은 QR 로 저절로 다시 묻지 않게)
+  useEffect(() => {
+    if (focused && !isBusy()) {
+      lastValue.current = null;
+    }
+  }, [focused, isBusy]);
+
+  const checkCode = async (code: string) => {
+    lastCode.current = code;
+    setCheckFailed(false);
+    const kind = await check(code, 'QR_CODE');
+    if (kind === 'invalid') {
+      // 없는 코드·폐기된 이전 코드. 안내를 닫아도 같은 QR 은 다시 확인하지 않는다
+      showNotice(invalidCodeNotice);
+    } else if (kind === null) {
+      // 확인하지 못했다(안내를 띄웠다). 오프라인·실패 한도에서 같은 QR 이 계속 보여도 안내가 되풀이되지 않게
+      // 저절로 다시 묻지 않는다. 다시 시도를 누르거나 다른 QR 을 비추면 묻는다
+      setCheckFailed(true);
+    }
+  };
 
   // 프레임마다 불린다. 확인 중·안내 중이거나 같은 QR 이면 상태를 바꾸지 않고 바로 돌아간다 (다시 그리지 않는다)
   const onScanned = async (values: string[]) => {
@@ -79,6 +109,7 @@ export function QrScanScreen({
     lastValue.current = value;
     setUnrecognized(code === null);
     if (code === null) {
+      setCheckFailed(false);
       if (Platform.OS === 'ios') {
         // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
         AccessibilityInfo.announceForAccessibility(
@@ -87,13 +118,12 @@ export function QrScanScreen({
       }
       return;
     }
-    const kind = await check(code, 'QR_CODE');
-    if (kind === 'invalid') {
-      // 없는 코드·폐기된 이전 코드. 안내를 닫아도 같은 QR 은 다시 확인하지 않는다
-      showNotice(invalidCodeNotice);
-    } else if (kind === null) {
-      // 확인하지 못했다(안내를 띄웠다). 안내를 닫은 뒤 같은 QR 로 다시 확인할 수 있다
-      lastValue.current = null;
+    await checkCode(code);
+  };
+
+  const retryCheck = () => {
+    if (lastCode.current !== null && !isBusy()) {
+      checkCode(lastCode.current);
     }
   };
 
@@ -101,9 +131,17 @@ export function QrScanScreen({
     ? messages.cameraFailed
     : checking
     ? messages.checking
+    : checkFailed
+    ? messages.checkFailed
     : unrecognized
     ? messages.unrecognized
     : messages.guide;
+  // 카메라를 다시 열거나(카메라 실패) 마지막 회사 코드로 다시 확인한다(확인 실패)
+  const retry = cameraFailed
+    ? () => setCameraFailed(false)
+    : checkFailed && !checking
+    ? retryCheck
+    : null;
 
   return (
     <View style={styles.screen}>
@@ -122,15 +160,15 @@ export function QrScanScreen({
         </View>
       )}
 
-      {/* 가운데 사각형 밖을 어둡게 해 비출 곳을 보인다 */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <View style={styles.dim} />
-        <View style={styles.frameRow}>
+      {/* 가운데 사각형 밖을 어둡게 해 비출 곳을 보인다. 다시 시도 버튼만 누를 수 있다 */}
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View pointerEvents="none" style={styles.dim} />
+        <View pointerEvents="none" style={styles.frameRow}>
           <View style={styles.dim} />
           <View testID="qr-guide-frame" style={styles.frame} />
           <View style={styles.dim} />
         </View>
-        <View style={[styles.dim, styles.below]}>
+        <View pointerEvents="box-none" style={[styles.dim, styles.below]}>
           <Text
             accessibilityLiveRegion="polite"
             variant="Body/XS/Medium"
@@ -139,6 +177,7 @@ export function QrScanScreen({
           >
             {message}
           </Text>
+          {retry && <CTA size="M" label={RETRY_LABEL} onPress={retry} />}
         </View>
       </View>
 
@@ -179,6 +218,8 @@ function useAppActive() {
     const subscription = AppState.addEventListener('change', state =>
       setActive(state === 'active'),
     );
+    // 첫 렌더에서 읽은 뒤 구독하기 전에 바뀌었으면(이벤트를 놓침. iOS 첫 권한 대화상자가 닫힐 때) 지금 값으로 맞춘다
+    setActive(AppState.currentState === 'active');
     return () => subscription.remove();
   }, []);
   return active;
@@ -207,7 +248,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.white[100],
   },
-  below: { alignItems: 'center', paddingTop: 24, paddingHorizontal: 24 },
+  below: {
+    alignItems: 'center',
+    gap: 16,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+  },
   message: { textAlign: 'center' },
   header: { position: 'absolute', top: 0, left: 0, right: 0 },
   headerRow: { height: 56, alignItems: 'center', justifyContent: 'center' },
