@@ -8,9 +8,9 @@ import {
   useMyNotifications,
   useMyNotificationSettings,
   useMyProfile,
-  useParticipation,
 } from '../../features/my/MyStateProvider';
-import { pendingRequests } from '../../features/my/org/model';
+import { countPendingRequests } from '../../features/my/org/model';
+import { useParticipationRequests } from '../../features/my/org/participationQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
 import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
 import { NotificationCenterScreen } from '../../features/my/screens/NotificationCenterScreen';
@@ -50,12 +50,9 @@ function useWithdrawalEligibility() {
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
   const { profile, memberships } = useMyProfile();
-  const { requests } = useParticipation();
-  // '신청 현황' 배지는 승인 대기 건수다
-  const pendingRequestCount = useMemo(
-    () => pendingRequests(requests).length,
-    [requests],
-  );
+  // '신청 현황' 배지는 서버 신청 현황의 승인 대기 건수다 (#116). 받기 전·받지 못했으면 배지를 두지 않는다
+  const { data: pendingRequestCount = 0 } =
+    useParticipationRequests(countPendingRequests);
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);

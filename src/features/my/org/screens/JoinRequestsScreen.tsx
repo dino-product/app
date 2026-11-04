@@ -1,6 +1,15 @@
-import { memo, useCallback, useRef, useState, type Ref } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Ref,
+  type RefObject,
+} from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -16,56 +25,152 @@ import {
   touchSlop,
 } from '../../../../shared/design-system';
 import { smallestLineHeight } from '../../../../shared/design-system/tokens/touchTarget';
+import { LoadStateView } from '../../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestSheet } from '../components/CancelRequestSheet';
 import {
   formatRequestDate,
   participationTypeLabels,
+  pendingRequests,
   type ParticipationRequest,
 } from '../model';
+import { cancelFailure } from '../notices';
+import {
+  useCancelParticipationRequest,
+  useParticipationRequests,
+} from '../participationQueries';
 
-// Figma 마이페이지-신청현황 (2880:15194 빈 상태 / 2874:14773 승인 대기 목록)
+// Figma 마이페이지-신청현황 (2880:15194 빈 상태 / 2874:14773 승인 대기 목록).
+// 목록은 서버 신청 현황(GET /api/v1/participation-requests)의 승인 대기 요청이고 당겨서 새로고침한다 (#116).
+// 받는 동안·받지 못했을 때와 실패 안내는 Figma 에 없어 기본안이다 (Figma 미확인).
+// 취소 실패는 시트가 내려가는 중에도 뜨도록 시스템 알림(Alert)으로 알린다 (RN Modal 두 개를 겹쳐 띄우지 않는다)
+
+/** 취소를 확정한 신청. 서버가 취소를 받고 시트가 다 내려가면 알린다 */
+type Canceling = {
+  request: ParticipationRequest;
+  sheetClosed: boolean;
+  canceled: boolean;
+};
+
+const NO_REQUESTS: readonly ParticipationRequest[] = [];
+const NO_IDS: ReadonlySet<string> = new Set();
+
 export function JoinRequestsScreen({
-  requests,
-  onCancel,
   onJoin,
   onBack,
   titleRef,
 }: {
-  /** 승인 대기 중인 신청 */
-  requests: readonly ParticipationRequest[];
-  onCancel: (requestId: string) => void;
   /** 조직 참여하기 (회사 찾기) */
   onJoin: () => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
+  const query = useParticipationRequests(pendingRequests);
+  const cancel = useCancelParticipationRequest();
   const [canceling, setCanceling] = useState<ParticipationRequest | null>(null);
-  // 방금 취소한 신청. 시트가 다 내려간 뒤 알리고, 사라진 카드 대신 목록 제목(빈 상태면 그 제목)으로 포커스를 옮긴다
-  const canceled = useRef<ParticipationRequest | null>(null);
+  // 서버에 취소를 보내는 중인 신청. 그 카드는 답이 올 때까지 다시 취소할 수 없다 (두 번째는 -017 오안내가 된다)
+  const [sending, setSending] = useState<ReadonlySet<string>>(NO_IDS);
+  const [refreshing, setRefreshing] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // 방금 취소한 신청. 서버가 취소를 받고 시트가 다 내려간 뒤 알리고,
+  // 사라진 카드 대신 목록 제목(빈 상태면 그 제목)으로 포커스를 옮긴다
+  const canceled = useRef<Canceling | null>(null);
   const listTitleRef = useRef<TextInstance>(null);
-  const afterSheetClosed = () => {
-    const request = canceled.current;
-    if (!request) {
+  const announceCanceled = (current: Canceling) => {
+    if (!current.sheetClosed || !current.canceled || !mounted.current) {
       return;
     }
-    canceled.current = null;
+    if (canceled.current === current) {
+      canceled.current = null;
+    }
     AccessibilityInfo.announceForAccessibility(
-      `${request.organizationName} 참여 신청을 취소했어요`,
+      `${current.request.organizationName} 참여 신청을 취소했어요`,
     );
     if (listTitleRef.current) {
       AccessibilityInfo.sendAccessibilityEvent(listTitleRef.current, 'focus');
     }
   };
+  const afterSheetClosed = () => {
+    const current = canceled.current;
+    if (current) {
+      current.sheetClosed = true;
+      announceCanceled(current);
+    }
+  };
+  const confirmCancel = (request: ParticipationRequest) => {
+    const { requestId } = request;
+    setCanceling(null);
+    if (sending.has(requestId)) {
+      return;
+    }
+    const current = { request, sheetClosed: false, canceled: false };
+    canceled.current = current;
+    setSending(ids => new Set(ids).add(requestId));
+    const settle = () => {
+      if (mounted.current) {
+        setSending(ids => {
+          const next = new Set(ids);
+          next.delete(requestId);
+          return next.size === 0 ? NO_IDS : next;
+        });
+      }
+    };
+    // mutate 의 콜백은 마지막 호출만 불리므로, 연달아 취소해도 건마다 결과를 받게 promise 로 받는다
+    cancel.mutateAsync(requestId).then(
+      () => {
+        settle();
+        current.canceled = true;
+        announceCanceled(current);
+      },
+      error => {
+        settle();
+        if (canceled.current === current) {
+          canceled.current = null;
+        }
+        if (mounted.current) {
+          const { title, message } = cancelFailure(error);
+          Alert.alert(title, message);
+        }
+      },
+    );
+  };
+
+  // 당겨서 새로고침. 보던 목록이 있는데 새로 받지 못하면 알리고 목록은 남긴다 (처음부터 받지 못했으면 화면이 오류를 보여 준다)
+  const refresh = async () => {
+    setRefreshing(true);
+    const result = await query.refetch();
+    if (!mounted.current) {
+      return;
+    }
+    setRefreshing(false);
+    if (result.isError && result.data !== undefined) {
+      Alert.alert('목록을 새로 고치지 못했어요', '잠시 후 다시 시도해 주세요.');
+    }
+  };
+
   const renderItem = useCallback(
     ({ item }: { item: ParticipationRequest }) => (
-      <RequestCard request={item} onCancel={setCanceling} />
+      <RequestCard
+        request={item}
+        sending={sending.has(item.requestId)}
+        onCancel={setCanceling}
+      />
     ),
-    [],
+    [sending],
   );
-  const empty = requests.length === 0;
+  const requests = query.data;
+  const hasRequests = requests !== undefined && requests.length > 0;
+  // 다시 받는 동안은 오류 대신 불러오는 중을 보인다 (isFetching 은 오류일 때만 읽어 평소 다시 받기로 다시 그리지 않는다)
+  const failed = query.isError && !query.isFetching;
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -74,62 +179,96 @@ export function JoinRequestsScreen({
         onBack={onBack}
         titleRef={titleRef}
       />
-      {empty ? (
-        <View style={[readableColumn, styles.empty]}>
-          <Icon name="document" size={40} color={colors.gray[400]} />
-          <Text
-            ref={listTitleRef}
-            accessibilityRole="header"
-            variant="Body/S/Bold"
-            style={styles.center}
-          >
-            참여 신청 내역이 없어요
-          </Text>
-          <Text
-            variant="Caption/M/Medium"
-            color={colors.gray[600]}
-            style={styles.center}
-          >
-            {'회사 코드나 참여 링크·QR로 조직에 참여를\n신청해 보세요.'}
-          </Text>
-          <CTA label="조직 참여하기" onPress={onJoin} style={styles.emptyCta} />
+      <FlatList
+        testID="join-requests-list"
+        data={requests ?? NO_REQUESTS}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        extraData={sending}
+        refreshing={refreshing}
+        onRefresh={refresh}
+        ListHeaderComponent={
+          hasRequests ? (
+            <Text
+              ref={listTitleRef}
+              accessibilityRole="header"
+              variant="Body/S/SemiBold"
+              style={styles.listTitle}
+            >
+              승인 대기 {requests.length}
+            </Text>
+          ) : undefined
+        }
+        ListEmptyComponent={
+          requests === undefined ? (
+            <LoadStateView
+              state={
+                failed
+                  ? {
+                      status: 'error',
+                      message: '신청 현황을 불러오지 못했어요.',
+                      onRetry: () => query.refetch(),
+                    }
+                  : { status: 'loading' }
+              }
+            />
+          ) : (
+            <EmptyRequests titleRef={listTitleRef} onJoin={onJoin} />
+          )
+        }
+        ItemSeparatorComponent={Separator}
+        contentContainerStyle={[
+          readableColumn,
+          hasRequests ? styles.list : styles.emptyList,
+        ]}
+      />
+      {hasRequests && (
+        <View style={[readableColumn, styles.actions]}>
+          <CTA label="조직 참여하기" onPress={onJoin} />
         </View>
-      ) : (
-        <>
-          <FlatList
-            data={requests}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            ListHeaderComponent={
-              <Text
-                ref={listTitleRef}
-                accessibilityRole="header"
-                variant="Body/S/SemiBold"
-                style={styles.listTitle}
-              >
-                승인 대기 {requests.length}
-              </Text>
-            }
-            ItemSeparatorComponent={Separator}
-            contentContainerStyle={[readableColumn, styles.list]}
-          />
-          <View style={[readableColumn, styles.actions]}>
-            <CTA label="조직 참여하기" onPress={onJoin} />
-          </View>
-        </>
       )}
 
       <CancelRequestSheet
         request={canceling}
         onClose={() => setCanceling(null)}
         onClosed={afterSheetClosed}
-        onConfirm={requestId => {
-          canceled.current = canceling;
-          onCancel(requestId);
-          setCanceling(null);
+        onConfirm={() => {
+          if (canceling) {
+            confirmCancel(canceling);
+          }
         }}
       />
     </SafeAreaView>
+  );
+}
+
+function EmptyRequests({
+  titleRef,
+  onJoin,
+}: {
+  titleRef: RefObject<TextInstance | null>;
+  onJoin: () => void;
+}) {
+  return (
+    <View style={styles.empty}>
+      <Icon name="document" size={40} color={colors.gray[400]} />
+      <Text
+        ref={titleRef}
+        accessibilityRole="header"
+        variant="Body/S/Bold"
+        style={styles.center}
+      >
+        참여 신청 내역이 없어요
+      </Text>
+      <Text
+        variant="Caption/M/Medium"
+        color={colors.gray[600]}
+        style={styles.center}
+      >
+        {'회사 코드나 참여 링크·QR로 조직에 참여를\n신청해 보세요.'}
+      </Text>
+      <CTA label="조직 참여하기" onPress={onJoin} style={styles.emptyCta} />
+    </View>
   );
 }
 
@@ -150,9 +289,12 @@ const CANCEL_HIT_SLOP = {
 
 const RequestCard = memo(function MyRequestCard({
   request,
+  sending,
   onCancel,
 }: {
   request: ParticipationRequest;
+  /** 서버에 취소를 보내는 중이다. 답이 올 때까지 '취소 중' 으로 잠근다 (Figma 미확인) */
+  sending: boolean;
   onCancel: (request: ParticipationRequest) => void;
 }) {
   return (
@@ -177,12 +319,19 @@ const RequestCard = memo(function MyRequestCard({
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${request.organizationName} 신청 취소`}
+          accessibilityLabel={`${request.organizationName} 신청 취소${
+            sending ? ' 중' : ''
+          }`}
+          accessibilityState={{ disabled: sending }}
+          disabled={sending}
           hitSlop={CANCEL_HIT_SLOP}
           onPress={() => onCancel(request)}
         >
-          <Text variant="Caption/M/SemiBold" color={colors.warning[1]}>
-            신청 취소
+          <Text
+            variant="Caption/M/SemiBold"
+            color={sending ? colors.gray[400] : colors.warning[1]}
+          >
+            {sending ? '취소 중' : '신청 취소'}
           </Text>
         </Pressable>
       </View>
@@ -193,6 +342,8 @@ const RequestCard = memo(function MyRequestCard({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
   center: { textAlign: 'center' },
+  // 빈 상태·불러오는 중은 남은 높이 가운데에 둔다 (당겨서 새로고침이 되게 목록 안에 그린다)
+  emptyList: { flexGrow: 1 },
   empty: {
     flex: 1,
     alignItems: 'center',

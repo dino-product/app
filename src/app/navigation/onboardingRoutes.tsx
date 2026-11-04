@@ -1,13 +1,17 @@
-import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import {
+  CommonActions,
+  useFocusEffect,
+  useIsFocused,
+} from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
 import type { ProfileInput } from '../../features/my/model';
-import { decideParticipationMock } from '../../features/my/org/mockData';
-import type {
-  Organization,
-  ParticipationRequest,
+import {
+  latestRequestOf,
+  type ParticipationStatus,
 } from '../../features/my/org/model';
+import { useFetchParticipationRequests } from '../../features/my/org/participationQueries';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
@@ -16,7 +20,6 @@ import {
   loginMethodsFor,
   type TermsAgreement,
 } from '../../features/onboarding/model';
-import { useOnboarding } from '../../features/onboarding/OnboardingProvider';
 import {
   agreeToTerms,
   currentAccountId,
@@ -31,12 +34,14 @@ import { ProfileRegisterScreen } from '../../features/onboarding/screens/Profile
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
 import { isApiError, useApiClient } from '../../shared/api';
 import { useAccountProfile, useAuth } from '../AuthProvider';
+import { ParticipationRequestGate } from './orgRoutes';
 import { useFocusTitleOnOpen } from './routes';
-import type { OnboardingScreenProps } from './types';
+import type { OnboardingScreenProps, OnboardingStackParamList } from './types';
 
-// 로그인·가입 단계 화면들 (#85, #113). 로그인 상태(AuthProvider)와 온보딩 상태(OnboardingProvider)를 화면 props 로 이어 준다.
+// 로그인·가입 단계 화면들 (#85, #113). 로그인 상태(AuthProvider)를 화면 props 로 이어 준다.
 // 프로필 등록·약관 동의는 서버에 저장하고, 그 응답(프로필)으로 가입 단계를 바꾼다.
-// 회사 찾기~거절은 마이 › 조직 참여(#73) 화면을 flow="onboarding" 으로 다시 쓴다 (아직 목, #116).
+// 회사 찾기~거절은 마이 › 조직 참여(#73) 화면을 flow="onboarding" 으로 다시 쓰고, 같은 회사 참여 API 로 동작한다 (#116).
+// 참여 결과(참여 완료·거절) 화면은 서버 신청 현황의 상태로 정한다.
 // 실패 안내 문구는 Figma 에 없어 기본안이다 (Figma 미확인)
 
 // 보라 배경이라 로그인 화면이 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다.
@@ -227,139 +232,182 @@ export function TermsAgreementRoute({
 export function CompanyFindRoute({
   navigation,
 }: OnboardingScreenProps<'CompanyFind'>) {
-  const { lookupCompany, requests } = useOnboarding();
+  const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
-  const requestOf = (
-    organization: Organization,
-    status: ParticipationRequest['status'],
-  ) =>
-    requests.find(
-      item =>
-        item.organizationId === organization.organizationId &&
-        item.status === status,
-    );
+  const screenFocused = useIsFocused();
 
   return (
     <OrgJoinScreen
       flow="onboarding"
       titleRef={titleRef}
-      lookup={lookupCompany}
-      onFound={organization => {
+      screenFocused={screenFocused}
+      onFound={target => {
         // 찾는 동안 화면을 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
-          navigation.navigate('JoinRoleSelect', organization);
+          navigation.navigate('JoinRoleSelect', target);
         }
       }}
       // 승인 대기·참여 완료에서 뒤로 왔다가 같은 회사를 다시 찾으면 그 요청의 화면으로 돌아간다.
       // 알림만 띄우면 '시작하기' 로 갈 길이 없어진다
-      onPending={organization => {
-        const request = requestOf(organization, 'PENDING');
-        if (request && navigation.isFocused()) {
-          navigation.navigate('JoinPending', { requestId: request.requestId });
+      onPending={(_, requestId) => {
+        if (navigation.isFocused()) {
+          navigation.navigate('JoinPending', { requestId });
         }
       }}
-      onAlreadyMember={organization => {
-        const request = requestOf(organization, 'APPROVED');
-        if (request && navigation.isFocused()) {
+      // 서버는 이미 참여 중이라고만 알려 준다. 신청 현황에서 그 회사의 승인 요청을 찾아 참여 완료로 간다.
+      // 없거나 신청 현황을 받지 못하면 화면이 '이미 참여 중인 회사예요' 를 알린다 (회사 확인 자체는 성공했다)
+      onAlreadyMember={async organization => {
+        const approved = await fetchRequests().then(
+          requests =>
+            latestRequestOf(requests, organization.organizationId, 'APPROVED'),
+          () => undefined,
+        );
+        if (approved && navigation.isFocused()) {
           navigation.navigate('JoinApproved', {
-            requestId: request.requestId,
+            requestId: approved.requestId,
           });
         }
+        return approved !== undefined;
       }}
       onBack={() => navigation.goBack()}
     />
   );
+}
+
+type JoinResultScreen = 'JoinPending' | 'JoinApproved';
+
+// 역할 선택을 스택에서 빼고 그 요청의 화면을 올린다. 뒤로 가면 같은 요청을 다시 보내는 화면 대신 회사 찾기로 간다
+function replaceRoleSelect(
+  navigation: OnboardingScreenProps<'JoinRoleSelect'>['navigation'],
+  name: JoinResultScreen,
+  params: OnboardingStackParamList[JoinResultScreen],
+) {
+  navigation.dispatch(state => {
+    const routes = state.routes.filter(item => item.name !== 'JoinRoleSelect');
+    return CommonActions.reset({
+      ...state,
+      routes: [...routes, { key: `${name}-${params.requestId}`, name, params }],
+      index: routes.length,
+    });
+  });
 }
 
 export function JoinRoleSelectRoute({
   navigation,
   route,
 }: OnboardingScreenProps<'JoinRoleSelect'>) {
-  const { requestParticipation } = useOnboarding();
+  const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
-  const organization = route.params;
+  const screenFocused = useIsFocused();
+  const target = route.params;
+  // 서버가 이미 참여 중·승인 대기 요청이 있다고 거절했다(안내는 화면이 띄웠다). 신청 현황에서 그 회사의 요청을 찾아 그 화면으로 간다.
+  // 찾지 못하면(신청 현황을 받지 못함 포함) 회사 찾기로 돌아가 다시 확인하게 한다. 받는 동안 화면은 버튼을 잠근다.
+  // 받는 사이 다른 화면으로 옮겼으면(뒤로 가기 등) 늦게 온 결과로 데려가지 않는다
+  const showLatest = async (
+    status: ParticipationStatus,
+    name: JoinResultScreen,
+  ) => {
+    const found = await fetchRequests().then(
+      requests => latestRequestOf(requests, target.organizationId, status),
+      () => undefined,
+    );
+    if (!navigation.isFocused()) {
+      return;
+    }
+    if (found) {
+      replaceRoleSelect(navigation, name, { requestId: found.requestId });
+    } else {
+      navigation.popTo('CompanyFind');
+    }
+  };
 
   return (
     <RoleSelectScreen
       flow="onboarding"
-      organizationName={organization.organizationName}
+      target={target}
       titleRef={titleRef}
+      screenFocused={screenFocused}
       onBack={() => navigation.goBack()}
-      onSubmit={desiredType => {
-        const request = requestParticipation(organization, desiredType);
-        // 역할 선택을 스택에서 빼고 승인 대기를 올린다. 뒤로 가면 같은 요청을 다시 보내는 화면 대신 회사 찾기로 간다
-        navigation.dispatch(state => {
-          const routes = state.routes.filter(
-            item => item.name !== 'JoinRoleSelect',
-          );
-          return CommonActions.reset({
-            ...state,
-            routes: [
-              ...routes,
-              {
-                key: `JoinPending-${request.requestId}`,
-                name: 'JoinPending',
-                params: { requestId: request.requestId },
-              },
-            ],
-            index: routes.length,
-          });
-        });
-      }}
+      onRequested={request =>
+        replaceRoleSelect(navigation, 'JoinPending', {
+          requestId: request.requestId,
+          requestChannel: request.requestChannel,
+        })
+      }
+      onAlreadyMember={() => showLatest('APPROVED', 'JoinApproved')}
+      onPendingExists={() => showLatest('PENDING', 'JoinPending')}
     />
   );
 }
 
-// 없는 요청(잘못된 params)으로 열렸으면 빈 화면 대신 회사 찾기로 돌아간다
-function useOnboardingRequest(
-  requestId: string,
+// 없는 요청(잘못된 params·서버에서 사라짐)으로 열렸으면 빈 화면 대신 회사 찾기로 돌아간다
+function useBackToCompanyFind(
   navigation: OnboardingScreenProps<
     'JoinPending' | 'JoinApproved' | 'JoinRejected'
   >['navigation'],
-): ParticipationRequest | undefined {
-  const { requests } = useOnboarding();
-  const request = requests.find(item => item.requestId === requestId);
-  const missing = request === undefined;
-  useEffect(() => {
-    if (missing) {
-      navigation.popTo('CompanyFind');
-    }
-  }, [missing, navigation]);
-  return request;
+) {
+  return useCallback(() => navigation.popTo('CompanyFind'), [navigation]);
 }
 
 export function JoinPendingRoute({
   navigation,
   route,
 }: OnboardingScreenProps<'JoinPending'>) {
-  const { cancelRequest, decideRequest } = useOnboarding();
-  const request = useOnboardingRequest(route.params.requestId, navigation);
+  const { completeOnboarding } = useAuth();
+  const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
-  if (!request) {
-    return null;
-  }
+  const backToCompanyFind = useBackToCompanyFind(navigation);
+  const { requestId, requestChannel } = route.params;
+  // '확인' 은 서버 신청 현황에서 사무실의 결정을 확인해 그 결과 화면으로 간다. 결과 화면이 승인 대기를 대신해, 뒤로 가면 회사 찾기로 간다.
+  // 아직 검토 중이면 가입을 마치고 메인으로 간다. 결과는 알림으로 온다 ('사무실에서 요청을 확인하면 알려드릴게요')
+  const showDecision = async () => {
+    const request = (await fetchRequests()).find(
+      item => item.requestId === requestId,
+    );
+    if (!navigation.isFocused()) {
+      return;
+    }
+    switch (request?.status) {
+      case 'APPROVED':
+        navigation.replace('JoinApproved', { requestId });
+        break;
+      case 'REJECTED':
+        navigation.replace('JoinRejected', { requestId });
+        break;
+      case 'PENDING':
+        completeOnboarding();
+        break;
+      default:
+        // 취소됐거나 사라진 요청
+        backToCompanyFind();
+    }
+  };
 
   return (
-    <JoinRequestedScreen
+    <ParticipationRequestGate
+      requestId={requestId}
       flow="onboarding"
-      request={request}
+      title="승인 대기"
       titleRef={titleRef}
-      // 더미: '확인' 을 누르면 사무실이 결정한 것으로 친다. 결과는 회사 코드로 정해 둔다 (decideParticipationMock).
-      // 결과 화면이 승인 대기를 대신해, 뒤로 가면 회사 찾기로 간다
-      onConfirm={() => {
-        const decision = decideParticipationMock(request);
-        decideRequest(request.requestId, decision);
-        navigation.replace(
-          decision.status === 'APPROVED' ? 'JoinApproved' : 'JoinRejected',
-          { requestId: request.requestId },
-        );
-      }}
-      onCancel={requestId => {
-        cancelRequest(requestId);
-        navigation.popTo('CompanyFind');
-      }}
       onBack={() => navigation.goBack()}
-    />
+      onMissing={backToCompanyFind}
+    >
+      {request => (
+        <JoinRequestedScreen
+          flow="onboarding"
+          // 서버는 요청 경로를 돌려주지 않아 보낸 화면이 넘긴 값을 쓴다
+          request={{ ...request, requestChannel }}
+          titleRef={titleRef}
+          onConfirm={showDecision}
+          onCanceled={backToCompanyFind}
+          // 취소하려던 사이 사무실이 결정했다. 그 결과 화면으로 간다 (확인하지 못하면 회사 찾기에서 다시 확인한다)
+          onAlreadyDecided={() => {
+            showDecision().catch(backToCompanyFind);
+          }}
+          onBack={() => navigation.goBack()}
+        />
+      )}
+    </ParticipationRequestGate>
   );
 }
 
@@ -368,20 +416,29 @@ export function JoinApprovedRoute({
   route,
 }: OnboardingScreenProps<'JoinApproved'>) {
   const { completeOnboarding } = useAuth();
-  const request = useOnboardingRequest(route.params.requestId, navigation);
   const titleRef = useFocusTitleOnOpen(navigation);
-  if (!request) {
-    return null;
-  }
+  const backToCompanyFind = useBackToCompanyFind(navigation);
 
   return (
-    <JoinApprovedScreen
-      request={request}
+    <ParticipationRequestGate
+      requestId={route.params.requestId}
+      status="APPROVED"
+      flow="onboarding"
+      title="참여 완료"
       titleRef={titleRef}
-      // 가입 단계를 마치면 루트가 온보딩을 메인으로 바꾼다. 뒤로 가기로 온보딩에 돌아갈 수 없다
-      onStart={completeOnboarding}
       onBack={() => navigation.goBack()}
-    />
+      onMissing={backToCompanyFind}
+    >
+      {request => (
+        <JoinApprovedScreen
+          request={request}
+          titleRef={titleRef}
+          // 가입 단계를 마치면 루트가 온보딩을 메인으로 바꾼다. 뒤로 가기로 온보딩에 돌아갈 수 없다
+          onStart={completeOnboarding}
+          onBack={() => navigation.goBack()}
+        />
+      )}
+    </ParticipationRequestGate>
   );
 }
 
@@ -389,20 +446,29 @@ export function JoinRejectedRoute({
   navigation,
   route,
 }: OnboardingScreenProps<'JoinRejected'>) {
-  const request = useOnboardingRequest(route.params.requestId, navigation);
   const titleRef = useFocusTitleOnOpen(navigation);
-  if (!request) {
-    return null;
-  }
+  const backToCompanyFind = useBackToCompanyFind(navigation);
 
   return (
-    <JoinRejectedScreen
+    <ParticipationRequestGate
+      requestId={route.params.requestId}
+      status="REJECTED"
       flow="onboarding"
-      request={request}
+      title="참여 요청 결과"
       titleRef={titleRef}
-      // 같은 회사 코드로 다시 요청할 수 있게 회사 찾기로 돌아간다
-      onConfirm={() => navigation.popTo('CompanyFind')}
       onBack={() => navigation.goBack()}
-    />
+      onMissing={backToCompanyFind}
+    >
+      {request => (
+        <JoinRejectedScreen
+          flow="onboarding"
+          request={request}
+          titleRef={titleRef}
+          // 같은 회사 코드로 다시 요청할 수 있게 회사 찾기로 돌아간다
+          onConfirm={backToCompanyFind}
+          onBack={() => navigation.goBack()}
+        />
+      )}
+    </ParticipationRequestGate>
   );
 }

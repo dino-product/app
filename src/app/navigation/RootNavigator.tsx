@@ -12,7 +12,6 @@ import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { NextStep } from '../../features/onboarding/profileApi';
 import { MyStateProvider } from '../../features/my/MyStateProvider';
-import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider';
 import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {
@@ -236,63 +235,61 @@ function MyTab() {
   );
 }
 
-// 가입 단계 (#85, #113). 상태는 이 가입 안에서만 쓰므로 스택을 감싼다.
+// 가입 단계 (#85, #113). 회사 참여 상태는 서버 신청 현황이다 (#116).
 // 첫 화면(프로필 등록)에서 뒤로 가면 가입을 그만두고 로그아웃한다(로그인 화면). 두 손가락 Z 는 첫 화면에서 여기까지 올라온다.
 // 뒤로 가기 버튼·Android 뒤로가기는 프로필 등록이 직접 받는다
 function OnboardingFlow() {
   const stackOptions = useStackOptions();
   const { signOut } = useAuth();
   return (
-    <OnboardingProvider>
-      <View
-        collapsable={false}
-        onAccessibilityEscape={() => {
-          signOut();
-        }}
-        style={styles.screen}
+    <View
+      collapsable={false}
+      onAccessibilityEscape={() => {
+        signOut();
+      }}
+      style={styles.screen}
+    >
+      <OnboardingStack.Navigator
+        initialRouteName={ONBOARDING_INITIAL_ROUTE}
+        screenOptions={stackOptions}
+        screenLayout={stackScreenLayout}
       >
-        <OnboardingStack.Navigator
-          initialRouteName={ONBOARDING_INITIAL_ROUTE}
-          screenOptions={stackOptions}
-          screenLayout={stackScreenLayout}
-        >
-          <OnboardingStack.Screen
-            name="ProfileRegister"
-            component={ProfileRegisterRoute}
-          />
-          <OnboardingStack.Screen
-            name="TermsAgreement"
-            component={TermsAgreementRoute}
-            getId={once}
-          />
-          <OnboardingStack.Screen
-            name="CompanyFind"
-            component={CompanyFindRoute}
-            getId={once}
-          />
-          <OnboardingStack.Screen
-            name="JoinRoleSelect"
-            component={JoinRoleSelectRoute}
-            getId={byOrganization}
-          />
-          <OnboardingStack.Screen
-            name="JoinPending"
-            component={JoinPendingRoute}
-            getId={byRequest}
-          />
-          <OnboardingStack.Screen
-            name="JoinApproved"
-            component={JoinApprovedRoute}
-            getId={byRequest}
-          />
-          <OnboardingStack.Screen
-            name="JoinRejected"
-            component={OnboardingJoinRejectedRoute}
-            getId={byRequest}
-          />
-        </OnboardingStack.Navigator>
-      </View>
-    </OnboardingProvider>
+        <OnboardingStack.Screen
+          name="ProfileRegister"
+          component={ProfileRegisterRoute}
+        />
+        <OnboardingStack.Screen
+          name="TermsAgreement"
+          component={TermsAgreementRoute}
+          getId={once}
+        />
+        <OnboardingStack.Screen
+          name="CompanyFind"
+          component={CompanyFindRoute}
+          getId={once}
+        />
+        <OnboardingStack.Screen
+          name="JoinRoleSelect"
+          component={JoinRoleSelectRoute}
+          getId={byOrganization}
+        />
+        <OnboardingStack.Screen
+          name="JoinPending"
+          component={JoinPendingRoute}
+          getId={byRequest}
+        />
+        <OnboardingStack.Screen
+          name="JoinApproved"
+          component={JoinApprovedRoute}
+          getId={byRequest}
+        />
+        <OnboardingStack.Screen
+          name="JoinRejected"
+          component={OnboardingJoinRejectedRoute}
+          getId={byRequest}
+        />
+      </OnboardingStack.Navigator>
+    </View>
   );
 }
 

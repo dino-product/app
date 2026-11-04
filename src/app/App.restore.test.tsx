@@ -379,8 +379,10 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
                     {
                       name: 'OrgRoleSelect',
                       params: {
-                        organizationId: 'org-1',
+                        organizationId: '9',
                         organizationName: 'Orbit',
+                        companyCode: 'RBT124',
+                        requestChannel: 'COMPANY_CODE',
                       },
                     },
                   ],
