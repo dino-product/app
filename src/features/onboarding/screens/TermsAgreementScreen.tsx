@@ -39,12 +39,15 @@ import {
 // Figma 약관 동의 (3284:22327 빈 / 3278:19869 전체 체크). 필수 네 개에 모두 동의해야 '가입하기' 가 켜진다.
 // 행의 > 를 누르면 약관 시트를 연다 (Figma 에 연결이 없어 기본안, 디자인 확인 항목)
 export function TermsAgreementScreen({
+  submitting = false,
   onBack,
   onSignUp,
   titleRef,
 }: {
+  /** 서버에 동의를 보내는 동안 '가입하기' 를 끈다 */
+  submitting?: boolean;
   onBack: () => void;
-  /** 가입하기. 동의한 약관을 넘긴다 (API 연동 때 POST /terms-agreements, /marketing-consents) */
+  /** 가입하기. 동의한 약관을 넘긴다 (바깥이 POST /terms-agreements 로 보낸다) */
   onSignUp: (agreement: TermsAgreement) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
@@ -137,7 +140,7 @@ export function TermsAgreementScreen({
         <CTA
           label="가입하기"
           onPress={() => onSignUp(agreement)}
-          disabled={!canSignUp(agreement)}
+          disabled={!canSignUp(agreement) || submitting}
         />
       </View>
 

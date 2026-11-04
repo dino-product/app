@@ -30,8 +30,10 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-const renderTerms = async () => {
-  const props = { onBack: jest.fn(), onSignUp: jest.fn() };
+const renderTerms = async (
+  overrides: Partial<Parameters<typeof TermsAgreementScreen>[0]> = {},
+) => {
+  const props = { onBack: jest.fn(), onSignUp: jest.fn(), ...overrides };
   await render(<TermsAgreementScreen {...props} />);
   return props;
 };
@@ -108,6 +110,14 @@ describe('TermsAgreementScreen', () => {
       THIRD_PARTY: true,
       LOCATION: true,
     });
+  });
+
+  it('서버에 동의를 보내는 동안에는 가입하기가 꺼져 있다 (#113)', async () => {
+    await renderTerms({ submitting: true });
+
+    await userEvent.press(allAgree());
+
+    expect(signUp()).toBeDisabled();
   });
 
   it('행을 하나씩 모두 켜면 전체 동의도 켜진다', async () => {
