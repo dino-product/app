@@ -1,18 +1,18 @@
 import {
   useIsFocused,
+  usePreventRemove,
   useScrollToTop,
   type ParamListBase,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScrollViewInstance } from 'react-native';
-import { checkWithdrawalEligibilityMock } from '../../features/my/mockData';
 import type {
   NotificationTarget,
   WithdrawalBlockReason,
 } from '../../features/my/model';
-import { useMyProfile } from '../../features/my/MyStateProvider';
+import { useMyMemberships, useMyProfile } from '../../features/my/myQueries';
 import { countPendingRequests } from '../../features/my/org/model';
 import { useParticipationRequests } from '../../features/my/org/participationQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
@@ -25,20 +25,13 @@ import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlo
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
 import { termsLinks } from '../../features/my/termsLinks';
 import {
-  myScheduleQuery,
-  useMySchedule,
-  useMySchedules,
-  workDetailQuery,
-} from '../../features/work/data/queries';
+  withdrawalEligibilityQuery,
+  withdrawalMutationKey,
+} from '../../features/my/withdrawalApi';
+import { workDetailQuery } from '../../features/work/data/queries';
 import type { WorkStatusCode } from '../../features/work/data/status';
-import type { ScheduledWork } from '../../features/work/data/types';
-import {
-  pendingOf,
-  pendingPeriods,
-  weekPeriod,
-} from '../../features/work/data/views';
 import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvider';
-import { useToday } from '../../shared/time/useToday';
+import { useApiClient } from '../../shared/api';
 import { APP_VERSION } from '../appVersion';
 import { useAuth } from '../AuthProvider';
 import { openWebPage } from '../externalLinks';
@@ -49,97 +42,57 @@ import {
   type MyScreenProps,
 } from './types';
 
-// 마이 탭 스택에 올리는 화면들 (#72). 마이 탭 상태(MyStateProvider)와 앱 상태를 화면 props 로 이어 준다.
-
-// 탈퇴 가능 여부 (목). 서버는 기사 소속의 작업중·응답 전 작업을 센다.
-// 작업 저장소의 이번 주 작업중과 응답 필요 요청으로 센다. 사유를 정리하고 돌아오면 탈퇴 불가 화면도 바로 바뀐다
-// (API 연동 때 GET /api/v1/profiles/{accountId}/withdrawal-eligibility, #115)
-const eligibilityOf = (
-  week: readonly ScheduledWork[],
-  pending: readonly ScheduledWork[],
-) =>
-  checkWithdrawalEligibilityMock({
-    workInProgress: week.filter(work => work.status === 'IN_PROGRESS').length,
-    pendingAccept: pendingOf(pending).length,
-  });
-
-// 홈·내 일정과 같은 구간이라 같은 캐시를 쓴다
-function useWorkPeriods() {
-  const today = useToday();
-  return useMemo(
-    () => ({ week: weekPeriod(today), pending: pendingPeriods(today) }),
-    [today],
-  );
-}
-
-function useWithdrawalEligibility() {
-  const periods = useWorkPeriods();
-  const subscribed = useIsFocused();
-  const week = useMySchedule(periods.week, { subscribed }).data?.works;
-  const pending = useMySchedules(periods.pending, { subscribed }).works;
-  return useMemo(() => eligibilityOf(week ?? [], pending), [week, pending]);
-}
-
-// 탈퇴를 누른 때의 작업으로 묻는다 (화면이 열려 있는 동안 받아 둔 값이 아니라 새로 받는다)
-function useCheckWithdrawal() {
-  const periods = useWorkPeriods();
-  const repository = useWorkRepository();
-  const queryClient = useQueryClient();
-  return useCallback(async () => {
-    const [week, ...pending] = await Promise.all(
-      [periods.week, ...periods.pending].map(period =>
-        queryClient.fetchQuery(myScheduleQuery(repository, period)),
-      ),
-    );
-    return eligibilityOf(
-      week.works,
-      pending.flatMap(schedule => schedule.works),
-    );
-  }, [periods, repository, queryClient]);
-}
+// 마이 탭 스택에 올리는 화면들 (#72). 앱 상태를 화면 props 로 이어 준다.
+// 프로필·소속 발주사·탈퇴는 서버 API 다 (#115). 마이페이지는 경로가 조회해 넘기고, 하위 화면은 화면이 직접 받는다
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
-  const { profile, memberships } = useMyProfile();
   // '신청 현황' 배지는 서버 신청 현황의 승인 대기 건수다 (#116). 받기 전·받지 못했으면 배지를 두지 않는다
   const { data: pendingRequestCount = 0 } =
     useParticipationRequests(countPendingRequests);
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
+  // 하위 화면·다른 탭에 가 있는 동안은 프로필·소속을 구독하지 않는다 (돌아오면 오래된 값만 다시 받는다).
+  // 경로는 포커스가 바뀔 때 다시 그려지지만, 화면(memo)에 주는 값이 같으면 화면은 다시 그리지 않는다
+  const subscribed = useIsFocused();
+  const profile = useMyProfile({ subscribed });
+  const memberships = useMyMemberships({ subscribed });
+  const open = useMemo(
+    () => ({
+      onOpenNotifications: () => navigation.navigate('NotificationCenter'),
+      onEditProfile: () => navigation.navigate('ProfileEdit'),
+      onOpenRequestStatus: () => navigation.navigate('OrgJoinRequests'),
+      onJoinOrganization: () => navigation.navigate('OrgJoin'),
+      onOpenNotificationSettings: () =>
+        navigation.navigate('NotificationSettings'),
+      onOpenTerms: () => navigation.navigate('Terms'),
+      onOpenAccount: () => navigation.navigate('Account'),
+    }),
+    [navigation],
+  );
 
   return (
     <MyPageScreen
       profile={profile}
       memberships={memberships}
       pendingRequestCount={pendingRequestCount}
-      onOpenNotifications={() => navigation.navigate('NotificationCenter')}
-      onEditProfile={() => navigation.navigate('ProfileEdit')}
-      onOpenRequestStatus={() => navigation.navigate('OrgJoinRequests')}
-      onJoinOrganization={() => navigation.navigate('OrgJoin')}
-      onOpenNotificationSettings={() =>
-        navigation.navigate('NotificationSettings')
-      }
-      onOpenTerms={() => navigation.navigate('Terms')}
-      onOpenAccount={() => navigation.navigate('Account')}
+      {...open}
       scrollRef={scrollRef}
     />
   );
 }
 
 export function ProfileEditRoute({ navigation }: MyScreenProps<'ProfileEdit'>) {
-  const { profile, updateProfile } = useMyProfile();
+  const { updateProfile } = useAuth();
   const titleRef = useFocusTitleOnOpen(navigation);
 
   return (
     <ProfileEditScreen
-      profile={profile}
       titleRef={titleRef}
+      // 저장에 성공하면 화면이 이것으로 돌아온다
       onBack={() => navigation.goBack()}
-      onSave={input => {
-        // API 연동 때 PUT /api/v1/profiles 로 보낸다
-        updateProfile(input);
-        navigation.goBack();
-      }}
+      // 서버가 돌려준 프로필로 로그인 상태의 프로필과 프로필 캐시(마이페이지)를 바꾼다. 저장 중에 화면을 떠났어도 부른다
+      onSaved={updateProfile}
     />
   );
 }
@@ -331,9 +284,19 @@ export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {
 }
 
 export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
-  const checkWithdrawal = useCheckWithdrawal();
+  const api = useApiClient();
+  const queryClient = useQueryClient();
   const titleRef = useFocusTitleOnOpen(navigation);
   const { signOut } = useAuth();
+  // 탈퇴를 누른 때마다 서버에 새로 묻는다. 받은 결과는 탈퇴 불가 화면이 그대로 쓴다
+  const checkWithdrawal = useCallback(
+    () =>
+      queryClient.fetchQuery({
+        ...withdrawalEligibilityQuery(api),
+        staleTime: 0,
+      }),
+    [api, queryClient],
+  );
 
   return (
     <AccountScreen
@@ -342,7 +305,7 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
       // POST /api/v1/auth/logout 을 부르고(실패해도) 기기 세션·캐시를 지운다 (#113).
       // 로그아웃 상태가 되면 루트가 메인을 로그인 화면으로 바꾼다. 탭이 사라져 화면 상태도 처음으로 돌아간다
       onLogout={signOut}
-      // API 연동 때 GET /api/v1/users/{accountId}/withdrawal-eligibility 로 묻는다
+      // GET /api/v1/profiles/{accountId}/withdrawal-eligibility
       checkWithdrawal={checkWithdrawal}
       // 확인하는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
       onOpenWithdrawal={() => {
@@ -350,7 +313,7 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
           navigation.navigate('Withdrawal');
         }
       }}
-      // 탈퇴 불가 화면은 열려 있는 동안 바뀌는 사유를 직접 읽는다
+      // 탈퇴 불가 화면은 방금 받은 사유를 캐시에서 읽고, 다시 보일 때마다 새로 묻는다
       onOpenWithdrawalBlocked={() => {
         if (navigation.isFocused()) {
           navigation.navigate('WithdrawalBlocked');
@@ -363,13 +326,30 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
 export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const { withdraw } = useAuth();
+  // 탈퇴 요청을 보내는 동안에는 화면을 닫지 않는다 (머리 뒤로 가기·Android 뒤로가기·iOS 스와이프·마이 탭 다시 누르기).
+  // 결과(로그인 화면 또는 탈퇴 불가·실패 안내)는 이 화면에서 받는다
+  const sending = useIsMutating({ mutationKey: withdrawalMutationKey }) > 0;
+  // 탈퇴 직전에 막는 사유가 생겼다(PROFILE-006). 결과를 받은 순간에는 그려 둔 '보내는 중' 막기가 아직 켜져 있어
+  // 그 자리에서 바꾸면 막기에 걸린다. 표시만 해 두고 막기를 끈 다음 렌더 뒤에 바꾼다
+  const [blocked, setBlocked] = useState(false);
+  usePreventRemove(sending && !blocked, () => {});
+  // 뒤로 가면 계정 관리로 가도록 이 화면을 탈퇴 불가로 바꾼다. 결과가 왔을 때 다른 탭에 가 있었으면
+  // 데려가지 않고, 이 화면으로 돌아왔을 때 바꾼다 (탈퇴 불가 화면이 가능 여부를 다시 묻는다)
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (blocked && focused) {
+      navigation.replace('WithdrawalBlocked');
+    }
+  }, [blocked, focused, navigation]);
 
   return (
     <WithdrawalScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
-      // 탈퇴 API 는 #115 에서 붙인다. 지금은 로그아웃하고 최근 로그인 표시를 지운 뒤 로그인 화면으로 간다
-      onWithdraw={withdraw}
+      // 탈퇴(204) 뒤 기기 세션·캐시·표식·초안과 최근 로그인 표시를 지운다. 로그아웃 상태가 되면 루트가 로그인 화면으로 바꾼다
+      // (화면 묶음이 바뀌는 것이라 화면 닫기 막기에 걸리지 않는다)
+      onWithdrawn={withdraw}
+      onBlocked={() => setBlocked(true)}
     />
   );
 }
@@ -377,8 +357,9 @@ export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
 export function WithdrawalBlockedRoute({
   navigation,
 }: MyScreenProps<'WithdrawalBlocked'>) {
-  const { blocks } = useWithdrawalEligibility();
   const titleRef = useFocusTitleOnOpen(navigation);
+  // 사유를 정리하러 다른 탭에 갔다가 돌아오면 가능 여부를 다시 묻는다
+  const focused = useIsFocused();
   // 진행 중인 작업은 홈, 미완료 작업 배정은 내 일정의 응답 필요로 간다 (기본안, 디자인 확인 항목)
   const openBlock = (reason: WithdrawalBlockReason) => {
     if (reason === 'WORK_IN_PROGRESS') {
@@ -390,7 +371,7 @@ export function WithdrawalBlockedRoute({
 
   return (
     <WithdrawalBlockedScreen
-      blocks={blocks}
+      focused={focused}
       titleRef={titleRef}
       onOpenBlock={openBlock}
       onBack={() => navigation.goBack()}

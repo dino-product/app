@@ -1,9 +1,12 @@
 import { render, screen } from '@testing-library/react-native';
+import { createTestApi } from '../../../shared/testing/renderWithApi';
+import { testSession } from '../../../shared/testing/session';
 import {
   expectIconButtonTouchTarget,
   expectMinTouchTarget,
   stylePt,
 } from '../../../shared/testing/touchTarget';
+import { seedMyCache } from '../profileTesting';
 import { AccountScreen } from './AccountScreen';
 import { WithdrawalBlockedScreen } from './WithdrawalBlockedScreen';
 
@@ -36,12 +39,16 @@ describe('마이 하위 화면 터치 영역', () => {
   });
 
   it('탈퇴 불가 카드의 > 버튼은 32 원을 최소 터치 영역으로 넓힌다', async () => {
+    const api = createTestApi({ session: testSession() });
+    seedMyCache(api.queryClient, {
+      eligibility: {
+        withdrawable: false,
+        blocks: [{ reason: 'WORK_IN_PROGRESS', count: 1 }],
+      },
+    });
     await render(
-      <WithdrawalBlockedScreen
-        blocks={[{ reason: 'WORK_IN_PROGRESS', count: 1 }]}
-        onOpenBlock={jest.fn()}
-        onBack={jest.fn()}
-      />,
+      <WithdrawalBlockedScreen onOpenBlock={jest.fn()} onBack={jest.fn()} />,
+      { wrapper: api.wrapper },
     );
 
     const button = screen.getByRole('button', {

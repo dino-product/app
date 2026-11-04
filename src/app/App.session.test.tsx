@@ -18,6 +18,7 @@ import {
   readSignedInStep,
   saveSignedInStep,
 } from '../features/onboarding/login';
+import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { createTestApi } from '../shared/testing/renderWithApi';
@@ -115,6 +116,71 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(readSignedInStep()).toBe('COMPLETED');
+  });
+
+  // 켤 때 확인과 마이페이지는 같은 프로필 요청을 함께 기다린다(#115). 마이페이지가 포커스를 잃어 구독을 끊어도
+  // 그 요청은 끊기지 않아, 켤 때 확인이 다시 보내지 않고 그 결과로 가입 단계를 맞춘다
+  it.each([
+    ['탭을 건드리지 않으면', [] as string[]],
+    ['마이 탭을 열어 둔 채여도', ['마이']],
+    ['마이 탭을 열었다 다른 탭으로 옮겨도', ['마이', '홈']],
+    ['마이 탭을 여러 번 오가도', ['마이', '홈', '마이', '내 일정']],
+  ])(
+    '켤 때 확인을 기다리는 동안 %s 늦게 온 결과(약관 재동의)를 반영한다',
+    async (_, tabs) => {
+      const pending = deferred();
+      const first = await renderSignedInApp();
+      first.server.on('GET', PROFILE_PATH, () => pending.response);
+      await first.unmount();
+      const app = await renderApp({
+        server: first.server,
+        session: first.tokenStore.current,
+      });
+      await waitFor(() =>
+        expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2),
+      );
+
+      for (const name of tabs) {
+        await userEvent.press(screen.getByRole('tab', { name }));
+      }
+      await act(async () => pending.answer(ok(accountProfile('TERMS'))));
+
+      expect(
+        await screen.findByRole('header', {
+          name: '서비스 이용을 위해 동의가 필요해요',
+        }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2);
+    },
+  );
+
+  it('켤 때 확인을 기다리는 동안 다른 곳에서 그 조회를 멈춰도(세대 그대로) 다시 받아 반영한다', async () => {
+    saveSignedInStep('COMPLETED');
+    const pending = deferred();
+    const app = await renderApp({
+      server: accountServer().on(
+        'GET',
+        PROFILE_PATH,
+        () => pending.response,
+        ok(accountProfile('TERMS')),
+      ),
+      session: signedInSession(),
+    });
+    await waitFor(() =>
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
+    );
+
+    await act(() =>
+      app.queryClient.cancelQueries({ queryKey: profileQueryKey }),
+    );
+
+    expect(
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      }),
+    ).toBeOnTheScreen();
+    expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2);
+    await act(async () => pending.answer(ok(accountProfile('COMPLETED'))));
   });
 
   it('마지막 단계가 PROFILE 이면 프로필 등록으로 연다', async () => {
@@ -358,7 +424,7 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
   it('확인을 기다리는 동안 프로필을 저장해 약관 단계로 갔으면 늦게 온 옛 단계(PROFILE)로 끌려가지 않는다', async () => {
     const pending = deferred();
     saveSignedInStep('PROFILE');
-    await renderApp({
+    const app = await renderApp({
       server: accountServer({ nextStep: 'PROFILE' }).on(
         'GET',
         PROFILE_PATH,
@@ -377,6 +443,14 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
 
     expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
     expect(readSignedInStep()).toBe('TERMS');
+    // 마이페이지가 쓰는 프로필 캐시도 늦게 온 옛 프로필로 덮이지 않는다 (#115)
+    await waitFor(() =>
+      expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
+        nextStep: 'TERMS',
+        name: '박기사',
+      }),
+    );
+    expect(app.queryClient.isFetching({ queryKey: profileQueryKey })).toBe(0);
   });
 });
 
@@ -439,12 +513,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   });
 
   it('다른 API 가 PROFILE-005 를 주면 프로필을 다시 조회해 그 가입 단계(약관 재동의) 화면으로 보낸다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     // 필수 약관 버전이 올라 재동의가 필요해졌다
     server.on('GET', PROFILE_PATH, ok(accountProfile('TERMS')));
 
@@ -459,12 +530,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   });
 
   it('PROFILE-005 뒤 프로필을 다시 받지 못하면 지금 화면에 머문다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, networkError());
 
     await fetchMemberships(app);
@@ -477,12 +545,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
 
   it('PROFILE-005 재조회를 기다리는 동안 로그아웃했으면 늦게 온 프로필로 가입 단계에 가지 않는다', async () => {
     const pending = deferred();
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, () => pending.response);
     await fetchMemberships(app);
     await waitFor(() =>
@@ -511,12 +576,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   }
 
   it('약관을 다시 동의하면 회사 찾기 대신 메인으로 돌아가고, 건드리지 않은 마케팅 동의는 서버 값 그대로 보낸다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, ok(reconsentProfile(true)));
     await fetchMemberships(app);
     await screen.findByRole('header', {

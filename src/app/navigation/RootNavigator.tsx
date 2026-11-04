@@ -11,7 +11,6 @@ import {
 import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { NextStep } from '../../features/onboarding/profileApi';
-import { MyStateProvider } from '../../features/my/MyStateProvider';
 import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {
@@ -174,7 +173,7 @@ function HistoryTab() {
   );
 }
 
-// 마이 탭 (#72). 하위 화면 상태(MyStateProvider)는 홈의 알림센터(#96)도 쓰므로 탭 내비게이터를 감싼다
+// 마이 탭 (#72). 화면 상태는 서버 상태 캐시(React Query)에 있다 (프로필·소속 #115, 조직 참여 #116, 알림 #117)
 function MyTab() {
   const stackOptions = useStackOptions();
   return (
@@ -312,22 +311,19 @@ function onboardingStart(
 // 로그아웃하면 로그인이 메인을 대신한다. 뒤로 가는 모양으로 바꾼다
 const loginOptions = { animationTypeForReplace: 'pop' } as const;
 
-// 마이 탭 상태는 로그아웃·탈퇴로 메인이 빠지면 함께 사라져 처음 값으로 돌아간다
+// Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
 function MainTabs() {
   return (
-    <MyStateProvider>
-      {/* Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름) */}
-      <Tab.Navigator
-        backBehavior="firstRoute"
-        tabBar={renderTabBar}
-        screenOptions={tabOptions}
-      >
-        <Tab.Screen name="home" component={HomeTab} />
-        <Tab.Screen name="schedule" component={ScheduleRoute} />
-        <Tab.Screen name="history" component={HistoryTab} />
-        <Tab.Screen name="my" component={MyTab} />
-      </Tab.Navigator>
-    </MyStateProvider>
+    <Tab.Navigator
+      backBehavior="firstRoute"
+      tabBar={renderTabBar}
+      screenOptions={tabOptions}
+    >
+      <Tab.Screen name="home" component={HomeTab} />
+      <Tab.Screen name="schedule" component={ScheduleRoute} />
+      <Tab.Screen name="history" component={HistoryTab} />
+      <Tab.Screen name="my" component={MyTab} />
+    </Tab.Navigator>
   );
 }
 

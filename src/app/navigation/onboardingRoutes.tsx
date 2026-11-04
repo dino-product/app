@@ -7,7 +7,10 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, BackHandler, Platform } from 'react-native';
-import type { ProfileInput } from '../../features/my/model';
+import {
+  PROFILE_RULE_MESSAGE,
+  type ProfileInput,
+} from '../../features/my/model';
 import {
   latestRequestOf,
   type ParticipationStatus,
@@ -88,10 +91,7 @@ function useBackToLogin(signOut: () => Promise<void>) {
 const profileSaveFailure = (error: unknown): [string, string] =>
   // 서버는 어느 칸이 틀렸는지 알려 주지 않는다 (앱도 같은 규칙으로 미리 막는다)
   isApiError(error, ProfileErrorCode.invalidInput)
-    ? [
-        '입력한 정보를 확인해 주세요',
-        '이름은 한글·영문 2~20자, 연락처는 010으로 시작하는 11자리로 입력해 주세요.',
-      ]
+    ? ['입력한 정보를 확인해 주세요', PROFILE_RULE_MESSAGE]
     : ['프로필을 저장하지 못했어요', '잠시 후 다시 시도해 주세요.'];
 
 // 켠 뒤 뒤에서 확인한 가입 단계가 마지막 값과 달라지면(다른 기기에서 진행 등) 가입 단계 안에서 그 화면으로 옮긴다.

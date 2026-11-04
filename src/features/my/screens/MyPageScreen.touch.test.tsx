@@ -4,14 +4,14 @@ import {
   expectMinTouchTarget,
   stylePt,
 } from '../../../shared/testing/touchTarget';
-import { membershipsMock, profileMock } from '../mockData';
+import { myMemberships, myProfile } from '../profileTesting';
 import { MyPageScreen } from './MyPageScreen';
 
 const renderMyPage = () =>
   render(
     <MyPageScreen
-      profile={profileMock}
-      memberships={membershipsMock}
+      profile={{ status: 'ready', data: myProfile }}
+      memberships={{ status: 'ready', data: myMemberships }}
       pendingRequestCount={3}
       onOpenNotifications={jest.fn()}
       onEditProfile={jest.fn()}

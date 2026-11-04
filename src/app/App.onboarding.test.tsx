@@ -32,16 +32,23 @@ import {
   type FakeDecision,
 } from '../features/my/org/testing';
 import type { NextStep } from '../features/onboarding/profileApi';
-import { fail, networkError, ok } from '../shared/testing/fakeServer';
+import {
+  fail,
+  networkError,
+  noContent,
+  ok,
+} from '../shared/testing/fakeServer';
 import {
   accountProfile,
   accountServer,
+  ELIGIBILITY_PATH,
   fixAppTestClock,
   loginResponse,
   LOGOUT_PATH,
   PROFILE_PATH,
   relaunch,
   renderApp,
+  WITHDRAWALS_PATH,
 } from './testing';
 
 // 로그인·가입 단계 (#85, #113). 앱을 처음 켜면 로그인부터 시작한다. 로그인·가입 단계는 가짜 서버가 답한다 (src/app/testing).
@@ -355,14 +362,10 @@ describe('App — 온보딩', () => {
     const alert = spyAlert();
     const app = await requestToJoin();
     await approveAndStart(app);
-    // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
-    await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
-    await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
-    while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
-      await userEvent.press(
-        screen.getAllByRole('button', { name: /수락$/ })[0],
-      );
-    }
+    // 탈퇴를 막는 사유가 없다 (#115 서버 판정)
+    app.server
+      .on('GET', ELIGIBILITY_PATH, ok({ withdrawable: true, blocks: [] }))
+      .on('POST', WITHDRAWALS_PATH, noContent());
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
     await userEvent.press(button('계정 관리'));
     await userEvent.press(button('계정 탈퇴'));

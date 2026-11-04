@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { isCancelledError, useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -21,6 +21,7 @@ import {
   saveRecentLoginMethod,
   saveSignedInStep,
 } from '../features/onboarding/login';
+import { isCheckingWithdrawn } from '../features/my/withdrawalApi';
 import type { LoginMethod } from '../features/onboarding/model';
 import { clearAllRejectDrafts } from '../features/schedule/rejectDraft';
 import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
@@ -29,6 +30,8 @@ import {
   currentAccountId,
   fetchProfile,
   ProfileErrorCode,
+  profileQuery,
+  profileQueryKey,
   type AccountProfile,
   type NextStep,
 } from '../features/onboarding/profileApi';
@@ -117,7 +120,10 @@ type Auth = {
   completeOnboarding: () => void;
   /** 서버 로그아웃을 부르고(실패해도) 기기 세션·캐시를 지운 뒤 로그인 화면으로 간다 */
   signOut: () => Promise<void>;
-  /** 탈퇴 (#115 에서 POST /profiles/{accountId}/withdrawals 를 붙인다). 지금은 로그아웃하고 최근 로그인 표시를 지운다 */
+  /**
+   * 탈퇴를 마쳤다 (POST /profiles/{accountId}/withdrawals 204, #115). 최근 로그인 표시를 지우고
+   * 로그아웃과 같은 길로 기기 세션·캐시·표식·초안을 지운 뒤 로그인 화면으로 간다. 서버 로그아웃은 보내지 않는다(토큰이 이미 무효)
+   */
   withdraw: () => Promise<void>;
   profileStore: ProfileStore;
 };
@@ -158,7 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 뒤에서 온 결과(켤 때 확인, PROFILE-005 재조회)는 시작할 때의 세대가 그대로일 때만 반영해 더 새 상태를 덮지 않는다
   const epoch = useRef(0);
 
-  // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다
+  // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다.
+  // 마이페이지가 쓰는 프로필 캐시(#115)는 아래 두 갈래가 따로 쓴다
   const applyProfile = useCallback(
     (profile: AccountProfile, joining?: boolean) => {
       profileStore.set(profile);
@@ -180,13 +187,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [profileStore],
   );
 
-  // 사용자 동작의 결과 (뒤에서 오던 옛 결과는 버려진다)
+  // 사용자 동작의 결과 (뒤에서 오던 옛 결과는 버려진다). 프로필 캐시도 바꾸는데, 받는 중이던 프로필 조회(켤 때 확인·마이페이지)가
+  // 늦게 끝나 이 값을 덮지 않게 그 조회를 먼저 멈춘다. 멈추는 동안 로그아웃 등으로 세대가 바뀌었으면 쓰지 않는다
   const applyUserProfile = useCallback(
     (profile: AccountProfile, joining?: boolean) => {
       epoch.current += 1;
+      const appliedAt = epoch.current;
       applyProfile(profile, joining);
+      queryClient.cancelQueries({ queryKey: profileQueryKey }).then(() => {
+        if (epoch.current === appliedAt) {
+          queryClient.setQueryData(profileQueryKey, profile);
+        }
+      });
     },
-    [applyProfile],
+    [applyProfile, queryClient],
   );
 
   // 뒤에서 온 결과. 그사이 세대가 바뀌었거나(로그아웃·다른 저장) 다른 계정의 프로필이면 버린다
@@ -200,8 +214,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       applyProfile(profile);
+      queryClient.setQueryData(profileQueryKey, profile);
     },
-    [applyProfile, profileStore],
+    [applyProfile, profileStore, queryClient],
   );
 
   // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·작업 저장소·보던 화면·작성 중이던 초안을 지운다 (로그아웃·탈퇴·만료).
@@ -241,11 +256,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetToSignedOut();
         return;
       }
+      // 마이페이지와 같은 프로필 캐시로 받는다. 보던 마이페이지로 켜져 그쪽이 먼저 받고 있으면 그 요청을 같이 기다린다 (#115).
+      // 마이페이지가 구독을 끊어도 요청은 끊기지 않는다(profileQuery 는 취소 신호를 넘기지 않는다). 누가 이 조회를 멈췄는데
+      // (cancelQueries) 세대가 그대로면 다시 받는다. 사용자 동작·로그아웃이 멈춘 것이면 세대가 바뀌어 그만둔다.
+      // 운영 QueryClient 는 네트워크·5xx 를 두 번까지 다시 보낸다
+      const fetchStartupProfile = async (): Promise<AccountProfile> => {
+        try {
+          return await queryClient.fetchQuery(profileQuery(api));
+        } catch (error) {
+          if (isCancelledError(error) && !stale()) {
+            return fetchStartupProfile();
+          }
+          throw error;
+        }
+      };
       try {
-        applyBackgroundProfile(
-          await fetchProfile(api, session.accountId),
-          startedAt,
-        );
+        applyBackgroundProfile(await fetchStartupProfile(), startedAt);
       } catch (error) {
         if (
           stale() ||
@@ -266,16 +292,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
     })();
-  }, [api, applyBackgroundProfile, resetToSignedOut]);
+  }, [api, queryClient, applyBackgroundProfile, resetToSignedOut]);
 
   // 재발급이 거절됐다(AUTH-009). 로그인해 있었으면 로그인 화면으로 가고 다시 로그인해 달라고 알린다.
-  // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다
+  // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다.
+  // 탈퇴의 COMMON-409 뒤 계정을 확인하는 중이면 알리지 않는다: 이미 탈퇴돼 토큰이 거부된 것이고, 탈퇴 마무리(withdraw)가 이어진다 (#115).
+  // 탈퇴를 보내기 전·보내는 중의 만료는 그냥 만료라 알린다
   useEffect(
     () =>
       api.session.onExpired(() => {
         const wasSignedIn = stateRef.current.status === 'signedIn';
         resetToSignedOut();
-        if (wasSignedIn) {
+        if (wasSignedIn && !isCheckingWithdrawn()) {
           Alert.alert(
             '다시 로그인해 주세요',
             '로그인한 지 오래되어 로그아웃됐어요.',
@@ -395,24 +423,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 세션을 떼어 기기에서 먼저 지우고 바로 로그인 화면으로 간다. 서버 로그아웃은 떼어 둔 토큰으로 뒤에서 보낸다 (logOut).
   // 시작할 때 세대를 올려, 그 사이 끝난 뒤의 결과(켤 때 확인 등)가 반영되거나 따로 알리지 않게 한다
+  // tellServer: 서버 로그아웃을 보낼지. 탈퇴 뒤에는 서버가 이미 이 계정의 모든 토큰을 거부하므로 기기 세션만 지운다
   const signingOut = useRef<Promise<void> | null>(null);
-  const signOut = useCallback(() => {
-    signingOut.current ??= (async () => {
-      epoch.current += 1;
-      forgetSignedInStep();
-      await logOut(api);
-      resetToSignedOut();
-    })().finally(() => {
-      signingOut.current = null;
-    });
-    return signingOut.current;
-  }, [api, resetToSignedOut]);
+  const endSession = useCallback(
+    (tellServer: boolean) => {
+      signingOut.current ??= (async () => {
+        epoch.current += 1;
+        forgetSignedInStep();
+        await (tellServer
+          ? logOut(api)
+          : api.session.end().catch(() => undefined));
+        resetToSignedOut();
+      })().finally(() => {
+        signingOut.current = null;
+      });
+      return signingOut.current;
+    },
+    [api, resetToSignedOut],
+  );
+  const signOut = useCallback(() => endSession(true), [endSession]);
 
   const withdraw = useCallback(async () => {
     forgetRecentLoginMethod();
     setRecentMethod(null);
-    await signOut();
-  }, [signOut]);
+    await endSession(false);
+  }, [endSession]);
 
   const updateProfile = useCallback(
     (profile: AccountProfile) => applyUserProfile(profile),

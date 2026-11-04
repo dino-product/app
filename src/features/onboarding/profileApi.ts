@@ -1,3 +1,4 @@
+import { queryOptions } from '@tanstack/react-query';
 import { ApiError, ApiErrorMessage, type ApiClient } from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
 import type { ProfileInput } from '../my/model';
@@ -31,12 +32,36 @@ export type AccountProfile = {
 export const ProfileErrorCode = {
   /** 이름·연락처 규칙 위반. 어느 칸인지 알려 주지 않는다 */
   invalidInput: 'PROFILE-001',
+  /** 다른 계정이거나 탈퇴한 계정 (존재를 숨기려 둘을 구분하지 않는다) */
+  notFound: 'PROFILE-002',
   /** 가입 또는 약관 재동의 전에는 허용 목록 밖 API 를 쓸 수 없다 */
   signupRequired: 'PROFILE-005',
+  /** 탈퇴 직전에 다시 판정했더니 막는 사유가 생겼다. 사유는 본문에 없어 가능 여부를 다시 조회한다 */
+  withdrawalBlocked: 'PROFILE-006',
 } as const;
 
 export const profilePath = (accountId: number) =>
   `/api/v1/profiles/${accountId}`;
+
+/**
+ * 내 프로필 캐시 (#115). 가입 단계 확인(AuthProvider)과 마이페이지가 같은 키·변환을 써서 같은 요청을 두 번 보내지 않는다.
+ * 계정마다 나누지 않는다: 로그아웃·만료·탈퇴 때 서버 상태 캐시를 통째로 비운다(AuthProvider resetToSignedOut)
+ */
+export const profileQueryKey = ['profile'] as const;
+/** 프로필은 이 앱에서 바꾸면(저장·약관 동의) 받은 응답으로 캐시를 바로 고치므로, 화면을 다시 열 때마다 받지 않는다 */
+export const PROFILE_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * 기기 세션 계정의 GET /api/v1/profiles/{accountId}.
+ * 취소 신호(signal)를 요청에 넘기지 않는다: 넘기면 같은 요청을 기다리던 마이페이지가 포커스를 잃어 구독을 끊을 때 React Query 가
+ * 요청을 끊어, 켤 때 확인(AuthProvider)이 그때마다 다시 보내야 한다. 작은 요청이라 화면을 떠나도 끝까지 받아 캐시에 둔다
+ */
+export const profileQuery = (api: ApiClient) =>
+  queryOptions({
+    queryKey: profileQueryKey,
+    queryFn: async () => fetchProfile(api, await currentAccountId(api)),
+    staleTime: PROFILE_STALE_MS,
+  });
 
 const isOneOf = <T extends string>(
   values: readonly T[],

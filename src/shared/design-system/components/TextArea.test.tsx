@@ -39,6 +39,20 @@ describe('TextArea', () => {
     expect(onChangeText).toHaveBeenLastCalledWith('가');
   });
 
+  it('maxLength 를 주면 그 길이까지만 입력받는다', async () => {
+    await render(
+      <TextArea
+        label="메모"
+        placeholder=""
+        value=""
+        onChangeText={jest.fn()}
+        maxLength={200}
+      />,
+    );
+
+    expect(screen.getByLabelText('메모')).toHaveProp('maxLength', 200);
+  });
+
   it('error 면 Warning/1 테두리다', async () => {
     await render(
       <TextArea
