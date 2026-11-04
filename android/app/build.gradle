@@ -55,6 +55,14 @@ react {
 }
 
 /**
+ * API 서버 주소(ORBIT_API_BASE_URL)는 babel 이 JS 번들에 넣는다 (#110, babel.config.js).
+ * 번들 작업의 입력으로 걸어 값만 바꿔 빌드해도 다시 번들을 만든다 (그렇지 않으면 UP-TO-DATE 로 옛 주소가 남는다)
+ */
+tasks.matching { it.name.startsWith("createBundle") }.configureEach {
+    inputs.property("orbitApiBaseUrl", providers.environmentVariable("ORBIT_API_BASE_URL").orElse(""))
+}
+
+/**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
 def enableProguardInReleaseBuilds = false
