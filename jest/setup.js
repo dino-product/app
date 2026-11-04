@@ -37,3 +37,13 @@ jest.mock(
   'react-native-vision-camera-barcode-scanner',
   () => require('./qrCamera').barcodeScanner,
 );
+
+// Firebase(앱 푸시)도 네이티브 모듈이다. 기본은 설정 파일이 없는 빌드처럼 기본 앱이 없다 (jest/firebase.ts)
+jest.mock(
+  '@react-native-firebase/app',
+  () => require('./firebase').firebaseApp,
+);
+jest.mock(
+  '@react-native-firebase/messaging',
+  () => require('./firebase').firebaseMessaging,
+);

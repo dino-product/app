@@ -61,3 +61,10 @@ const { restoreAppState } = require('./appState');
 afterEach(() => {
   restoreAppState();
 });
+
+// Firebase 목도 테스트마다 기본(기본 앱 없음)으로 되돌린다
+const { resetFirebaseMock } = require('./firebase');
+
+beforeEach(() => {
+  resetFirebaseMock();
+});
