@@ -13,7 +13,9 @@ import {
   localTime,
   workStatusChip,
 } from './convert';
+import { MissingAssignmentError } from './errors';
 import type {
+  AcceptWorkCommand,
   HistoryWork,
   Period,
   ScheduledWork,
@@ -184,4 +186,16 @@ export function toCompletedWork(work: HistoryWork): CompletedWork {
     customerName: work.customerName ?? EMPTY_VALUE,
     address: addressOf(work),
   };
+}
+
+/** 응답 필요 목록의 요청을 수락하는 Command. 목록에 없으면(그사이 처리됨) 보낼 배정 순번을 몰라 볼 수 없는 작업 오류다 */
+export function acceptCommandOf(
+  works: readonly ScheduledWork[],
+  id: string,
+): AcceptWorkCommand {
+  const work = works.find(item => String(item.workId) === id);
+  if (!work) {
+    throw new MissingAssignmentError();
+  }
+  return { workId: work.workId, assignmentNumber: work.assignmentNumber };
 }

@@ -592,3 +592,27 @@ describe('WorkHomeScreen — 불러오기', () => {
     expect(start()).toBeEnabled();
   });
 });
+
+// 켜 둔 채 날짜가 바뀌면 블록 보기에서 오늘을 고르고 있던 선택은 새 오늘로 옮긴다 (#114 리뷰)
+describe('WorkHomeScreen — 날짜가 바뀌면', () => {
+  const props = {
+    currentWork,
+    schedule: weeklySchedule,
+    weekLabel: '9. 14. – 9. 20.',
+    started: false,
+    onStartWork: jest.fn(),
+    onOpenWork: jest.fn(),
+    onOpenNotifications: jest.fn(),
+  };
+
+  it('블록 보기에서 오늘을 고르고 있었으면 새 오늘을 고른다', async () => {
+    const { rerender } = await render(
+      <WorkHomeScreen {...props} today={new Date(2026, 8, 19)} />,
+    );
+    await userEvent.press(screen.getByRole('button', { name: '블록 보기' }));
+
+    await rerender(<WorkHomeScreen {...props} today={new Date(2026, 8, 20)} />);
+
+    expect(screen.getByRole('button', { name: /^9월 20일 / })).toBeSelected();
+  });
+});

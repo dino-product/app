@@ -49,6 +49,7 @@ import {
   workDetailQuery,
 } from '../../features/work/data/queries';
 import {
+  acceptCommandOf,
   confirmedOf,
   homeWeekLabel,
   monthPeriod,
@@ -435,19 +436,14 @@ export function ScheduleRoute({
   );
   const accept = useCallback(
     async (id: string) => {
-      const work = pendingWorks.find(item => String(item.workId) === id);
       try {
-        // 목록에 없는 요청(그사이 처리됨)은 보낼 배정 순번을 모른다. 목록을 다시 받는다
-        if (!work) {
-          refetchPending();
-          throw new MissingAssignmentError();
-        }
-        await acceptWork({
-          workId: work.workId,
-          assignmentNumber: work.assignmentNumber,
-        });
+        await acceptWork(acceptCommandOf(pendingWorks, id));
         return true;
       } catch (error) {
+        // 목록에 없는 요청(그사이 처리됨)은 보낼 배정 순번을 모른다. 목록을 다시 받는다
+        if (error instanceof MissingAssignmentError) {
+          refetchPending();
+        }
         alertWorkError('accept', error);
         return false;
       }

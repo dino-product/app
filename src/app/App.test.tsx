@@ -26,6 +26,7 @@ import {
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
 import { colors } from '../shared/design-system';
 import {
+  findHomeLoaded,
   findWorkDetailLoaded,
   fixAppTestClock,
   openStartedWorkDetail,
@@ -406,6 +407,62 @@ describe('App', () => {
       expect(
         screen.queryByRole('button', { name: '작업 전 사진 추가' }),
       ).not.toBeOnTheScreen();
+    });
+
+    it('예정 종료가 지난 뒤 상세의 "작업 시작" 은 -018 문구로 알리고 보고 영역은 잠긴 그대로다', async () => {
+      const alert = spyAlert();
+      await renderSignedInHome();
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      const start = await screen.findByRole('button', { name: '작업 시작' });
+      // 보일러 점검은 14:40 에 끝난다
+      jest.setSystemTime(new Date(2026, 9, 21, 14, 41));
+
+      await userEvent.press(start);
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '작업을 시작하지 못했어요',
+          '예정 종료 시각이 지나 시작할 수 없어요. 사무실에 일정 변경을 요청해 주세요.',
+        ),
+      );
+      expect(
+        screen.getByText('작업을 시작하면 완료 보고를 쓸 수 있어요'),
+      ).toBeOnTheScreen();
+    });
+
+    // 변경 뒤 작업 조회를 새로 받는 일은 useMutation 옵션에 있다. 호출별 콜백(mutate(v, { onSuccess }))은
+    // 보낸 화면이 사라지면 불리지 않아, 서버는 받았는데 앱이 옛 상태로 남는다 (#114 리뷰)
+    it('상세에서 "작업 시작" 을 보내는 중 뒤로 가도, 서버가 받으면 홈의 진행할 작업이 작업중이 된다', async () => {
+      const { workRepository } = await renderSignedInHome();
+      const startWork = workRepository.startWork.bind(workRepository);
+      let respond = () => {};
+      jest.spyOn(workRepository, 'startWork').mockImplementation(
+        command =>
+          new Promise((resolve, reject) => {
+            respond = () => {
+              startWork(command).then(resolve, reject);
+            };
+          }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+      );
+      await userEvent.press(
+        await screen.findByRole('button', { name: '작업 시작' }),
+      );
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await findHomeLoaded();
+      expect(
+        screen.getByRole('button', { name: '작업 시작' }),
+      ).toBeOnTheScreen();
+      await act(async () => respond());
+
+      expect(
+        await screen.findByRole('button', { name: '작업 수행중' }),
+      ).toBeOnTheScreen();
     });
 
     it('이번 주 일정의 수락 대기 작업은 수락·거절하는 요청 상세(탭 바 없음)로 연다', async () => {

@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -37,6 +38,7 @@ import {
   addMonths,
   addWeeks,
   countByDate,
+  isSameDay,
   formatDateHeader,
   startOfWeek,
   toDateKey,
@@ -143,6 +145,19 @@ function ScheduleScreenView({
     },
     [onVisibleMonthsChange],
   );
+  // 켜 둔 채 날짜가 바뀌면(자정·다른 날 active) 오늘을 고르고 있던 화면은 새 오늘로 옮긴다. 직접 고른 날은 그대로 둔다
+  const lastToday = useRef(today);
+  const followToday = useEffectEvent((next: Date) => {
+    const previous = lastToday.current;
+    lastToday.current = next;
+    if (!isSameDay(previous, next) && isSameDay(selected, previous)) {
+      selectDate(next);
+    }
+  });
+  useEffect(() => {
+    followToday(today);
+  }, [today]);
+
   // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
   const toggleCalendar = useCallback(() => {
     setCalendarOpen(open => !open);

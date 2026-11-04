@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -76,6 +77,23 @@ function WorkHistoryScreenView({
   // 스크린리더 포커스는 누른 화살표에 남아 바뀐 제목을 읽지 않으므로, 바뀐 달과 건수를 알려 준다.
   // 그 달을 서버에서 불러오는 동안에는 건수를 모르므로 다 불러온 뒤에 알린다 (오류면 오류 문구가 읽힌다)
   const announceMonth = useRef(false);
+
+  // 켜 둔 채 날짜가 바뀌어 달이 넘어가면 이번 달을 보던 화면은 새 달로 옮긴다. 직접 고른 달은 그대로 둔다
+  const lastToday = useRef(today);
+  const followToday = useEffectEvent((next: Date) => {
+    const previous = monthOf(lastToday.current);
+    lastToday.current = next;
+    const month = monthOf(next);
+    const same = (a: YearMonth, b: YearMonth) =>
+      a.year === b.year && a.month === b.month;
+    if (!same(previous, month) && same(viewMonth, previous)) {
+      setViewMonth(month);
+      onMonthChange?.(month);
+    }
+  });
+  useEffect(() => {
+    followToday(today);
+  }, [today]);
   const moveMonth = (delta: number) => {
     const next = addMonths(viewMonth.year, viewMonth.month, delta);
     setViewMonth(next);

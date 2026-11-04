@@ -1,4 +1,13 @@
-import { memo, useCallback, useMemo, useRef, useState, type Ref } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from 'react';
 import {
   FlatList,
   Pressable,
@@ -92,6 +101,18 @@ function WorkHomeScreenView({
     }
   };
   const [selected, setSelected] = useState(today);
+  // 켜 둔 채 날짜가 바뀌면 블록 보기에서 오늘을 고르고 있던 선택은 새 오늘로 옮긴다. 직접 고른 날은 그대로 둔다
+  const lastToday = useRef(today);
+  const followToday = useEffectEvent((next: Date) => {
+    const previous = toDateKey(lastToday.current);
+    lastToday.current = next;
+    if (previous !== toDateKey(next) && toDateKey(selected) === previous) {
+      setSelected(next);
+    }
+  });
+  useEffect(() => {
+    followToday(today);
+  }, [today]);
   const week = useMemo(() => mondayWeek(today), [today]);
   const selectedKey = toDateKey(selected);
   const daySchedule = useMemo(

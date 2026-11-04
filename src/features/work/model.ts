@@ -1,5 +1,5 @@
 import type { WorkStatus } from '../../shared/design-system';
-import type { WorkStatusCode } from './data/types';
+import type { WorkStatusCode } from './data/status';
 
 // 작업 수행 화면의 데이터 모양. API 가 붙으면 응답을 이 타입으로 변환해 넣는다.
 

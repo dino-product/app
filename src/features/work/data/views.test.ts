@@ -1,4 +1,6 @@
+import { MissingAssignmentError } from './errors';
 import {
+  acceptCommandOf,
   confirmedOf,
   homeWeekLabel,
   monthPeriod,
@@ -234,5 +236,32 @@ describe('화면 행으로', () => {
       customerName: '정다은',
       address: '서울 용산구 이태원로 202',
     });
+  });
+});
+
+describe('acceptCommandOf', () => {
+  it('응답 필요 목록의 요청이면 그 작업 id 와 지금 배정 순번으로 수락 Command 를 만든다', () => {
+    expect(
+      acceptCommandOf(
+        [
+          scheduled({
+            workId: 7,
+            status: 'PENDING_ACCEPT',
+            assignmentNumber: 3,
+          }),
+        ],
+        '7',
+      ),
+    ).toEqual({ workId: 7, assignmentNumber: 3 });
+  });
+
+  // 화면이 들고 있던 목록과 그사이 바뀐 목록이 어긋난 경우 (이미 처리된 요청)
+  it('목록에 없는 요청이면 배정 순번을 몰라 볼 수 없는 작업 오류다', () => {
+    expect(() =>
+      acceptCommandOf(
+        [scheduled({ workId: 7, status: 'PENDING_ACCEPT' })],
+        '8',
+      ),
+    ).toThrow(MissingAssignmentError);
   });
 });

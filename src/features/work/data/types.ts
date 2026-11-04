@@ -1,17 +1,12 @@
 import type { WorkDetail } from '../model';
+import type { WorkStatusCode } from './status';
 
 // 작업 데이터 포트(WorkRepository)와 주고받는 값. 이름은 백엔드 schedule 모듈의 응답·Command 필드를 따른다
 // (docs/api-spec.md §2.4·§4). 백엔드에 HTTP 가 있는 것은 작업 상세(S1)뿐이고, 나머지는 유스케이스 입력·결과 레코드 이름이다.
 // 발주사(organizationId)는 저장소가 정한다: HTTP 는 소속 목록의 기사 발주사, 로컬은 쓰지 않는다
 
-/** 작업 상태 (schedule/domain/WorkStatus) */
-export type WorkStatusCode =
-  | 'REGISTERED'
-  | 'PENDING_ACCEPT'
-  | 'ACCEPTED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELED';
+// 작업 상태는 화면 모델(model.ts)도 쓰므로 status.ts 에 따로 둔다 (model ↔ types 가 서로 가져오지 않게)
+export type { WorkStatusCode };
 
 /** 배정 응답 결과 */
 export type AssignmentResult =

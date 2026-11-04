@@ -928,3 +928,53 @@ describe('ScheduleScreen — 불러오기', () => {
     ]);
   });
 });
+
+// 켜 둔 채 날짜가 바뀌면(자정, 다른 날 active) 오늘을 보던 화면은 새 오늘로 옮기고, 직접 고른 날은 그대로 둔다 (#114 리뷰)
+describe('ScheduleScreen — 날짜가 바뀌면', () => {
+  const props = {
+    confirmed,
+    pending,
+    onAccept: jest.fn(async () => true),
+    onReject: jest.fn(),
+    onOpenRequest: jest.fn(),
+  };
+
+  it('오늘을 고르고 있었으면 새 오늘을 고르고 그 달을 알린다', async () => {
+    const onVisibleMonthsChange = jest.fn();
+    const { rerender } = await render(
+      <ScheduleScreen
+        {...props}
+        today={new Date(2026, 11, 31)}
+        onVisibleMonthsChange={onVisibleMonthsChange}
+      />,
+    );
+
+    await rerender(
+      <ScheduleScreen
+        {...props}
+        today={new Date(2027, 0, 1)}
+        onVisibleMonthsChange={onVisibleMonthsChange}
+      />,
+    );
+
+    expect(screen.getByText('2027년 1월 1일 (금)')).toBeOnTheScreen();
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2027, month: 0 },
+    ]);
+  });
+
+  it('다른 날을 직접 골라 보고 있었으면 그대로 둔다', async () => {
+    const { rerender } = await render(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 15)} />,
+    );
+    await userEvent.press(
+      screen.getByRole('button', { name: '12월 17일 목요일' }),
+    );
+
+    await rerender(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 16)} />,
+    );
+
+    expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+  });
+});

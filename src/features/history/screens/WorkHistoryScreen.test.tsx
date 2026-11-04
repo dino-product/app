@@ -410,3 +410,38 @@ describe('WorkHistoryScreen — 불러오기', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });
+
+// 켜 둔 채 날짜가 바뀌어 달이 넘어가면, 이번 달을 보던 화면은 새 달로 옮기고 직접 고른 달은 그대로 둔다 (#114 리뷰)
+describe('WorkHistoryScreen — 날짜가 바뀌면', () => {
+  it('이번 달을 보고 있었으면 새 달로 옮기고 그 달을 알린다', async () => {
+    const onMonthChange = jest.fn();
+    const { rerender } = await renderHistory({ onMonthChange });
+
+    await rerender(
+      <WorkHistoryScreen
+        today={new Date(2026, 9, 1)}
+        works={works}
+        onOpenWork={jest.fn()}
+        onMonthChange={onMonthChange}
+      />,
+    );
+
+    expect(screen.getByText('2026년 10월')).toBeOnTheScreen();
+    expect(onMonthChange).toHaveBeenLastCalledWith({ year: 2026, month: 9 });
+  });
+
+  it('지난달을 직접 골라 보고 있었으면 그대로 둔다', async () => {
+    const { rerender } = await renderHistory();
+    await userEvent.press(prevMonth());
+
+    await rerender(
+      <WorkHistoryScreen
+        today={new Date(2026, 9, 1)}
+        works={works}
+        onOpenWork={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+  });
+});
