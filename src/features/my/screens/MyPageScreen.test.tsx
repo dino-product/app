@@ -1,4 +1,5 @@
 import {
+  act,
   render,
   screen,
   userEvent,
@@ -11,6 +12,7 @@ import {
   hang,
   networkError,
   ok,
+  type FakeResponse,
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
@@ -159,9 +161,17 @@ describe('MyPageScreen', () => {
     });
 
     it('받는 동안 프로필 카드와 소속 카드 자리에 진행 표시를 보이고, 설정 행은 그대로 쓸 수 있다', async () => {
+      let answer: (response: FakeResponse) => void = () => {};
       const { props } = await renderMyPage(
         myServer()
-          .on('GET', MY_PROFILE_PATH, hang())
+          .on(
+            'GET',
+            MY_PROFILE_PATH,
+            () =>
+              new Promise<FakeResponse>(resolve => {
+                answer = resolve;
+              }),
+          )
           .on('GET', MEMBERSHIPS_PATH, hang()),
       );
 
@@ -170,6 +180,8 @@ describe('MyPageScreen', () => {
       expect(screen.queryByText('아직 소속된 발주사가 없어요')).toBeNull();
       await userEvent.press(screen.getByRole('button', { name: '계정 관리' }));
       expect(props.onOpenAccount).toHaveBeenCalledTimes(1);
+      // 프로필 요청은 화면을 떠나도 끊지 않으므로 답해 끝낸다
+      await act(async () => answer(ok(myProfileResponse())));
     });
 
     it('프로필을 받지 못하면 안내와 다시 시도를 보이고, 다시 시도로 받아 온다', async () => {

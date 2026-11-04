@@ -51,12 +51,15 @@ export const profileQueryKey = ['profile'] as const;
 /** 프로필은 이 앱에서 바꾸면(저장·약관 동의) 받은 응답으로 캐시를 바로 고치므로, 화면을 다시 열 때마다 받지 않는다 */
 export const PROFILE_STALE_MS = 5 * 60 * 1000;
 
-/** 기기 세션 계정의 GET /api/v1/profiles/{accountId} */
+/**
+ * 기기 세션 계정의 GET /api/v1/profiles/{accountId}.
+ * 취소 신호(signal)를 요청에 넘기지 않는다: 넘기면 같은 요청을 기다리던 마이페이지가 포커스를 잃어 구독을 끊을 때 React Query 가
+ * 요청을 끊어, 켤 때 확인(AuthProvider)이 그때마다 다시 보내야 한다. 작은 요청이라 화면을 떠나도 끝까지 받아 캐시에 둔다
+ */
 export const profileQuery = (api: ApiClient) =>
   queryOptions({
     queryKey: profileQueryKey,
-    queryFn: async ({ signal }) =>
-      fetchProfile(api, await currentAccountId(api), { signal }),
+    queryFn: async () => fetchProfile(api, await currentAccountId(api)),
     staleTime: PROFILE_STALE_MS,
   });
 
@@ -118,13 +121,12 @@ export async function currentAccountId(api: ApiClient): Promise<number> {
   return session.accountId;
 }
 
-/** GET /api/v1/profiles/{accountId}. signal 로 끊으면 요청을 그만둔다 (화면을 떠나 React Query 가 취소할 때) */
+/** GET /api/v1/profiles/{accountId} */
 export async function fetchProfile(
   api: ApiClient,
   accountId: number,
-  { signal }: { signal?: AbortSignal } = {},
 ): Promise<AccountProfile> {
-  return parseProfile(await api.get(profilePath(accountId), { signal }));
+  return parseProfile(await api.get(profilePath(accountId)));
 }
 
 /** PUT /api/v1/profiles/{accountId}. 연락처는 숫자만 보낸다 (서버도 숫자 외 문자를 지운다) */

@@ -118,12 +118,13 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
     expect(readSignedInStep()).toBe('COMPLETED');
   });
 
-  // 켤 때 확인과 마이페이지는 같은 프로필 요청을 함께 기다린다(#115). 마이페이지가 포커스를 잃어 구독을 끊으면
-  // 그 요청이 취소되는데, 켤 때 확인은 그 취소로 끝나지 않고 다시 받아 가입 단계를 맞춘다
+  // 켤 때 확인과 마이페이지는 같은 프로필 요청을 함께 기다린다(#115). 마이페이지가 포커스를 잃어 구독을 끊어도
+  // 그 요청은 끊기지 않아, 켤 때 확인이 다시 보내지 않고 그 결과로 가입 단계를 맞춘다
   it.each([
     ['탭을 건드리지 않으면', [] as string[]],
     ['마이 탭을 열어 둔 채여도', ['마이']],
     ['마이 탭을 열었다 다른 탭으로 옮겨도', ['마이', '홈']],
+    ['마이 탭을 여러 번 오가도', ['마이', '홈', '마이', '내 일정']],
   ])(
     '켤 때 확인을 기다리는 동안 %s 늦게 온 결과(약관 재동의)를 반영한다',
     async (_, tabs) => {
@@ -149,8 +150,38 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
           name: '서비스 이용을 위해 동의가 필요해요',
         }),
       ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2);
     },
   );
+
+  it('켤 때 확인을 기다리는 동안 다른 곳에서 그 조회를 멈춰도(세대 그대로) 다시 받아 반영한다', async () => {
+    saveSignedInStep('COMPLETED');
+    const pending = deferred();
+    const app = await renderApp({
+      server: accountServer().on(
+        'GET',
+        PROFILE_PATH,
+        () => pending.response,
+        ok(accountProfile('TERMS')),
+      ),
+      session: signedInSession(),
+    });
+    await waitFor(() =>
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
+    );
+
+    await act(() =>
+      app.queryClient.cancelQueries({ queryKey: profileQueryKey }),
+    );
+
+    expect(
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      }),
+    ).toBeOnTheScreen();
+    expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2);
+    await act(async () => pending.answer(ok(accountProfile('COMPLETED'))));
+  });
 
   it('마지막 단계가 PROFILE 이면 프로필 등록으로 연다', async () => {
     await renderSignedInApp({ nextStep: 'PROFILE' });

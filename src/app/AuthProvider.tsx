@@ -257,8 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       // 마이페이지와 같은 프로필 캐시로 받는다. 보던 마이페이지로 켜져 그쪽이 먼저 받고 있으면 그 요청을 같이 기다린다 (#115).
-      // 같이 기다리던 마이페이지가 포커스를 잃어 구독을 끊으면 그 요청이 취소된다. 그때는 세대가 그대로면 다시 받는다
-      // (사용자 동작·로그아웃이 멈춘 것이면 세대가 바뀌어 그만둔다). 운영 QueryClient 는 네트워크·5xx 를 두 번까지 다시 보낸다
+      // 마이페이지가 구독을 끊어도 요청은 끊기지 않는다(profileQuery 는 취소 신호를 넘기지 않는다). 누가 이 조회를 멈췄는데
+      // (cancelQueries) 세대가 그대로면 다시 받는다. 사용자 동작·로그아웃이 멈춘 것이면 세대가 바뀌어 그만둔다.
+      // 운영 QueryClient 는 네트워크·5xx 를 두 번까지 다시 보낸다
       const fetchStartupProfile = async (): Promise<AccountProfile> => {
         try {
           return await queryClient.fetchQuery(profileQuery(api));

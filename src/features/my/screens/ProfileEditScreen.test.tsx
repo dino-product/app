@@ -9,7 +9,6 @@ import { Alert } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import {
   fail,
-  hang,
   networkError,
   ok,
   type FakeResponse,
@@ -66,7 +65,9 @@ async function editProfile() {
 }
 
 describe('ProfileEditScreen', () => {
-  afterEach(() => {
+  // 끝난 저장·조회를 화면에 알리는 것(React Query 는 다음 차례 setTimeout 0)까지 act 안에서 받고 끝낸다
+  afterEach(async () => {
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
     jest.restoreAllMocks();
   });
 
@@ -134,11 +135,24 @@ describe('ProfileEditScreen', () => {
 
   describe('불러오기', () => {
     it('프로필을 받는 동안 진행 표시를 보이고 입력칸·저장하기는 아직 없다', async () => {
-      await renderEdit(myServer().on('GET', MY_PROFILE_PATH, hang()));
+      let answer: (response: FakeResponse) => void = () => {};
+      await renderEdit(
+        myServer().on(
+          'GET',
+          MY_PROFILE_PATH,
+          () =>
+            new Promise<FakeResponse>(resolve => {
+              answer = resolve;
+            }),
+        ),
+      );
 
       expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
       expect(screen.queryByLabelText('이름')).toBeNull();
       expect(screen.queryByRole('button', { name: '저장하기' })).toBeNull();
+
+      // 프로필 요청은 화면을 떠나도 끊지 않으므로 답해 끝낸다
+      await act(async () => answer(ok(myProfileResponse())));
     });
 
     it('프로필을 받지 못하면 안내와 다시 시도를 보이고, 다시 시도로 받아 채운다', async () => {
