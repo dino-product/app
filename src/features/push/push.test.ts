@@ -1,3 +1,4 @@
+import { waitFor } from '@testing-library/react-native';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
   AuthorizationStatus,
@@ -12,6 +13,7 @@ import {
   networkError,
   noContent,
   ok,
+  type FakeResponse,
 } from '../../shared/testing/fakeServer';
 import { createTestApi } from '../../shared/testing/renderWithApi';
 import { testSession } from '../../shared/testing/session';
@@ -21,6 +23,7 @@ import {
   markPushRead,
   PUSH_DEVICES_PATH,
   readPushDeviceId,
+  readPushDeviceOwner,
   refreshPushDevice,
   registerPushDevice,
   setUpBackgroundPush,
@@ -157,7 +160,7 @@ describe('hasPushPermission', () => {
 });
 
 describe('registerPushDevice', () => {
-  it('권한이 있으면 FCM 토큰을 등록(N6)하고 pushDeviceId 만 남긴다', async () => {
+  it('권한이 있으면 FCM 토큰을 등록(N6)하고 pushDeviceId 와 그 계정만 남긴다', async () => {
     enableFirebase({ token: 'fcm-token-secret' });
     const server = createFakeServer().on(
       'POST',
@@ -176,7 +179,12 @@ describe('registerPushDevice', () => {
       }),
     ]);
     expect(readPushDeviceId()).toBe(7);
-    expect(storedValues()).toEqual(['push.deviceId=7']);
+    // 어느 계정의 기기인지 (로그인 전에 누른 푸시를 다른 계정으로 열지 않게)
+    expect(readPushDeviceOwner()).toBe(1);
+    expect(storedValues().sort()).toEqual([
+      'push.deviceAccountId=1',
+      'push.deviceId=7',
+    ]);
     expect(JSON.stringify(storedValues())).not.toContain('fcm-token-secret');
   });
 
@@ -240,6 +248,31 @@ describe('registerPushDevice', () => {
     expect(readPushDeviceId()).toBeUndefined();
   });
 
+  it('등록 응답을 기다리는 사이 해제(로그아웃 시작)되면 id 를 남기지 않는다', async () => {
+    enableFirebase();
+    let answer: (response: FakeResponse) => void = () => {};
+    const server = createFakeServer().on(
+      'POST',
+      PUSH_DEVICES_PATH,
+      () =>
+        new Promise<FakeResponse>(resolve => {
+          answer = resolve;
+        }),
+    );
+    const api = apiWith(server);
+
+    const registering = registerPushDevice(api, defaultMessaging()!);
+    await waitFor(() =>
+      expect(server.callsTo('POST', PUSH_DEVICES_PATH)).toHaveLength(1),
+    );
+    await unregisterPushDevice(api, 'detached-access');
+    answer(ok({ pushDeviceId: 7 }));
+
+    await expect(registering).resolves.toBe(false);
+    expect(readPushDeviceId()).toBeUndefined();
+    expect(readPushDeviceOwner()).toBeUndefined();
+  });
+
   it.each([
     ['가입 전(PROFILE-005)', fail(403, 'PROFILE-005')],
     ['네트워크 오류', networkError()],
@@ -288,6 +321,15 @@ describe('refreshPushDevice', () => {
     expect(readPushDeviceId()).toBe(9);
   });
 
+  it('메인 밖이면(isCurrent false) 다시 등록하지 않는다', async () => {
+    appStorage.set('push.deviceId', 7);
+    const server = createFakeServer();
+
+    await refreshPushDevice(apiWith(server), 'fcm-token-2', () => false);
+
+    expect(server.calls).toHaveLength(0);
+  });
+
   it('등록하지 않은 기기(권한 없음)면 다시 등록하지 않는다', async () => {
     const server = createFakeServer();
 
@@ -301,10 +343,12 @@ describe('unregisterPushDevice', () => {
   it('저장한 id 를 떼어 둔 access token 으로 해제(N7)하고 id 와 FCM 토큰을 지운다', async () => {
     enableFirebase();
     appStorage.set('push.deviceId', 7);
+    appStorage.set('push.deviceAccountId', 1);
     const server = createFakeServer().on('DELETE', DEVICE_PATH, noContent());
     const api = createTestApi({ server, session: null }).client;
 
     await unregisterPushDevice(api, 'detached-access');
+    expect(readPushDeviceOwner()).toBeUndefined();
 
     expect(server.callsTo('DELETE', DEVICE_PATH)).toEqual([
       expect.objectContaining({

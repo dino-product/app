@@ -17,16 +17,21 @@ import { appStorage } from '../../shared/storage/appStorage';
 //   const messaging = defaultMessaging()           Firebase 설정 파일이 없는 빌드면 null → 푸시를 쓰지 않는다
 //   await registerPushDevice(api, messaging)       가입을 마친 뒤(메인): 권한 → FCM 토큰 → 서버 등록 → pushDeviceId 저장
 //   await unregisterPushDevice(api, accessToken)   로그아웃 서버 요청 직전: 저장한 id 로 해제하고 지운다
-// FCM 토큰 값은 서버에만 보내고 저장·로그에 남기지 않는다. 기기에는 해제에 쓸 pushDeviceId 만 MMKV 에 둔다
+// FCM 토큰 값은 서버에만 보내고 저장·로그에 남기지 않는다. 기기에는 해제에 쓸 pushDeviceId 와 등록한 계정(accountId)만 MMKV 에 둔다
 
 export const PUSH_DEVICES_PATH = '/api/v1/push-devices';
 const DEVICE_ID_KEY = 'push.deviceId';
+/** 이 기기를 등록한 계정. 로그인 전에 누른 푸시를 다른 계정으로 로그인한 뒤 열지 않게 본다 */
+const DEVICE_OWNER_KEY = 'push.deviceAccountId';
 /** Android 13+ 알림 권한을 한 번 물었다. 거부했으면 다시 묻지 않는다 */
 const PERMISSION_ASKED_KEY = 'push.permissionAsked';
 /** POST_NOTIFICATIONS 런타임 권한이 생긴 Android 13 (API 33) */
 const ANDROID_RUNTIME_PERMISSION_API = 33;
 
 const ignore = () => undefined;
+
+// 해제(로그아웃 시작)마다 올린다. 그 전에 보낸 등록의 응답은 기기에 남기지 않는다
+let generation = 0;
 
 /**
  * 기본 Firebase 앱의 messaging. 설정 파일(GoogleService-Info.plist·google-services.json)이 없는 빌드는
@@ -76,12 +81,19 @@ export function readPushDeviceId(): number | undefined {
   return appStorage.getNumber(DEVICE_ID_KEY);
 }
 
-// N6. 같은 토큰은 서버가 같은 id 를 준다. isCurrent 가 false 가 되면(그사이 로그아웃) id 를 남기지 않는다
+/** 이 기기를 등록한 계정(accountId). 등록하지 않았으면 undefined */
+export function readPushDeviceOwner(): number | undefined {
+  return appStorage.getNumber(DEVICE_OWNER_KEY);
+}
+
+// N6. 같은 토큰은 서버가 같은 id 를 준다. 그사이 메인을 떠났거나(isCurrent) 해제가 시작됐으면(로그아웃) id 를 남기지 않는다
 async function registerToken(
   api: ApiClient,
   token: string,
   isCurrent: () => boolean,
 ): Promise<boolean> {
+  const started = generation;
+  const session = await api.session.getSession().catch(() => null);
   const result = await api.post(PUSH_DEVICES_PATH, {
     platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
     token,
@@ -93,10 +105,11 @@ async function registerToken(
       message: ApiErrorMessage.invalidResponse,
     });
   }
-  if (!isCurrent()) {
+  if (!isCurrent() || generation !== started || session === null) {
     return false;
   }
   appStorage.set(DEVICE_ID_KEY, result.pushDeviceId);
+  appStorage.set(DEVICE_OWNER_KEY, session.accountId);
   return true;
 }
 
@@ -119,13 +132,14 @@ export async function registerPushDevice(
   return registerToken(api, token, isCurrent);
 }
 
-/** FCM 이 토큰을 바꿨다. 등록해 둔 기기(권한이 있었다)면 바뀐 토큰으로 다시 등록한다 */
+/** FCM 이 토큰을 바꿨다. 메인에 있고 등록해 둔 기기(권한이 있었다)면 바뀐 토큰으로 다시 등록한다 */
 export async function refreshPushDevice(
   api: ApiClient,
   token: string,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
-  if (readPushDeviceId() !== undefined) {
-    await registerToken(api, token, () => true);
+  if (isCurrent() && readPushDeviceId() !== undefined) {
+    await registerToken(api, token, isCurrent);
   }
 }
 
@@ -138,8 +152,10 @@ export async function unregisterPushDevice(
   api: ApiClient,
   accessToken: string,
 ): Promise<void> {
+  generation += 1;
   const pushDeviceId = readPushDeviceId();
   appStorage.remove(DEVICE_ID_KEY);
+  appStorage.remove(DEVICE_OWNER_KEY);
   if (pushDeviceId !== undefined) {
     await api
       .detachedRequest(

@@ -208,7 +208,9 @@ export async function logOut(api: ApiClient): Promise<void> {
   const session = await api.session.getSession().catch(() => null);
   const ended = api.session.end().catch(() => undefined);
   if (session !== null) {
+    // 해제는 짧은 타임아웃(5초)으로 끝나고, 어떻게 실패해도(저장소 예외 포함) 로그아웃은 보낸다
     unregisterPushDevice(api, session.accessToken)
+      .catch(() => undefined)
       .then(() => api.logOut(session))
       .catch(() => undefined);
   }
