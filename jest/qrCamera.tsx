@@ -15,6 +15,7 @@ type Output =
 type CameraProps = {
   isActive: boolean;
   device: unknown;
+  orientationSource?: string;
   outputs?: Output[];
   onError?: (error: Error) => void;
   style?: StyleProp<ViewStyle>;
@@ -26,6 +27,7 @@ const mountedCameras = new Set<{ onError?: (error: Error) => void }>();
 function Camera({
   isActive,
   device,
+  orientationSource,
   outputs = [],
   onError,
   style,
@@ -47,7 +49,7 @@ function Camera({
     return () => outputs.forEach(output => activeOutputs.delete(output));
   }, [isActive, outputs]);
   // 테스트가 toHaveProp 로 읽는다
-  const shown = { isActive, device };
+  const shown = { isActive, device, orientationSource };
   return <View testID="qr-camera" style={style} {...shown} />;
 }
 

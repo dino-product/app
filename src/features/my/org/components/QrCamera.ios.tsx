@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   Camera,
   isScannedCode,
@@ -18,17 +18,17 @@ export function QrCamera({
   onError,
   style,
 }: QrCameraProps) {
-  const onObjectsScanned = useCallback(
-    (objects: ScannedObject[]) => {
-      const values = objects.flatMap(object =>
-        isScannedCode(object) && object.value ? [object.value] : [],
-      );
-      if (values.length > 0) {
-        onScanned(values);
-      }
-    },
-    [onScanned],
-  );
+  // 화면이 다시 그려져 onScanned 가 바뀌어도 네이티브 출력의 콜백은 그대로 두고 마지막 onScanned 를 부른다
+  const latestOnScanned = useRef(onScanned);
+  latestOnScanned.current = onScanned;
+  const onObjectsScanned = useCallback((objects: ScannedObject[]) => {
+    const values = objects.flatMap(object =>
+      isScannedCode(object) && object.value ? [object.value] : [],
+    );
+    if (values.length > 0) {
+      latestOnScanned.current(values);
+    }
+  }, []);
   const output = useObjectOutput({ types: QR_TYPES, onObjectsScanned });
   // 출력 배열이 바뀌면 세션을 다시 구성하므로 고정한다
   const outputs = useMemo(() => [output], [output]);
@@ -38,6 +38,8 @@ export function QrCamera({
       style={style}
       isActive={isActive}
       device="back"
+      // 세로 고정 앱이라 기기를 눕혀도 화면 방향을 따른다
+      orientationSource="interface"
       outputs={outputs}
       onError={onError}
     />

@@ -41,6 +41,8 @@ export function QrCamera({
       style={style}
       isActive={isActive}
       device="back"
+      // 세로 고정 앱이라 기기를 눕혀도 화면 방향을 따른다
+      orientationSource="interface"
       outputs={outputs}
       onError={onError}
     />

@@ -36,6 +36,11 @@ describe('QrCamera', () => {
       const props = await renderCamera(Camera, { isActive: false });
       expect(screen.getByTestId('qr-camera')).toHaveProp('isActive', false);
       expect(screen.getByTestId('qr-camera')).toHaveProp('device', 'back');
+      // 세로 고정 앱이라 출력 방향은 기기 방향이 아니라 화면 방향을 따른다
+      expect(screen.getByTestId('qr-camera')).toHaveProp(
+        'orientationSource',
+        'interface',
+      );
 
       await screen.rerender(<Camera {...props} isActive />);
 
@@ -62,6 +67,22 @@ describe('QrCamera', () => {
       expect(useObjectOutput).toHaveBeenLastCalledWith(
         expect.objectContaining({ types: ['qr'] }),
       );
+    });
+
+    // 콜백이 바뀔 때마다 네이티브 출력에 다시 넣지 않는다
+    it('onScanned 가 바뀌어도 객체 출력 콜백은 그대로이고, 새 onScanned 로 넘긴다', async () => {
+      const props = await renderCamera(IOSQrCamera);
+      const next = jest.fn();
+
+      await screen.rerender(<IOSQrCamera {...props} onScanned={next} />);
+      const [before, after] = useObjectOutput.mock.calls
+        .slice(-2)
+        .map(([options]) => options.onObjectsScanned);
+      await emitScan('objects', [{ type: 'qr', value: 'RBT124' }]);
+
+      expect(after).toBe(before);
+      expect(next).toHaveBeenCalledWith(['RBT124']);
+      expect(props.onScanned).not.toHaveBeenCalled();
     });
 
     it('한 프레임에서 읽은 코드의 값만 넘긴다. 값이 없는 코드·코드가 아닌 객체는 뺀다', async () => {
