@@ -10,6 +10,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
 import { workKeys } from '../features/work/data/keys';
+import { workDetailQuery } from '../features/work/data/queries';
+import type { WorkStatusCode } from '../features/work/data/status';
+import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
 import {
   defaultMessaging,
   markPushRead,
@@ -21,6 +24,7 @@ import { useAuth } from './AuthProvider';
 import {
   parsePushData,
   pushRouteOf,
+  pushWorkIdOf,
   type PushData,
 } from './navigation/pushRoute';
 import type { RootStackParamList } from './navigation/types';
@@ -29,7 +33,8 @@ import type { RootStackParamList } from './navigation/types';
 // - 메인(가입 완료)에 들어올 때마다 권한을 확인하고 기기를 등록한다. 토큰이 바뀌면 다시 등록한다 (가입 전엔 PROFILE-005)
 // - 앱이 앞에 있을 때 받으면 알림센터·(작업 알림이면) 작업·(참여 결과면) 신청 현황 캐시를 다시 받게 한다. iOS 는 배너도 뜬다(firebase.json),
 //   Android 는 시스템이 띄우지 않아 알림센터 갱신으로 대신한다
-// - 알림을 눌러 열면(백그라운드·종료) 그 화면을 열고 읽음 처리한다. 로그인 전·가입 중·세션 만료면 메인에 들어온 뒤 연다
+// - 알림을 눌러 열면(백그라운드·종료) 그 화면을 열고 읽음 처리한다. 수락 대기 작업은 요청 상세로 연다.
+//   로그인 전·가입 중·세션 만료면 메인에 들어온 뒤 연다
 // Firebase 설정 파일이 없는 빌드는 아무것도 하지 않는다
 
 // 알림센터 캐시의 접두사 (#117 notificationKeys 가 머지되면 그 키로 바꾼다)
@@ -44,6 +49,7 @@ export function PushNotifications({
 }) {
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const repository = useWorkRepository();
   const inMain = useAuth().phase === 'main';
   const [messaging] = useState(defaultMessaging);
   const inMainRef = useRef(inMain);
@@ -66,21 +72,49 @@ export function PushNotifications({
 
   // 메인 묶음이 그려졌을 때만 연다 (로그인 전·가입 중에는 루트에 Main 이 없다).
   // 메인에 들어오면 루트 화면 목록이 바뀌어(state 이벤트) 다시 온다
+  const mainReady = useCallback(
+    () =>
+      navigation.isReady() &&
+      navigation.getRootState()?.routeNames.includes('Main') === true,
+    [navigation],
+  );
+
+  // 작업 알림은 상세를 먼저 받아 수락 대기인지 본다. 받은 상세는 캐시(같은 키)에 남아 연 화면이 바로 그린다.
+  // 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다
+  const workStatusOf = useCallback(
+    (data: PushData): Promise<WorkStatusCode | undefined> => {
+      const workId = pushWorkIdOf(data);
+      return workId === undefined
+        ? Promise.resolve(undefined)
+        : queryClient
+            .fetchQuery(workDetailQuery(repository, Number(workId)))
+            .then(work => work.workStatus, ignore);
+    },
+    [queryClient, repository],
+  );
+
   const openPending = useCallback(() => {
     const data = pending.current;
-    if (
-      data === null ||
-      !navigation.isReady() ||
-      !navigation.getRootState()?.routeNames.includes('Main')
-    ) {
+    if (data === null || !mainReady()) {
       return;
     }
     pending.current = null;
-    navigation.navigate('Main', pushRouteOf(data));
-    markPushRead(api, data.notificationId).then(() =>
-      queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
-    );
-  }, [api, navigation, queryClient]);
+    workStatusOf(data).then(workStatus => {
+      // 그사이 로그아웃했으면 열지 않는다
+      if (!mainReady()) {
+        return;
+      }
+      const route = pushRouteOf(data, workStatus);
+      if (route.name === 'RequestDetail') {
+        navigation.navigate('RequestDetail', route.params);
+      } else {
+        navigation.navigate('Main', route.params);
+      }
+      markPushRead(api, data.notificationId).then(() =>
+        queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
+      );
+    });
+  }, [api, mainReady, navigation, queryClient, workStatusOf]);
 
   useEffect(() => {
     inMainRef.current = inMain;

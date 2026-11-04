@@ -341,9 +341,39 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
 
     expect(await screen.findByText('푸시로 연 작업')).toBeOnTheScreen();
     expect(header('작업 상세')).toBeOnTheScreen();
+    // 작업 상세 조회는 모두 활성 기사 소속(7) 경로로 갔다
     expect(
-      server.callsTo('GET', '/api/v1/organizations/7/works/101'),
-    ).toHaveLength(1);
+      server.callsTo('GET', '/api/v1/organizations/7/works/101').length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      server.calls.some(call => /organizations\/(1|5)\/works/.test(call.path)),
+    ).toBe(false);
+  });
+
+  // 알림에는 작업 상태가 없어 상세를 먼저 받아 고른다 (홈·알림센터의 작업 열기와 같은 규칙)
+  it('수락 대기 작업의 배정 알림을 누르면 수락·거절하는 요청 상세를 연다', async () => {
+    enableFirebase();
+    const app = await renderSignedInApp({ server: pushServer() });
+    await registered(app);
+
+    // 작업 106 은 테스트 작업 저장소의 수락 대기 작업이다
+    await act(async () =>
+      openPush(
+        pushMessage({
+          notificationId: '31',
+          type: 'WORK_ASSIGNED',
+          workId: '106',
+        }),
+      ),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: '수락' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '거절' })).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(1),
+    );
   });
 
   it('종료된 앱을 알림으로 열면(백그라운드와 같은 화면) 그 작업 상세를 열고 읽음 처리한다', async () => {

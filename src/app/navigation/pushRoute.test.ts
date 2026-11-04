@@ -1,4 +1,4 @@
-import { parsePushData, pushRouteOf } from './pushRoute';
+import { parsePushData, pushRouteOf, pushWorkIdOf } from './pushRoute';
 
 // 푸시를 눌렀을 때 열 화면 (#118). FCM data(백엔드 FcmPushSender)는 notificationId·type 과 있을 때만 workId·participationRequestId 를
 // 문자열로 준다. organizationId 는 없다(#112 G8) — 작업 상세는 발주사 없이 열고, 상세가 활성 기사 소속으로 정한다(#114)
@@ -38,9 +38,23 @@ describe('parsePushData', () => {
   });
 });
 
-const homeScreen = (screen: string, params?: object) => ({
-  screen: 'home',
-  params: { screen, params, initial: false },
+const main = (params: object) => ({ name: 'Main', params });
+const homeScreen = (screen: string, params?: object) =>
+  main({ screen: 'home', params: { screen, params, initial: false } });
+
+describe('pushWorkIdOf', () => {
+  it('작업 알림이면 작업 id (상세를 먼저 받아 수락 대기인지 본다)', () => {
+    expect(pushWorkIdOf({ type: 'WORK_ASSIGNED', workId: '10' })).toBe('10');
+  });
+
+  it.each([
+    ['작업 id 가 없는 작업 알림', { type: 'WORK_ASSIGNED' }],
+    ['숫자가 아닌 작업 id', { type: 'WORK_ASSIGNED', workId: '../10' }],
+    ['참여 결과 알림', { type: 'PARTICIPATION_REQUEST_APPROVED' }],
+    ['앱이 모르는 종류', { type: 'ROLE_CHANGED', workId: '10' }],
+  ])('%s → 없음', (_, data) => {
+    expect(pushWorkIdOf(data)).toBeUndefined();
+  });
 });
 
 describe('pushRouteOf', () => {
@@ -50,10 +64,25 @@ describe('pushRouteOf', () => {
     'WORK_REASSIGNED_AWAY',
     'WORK_CANCELED',
     'COMPLETION_REPORT_REQUESTED',
-  ])('작업 알림 %s → 홈 탭의 그 작업 상세 (발주사는 넘기지 않는다)', type => {
-    expect(pushRouteOf({ notificationId: '31', type, workId: '10' })).toEqual(
-      homeScreen('WorkDetail', { id: '10' }),
-    );
+  ])(
+    '작업 알림 %s → 홈 탭의 그 작업 상세 (발주사는 넘기지 않는다, 상태를 모르면 작업 상세)',
+    type => {
+      expect(pushRouteOf({ notificationId: '31', type, workId: '10' })).toEqual(
+        homeScreen('WorkDetail', { id: '10' }),
+      );
+      expect(
+        pushRouteOf({ notificationId: '31', type, workId: '10' }, 'ACCEPTED'),
+      ).toEqual(homeScreen('WorkDetail', { id: '10' }));
+    },
+  );
+
+  it('수락 대기 작업이면 수락·거절하는 요청 상세 (홈·알림센터의 작업 열기와 같은 규칙)', () => {
+    expect(
+      pushRouteOf(
+        { notificationId: '31', type: 'WORK_ASSIGNED', workId: '10' },
+        'PENDING_ACCEPT',
+      ),
+    ).toEqual({ name: 'RequestDetail', params: { id: '10' } });
   });
 
   it('참여 거절 → 마이 탭의 그 요청 거절 화면', () => {
@@ -63,14 +92,16 @@ describe('pushRouteOf', () => {
         type: 'PARTICIPATION_REQUEST_REJECTED',
         participationRequestId: '3',
       }),
-    ).toEqual({
-      screen: 'my',
-      params: {
-        screen: 'OrgJoinRejected',
-        params: { requestId: '3' },
-        initial: false,
-      },
-    });
+    ).toEqual(
+      main({
+        screen: 'my',
+        params: {
+          screen: 'OrgJoinRejected',
+          params: { requestId: '3' },
+          initial: false,
+        },
+      }),
+    );
   });
 
   it('참여 승인 → 마이 탭의 신청 현황', () => {
@@ -80,10 +111,12 @@ describe('pushRouteOf', () => {
         type: 'PARTICIPATION_REQUEST_APPROVED',
         participationRequestId: '3',
       }),
-    ).toEqual({
-      screen: 'my',
-      params: { screen: 'OrgJoinRequests', initial: false },
-    });
+    ).toEqual(
+      main({
+        screen: 'my',
+        params: { screen: 'OrgJoinRequests', initial: false },
+      }),
+    );
   });
 
   it.each([
