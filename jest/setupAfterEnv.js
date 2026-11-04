@@ -54,3 +54,10 @@ const { focusManager } = require('@tanstack/react-query');
 afterEach(() => {
   focusManager.setFocused(undefined);
 });
+
+// QR 인식 테스트가 정한 앱 상태(AppState.currentState·change 구독)를 되돌린다 (jest/appState.ts)
+const { restoreAppState } = require('./appState');
+
+afterEach(() => {
+  restoreAppState();
+});

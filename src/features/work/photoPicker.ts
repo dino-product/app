@@ -1,10 +1,4 @@
-import {
-  ActionSheetIOS,
-  Alert,
-  Linking,
-  PermissionsAndroid,
-  Platform,
-} from 'react-native';
+import { ActionSheetIOS, Alert, Platform } from 'react-native';
 import {
   launchCamera,
   launchImageLibrary,
@@ -13,7 +7,10 @@ import {
   type ImagePickerResponse,
   type OptionsCommon,
 } from 'react-native-image-picker';
-import CameraPermissionIOS from '../../shared/native/NativeCameraPermissionIOS';
+import {
+  requestCameraPermission,
+  showCameraPermissionGuide,
+} from '../../shared/native/cameraPermission';
 
 // 완료 보고 사진을 카메라로 찍거나 앨범에서 고른다 (#111). 고른 사진의 로컬 URI 를 고른 순서대로 돌려준다.
 // 고르지 않았거나 실패하면 빈 배열이다. 실패·권한 안내는 여기서 띄우므로 부르는 쪽은 보고를 그대로 두면 된다.
@@ -84,32 +81,16 @@ function chooseSource(): Promise<Source | null> {
   });
 }
 
+// 권한은 카메라를 열기 전에 받는다 (shared/native/cameraPermission). Android 는 매니페스트에 CAMERA 를 선언해 두어
+// 허용받기 전에는 라이브러리가 카메라 앱을 열지 않고, iOS 는 라이브러리(8.3.0)가 권한을 확인하지 않고 카메라를 띄운다
 async function takePhoto(): Promise<string[]> {
-  if (!(await hasCameraPermission())) {
-    showCameraPermissionGuide();
+  if (!(await requestCameraPermission())) {
+    showCameraPermissionGuide(
+      '사진을 찍으려면 설정에서 카메라 접근을 허용해 주세요.',
+    );
     return [];
   }
   return toUris(await launchCamera(CAMERA_OPTIONS), 1);
-}
-
-// Android 는 매니페스트에 CAMERA 를 선언해 두어 허용받기 전에는 라이브러리가 카메라 앱을 열지 않는다.
-// iOS 는 라이브러리(8.3.0)가 권한을 확인하지 않고 카메라를 띄워 거부 상태를 알 수 없으므로 앱 모듈로 먼저 본다.
-// 정해지지 않았으면 시스템 대화상자로 묻는다 (NSCameraUsageDescription). 모듈이 없는 빌드면 카메라가 열릴 때 시스템에 맡긴다
-async function hasCameraPermission(): Promise<boolean> {
-  if (Platform.OS === 'android') {
-    const result = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-    );
-    return result === PermissionsAndroid.RESULTS.GRANTED;
-  }
-  if (!CameraPermissionIOS) {
-    return true;
-  }
-  const status = CameraPermissionIOS.getStatus();
-  if (status === 'not-determined') {
-    return CameraPermissionIOS.request();
-  }
-  return status !== 'denied' && status !== 'restricted';
 }
 
 // 앨범은 iOS PHPicker · Android Photo Picker 라 저장소 권한이 필요 없다
@@ -132,23 +113,6 @@ function toUris(response: ImagePickerResponse, limit: number): string[] {
   return (response.assets ?? [])
     .flatMap(asset => (asset.uri ? [asset.uri] : []))
     .slice(0, limit);
-}
-
-// 거부했거나 '다시 묻지 않음'(iOS 는 거부·제한)이면 앱이 다시 물을 수 없어 설정으로 보낸다
-function showCameraPermissionGuide() {
-  Alert.alert(
-    '카메라 권한이 필요해요',
-    '사진을 찍으려면 설정에서 카메라 접근을 허용해 주세요.',
-    [
-      { text: '닫기', style: 'cancel' },
-      {
-        text: '설정으로 이동',
-        onPress: () => {
-          Linking.openSettings().catch(() => {});
-        },
-      },
-    ],
-  );
 }
 
 function showFailure(errorCode: ErrorCode) {

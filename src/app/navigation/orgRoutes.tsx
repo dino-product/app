@@ -14,6 +14,7 @@ import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedSc
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { JoinRequestsScreen } from '../../features/my/org/screens/JoinRequestsScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
+import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
 import { LoadStateView } from '../../shared/layout/LoadStateView';
 import { readableColumn } from '../../shared/layout/readableColumn';
@@ -22,6 +23,7 @@ import {
   MY_INITIAL_ROUTE,
   type MyScreenProps,
   type MyStackParamList,
+  type RootScreenProps,
 } from './types';
 
 // 마이 › 조직 참여 화면들 (#73). 서버 상태(회사 확인·참여 요청·취소·신청 현황, #116)는 화면이 participationQueries 로
@@ -113,7 +115,33 @@ export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
           navigation.navigate('OrgRoleSelect', target);
         }
       }}
+      // 카메라 권한을 받았다. 전체 화면 카메라라 하단 탭이 없는 루트 화면으로 연다
+      onScanQr={() => navigation.navigate('OrgQrScan')}
       onBack={() => navigation.goBack()}
+    />
+  );
+}
+
+// QR 코드 인식 (#108). 찾은 회사는 카메라를 스택에서 빼고 마이 탭의 회사 찾기 위에 역할 선택으로 올린다.
+// 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다. 이미 참여·승인 대기·유효하지 않은 코드는 카메라 위에 안내한다
+export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const focused = useIsFocused();
+
+  return (
+    <QrScanScreen
+      focused={focused}
+      titleRef={titleRef}
+      onFound={target => {
+        // 확인하는 사이 다른 화면으로 옮겼으면(알림 등) 늦게 온 결과로 데려가지 않는다
+        if (navigation.isFocused()) {
+          navigation.popTo('Main', {
+            screen: 'my',
+            params: { screen: 'OrgRoleSelect', params: target },
+          });
+        }
+      }}
+      onClose={() => navigation.goBack()}
     />
   );
 }

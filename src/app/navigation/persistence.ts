@@ -137,6 +137,7 @@ const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
   CompanyFind: once,
+  CompanyQrScan: once,
   JoinRoleSelect: joinTarget,
   JoinPending: joinRequest,
   JoinApproved: byRequest,
@@ -148,6 +149,8 @@ export const navigationSchema: NavigatorSchema = {
   Main: nested(mainTabs),
   RequestDetail: byId,
   RejectReason: byId,
+  // QR 코드 인식(#108)으로 다시 열면 앱을 켜자마자 카메라가 켜진다. 이 화면이 든 상태는 버리고 첫 화면으로 연다
+  OrgQrScan: { params: () => false },
 } satisfies Record<keyof RootStackParamList, ScreenSchema>;
 
 function isValidState(state: unknown, navigator: NavigatorSchema): boolean {

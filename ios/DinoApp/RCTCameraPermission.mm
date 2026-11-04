@@ -10,7 +10,7 @@
   return @"CameraPermissionIOS";
 }
 
-// JS(src/features/work/photoPicker.ts)가 이 문자열로 갈래를 나눈다
+// JS(src/shared/native/cameraPermission.ts — 완료 보고 촬영·QR 코드 인식)가 이 문자열로 갈래를 나눈다
 - (NSString *)getStatus
 {
   switch ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo]) {

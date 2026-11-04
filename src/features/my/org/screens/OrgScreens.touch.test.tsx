@@ -14,6 +14,7 @@ import { createParticipationServer, EXISTING_REQUESTS } from '../testing';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 import { JoinRequestsScreen } from './JoinRequestsScreen';
 import { OrgJoinScreen } from './OrgJoinScreen';
+import { QrScanScreen } from './QrScanScreen';
 
 // 조직 참여 화면은 서버 상태를 읽어 가짜 서버(src/features/my/org/testing)를 붙여 그린다 (#116)
 function renderOrg(element: ReactElement, failList = false) {
@@ -87,10 +88,20 @@ describe('조직 참여 터치 영역', () => {
         flow="onboarding"
         onBack={jest.fn()}
         onFound={jest.fn()}
+        onScanQr={jest.fn()}
       />,
     );
 
     const input = screen.getByLabelText('회사 코드 입력');
     expectMinTouchTarget(input, { height: stylePt(input, 'minHeight') });
+  });
+
+  // QR 코드 인식(#108)의 닫기는 아이콘(24)만 보이는 버튼이라 hitSlop 으로 넓힌다
+  it('QR 코드 인식의 닫기는 최소 터치 영역 이상이다', async () => {
+    await renderOrg(
+      <QrScanScreen focused onClose={jest.fn()} onFound={jest.fn()} />,
+    );
+
+    expectIconButtonTouchTarget(screen.getByRole('button', { name: '닫기' }));
   });
 });

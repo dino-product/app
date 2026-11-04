@@ -138,7 +138,10 @@ const blocked: [string, ReactElement][] = [
     />,
   ],
   ['거절 사유', <RejectReasonScreen onBack={noop} onSubmit={noop} />],
-  ['조직 참여하기', <OrgJoinScreen onBack={noop} onFound={noop} />],
+  [
+    '조직 참여하기',
+    <OrgJoinScreen onBack={noop} onFound={noop} onScanQr={noop} />,
+  ],
   [
     '참여 유형 선택',
     <RoleSelectScreen

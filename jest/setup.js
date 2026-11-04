@@ -27,3 +27,13 @@ jest.mock(
   '@invertase/react-native-apple-authentication',
   () => require('./loginSdk').apple,
 );
+
+// QR 인식 카메라(#108)도 네이티브 모듈이다. 카메라 자리만 그리고, 인식은 테스트가 일으킨다 (jest/qrCamera.tsx)
+jest.mock(
+  'react-native-vision-camera',
+  () => require('./qrCamera').visionCamera,
+);
+jest.mock(
+  'react-native-vision-camera-barcode-scanner',
+  () => require('./qrCamera').barcodeScanner,
+);

@@ -18,6 +18,8 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   RequestDetail: { id: string };
   RejectReason: { id: string };
+  /** 마이 › 조직 참여 › QR 코드 인식 (#108). 전체 화면 카메라라 하단 탭 없이 루트에 둔다 */
+  OrgQrScan: undefined;
 };
 
 // 온보딩 (#85). 하단 탭이 없는 가입 흐름이라 루트 스택에 따로 둔다
@@ -25,6 +27,8 @@ export type OnboardingStackParamList = {
   ProfileRegister: undefined;
   TermsAgreement: undefined;
   CompanyFind: undefined;
+  /** 회사 찾기 › QR 코드 인식 (#108) */
+  CompanyQrScan: undefined;
   /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
   JoinRoleSelect: JoinTarget;
   JoinPending: JoinRequestParams;

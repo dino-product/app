@@ -27,6 +27,7 @@ import {
 } from './myRoutes';
 import {
   CompanyFindRoute,
+  CompanyQrScanRoute,
   JoinApprovedRoute,
   JoinPendingRoute,
   JoinRejectedRoute as OnboardingJoinRejectedRoute,
@@ -40,6 +41,7 @@ import {
   JoinRequestedRoute,
   JoinRequestsRoute,
   OrgJoinRoute,
+  OrgQrScanRoute,
   RoleSelectRoute,
 } from './orgRoutes';
 import {
@@ -269,6 +271,11 @@ function OnboardingFlow() {
           getId={once}
         />
         <OnboardingStack.Screen
+          name="CompanyQrScan"
+          component={CompanyQrScanRoute}
+          getId={once}
+        />
+        <OnboardingStack.Screen
           name="JoinRoleSelect"
           component={JoinRoleSelectRoute}
           getId={byOrganization}
@@ -359,6 +366,12 @@ export function RootNavigator() {
             name="RejectReason"
             component={RejectReasonRoute}
             getId={byId}
+          />
+          {/* 마이 › 조직 참여의 QR 코드 인식 (#108). 전체 화면 카메라라 하단 탭이 없는 루트에 둔다 */}
+          <RootStack.Screen
+            name="OrgQrScan"
+            component={OrgQrScanRoute}
+            getId={once}
           />
         </>
       )}
