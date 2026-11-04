@@ -7,7 +7,11 @@ import {
   type ApiClient,
 } from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
-import { currentAccountId, profilePath } from '../onboarding/profileApi';
+import {
+  currentAccountId,
+  ProfileErrorCode,
+  profilePath,
+} from '../onboarding/profileApi';
 import type {
   WithdrawalBlock,
   WithdrawalBlockReason,
@@ -86,7 +90,7 @@ export const withdrawalMutationKey = ['withdrawal'] as const;
 /**
  * POST /api/v1/profiles/{accountId}/withdrawals. 성공은 204.
  * 사유는 선택이라 비우면 null 로 보내고, 서버가 거절하는 NUL 문자(PROFILE-007)는 지운다.
- * 동시에 두 번 보내 늦은 쪽이 받는 COMMON-409 는 이미 탈퇴됐다는 뜻이라 마친 것으로 본다
+ * COMMON-409 는 '다른 탈퇴 요청이 먼저 끝남' 과 '다른 기기의 프로필·약관 저장과 겹쳐 롤백됨' 둘 다라 계정이 살아 있는지 확인한다
  */
 export async function withdrawAccount(
   api: ApiClient,
@@ -99,8 +103,27 @@ export async function withdrawAccount(
       reason: trimmed === '' ? null : trimmed,
     });
   } catch (error) {
-    if (!isApiError(error, ApiErrorCode.conflict)) {
+    if (
+      !isApiError(error, ApiErrorCode.conflict) ||
+      (await isAlive(api, accountId))
+    ) {
       throw error;
     }
+  }
+}
+
+/**
+ * 계정이 아직 살아 있는지. 탈퇴한 계정은 프로필이 PROFILE-002 이거나, 토큰이 거부돼 재발급까지 AUTH-009 로 끝난다.
+ * 확인하지 못하면(네트워크 등) 탈퇴하지 못한 쪽으로 본다 (다시 시도하면 서버가 판정한다)
+ */
+async function isAlive(api: ApiClient, accountId: number): Promise<boolean> {
+  try {
+    await api.get(profilePath(accountId));
+    return true;
+  } catch (error) {
+    return !(
+      isApiError(error, ProfileErrorCode.notFound) ||
+      isApiError(error, ApiErrorCode.refreshRejected)
+    );
   }
 }

@@ -2,6 +2,7 @@ import { ApiErrorMessage, isApiError } from '../../shared/api';
 import {
   createFakeServer,
   fail,
+  networkError,
   noContent,
   ok,
 } from '../../shared/testing/fakeServer';
@@ -145,16 +146,63 @@ describe('탈퇴 API', () => {
     });
   });
 
-  // 동시에 두 번 보내면 늦은 쪽이 COMMON-409 를 받는다. 계정은 이미 닫혔다 (api-spec P6)
-  it('COMMON-409(이미 탈퇴됨)는 탈퇴를 마친 것으로 본다', async () => {
-    const server = createFakeServer().on(
-      'POST',
-      WITHDRAWALS_PATH,
-      fail(409, 'COMMON-409'),
-    );
-    const { client } = createTestApi({ server, session: signedIn() });
+  // COMMON-409 는 '다른 탈퇴가 먼저 끝남' 과 '다른 기기의 프로필·약관 저장과 겹쳐 롤백됨' 둘 다다 (WithdrawService).
+  // 프로필을 다시 조회해 계정이 살아 있는지 본다
+  describe('COMMON-409', () => {
+    const PROFILE_PATH = '/api/v1/profiles/7';
+    const conflictServer = () =>
+      createFakeServer().on('POST', WITHDRAWALS_PATH, fail(409, 'COMMON-409'));
 
-    await expect(withdrawAccount(client, 7, '')).resolves.toBeUndefined();
+    it('프로필이 그대로 조회되면(계정이 살아 있음) COMMON-409 로 던진다', async () => {
+      const server = conflictServer().on(
+        'GET',
+        PROFILE_PATH,
+        ok({
+          accountId: 7,
+          status: 'ACTIVE',
+          nextStep: 'COMPLETED',
+          name: '홍길동',
+          phoneNumber: '01012345678',
+          signedUpAt: '2026-10-21T00:00:00Z',
+          marketingAgreed: false,
+        }),
+      );
+      const { client } = createTestApi({ server, session: signedIn() });
+
+      await expect(withdrawAccount(client, 7, '')).rejects.toMatchObject({
+        code: 'COMMON-409',
+      });
+      expect(server.callsTo('GET', PROFILE_PATH)).toHaveLength(1);
+    });
+
+    it('탈퇴한 계정(PROFILE-002)이면 탈퇴를 마친 것으로 본다', async () => {
+      const server = conflictServer().on(
+        'GET',
+        PROFILE_PATH,
+        fail(404, 'PROFILE-002'),
+      );
+      const { client } = createTestApi({ server, session: signedIn() });
+
+      await expect(withdrawAccount(client, 7, '')).resolves.toBeUndefined();
+    });
+
+    it('토큰이 거부되면(COMMON-404 뒤 재발급 AUTH-009) 탈퇴를 마친 것으로 본다', async () => {
+      const server = conflictServer()
+        .on('GET', PROFILE_PATH, fail(404, 'COMMON-404'))
+        .on('POST', '/api/v1/auth/refresh', fail(401, 'AUTH-009'));
+      const { client } = createTestApi({ server, session: signedIn() });
+
+      await expect(withdrawAccount(client, 7, '')).resolves.toBeUndefined();
+    });
+
+    it('확인하지 못하면(네트워크) 탈퇴하지 못한 것으로 COMMON-409 를 던진다', async () => {
+      const server = conflictServer().on('GET', PROFILE_PATH, networkError());
+      const { client } = createTestApi({ server, session: signedIn() });
+
+      await expect(withdrawAccount(client, 7, '')).rejects.toMatchObject({
+        code: 'COMMON-409',
+      });
+    });
   });
 
   it('막히면 PROFILE-006 을 담은 ApiError 로 던진다', async () => {

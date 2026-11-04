@@ -623,11 +623,122 @@ describe('App — 마이 탭', () => {
       expect(app.server.callsTo('POST', LOGOUT_PATH)).toHaveLength(0);
     });
 
-    // 동시에 두 번 보내면 늦은 쪽이 COMMON-409(이미 탈퇴됨)를 받는다 (api-spec P6)
-    it('탈퇴가 COMMON-409(이미 탈퇴됨)이면 탈퇴를 마친 것으로 보고 로그인 화면으로 간다', async () => {
+    /** 탈퇴 요청을 보내 두고, 보내는 중 상태(뒤로 가기 꺼짐)가 그려질 때까지 기다린다. 응답은 answer 로 준다 */
+    async function sendWithdrawal(
+      alert: ReturnType<typeof spyAlert>,
+      ...eligibility: object[]
+    ) {
+      const pending = deferred();
+      const app = await pressWithdraw(...eligibility);
+      app.server.on('POST', WITHDRAWALS_PATH, () => pending.response);
+      await confirmWithdraw(alert);
+      await waitFor(() => expect(button('뒤로 가기')).toBeDisabled());
+      return { app, answer: pending.answer };
+    }
+
+    // 보내는 동안 막아 둔 닫기(usePreventRemove)가 결과에 따른 화면 바꾸기까지 막지 않는다
+    it('보내는 중 상태가 그려진 뒤 PROFILE-006 이 와도 탈퇴 불가 화면으로 바뀐다', async () => {
+      const alert = spyAlert();
+      const { answer } = await sendWithdrawal(
+        alert,
+        withdrawable,
+        blockedBy('WORK_IN_PROGRESS', 1),
+      );
+
+      await act(async () => answer(fail(409, 'PROFILE-006')));
+
+      expect(
+        await screen.findByRole('header', { name: '계정 탈퇴 불가' }),
+      ).toBeOnTheScreen();
+      expect(
+        await screen.findByText('현재 작업 중 상태인 작업 1건이 있습니다'),
+      ).toBeOnTheScreen();
+      expect(alert).toHaveBeenCalledTimes(1);
+    });
+
+    it('보내는 동안 다른 탭에 가 있었으면 PROFILE-006 으로 데려가지 않고, 돌아오면 탈퇴 불가 화면이다', async () => {
+      const alert = spyAlert();
+      const { answer } = await sendWithdrawal(
+        alert,
+        withdrawable,
+        blockedBy('WORK_IN_PROGRESS', 1),
+      );
+      await userEvent.press(tab('홈'));
+
+      await act(async () => answer(fail(409, 'PROFILE-006')));
+      expect(header('내 작업')).toBeOnTheScreen();
+      await userEvent.press(tab('마이'));
+
+      expect(
+        await screen.findByRole('header', { name: '계정 탈퇴 불가' }),
+      ).toBeOnTheScreen();
+    });
+
+    it('보내는 중에 마이 탭을 다시 눌러도 계정 탈퇴에 머물고, 204 면 로그인 화면으로 간다', async () => {
+      const alert = spyAlert();
+      const { answer } = await sendWithdrawal(alert, withdrawable);
+
+      await userEvent.press(tab('마이'));
+      expect(header('정말 Orbit을 탈퇴하시겠습니까?')).toBeOnTheScreen();
+      await act(async () => answer(noContent()));
+
+      expect(
+        await screen.findByRole('header', {
+          name: '오늘의 현장, 한눈에. Orbit',
+        }),
+      ).toBeOnTheScreen();
+    });
+
+    it('보내는 중 상태가 그려진 뒤 다른 이유로 실패하면 잠금이 풀려 뒤로 갈 수 있다', async () => {
+      const alert = spyAlert();
+      const { answer } = await sendWithdrawal(alert, withdrawable);
+
+      await act(async () => answer(fail(500, 'COMMON-500')));
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenLastCalledWith(
+          '탈퇴하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      await waitFor(() => expect(button('뒤로 가기')).toBeEnabled());
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('정말 Orbit을 탈퇴하시겠습니까?')).not.toBeOnTheScreen();
+      expect(button('로그아웃')).toBeOnTheScreen();
+    });
+
+    // COMMON-409 는 '다른 탈퇴가 먼저 끝남' 과 '다른 기기의 저장과 겹쳐 탈퇴 안 됨'(롤백) 둘 다다. 프로필로 계정이 살아 있는지 본다
+    it('탈퇴가 COMMON-409 인데 계정이 살아 있으면(다른 저장과 겹침) 머물러 다시 시도해 달라고 알리고 로그인해 둔 채다', async () => {
       const alert = spyAlert();
       const app = await pressWithdraw(withdrawable);
       app.server.on('POST', WITHDRAWALS_PATH, fail(409, 'COMMON-409'));
+      const profileCalls = app.server.callsTo('GET', PROFILE_PATH).length;
+
+      await confirmWithdraw(alert);
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenLastCalledWith(
+          '탈퇴하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(
+        profileCalls + 1,
+      );
+      expect(header('정말 Orbit을 탈퇴하시겠습니까?')).toBeOnTheScreen();
+      expect(app.tokenStore.current).not.toBeNull();
+      expect(button('탈퇴하기')).toBeEnabled();
+    });
+
+    it('탈퇴가 COMMON-409 이고 계정의 토큰이 거부되면(이미 탈퇴됨) 탈퇴를 마친 것으로 보고, 만료 안내 없이 로그인 화면으로 간다', async () => {
+      const alert = spyAlert();
+      saveRecentLoginMethod('KAKAO');
+      const app = await pressWithdraw(withdrawable);
+      app.server
+        .on('POST', WITHDRAWALS_PATH, fail(409, 'COMMON-409'))
+        // 탈퇴한 계정의 access token 은 COMMON-404, 재발급은 AUTH-009 로 거부된다
+        .on('GET', PROFILE_PATH, fail(404, 'COMMON-404'))
+        .on('POST', '/api/v1/auth/refresh', fail(401, 'AUTH-009'));
 
       await confirmWithdraw(alert);
 
@@ -637,7 +748,11 @@ describe('App — 마이 탭', () => {
         }),
       ).toBeOnTheScreen();
       expect(app.tokenStore.current).toBeNull();
-      expect(alert).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(readRecentLoginMethod()).toBeNull());
+      expect(alert).not.toHaveBeenCalledWith(
+        '다시 로그인해 주세요',
+        expect.any(String),
+      );
     });
   });
 

@@ -21,6 +21,7 @@ import {
   saveRecentLoginMethod,
   saveSignedInStep,
 } from '../features/onboarding/login';
+import { withdrawalMutationKey } from '../features/my/withdrawalApi';
 import type { LoginMethod } from '../features/onboarding/model';
 import { clearAllRejectDrafts } from '../features/schedule/rejectDraft';
 import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
@@ -293,20 +294,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [api, queryClient, applyBackgroundProfile, resetToSignedOut]);
 
   // 재발급이 거절됐다(AUTH-009). 로그인해 있었으면 로그인 화면으로 가고 다시 로그인해 달라고 알린다.
-  // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다
+  // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다.
+  // 탈퇴 요청 중이면 알리지 않는다: 이미 탈퇴돼 토큰이 거부된 것이고(COMMON-409 확인), 탈퇴 마무리(withdraw)가 이어진다 (#115)
   useEffect(
     () =>
       api.session.onExpired(() => {
         const wasSignedIn = stateRef.current.status === 'signedIn';
+        const withdrawing =
+          queryClient.isMutating({ mutationKey: withdrawalMutationKey }) > 0;
         resetToSignedOut();
-        if (wasSignedIn) {
+        if (wasSignedIn && !withdrawing) {
           Alert.alert(
             '다시 로그인해 주세요',
             '로그인한 지 오래되어 로그아웃됐어요.',
           );
         }
       }),
-    [api, resetToSignedOut],
+    [api, queryClient, resetToSignedOut],
   );
 
   // 가입을 마치지 않은(약관 재동의 포함) 계정이 다른 API 에서 PROFILE-005 를 받으면 프로필을 다시 조회해 가입 단계로 보낸다

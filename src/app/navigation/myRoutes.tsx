@@ -6,7 +6,7 @@ import {
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScrollViewInstance } from 'react-native';
 import type {
   NotificationTarget,
@@ -329,21 +329,27 @@ export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
   // 탈퇴 요청을 보내는 동안에는 화면을 닫지 않는다 (머리 뒤로 가기·Android 뒤로가기·iOS 스와이프·마이 탭 다시 누르기).
   // 결과(로그인 화면 또는 탈퇴 불가·실패 안내)는 이 화면에서 받는다
   const sending = useIsMutating({ mutationKey: withdrawalMutationKey }) > 0;
-  usePreventRemove(sending, () => {});
+  // 탈퇴 직전에 막는 사유가 생겼다(PROFILE-006). 결과를 받은 순간에는 그려 둔 '보내는 중' 막기가 아직 켜져 있어
+  // 그 자리에서 바꾸면 막기에 걸린다. 표시만 해 두고 막기를 끈 다음 렌더 뒤에 바꾼다
+  const [blocked, setBlocked] = useState(false);
+  usePreventRemove(sending && !blocked, () => {});
+  // 뒤로 가면 계정 관리로 가도록 이 화면을 탈퇴 불가로 바꾼다. 결과가 왔을 때 다른 탭에 가 있었으면
+  // 데려가지 않고, 이 화면으로 돌아왔을 때 바꾼다 (탈퇴 불가 화면이 가능 여부를 다시 묻는다)
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (blocked && focused) {
+      navigation.replace('WithdrawalBlocked');
+    }
+  }, [blocked, focused, navigation]);
 
   return (
     <WithdrawalScreen
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
       // 탈퇴(204) 뒤 기기 세션·캐시·표식·초안과 최근 로그인 표시를 지운다. 로그아웃 상태가 되면 루트가 로그인 화면으로 바꾼다
+      // (화면 묶음이 바뀌는 것이라 화면 닫기 막기에 걸리지 않는다)
       onWithdrawn={withdraw}
-      // 탈퇴 직전에 막는 사유가 생겼다(PROFILE-006). 뒤로 가면 계정 관리로 가도록 이 화면을 탈퇴 불가로 바꾼다.
-      // 보내는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
-      onBlocked={() => {
-        if (navigation.isFocused()) {
-          navigation.replace('WithdrawalBlocked');
-        }
-      }}
+      onBlocked={() => setBlocked(true)}
     />
   );
 }

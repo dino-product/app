@@ -32,6 +32,8 @@ export type AccountProfile = {
 export const ProfileErrorCode = {
   /** 이름·연락처 규칙 위반. 어느 칸인지 알려 주지 않는다 */
   invalidInput: 'PROFILE-001',
+  /** 다른 계정이거나 탈퇴한 계정 (존재를 숨기려 둘을 구분하지 않는다) */
+  notFound: 'PROFILE-002',
   /** 가입 또는 약관 재동의 전에는 허용 목록 밖 API 를 쓸 수 없다 */
   signupRequired: 'PROFILE-005',
   /** 탈퇴 직전에 다시 판정했더니 막는 사유가 생겼다. 사유는 본문에 없어 가능 여부를 다시 조회한다 */
