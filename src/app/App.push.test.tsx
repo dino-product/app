@@ -1,4 +1,10 @@
-import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import {
   AuthorizationStatus,
   enableFirebase,
@@ -8,21 +14,27 @@ import {
   receivePush,
   refreshPushToken,
 } from '../../jest/firebase';
+import { saveSignedInStep } from '../features/onboarding/login';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
 import { REJECT_REASON } from '../features/my/org/testing';
 import { readPushDeviceId } from '../features/push/push';
+import { createWorkRepository } from '../features/work/data/config';
+import { workDetailResponse } from '../features/work/data/testing';
 import { appStorage } from '../shared/storage/appStorage';
+import { createTestApi } from '../shared/testing/renderWithApi';
 import {
   createFakeServer,
   fail,
   noContent,
   ok,
 } from '../shared/testing/fakeServer';
+import App from './App';
 import {
   accountServer,
   LOGOUT_PATH,
   renderApp,
   renderSignedInApp,
+  signedInSession,
 } from './testing';
 
 // 앱 푸시 (#118). FCM 은 jest/firebase 목이 흉내 낸다. 기본은 Firebase 설정 파일이 없는 빌드라 테스트마다 enableFirebase 로 켠다.
@@ -32,10 +44,11 @@ const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
 const PUSH_DEVICES_PATH = '/api/v1/push-devices';
 const readPath = (id: string) => `/api/v1/notifications/${id}/read`;
 
+// 작업 101 은 테스트 작업 저장소(로컬 처음 데이터)에 있는 작업이다
 const workPush = pushMessage({
   notificationId: '31',
   type: 'WORK_ASSIGNED',
-  workId: '10',
+  workId: '101',
 });
 const approvedPush = pushMessage({
   notificationId: '32',
@@ -222,7 +235,7 @@ describe('App — 로그아웃 때 기기 해제 (#118)', () => {
 describe('App — 앱이 앞에 있을 때 받은 푸시 (#118)', () => {
   // 알림센터(#117 ['notifications', …])·작업(#114 ['work', …])·신청 현황(#116) 캐시. 받으면 무효화해 다시 받게 한다
   const NOTIFICATIONS_KEY = ['notifications', 'list'];
-  const WORK_KEY = ['work', 'detail', 10, null];
+  const WORK_KEY = ['work', 'detail', 101, null];
   const REQUESTS_KEY = [...participationRequestsKey];
 
   async function seededApp() {
@@ -230,7 +243,7 @@ describe('App — 앱이 앞에 있을 때 받은 푸시 (#118)', () => {
     const app = await renderSignedInApp({ server: pushServer() });
     await registered(app);
     app.queryClient.setQueryData(NOTIFICATIONS_KEY, ['알림']);
-    app.queryClient.setQueryData(WORK_KEY, { id: 10 });
+    app.queryClient.setQueryData(WORK_KEY, { id: 101 });
     app.queryClient.setQueryData(REQUESTS_KEY, []);
     return app;
   }
@@ -280,13 +293,65 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
     expect(header('내 작업')).toBeOnTheScreen();
   });
 
+  // 페이로드에 organizationId 가 없다(#112 G8). 작업 상세는 소속 목록의 활성 기사 계약으로 발주사를 정한다 (#114 HTTP 저장소)
+  it('작업 알림을 누르면 소속의 활성 기사 계약(발주사)으로 그 작업 상세를 받아 연다', async () => {
+    enableFirebase();
+    saveSignedInStep('COMPLETED');
+    const server = accountServer({ server: pushServer() })
+      .on(
+        'GET',
+        '/api/v1/memberships',
+        ok({
+          memberships: [
+            {
+              organizationId: 1,
+              organizationName: '오빗 서비스',
+              role: 'STAFF',
+              status: 'ACTIVE',
+            },
+            {
+              organizationId: 5,
+              organizationName: '그린 테크',
+              role: 'TECHNICIAN',
+              status: 'DEACTIVATED',
+            },
+            {
+              organizationId: 7,
+              organizationName: '한빛 설비',
+              role: 'TECHNICIAN',
+              status: 'ACTIVE',
+            },
+          ],
+        }),
+      )
+      .on(
+        'GET',
+        '/api/v1/organizations/7/works/101',
+        ok(workDetailResponse({ workId: 101, name: '푸시로 연 작업' })),
+      );
+    const api = createTestApi({ server, session: signedInSession() });
+    const workRepository = createWorkRepository('http', {
+      api: api.client,
+      queryClient: api.queryClient,
+    });
+    await render(<App api={{ ...api, workRepository }} />);
+    await registered({ server });
+
+    await act(async () => openPush(workPush));
+
+    expect(await screen.findByText('푸시로 연 작업')).toBeOnTheScreen();
+    expect(header('작업 상세')).toBeOnTheScreen();
+    expect(
+      server.callsTo('GET', '/api/v1/organizations/7/works/101'),
+    ).toHaveLength(1);
+  });
+
   it('종료된 앱을 알림으로 열면(백그라운드와 같은 화면) 그 작업 상세를 열고 읽음 처리한다', async () => {
     enableFirebase({ initialNotification: workPush });
     const app = await renderSignedInApp({ server: pushServer() });
 
-    expect(
-      await screen.findByRole('header', { name: '작업 상세' }),
-    ).toBeOnTheScreen();
+    // 상세는 불러오는 동안의 자리에서 내용으로 바뀌며 다시 그려진다
+    await waitFor(() => expect(header('작업 상세')).toBeOnTheScreen());
     await waitFor(() =>
       expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(1),
     );
@@ -346,9 +411,8 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
       screen.getByRole('button', { name: '카카오로 시작하기' }),
     );
 
-    expect(
-      await screen.findByRole('header', { name: '작업 상세' }),
-    ).toBeOnTheScreen();
+    // 상세는 불러오는 동안의 자리에서 내용으로 바뀌며 다시 그려진다
+    await waitFor(() => expect(header('작업 상세')).toBeOnTheScreen());
     await waitFor(() =>
       expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(1),
     );

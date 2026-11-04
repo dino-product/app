@@ -9,6 +9,7 @@ import type { NavigationContainerRefWithCurrent } from '@react-navigation/native
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
+import { workKeys } from '../features/work/data/keys';
 import {
   defaultMessaging,
   markPushRead,
@@ -31,9 +32,8 @@ import type { RootStackParamList } from './navigation/types';
 // - 알림을 눌러 열면(백그라운드·종료) 그 화면을 열고 읽음 처리한다. 로그인 전·가입 중·세션 만료면 메인에 들어온 뒤 연다
 // Firebase 설정 파일이 없는 빌드는 아무것도 하지 않는다
 
-// 알림센터(#117 notificationKeys)·작업(#114 workKeys.all) 캐시의 접두사
+// 알림센터 캐시의 접두사 (#117 notificationKeys 가 머지되면 그 키로 바꾼다)
 const NOTIFICATIONS_KEY = ['notifications'] as const;
-const WORK_KEY = ['work'] as const;
 
 const ignore = () => undefined;
 
@@ -54,7 +54,7 @@ export function PushNotifications({
     (data: PushData) => {
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
       if (data.workId !== undefined) {
-        queryClient.invalidateQueries({ queryKey: WORK_KEY });
+        queryClient.invalidateQueries({ queryKey: workKeys.all });
       }
       // 승인이면 신청 현황을 다시 받으며 소속(['memberships'])도 무효화된다 (#116)
       if (data.participationRequestId !== undefined) {
