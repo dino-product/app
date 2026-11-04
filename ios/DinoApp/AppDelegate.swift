@@ -3,6 +3,10 @@ import UIKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
+  // 창은 SceneDelegate 가 갖는다. 이 값은 늘 nil 이다.
+  // RNFB messaging(26.4.1)이 켜질 때 delegate.window 를 확인 없이 읽어, 선언이 없으면 unrecognized selector 로 죽는다 (#118)
+  var window: UIWindow?
+
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil

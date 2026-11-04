@@ -47,6 +47,15 @@ describe('앱 푸시 — iOS', () => {
     expect(delegate.match(/FirebaseApp\.configure\(\)/g)).toHaveLength(1);
   });
 
+  // RNFB messaging 26.4.1 은 didFinishLaunching 알림에서 AppDelegate 의 window 를 확인 없이 읽는다
+  // (RNFBMessaging+NSNotificationCenter.m, invertase/react-native-firebase#8796). 창은 SceneDelegate 가 갖지만
+  // AppDelegate 가 window 를 선언하지 않으면 unrecognized selector 로 켜자마자 죽는다
+  it('AppDelegate 가 window 를 선언한다 (값은 nil, 창은 SceneDelegate)', () => {
+    expect(read('ios/DinoApp/AppDelegate.swift')).toMatch(
+      /^ {2}var window: UIWindow\?$/m,
+    );
+  });
+
   it('설정 파일은 저장소에 없고, 빌드 단계가 있을 때만 번들에 복사한다 (없으면 지난 것도 지운다)', () => {
     expect(read('.gitignore')).toMatch(
       /^ios\/DinoApp\/GoogleService-Info\.plist$/m,
