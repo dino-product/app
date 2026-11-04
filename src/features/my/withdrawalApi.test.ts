@@ -133,6 +133,30 @@ describe('탈퇴 API', () => {
     });
   });
 
+  // 서버는 NUL 문자가 든 사유를 PROFILE-007 로 거절한다. 사유는 선택이라 빼고 보낸다
+  it('사유의 NUL 문자는 지워 보낸다', async () => {
+    const server = createFakeServer().on('POST', WITHDRAWALS_PATH, noContent());
+    const { client } = createTestApi({ server, session: signedIn() });
+
+    await withdrawAccount(client, 7, '이사\u0000 가요\u0000');
+
+    expect(server.callsTo('POST', WITHDRAWALS_PATH)[0].body).toEqual({
+      reason: '이사 가요',
+    });
+  });
+
+  // 동시에 두 번 보내면 늦은 쪽이 COMMON-409 를 받는다. 계정은 이미 닫혔다 (api-spec P6)
+  it('COMMON-409(이미 탈퇴됨)는 탈퇴를 마친 것으로 본다', async () => {
+    const server = createFakeServer().on(
+      'POST',
+      WITHDRAWALS_PATH,
+      fail(409, 'COMMON-409'),
+    );
+    const { client } = createTestApi({ server, session: signedIn() });
+
+    await expect(withdrawAccount(client, 7, '')).resolves.toBeUndefined();
+  });
+
   it('막히면 PROFILE-006 을 담은 ApiError 로 던진다', async () => {
     const server = createFakeServer().on(
       'POST',

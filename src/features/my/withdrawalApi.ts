@@ -1,5 +1,11 @@
 import { queryOptions } from '@tanstack/react-query';
-import { ApiError, ApiErrorMessage, type ApiClient } from '../../shared/api';
+import {
+  ApiError,
+  ApiErrorCode,
+  ApiErrorMessage,
+  isApiError,
+  type ApiClient,
+} from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
 import { currentAccountId, profilePath } from '../onboarding/profileApi';
 import type {
@@ -74,14 +80,27 @@ export const withdrawalEligibilityQuery = (api: ApiClient) =>
       ),
   });
 
-/** POST /api/v1/profiles/{accountId}/withdrawals. 사유는 선택이라 비우면 null 로 보낸다. 성공은 204 */
+/** 탈퇴 요청을 보내는 중인지 볼 때 쓰는 키 (useIsMutating). 보내는 동안 화면을 떠나지 못하게 막는다 */
+export const withdrawalMutationKey = ['withdrawal'] as const;
+
+/**
+ * POST /api/v1/profiles/{accountId}/withdrawals. 성공은 204.
+ * 사유는 선택이라 비우면 null 로 보내고, 서버가 거절하는 NUL 문자(PROFILE-007)는 지운다.
+ * 동시에 두 번 보내 늦은 쪽이 받는 COMMON-409 는 이미 탈퇴됐다는 뜻이라 마친 것으로 본다
+ */
 export async function withdrawAccount(
   api: ApiClient,
   accountId: number,
   reason: string,
 ): Promise<void> {
-  const trimmed = reason.trim();
-  await api.post(withdrawalPath(accountId), {
-    reason: trimmed === '' ? null : trimmed,
-  });
+  const trimmed = reason.replace(/\0/g, '').trim();
+  try {
+    await api.post(withdrawalPath(accountId), {
+      reason: trimmed === '' ? null : trimmed,
+    });
+  } catch (error) {
+    if (!isApiError(error, ApiErrorCode.conflict)) {
+      throw error;
+    }
+  }
 }
