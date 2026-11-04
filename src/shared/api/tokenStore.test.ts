@@ -119,6 +119,48 @@ describe('Keychain 토큰 저장소', () => {
     ).resolves.toBe(false);
   });
 
+  it('저장·삭제를 부른 순서대로, 앞 작업이 끝난 뒤에 한다 (Android Keystore 는 순서를 보장하지 않는다)', async () => {
+    launchedBefore();
+    const store = createKeychainTokenStore();
+    const original = Keychain.setGenericPassword;
+    let finishSave = () => {};
+    jest
+      .spyOn(Keychain, 'setGenericPassword')
+      .mockImplementationOnce(async (...args) => {
+        await new Promise<void>(resolve => {
+          finishSave = resolve;
+        });
+        return original(...args);
+      });
+    const reset = jest.spyOn(Keychain, 'resetGenericPassword');
+
+    const saving = store.save(session);
+    const clearing = store.clear();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(reset).not.toHaveBeenCalled();
+    finishSave();
+    await Promise.all([saving, clearing]);
+
+    await expect(store.read()).resolves.toBeNull();
+    jest.restoreAllMocks();
+  });
+
+  it('앞 작업이 실패해도 다음 작업은 한다', async () => {
+    launchedBefore();
+    const store = createKeychainTokenStore();
+    jest
+      .spyOn(Keychain, 'setGenericPassword')
+      .mockRejectedValueOnce(new Error('E_CRYPTO_FAILED'));
+
+    const failing = store.save(session);
+    const next = store.save(testSession({ accountId: 3 }));
+
+    await expect(failing).rejects.toThrow('E_CRYPTO_FAILED');
+    await next;
+    await expect(store.read()).resolves.toMatchObject({ accountId: 3 });
+    jest.restoreAllMocks();
+  });
+
   it('토큰 값을 MMKV 에 남기지 않는다', async () => {
     const store = createKeychainTokenStore();
     await store.save(session);

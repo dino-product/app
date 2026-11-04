@@ -70,36 +70,48 @@ export function createKeychainTokenStore(): TokenStore {
     await Keychain.resetGenericPassword(SERVICE_OPTIONS);
   };
 
+  // Keychain 작업은 부른 순서대로 하나씩 한다. Android 네이티브 모듈은 호출 순서대로 끝난다고 보장하지 않아
+  // 재발급 저장 뒤의 로그아웃 삭제가 먼저 끝나면 지운 세션이 되살아난다. 앞 작업이 실패해도 다음 작업은 한다
+  let queue: Promise<unknown> = Promise.resolve();
+  function serial<T>(task: () => Promise<T>): Promise<T> {
+    const run = queue.then(task);
+    queue = run.catch(() => undefined);
+    return run;
+  }
+
   return {
-    async read() {
-      await prepare();
-      const credentials = await Keychain.getGenericPassword(SERVICE_OPTIONS);
-      if (!credentials) {
-        return null;
-      }
-      let session: Session | null;
-      try {
-        session = parseSession(JSON.parse(credentials.password));
-      } catch {
-        session = null;
-      }
-      // 깨졌거나 모양이 다르면(앱 업데이트 전 형식 등) 쓰지 않고 지운다
-      if (session === null) {
+    read: () =>
+      serial(async () => {
+        await prepare();
+        const credentials = await Keychain.getGenericPassword(SERVICE_OPTIONS);
+        if (!credentials) {
+          return null;
+        }
+        let session: Session | null;
+        try {
+          session = parseSession(JSON.parse(credentials.password));
+        } catch {
+          session = null;
+        }
+        // 깨졌거나 모양이 다르면(앱 업데이트 전 형식 등) 쓰지 않고 지운다
+        if (session === null) {
+          await clear();
+        }
+        return session;
+      }),
+    save: session =>
+      serial(async () => {
+        await prepare();
+        await Keychain.setGenericPassword(
+          USERNAME,
+          JSON.stringify(session),
+          SAVE_OPTIONS,
+        );
+      }),
+    clear: () =>
+      serial(async () => {
+        await prepare();
         await clear();
-      }
-      return session;
-    },
-    async save(session) {
-      await prepare();
-      await Keychain.setGenericPassword(
-        USERNAME,
-        JSON.stringify(session),
-        SAVE_OPTIONS,
-      );
-    },
-    async clear() {
-      await prepare();
-      await clear();
-    },
+      }),
   };
 }
