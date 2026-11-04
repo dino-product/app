@@ -37,6 +37,17 @@ npm start         # Metro (Debug 빌드용)
 
 실기기 실행: `npm run ios` / `npm run android` (USB 연결 필요, 자세한 절차는 [docs/device-build.md](docs/device-build.md))
 
+### API 서버 주소
+
+빌드할 때 `ORBIT_API_BASE_URL` 을 번들에 넣는다 (`src/shared/api/config.ts`). 비밀 값이 아니다.
+
+- Debug 에 값이 없으면 `http://localhost:8080`. 실기기에서 localhost 는 기기 자신이라, iOS 는 맥의 IP 를 넣고 Android 는 `adb reverse tcp:8080 tcp:8080` 을 쓴다
+  ```sh
+  ORBIT_API_BASE_URL=http://192.168.0.10:8080 npm start -- --reset-cache
+  ```
+- 값을 바꾸면 babel 캐시 때문에 `--reset-cache` 로 다시 띄운다
+- Release 는 `https://` 주소만 쓴다. 값이 없으면 앱은 열리지만 서버 요청이 설정 오류로 실패한다. Xcode 빌드는 `ios/.xcode.env.local` 에 `export ORBIT_API_BASE_URL=…` 를 둔다
+
 ## 스크립트
 
 | 명령                                    | 내용                                                                                     |
