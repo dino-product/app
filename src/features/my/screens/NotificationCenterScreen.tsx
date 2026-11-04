@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
   type Ref,
@@ -94,20 +95,29 @@ export function NotificationCenterScreen({
 
   // 받는 중(전체 다시 받기 포함)에는 다음 쪽을 부르지 않는다. 부르면 다시 받기가 취소되어 새 알림이 빠지고
   // 밀린 쪽이 붙는다. 다음 쪽을 받지 못했으면 스크롤로 다시 부르지 않고 목록 끝의 다시 시도를 기다린다
+  // 받는 중에 끝에 닿았으면 기억해 두었다가 받기가 끝나면 한 번 부른다. 다시 스크롤하기 전까지 FlatList 는 다시 알리지 않는다
   const canLoadMore = hasNextPage && !isFetching && !isFetchNextPageError;
+  const endReachedWhileFetching = useRef(false);
   const loadMore = useCallback(() => {
     if (canLoadMore) {
       fetchNextPage({ cancelRefetch: false });
+    } else if (isFetching) {
+      endReachedWhileFetching.current = true;
     }
-  }, [canLoadMore, fetchNextPage]);
+  }, [canLoadMore, fetchNextPage, isFetching]);
 
   // 한 쪽이 모두 앱이 모르는 종류(사무실 알림 등)라 걸러져 비었으면 빈 상태에서 멈추지 않고 다음 쪽을 받는다
-  const filteredEmpty = data?.length === 0 && canLoadMore;
+  const filteredEmpty = data?.length === 0;
   useEffect(() => {
-    if (filteredEmpty) {
+    if (isFetching) {
+      return;
+    }
+    const deferred = endReachedWhileFetching.current;
+    endReachedWhileFetching.current = false;
+    if (canLoadMore && (deferred || filteredEmpty)) {
       fetchNextPage({ cancelRefetch: false });
     }
-  }, [filteredEmpty, fetchNextPage]);
+  }, [canLoadMore, filteredEmpty, fetchNextPage, isFetching]);
 
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => (

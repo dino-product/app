@@ -254,7 +254,8 @@ describe('NotificationCenterScreen', () => {
   });
 
   // 전체를 다시 받는 중에 다음 쪽을 부르면 React Query 가 다시 받기를 조용히 취소해 새 알림이 빠지고 밀린 쪽이 붙는다
-  it('전체를 다시 받는 동안 끝에 닿아도 다음 쪽을 부르지 않고, 다시 받은 목록을 보인다', async () => {
+  // 미룬 끝 닿음은 다시 받기가 끝나면 한 번 이어 부른다 (그대로 두면 다시 스크롤할 때까지 다음 쪽이 오지 않는다)
+  it('전체를 다시 받는 동안 끝에 닿으면 다음 쪽을 미뤘다가, 다시 받은 목록을 보인 뒤 부른다', async () => {
     const before = manyNotifications(25);
     const after: NotificationResponse[] = [
       { ...before[0], id: 26, workId: 9999 },
@@ -292,6 +293,40 @@ describe('NotificationCenterScreen', () => {
     await act(() => releaseRefetch());
 
     expect(await screen.findByTestId('notification-26')).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(listCalls(server).map(call => call.query.page)).toEqual([
+        '0',
+        '0',
+        '1',
+      ]),
+    );
+  });
+
+  it('다음 쪽을 받는 동안 목록 끝에 진행 표시를 보인다', async () => {
+    const all = manyNotifications(25);
+    let releaseNext: () => void = () => {};
+    const server = notificationServer().on(
+      'GET',
+      NOTIFICATIONS_PATH,
+      ok(notificationsPage(all.slice(0, 20), { totalCount: 25 })),
+      async () => {
+        await new Promise<void>(resolve => (releaseNext = resolve));
+        return ok(
+          notificationsPage(all.slice(20), { page: 1, totalCount: 25 }),
+        );
+      },
+    );
+    await renderCenter({ server });
+    await screen.findByTestId('notification-25');
+    expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen();
+
+    await scrollToEnd();
+
+    expect(await screen.findByLabelText('불러오는 중')).toBeOnTheScreen();
+    await act(() => releaseNext());
+    await waitFor(() =>
+      expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen(),
+    );
   });
 
   it('새로고침이 실패하면 목록 위에 알리고, 다시 시도하면 다시 받는다', async () => {
