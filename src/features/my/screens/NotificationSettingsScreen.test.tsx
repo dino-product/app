@@ -1,4 +1,10 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import {
   fail,
@@ -6,12 +12,14 @@ import {
   networkError,
   noContent,
   ok,
+  type FakeResponse,
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
 import type { NotificationSettings } from '../model';
 import { NOTIFICATION_SETTINGS_PATH } from '../notificationApi';
+import { notificationKeys } from '../notificationQueries';
 import {
   notificationServer,
   notificationSettingsMock,
@@ -187,4 +195,43 @@ describe('NotificationSettingsScreen', () => {
     expect(toggle('작업 배정 알림')).toBeChecked();
     expect(toggle('일정 변경 알림')).not.toBeChecked();
   });
+
+  // TanStack v5 는 mutate(…, { onSuccess }) 처럼 부를 때 준 콜백을 화면이 사라지면 부르지 않는다.
+  // 서버가 받은 값은 useMutation 옵션이 캐시에 남기므로 다시 열면 그 값이다
+  it.each([
+    ['성공하면 다시 열 때 저장한 값이다', noContent(), false],
+    ['실패하면 다시 열 때 서버 값(처음 값)이다', fail(500, 'COMMON-500'), true],
+  ] as const)(
+    '저장하는 중 화면을 떠났다가 %s',
+    async (_, response, checked) => {
+      let release: (value: FakeResponse) => void = () => {};
+      const server = notificationServer({
+        settingsSaves: [
+          () => new Promise<FakeResponse>(resolve => (release = resolve)),
+        ],
+      });
+      const view = await renderSettings({ server });
+      await userEvent.press(
+        await screen.findByRole('switch', { name: '작업 배정 알림' }),
+      );
+      await waitFor(() => expect(saves(server)).toHaveLength(1));
+
+      await view.unmount();
+      await act(() => release(response));
+
+      await waitFor(() =>
+        expect(
+          view.queryClient.getQueryData<NotificationSettings>(
+            notificationKeys.settings,
+          )?.workAssignmentEnabled,
+        ).toBe(checked),
+      );
+      await render(<NotificationSettingsScreen onBack={jest.fn()} />, {
+        wrapper: view.wrapper,
+      });
+      expect(
+        await screen.findByRole('switch', { name: '작업 배정 알림' }),
+      ).toHaveProp('accessibilityState', { checked, disabled: false });
+    },
+  );
 });

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   memo,
   useCallback,
@@ -29,6 +30,7 @@ import {
   type NotificationType,
 } from '../model';
 import {
+  refreshForOpenedNotification,
   useMarkNotificationRead,
   useNotificationList,
 } from '../notificationQueries';
@@ -62,6 +64,21 @@ export function NotificationCenterScreen({
     isFetchNextPageError,
   } = useNotificationList(focused);
   const markRead = useMarkNotificationRead();
+  const queryClient = useQueryClient();
+  // 누르면 읽음을 보내고 결과를 기다리지 않고 연다 (읽음이 실패해도 이동한다)
+  const select = useCallback(
+    (item: AppNotification, target: NotificationTarget | null) => {
+      if (!item.read) {
+        markRead(item.id);
+      }
+      refreshForOpenedNotification(queryClient, item);
+      if (target !== null) {
+        onOpen?.(target);
+      }
+    },
+    [markRead, onOpen, queryClient],
+  );
+  const canOpen = onOpen !== undefined;
 
   // 상대 시간(3시간 전)은 목록을 받은 시각 기준이다. 다시 받을 때만 바뀌어, 열어 둔 동안 시간이 흘러도
   // 다시 그리지 않는다 (유휴 상태 = 0 작업)
@@ -97,11 +114,11 @@ export function NotificationCenterScreen({
       <NotificationRow
         item={item}
         now={now}
-        onRead={markRead}
-        onOpen={onOpen}
+        canOpen={canOpen}
+        onSelect={select}
       />
     ),
-    [now, markRead, onOpen],
+    [now, canOpen, select],
   );
 
   // 다시 받기(새로고침·화면 진입·앱 복귀)가 실패하면 받은 목록은 두고 위에서 알린다
@@ -194,30 +211,23 @@ const targetHints: Record<NotificationTarget['kind'], string> = {
 const NotificationRow = memo(function MyNotificationRow({
   item,
   now,
-  onRead,
-  onOpen,
+  canOpen,
+  onSelect,
 }: {
   item: AppNotification;
   now: Date;
-  onRead: (id: string) => void;
-  onOpen?: (target: NotificationTarget) => void;
+  /** 작업 상세·참여 거절 화면을 열 수 있는지 */
+  canOpen: boolean;
+  onSelect: (item: AppNotification, target: NotificationTarget | null) => void;
 }) {
   const label = notificationTypeLabels[item.type];
   const time = formatRelativeTime(item.createdAt, now);
   const description = `${label}, ${item.message}, ${time}`;
   // 읽으면 같은 행(Pressable)에서 역할·동작만 뺀다. 다른 컴포넌트로 바꿔 그리면 행이 새로 만들어져
   // 방금 누른 스크린리더 포커스가 사라진다. 읽었고 열 곳도 없는 알림은 버튼이 아닌 정보 행이다
-  const target = onOpen ? notificationTargetOf(item) : null;
+  const target = canOpen ? notificationTargetOf(item) : null;
   const pressable = !item.read || target !== null;
-  // 읽음 결과를 기다리지 않고 연다 (읽음이 실패해도 이동한다)
-  const press = () => {
-    if (!item.read) {
-      onRead(item.id);
-    }
-    if (target !== null) {
-      onOpen?.(target);
-    }
-  };
+  const press = () => onSelect(item, target);
   return (
     <Pressable
       accessible

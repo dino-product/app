@@ -11,18 +11,25 @@ import {
   fail,
   hang,
   networkError,
+  noContent as noContentResponse,
   ok,
+  type FakeResponse,
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { pressIn } from '../../../shared/testing/press';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
+import type { QueryClient } from '@tanstack/react-query';
+import { membershipsQueryKey } from '../memberships';
 import {
   NOTIFICATIONS_PATH,
   notificationReadPath,
   type NotificationResponse,
+  type NotificationsResponse,
 } from '../notificationApi';
+import { notificationKeys } from '../notificationQueries';
+import { participationRequestsKey } from '../org/participationQueries';
 import {
   notificationResponsesMock,
   notificationServer,
@@ -89,6 +96,13 @@ const manyNotifications = (count: number): NotificationResponse[] =>
     id: count - index,
     workId: 1000 + index,
   }));
+
+// 캐시(서버 쪽 모양)에 남은 그 알림의 읽음
+const readInCache = (queryClient: QueryClient, id: number) =>
+  queryClient
+    .getQueryData<{ pages: NotificationsResponse[] }>(notificationKeys.list)
+    ?.pages.flatMap(page => page.notifications)
+    .find(item => item.id === id)?.read;
 
 // 테스트 렌더러에는 레이아웃이 없어 스크롤 대신 끝에 닿은 이벤트를 바로 보낸다
 const scrollToEnd = () => fireEvent(list(), 'endReached');
@@ -529,5 +543,83 @@ describe('NotificationCenterScreen — 참여 거절 알림', () => {
       requestId: '3',
     });
     expect(server.callsTo('PUT', notificationReadPath('1'))).toHaveLength(0);
+  });
+});
+
+// 참여 요청 결과(승인·거절)는 신청 현황과 소속을 바꾼다. 알림을 열면 그 둘을 다시 받게 한다 (#116)
+describe('NotificationCenterScreen — 참여 요청 결과 알림', () => {
+  const approved: NotificationResponse = {
+    ...notifications[0],
+    id: 8,
+    type: 'PARTICIPATION_REQUEST_APPROVED',
+    participationRequestId: 4,
+    message: '[스마트 홈케어] 참여 요청이 승인되었습니다.',
+  };
+
+  async function renderWithCachedParticipation(items: NotificationResponse[]) {
+    const view = await renderCenter({
+      server: notificationServer({ notifications: items }),
+    });
+    view.queryClient.setQueryData(participationRequestsKey, []);
+    view.queryClient.setQueryData(membershipsQueryKey, []);
+    const invalidated = () => ({
+      requests: view.queryClient.getQueryState(participationRequestsKey)
+        ?.isInvalidated,
+      memberships:
+        view.queryClient.getQueryState(membershipsQueryKey)?.isInvalidated,
+    });
+    return { ...view, invalidated };
+  }
+
+  it.each([
+    ['승인', approved],
+    ['거절', notifications[0]],
+  ])(
+    '참여 %s 알림을 누르면 신청 현황과 소속을 다시 받게 한다',
+    async (_, item) => {
+      const { invalidated } = await renderWithCachedParticipation([item]);
+
+      await userEvent.press(
+        await screen.findByTestId(`notification-${item.id}`),
+      );
+
+      expect(invalidated()).toEqual({ requests: true, memberships: true });
+    },
+  );
+
+  it('작업 알림은 신청 현황과 소속을 건드리지 않는다', async () => {
+    const { invalidated } = await renderWithCachedParticipation([
+      notifications[1],
+    ]);
+
+    await userEvent.press(await screen.findByTestId('notification-2'));
+
+    expect(invalidated()).toEqual({ requests: false, memberships: false });
+  });
+});
+
+// TanStack v5 는 mutate(…, { onSuccess }) 처럼 부를 때 준 콜백을 화면이 사라지면 부르지 않는다.
+// 캐시 반영·되돌리기는 useMutation 옵션에 있어 화면을 떠나도 끝난다
+describe('NotificationCenterScreen — 읽음을 보내는 중 화면을 떠나면', () => {
+  it.each([
+    ['성공하면 읽음으로 남는다', noContentResponse(), true],
+    ['실패하면 읽지 않음으로 돌린다', fail(500, 'COMMON-500'), false],
+  ] as const)('%s', async (_, response, read) => {
+    let release: (value: FakeResponse) => void = () => {};
+    const server = notificationServer({ notifications }).on(
+      'PUT',
+      notificationReadPath('2'),
+      () => new Promise<FakeResponse>(resolve => (release = resolve)),
+    );
+    const view = await renderCenter({ server });
+    await userEvent.press(await screen.findByTestId('notification-2'));
+    await waitFor(() =>
+      expect(server.callsTo('PUT', notificationReadPath('2'))).toHaveLength(1),
+    );
+
+    await view.unmount();
+    await act(() => release(response));
+
+    await waitFor(() => expect(readInCache(view.queryClient, 2)).toBe(read));
   });
 });

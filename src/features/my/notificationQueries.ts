@@ -8,7 +8,12 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useRef, useState } from 'react';
 import { isApiError, useApiClient, type ApiClient } from '../../shared/api';
-import type { NotificationSettings } from './model';
+import { membershipsQueryKey } from './memberships';
+import type {
+  AppNotification,
+  NotificationSettings,
+  NotificationType,
+} from './model';
 import {
   flattenNotificationPages,
   nextNotificationPage,
@@ -19,6 +24,7 @@ import {
   notificationReadPath,
   type NotificationsResponse,
 } from './notificationApi';
+import { participationRequestsKey } from './org/participationQueries';
 
 // 알림센터·알림 설정의 서버 상태 (#117). 화면은 이 훅들만 쓴다.
 // 다시 받는 때: 화면에 다시 들어올 때(subscribed), 앱이 앞으로 돌아올 때(focusManager, #110), 당겨서 새로고침
@@ -116,6 +122,22 @@ export function useMarkNotificationRead() {
     },
   });
   return mutate;
+}
+
+const PARTICIPATION_RESULTS: ReadonlySet<NotificationType> = new Set([
+  'PARTICIPATION_REQUEST_APPROVED',
+  'PARTICIPATION_REQUEST_REJECTED',
+]);
+
+/** 알림을 열었다. 참여 요청 결과(승인·거절)면 신청 현황과 소속(승인되면 새 소속)을 다시 받게 한다 (#116) */
+export function refreshForOpenedNotification(
+  queryClient: QueryClient,
+  { type }: AppNotification,
+) {
+  if (PARTICIPATION_RESULTS.has(type)) {
+    queryClient.invalidateQueries({ queryKey: participationRequestsKey });
+    queryClient.invalidateQueries({ queryKey: membershipsQueryKey });
+  }
 }
 
 // 같은 계정의 첫 저장이 동시에 겹치면 409 NOTIFICATION-004. 다시 보내면 저장되므로 한 번 더 보낸다
