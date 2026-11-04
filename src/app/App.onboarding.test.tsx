@@ -23,6 +23,12 @@ import {
   type AppStateStatus,
 } from 'react-native';
 import { escapeFrom } from '../../jest/voiceOver';
+import { PARTICIPATION_REQUESTS_PATH } from '../features/my/org/participationApi';
+import {
+  participationOf,
+  REJECT_REASON,
+  type FakeDecision,
+} from '../features/my/org/testing';
 import type { NextStep } from '../features/onboarding/profileApi';
 import { fail, networkError, ok } from '../shared/testing/fakeServer';
 import {
@@ -126,10 +132,20 @@ async function requestToJoin(code = '123456', type: '기사' | '직원' = '기�
   await agreeTerms();
   await findCompany(code);
   await requestAs(type);
+  // 승인 대기는 서버 신청 현황에서 그 요청을 받아 그린다
+  await screen.findByRole('header', { name: '참여 요청을 보냈어요' });
   return app;
 }
 
-async function approveAndStart() {
+/** 사무실이 마지막 요청을 결정한다 (가짜 서버, features/my/org/testing) */
+const decide = (
+  app: Awaited<ReturnType<typeof launch>>,
+  decision: FakeDecision = { status: 'APPROVED' },
+) => participationOf(app.server).decide(decision);
+
+/** 사무실이 승인한 뒤 승인 대기의 확인으로 결과를 확인하고 시작한다 */
+async function approveAndStart(app: Awaited<ReturnType<typeof launch>>) {
+  decide(app);
   await userEvent.press(button('확인'));
   await userEvent.press(
     await screen.findByRole('button', { name: '시작하기' }),
@@ -213,7 +229,7 @@ describe('App — 온보딩', () => {
   });
 
   it('첫 실행부터 프로필·약관·회사 참여를 지나 메인(홈 탭)까지 한 번에 간다', async () => {
-    await launch();
+    const app = await launch();
 
     await login('카카오로 시작하기');
     expect(
@@ -241,11 +257,18 @@ describe('App — 온보딩', () => {
     expect(screen.getByText('Orbit')).toBeOnTheScreen();
 
     await requestAs('기사');
+    expect(
+      await screen.findByRole('header', { name: '참여 요청을 보냈어요' }),
+    ).toBeOnTheScreen();
     expect(header('승인 대기')).toBeOnTheScreen();
-    expect(header('참여 요청을 보냈어요')).toBeOnTheScreen();
+    expect(screen.getByLabelText('요청 경로, 회사 코드')).toBeOnTheScreen();
 
+    // 사무실이 승인했다. 확인을 누르면 서버 신청 현황으로 결과 화면을 정한다
+    decide(app);
     await userEvent.press(button('확인'));
-    expect(header('참여 완료')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '참여 완료' }),
+    ).toBeOnTheScreen();
     expect(header('Orbit 참여 승인 완료')).toBeOnTheScreen();
 
     await userEvent.press(button('시작하기'));
@@ -254,8 +277,8 @@ describe('App — 온보딩', () => {
   });
 
   it('메인에 들어간 뒤에는 뒤로 가기로 온보딩이나 로그인에 돌아가지 않는다', async () => {
-    await requestToJoin();
-    await approveAndStart();
+    const app = await requestToJoin();
+    await approveAndStart(app);
 
     // 메인 첫 화면에서 Android 뒤로가기는 앱을 나간다 (아무도 처리하지 않음)
     expect(await pressBack()).toBe(false);
@@ -265,8 +288,8 @@ describe('App — 온보딩', () => {
   });
 
   it('로그아웃하면 로그인으로 가고, 최근 방식에 말풍선이 보이며, 다시 로그인하면 가입을 마친 계정이라 바로 메인으로 간다', async () => {
-    await requestToJoin();
-    await approveAndStart();
+    const app = await requestToJoin();
+    await approveAndStart(app);
 
     await logoutFromMyPage();
     expect(recentBubble('KAKAO')).toBeOnTheScreen();
@@ -279,8 +302,8 @@ describe('App — 온보딩', () => {
   });
 
   it('로그아웃하면 이 기기에 들고 있던 목 상태(작업 시작 등)를 비워, 다시 로그인하면 처음 상태다', async () => {
-    await requestToJoin();
-    await approveAndStart();
+    const app = await requestToJoin();
+    await approveAndStart(app);
     await userEvent.press(button('작업 시작'));
     expect(button('작업 수행중')).toBeOnTheScreen();
 
@@ -294,7 +317,7 @@ describe('App — 온보딩', () => {
 
   it('카카오로 가입한 뒤 Apple 로 로그인하면 서버에서 다른 계정이라 프로필 등록부터 한다', async () => {
     const app = await requestToJoin();
-    await approveAndStart();
+    await approveAndStart(app);
     await logoutFromMyPage();
     app.server
       .on(
@@ -318,7 +341,7 @@ describe('App — 온보딩', () => {
   it('탈퇴하면 로그인으로 가고 최근 로그인 표시를 지우며, 다시 로그인한 새 계정은 프로필 등록부터 한다', async () => {
     const alert = spyAlert();
     const app = await requestToJoin();
-    await approveAndStart();
+    await approveAndStart(app);
     // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
     await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
     await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
@@ -823,10 +846,41 @@ describe('App — 온보딩', () => {
       ).toBeOnTheScreen();
     });
 
-    it('참여 완료에서 뒤로 가도 같은 회사 코드를 넣으면 그 참여 완료로 돌아와 시작할 수 있다', async () => {
-      await requestToJoin();
+    it('참여 요청은 회사 코드·희망 유형·요청 경로(회사 코드 입력)로 서버에 보낸다', async () => {
+      const app = await requestToJoin('123456', '직원');
+
+      expect(
+        app.server.callsTo('POST', PARTICIPATION_REQUESTS_PATH)[0].body,
+      ).toEqual({
+        companyCode: '123456',
+        desiredType: 'STAFF',
+        requestChannel: 'COMPANY_CODE',
+      });
+      expect(screen.getByLabelText('희망 유형, 직원')).toBeOnTheScreen();
+    });
+
+    // 결과는 알림으로 온다 ('사무실에서 요청을 확인하면 알려드릴게요'). 승인 전에도 앱을 쓸 수 있다
+    it('사무실이 아직 검토 중이면 승인 대기의 확인으로 가입을 마치고 메인으로 간다', async () => {
+      const app = await requestToJoin();
+
       await userEvent.press(button('확인'));
-      expect(header('참여 완료')).toBeOnTheScreen();
+
+      expect(
+        await screen.findByRole('header', { name: '내 작업' }),
+      ).toBeOnTheScreen();
+      expect(header('참여 완료')).not.toBeOnTheScreen();
+      expect(participationOf(app.server).requests.at(-1)?.status).toBe(
+        'PENDING',
+      );
+    });
+
+    it('참여 완료에서 뒤로 가도 같은 회사 코드를 넣으면 그 참여 완료로 돌아와 시작할 수 있다', async () => {
+      const app = await requestToJoin();
+      decide(app);
+      await userEvent.press(button('확인'));
+      expect(
+        await screen.findByRole('header', { name: '참여 완료' }),
+      ).toBeOnTheScreen();
 
       await escapeFrom('참여 완료');
       expect(header('회사 찾기')).toBeOnTheScreen();
@@ -839,6 +893,65 @@ describe('App — 온보딩', () => {
       expect(header('내 작업')).toBeOnTheScreen();
     });
 
+    // 다른 기기에서 같은 회사에 먼저 요청했다. 서버가 승인 대기 요청이 있다고 거절한다 (ORGANIZATION-014)
+    it('역할 선택에서 보낸 요청이 승인 대기 요청 때문에 거절되면 안내한 뒤 그 요청의 승인 대기로 간다', async () => {
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await findCompany('123456');
+      await screen.findByRole('header', { name: '역할을 선택해주세요' });
+      await app.client.post(PARTICIPATION_REQUESTS_PATH, {
+        companyCode: '123456',
+        desiredType: 'STAFF',
+        requestChannel: 'QR_CODE',
+      });
+
+      await requestAs('기사');
+      expect(
+        await screen.findByRole('header', {
+          name: '이미 참여를 요청한 회사예요',
+        }),
+      ).toBeOnTheScreen();
+      await userEvent.press(button('확인'));
+
+      expect(
+        await screen.findByRole('header', { name: '참여 요청을 보냈어요' }),
+      ).toBeOnTheScreen();
+      // 다른 기기가 보낸 요청이라 경로를 모르고, 희망 유형은 그 요청의 것이다
+      expect(screen.getByLabelText('희망 유형, 직원')).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/^요청 경로/)).toBeNull();
+      await escapeFrom('승인 대기');
+      expect(header('회사 찾기')).toBeOnTheScreen();
+    });
+
+    // 사무실이 그사이 승인했다. 취소할 수 없다고 알린 뒤 서버 상태(승인)로 참여 완료를 연다
+    it('승인 대기에서 취소하려던 요청이 이미 처리됐으면(ORGANIZATION-017) 알리고 확인하면 결과 화면으로 간다', async () => {
+      const alert = spyAlert();
+      const app = await requestToJoin();
+      decide(app);
+
+      await userEvent.press(button('신청 취소'));
+      await userEvent.press(
+        within(screen.getByTestId('cancel-request-modal')).getByRole('button', {
+          name: '취소',
+        }),
+      );
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '이미 처리된 요청이에요',
+          expect.any(String),
+          expect.any(Array),
+        ),
+      );
+      const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
+      await act(() => buttons[0].onPress?.());
+
+      expect(
+        await screen.findByRole('header', { name: 'Orbit 참여 승인 완료' }),
+      ).toBeOnTheScreen();
+    });
+
     it('승인 대기에서 Android 뒤로가기를 누르면 역할 선택이 아니라 회사 찾기로 간다', async () => {
       await requestToJoin();
 
@@ -848,12 +961,16 @@ describe('App — 온보딩', () => {
       expect(header('역할을 선택해주세요')).not.toBeOnTheScreen();
     });
 
-    it('234567 은 요청과 다른 유형으로 승인돼 유형 변경 완료가 보이고, 시작하기로 메인에 간다', async () => {
-      await requestToJoin('234567', '기사');
+    // 앱의 확정 유형은 서버 confirmedType 이다
+    it('사무실이 요청과 다른 유형으로 승인하면 유형 변경 완료가 보이고, 시작하기로 메인에 간다', async () => {
+      const app = await requestToJoin('234567', '기사');
+      decide(app, { status: 'APPROVED', confirmedType: 'STAFF' });
 
       await userEvent.press(button('확인'));
 
-      expect(header('직원 참여 승인 완료')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: '직원 참여 승인 완료' }),
+      ).toBeOnTheScreen();
       expect(
         screen.getByText('사무실에서 요청하신 유형과 다르게 확정했어요.'),
       ).toBeOnTheScreen();
@@ -861,14 +978,15 @@ describe('App — 온보딩', () => {
       expect(header('내 작업')).toBeOnTheScreen();
     });
 
-    it('345678 은 거절되고, 확인을 누르면 회사 찾기로 돌아가 같은 코드로 다시 요청할 수 있다', async () => {
-      await requestToJoin('345678');
+    it('사무실이 거절하면 서버의 거절 사유가 보이고, 확인을 누르면 회사 찾기로 돌아가 같은 코드로 다시 요청할 수 있다', async () => {
+      const app = await requestToJoin('345678');
+      decide(app, { status: 'REJECTED', rejectReason: REJECT_REASON });
 
       await userEvent.press(button('확인'));
-      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
       expect(
-        screen.getByText('현재 기사 인원이 충분해 요청을 받지 않고 있어요.'),
+        await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
       ).toBeOnTheScreen();
+      expect(screen.getByText(REJECT_REASON)).toBeOnTheScreen();
 
       await userEvent.press(button('확인'));
       expect(header('회사 찾기')).toBeOnTheScreen();

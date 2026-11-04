@@ -28,40 +28,33 @@ import {
   isCompanyCodeComplete,
   sanitizeCompanyCodeInput,
   type JoinFlow,
-  type LookupOutcome,
+  type JoinTarget,
   type Organization,
 } from '../model';
+import {
+  alreadyMemberNotice,
+  invalidCodeNotice,
+  lookupFailureNotice,
+  pendingRequestNotice,
+} from '../notices';
+import { useLookupCompany } from '../participationQueries';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
+// 회사 확인은 서버(GET /api/v1/organizations/lookup)에 묻는다 (#116). 실패 안내는 Figma 에 없어 기본안이다 (notices).
 // QR 코드 인식은 카메라 모듈·권한 문구가 필요해 별도 티켓이라 비활성이다
 const intro = {
   title: '회사 찾기',
   description: '회사 코드·참여 링크·QR로 회사를 찾을 수 있습니다.',
 };
 const invalidIntro = {
-  title: '유효하지 않은 회사 코드입니다',
-  description: '회사에서 코드를 변경해\n이전 참여 경로를 사용할 수 없습니다.',
+  title: invalidCodeNotice.title,
+  description: invalidCodeNotice.message,
 };
-
-const noticeFor = (
-  outcome: Extract<LookupOutcome, { kind: 'alreadyMember' | 'pending' }>,
-): Notice =>
-  outcome.kind === 'alreadyMember'
-    ? {
-        title: '이미 참여 중인 회사예요',
-        message: `${outcome.organization.organizationName}에 이미 소속되어 있어\n참여 요청을 다시 보낼 수 없습니다.`,
-      }
-    : // Figma 에 없는 경우라 문구는 기본안이다
-      {
-        title: '이미 참여를 요청한 회사예요',
-        message: `${outcome.organization.organizationName}에 보낸 참여 요청이\n승인을 기다리고 있어요.`,
-      };
 
 export function OrgJoinScreen({
   flow = 'my',
   onBack,
-  lookup,
   onFound,
   onPending,
   onAlreadyMember,
@@ -69,16 +62,19 @@ export function OrgJoinScreen({
 }: {
   flow?: JoinFlow;
   onBack: () => void;
-  /** 입력한 코드로 회사를 찾는다 (GET /api/v1/organizations/lookup) */
-  lookup: (code: string) => Promise<LookupOutcome>;
-  onFound: (organization: Organization, code: string) => void;
-  /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
-  onPending?: (organization: Organization) => void;
-  /** 이미 참여 중인 회사일 때. 주면 알림 대신 부른다 (온보딩은 그 회사의 참여 완료로 돌아간다) */
-  onAlreadyMember?: (organization: Organization) => void;
+  /** 찾은 회사 (회사 코드·찾은 방법을 담은 참여 대상). 역할 선택으로 넘긴다 */
+  onFound: (target: JoinTarget) => void;
+  /** 승인 대기 중인 요청이 있는 회사일 때. 주면 알림 대신 그 요청 id 와 함께 부른다 (온보딩은 그 요청의 승인 대기로 간다) */
+  onPending?: (organization: Organization, requestId: string) => void;
+  /**
+   * 이미 참여 중인 회사일 때. 주면 먼저 부르고, 처리했으면(true) 알림을 띄우지 않는다.
+   * 온보딩은 그 회사의 참여 완료로 돌아간다. 처리하지 못했으면(그 회사의 승인 요청이 없음) 알림을 띄운다
+   */
+  onAlreadyMember?: (organization: Organization) => Promise<boolean>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
+  const lookup = useLookupCompany();
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
   const [invalid, setInvalid] = useState(false);
@@ -86,12 +82,14 @@ export function OrgJoinScreen({
   const [checking, setChecking] = useState(false);
   // 다시 그리기 전에 연달아 눌러도 한 번만 찾는다
   const checkingRef = useRef(false);
-  // 찾는 동안 화면을 떠났으면 늦게 온 결과를 버린다
+  // 찾는 동안 화면을 떠나면 요청을 끊고 늦게 온 결과를 버린다
   const mounted = useRef(false);
+  const request = useRef<AbortController | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      request.current?.abort();
     };
   }, []);
 
@@ -106,42 +104,51 @@ export function OrgJoinScreen({
     }
     checkingRef.current = true;
     setChecking(true);
+    const controller = new AbortController();
+    request.current = controller;
     try {
-      const outcome = await lookup(code);
+      const outcome = await lookup(code, 'COMPANY_CODE', {
+        signal: controller.signal,
+      });
       if (!mounted.current) {
         return;
       }
       setInvalid(outcome.kind === 'invalid');
       if (outcome.kind === 'found') {
-        onFound(outcome.organization, code);
-      } else if (outcome.kind === 'pending' && onPending) {
-        onPending(outcome.organization);
-      } else if (outcome.kind === 'alreadyMember' && onAlreadyMember) {
-        onAlreadyMember(outcome.organization);
-      } else if (outcome.kind === 'invalid') {
-        // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
-        if (Platform.OS === 'ios') {
-          AccessibilityInfo.announceForAccessibility(
-            `${invalidIntro.title}. ${invalidIntro.description.replace(
-              '\n',
-              ' ',
-            )}`,
-          );
+        onFound(outcome.target);
+      } else if (outcome.kind === 'pending') {
+        const { organization, requestId } = outcome;
+        if (onPending && requestId !== undefined) {
+          onPending(organization, requestId);
+        } else {
+          setNotice(pendingRequestNotice(organization.organizationName));
         }
-      } else {
-        setNotice(noticeFor(outcome));
+      } else if (outcome.kind === 'alreadyMember') {
+        const { organization } = outcome;
+        const handled = (await onAlreadyMember?.(organization)) ?? false;
+        if (!handled && mounted.current) {
+          setNotice(alreadyMemberNotice(organization.organizationName));
+        }
+      } else if (Platform.OS === 'ios') {
+        // 유효하지 않은 코드. accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
+        AccessibilityInfo.announceForAccessibility(
+          `${invalidIntro.title}. ${invalidIntro.description.replace(
+            '\n',
+            ' ',
+          )}`,
+        );
       }
-    } catch {
-      // 네트워크 오류 등. Figma 에 없는 경우라 문구는 기본안이다
+    } catch (error) {
+      // 실패 한도(429)·네트워크·서버 오류. 입력은 그대로 두고 다시 누를 수 있다
       if (mounted.current) {
-        setNotice({
-          title: '회사를 확인하지 못했어요',
-          message: '잠시 후 다시 시도해 주세요.',
-        });
+        setNotice(lookupFailureNotice(error));
       }
     } finally {
+      request.current = null;
       checkingRef.current = false;
-      setChecking(false);
+      if (mounted.current) {
+        setChecking(false);
+      }
     }
   };
 

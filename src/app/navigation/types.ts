@@ -4,6 +4,10 @@ import type {
   NavigatorScreenParams,
 } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { JoinTarget, RequestChannel } from '../../features/my/org/model';
+
+/** 참여 요청 화면(요청 완료·승인 대기). 요청 경로는 서버가 돌려주지 않아 이 앱이 방금 보낸 요청에만 있다 (#116) */
+type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
 
 // 루트 스택은 로그인 상태에 따라 화면 묶음을 바꾼다 (#85, #113, React Navigation 인증 흐름).
 // 로그아웃: 로그인 / 가입 단계: 온보딩 / 가입 완료: 메인과 탭 바가 없는 화면(요청 상세·거절 사유)
@@ -21,8 +25,9 @@ export type OnboardingStackParamList = {
   ProfileRegister: undefined;
   TermsAgreement: undefined;
   CompanyFind: undefined;
-  JoinRoleSelect: { organizationId: string; organizationName: string };
-  JoinPending: { requestId: string };
+  /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
+  JoinRoleSelect: JoinTarget;
+  JoinPending: JoinRequestParams;
   JoinApproved: { requestId: string };
   JoinRejected: { requestId: string };
 };
@@ -67,8 +72,9 @@ export type MyStackParamList = {
   WithdrawalBlocked: undefined;
   // 조직 참여 (#73)
   OrgJoin: undefined;
-  OrgRoleSelect: { organizationId: string; organizationName: string };
-  OrgJoinRequested: { requestId: string };
+  /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
+  OrgRoleSelect: JoinTarget;
+  OrgJoinRequested: JoinRequestParams;
   OrgJoinRejected: { requestId: string };
   OrgJoinRequests: undefined;
 };

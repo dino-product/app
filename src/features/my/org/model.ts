@@ -1,5 +1,5 @@
 // 조직 참여(#73)의 데이터 모양. Dino 백엔드 응답(/api/v1/organizations/lookup, /participation-requests)과
-// 같은 이름을 써서 연동 때 그대로 옮긴다.
+// 같은 이름을 쓴다. 서버의 숫자 id 는 문자열로 바꿔 둔다 (participationApi, #116)
 
 export type ParticipationType = 'STAFF' | 'TECHNICIAN';
 
@@ -13,38 +13,51 @@ export type RequestChannel = 'COMPANY_CODE' | 'JOIN_LINK' | 'QR_CODE';
 
 export type Organization = { organizationId: string; organizationName: string };
 
+/**
+ * 참여를 요청할 회사와 그 회사를 찾은 방법. 회사 확인 결과로 만들어 역할 선택·참여 요청에 넘긴다.
+ * 참여 요청은 회사 id 가 아니라 회사 코드로 보낸다. QR·참여 링크(#108)도 같은 모양에 경로만 바꿔 쓴다
+ */
+export type JoinTarget = Organization & {
+  /** 정리한 회사 코드 (normalizeCompanyCode) */
+  companyCode: string;
+  requestChannel: RequestChannel;
+};
+
 /** 회사 코드 조회 결과 (CompanyCheckResponse). 없는 코드는 서버가 404 라 null 로 받는다 */
 export type CompanyLookup = Organization & {
   availability: 'AVAILABLE' | 'ALREADY_MEMBER' | 'PENDING_REQUEST';
+  /** 승인 대기 요청이 있을 때(PENDING_REQUEST)만 */
   pendingRequestId?: string;
 };
 
 export type LookupOutcome =
-  | { kind: 'found'; organization: Organization }
+  | { kind: 'found'; target: JoinTarget }
   | { kind: 'invalid' }
   | { kind: 'alreadyMember'; organization: Organization }
-  | { kind: 'pending'; organization: Organization };
+  | { kind: 'pending'; organization: Organization; requestId?: string };
+
+/** PENDING 에서만 바뀌고 결정·취소 뒤에는 바뀌지 않는다 */
+export type ParticipationStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CANCELED';
 
 export type ParticipationRequest = Organization & {
   requestId: string;
   desiredType: ParticipationType;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
-  /** 요청할 때 앱이 보낸 경로 (요청 완료 요약) */
-  requestChannel: RequestChannel;
+  status: ParticipationStatus;
+  /** 요청할 때 앱이 보낸 경로 (요청 완료 요약). 서버 응답에는 없어 이 앱이 방금 보낸 요청만 안다 */
+  requestChannel?: RequestChannel;
   /** 요청 일시 (ISO, UTC) */
   requestedAt: string;
   /** 사유를 입력해 거절한 요청에만 있다 */
   rejectReason?: string;
-  /** 승인한 요청의 확정 유형. 사무실이 희망 유형과 다르게 정할 수 있다 */
+  /** 승인한 요청의 확정 유형 (서버 confirmedType). 사무실이 희망 유형과 다르게 정할 수 있다 */
   approvedType?: ParticipationType;
   /** 승인·거절한 일시 (ISO, UTC) */
   decidedAt?: string;
 };
-
-/** 사무실의 결정 (승인 대기 → 승인·거절) */
-export type ParticipationDecision =
-  | { status: 'APPROVED'; approvedType: ParticipationType }
-  | { status: 'REJECTED'; rejectReason: string };
 
 export const participationTypeLabels: Record<ParticipationType, string> = {
   STAFF: '직원',
@@ -106,8 +119,11 @@ export function isCompanyCodeComplete(code: string): boolean {
   return completeCode.test(code);
 }
 
-/** 회사 확인 결과를 화면이 나눌 네 갈래로 바꾼다 */
-export function lookupOutcome(lookup: CompanyLookup | null): LookupOutcome {
+/** 회사 확인 결과를 화면이 나눌 네 갈래로 바꾼다. 찾은 회사는 찾은 코드·방법과 함께 참여 대상이 된다 */
+export function lookupOutcome(
+  lookup: CompanyLookup | null,
+  how: Pick<JoinTarget, 'companyCode' | 'requestChannel'>,
+): LookupOutcome {
   if (lookup === null) {
     return { kind: 'invalid' };
   }
@@ -117,11 +133,15 @@ export function lookupOutcome(lookup: CompanyLookup | null): LookupOutcome {
   };
   switch (lookup.availability) {
     case 'AVAILABLE':
-      return { kind: 'found', organization };
+      return { kind: 'found', target: { ...organization, ...how } };
     case 'ALREADY_MEMBER':
       return { kind: 'alreadyMember', organization };
     case 'PENDING_REQUEST':
-      return { kind: 'pending', organization };
+      return {
+        kind: 'pending',
+        organization,
+        requestId: lookup.pendingRequestId,
+      };
   }
 }
 
@@ -143,9 +163,60 @@ export function formatRequestedAt(at: string): string {
   )}`;
 }
 
-/** 승인 대기 중인 요청 (신청 현황 목록, 마이페이지 배지 숫자) */
+/** 승인 대기 중인 요청 (신청 현황 목록) */
 export function pendingRequests(
   requests: readonly ParticipationRequest[],
 ): ParticipationRequest[] {
   return requests.filter(request => request.status === 'PENDING');
+}
+
+/** 승인 대기 건수 (마이페이지 신청 현황 배지) */
+export function countPendingRequests(
+  requests: readonly ParticipationRequest[],
+): number {
+  return pendingRequests(requests).length;
+}
+
+/** 그 회사의 그 상태 요청 중 가장 나중 것. 서버 목록은 요청 일시순이고 다시 보낸 요청은 별개 줄이다 */
+export function latestRequestOf(
+  requests: readonly ParticipationRequest[],
+  organizationId: string,
+  status: ParticipationStatus,
+): ParticipationRequest | undefined {
+  return [...requests]
+    .reverse()
+    .find(
+      request =>
+        request.organizationId === organizationId && request.status === status,
+    );
+}
+
+/** 서버가 돌려준 요청(요청·취소 응답)으로 목록을 고친다. 없으면 끝(가장 최근)에 더한다 */
+export function upsertRequest(
+  requests: readonly ParticipationRequest[],
+  request: ParticipationRequest,
+): ParticipationRequest[] {
+  const index = requests.findIndex(
+    item => item.requestId === request.requestId,
+  );
+  if (index === -1) {
+    return [...requests, request];
+  }
+  return requests.map((item, at) => (at === index ? request : item));
+}
+
+/** 앞 목록(없으면 처음 받음)에서 승인이 아니던 요청이 새로 승인됐는지. 그러면 소속 조회를 다시 불러야 한다 */
+export function hasNewApproval(
+  previous: readonly ParticipationRequest[] | undefined,
+  next: readonly ParticipationRequest[],
+): boolean {
+  const approvedBefore = new Set(
+    (previous ?? [])
+      .filter(request => request.status === 'APPROVED')
+      .map(request => request.requestId),
+  );
+  return next.some(
+    request =>
+      request.status === 'APPROVED' && !approvedBefore.has(request.requestId),
+  );
 }

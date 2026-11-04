@@ -13,14 +13,20 @@ import { noOverscroll } from '../../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { flowLayouts } from '../components/flowLayouts';
 import { InfoNotice } from '../components/InfoNotice';
+import { NoticeModal } from '../components/NoticeModal';
 import {
   participationTypeLabels,
   type JoinFlow,
+  type JoinTarget,
+  type ParticipationRequest,
   type ParticipationType,
 } from '../model';
+import { requestFailure, type RequestFailure } from '../notices';
+import { useRequestParticipation } from '../participationQueries';
 
 // Figma 회사찾기 › 역할 선택 (3278:20936 고르기 전 / 3278:20974 기사 선택).
-// 온보딩(#85)은 역할 선택 (3255:18530 / 3255:19213) 이고 머리 제목이 '참여 요청' 이다
+// 온보딩(#85)은 역할 선택 (3255:18530 / 3255:19213) 이고 머리 제목이 '참여 요청' 이다.
+// 참여 요청은 서버(POST /api/v1/participation-requests)에 보낸다 (#116). 실패 안내는 Figma 에 없어 기본안이다 (notices)
 const options: readonly { type: ParticipationType; description: string }[] = [
   {
     type: 'STAFF',
@@ -34,28 +40,65 @@ const options: readonly { type: ParticipationType; description: string }[] = [
 
 export function RoleSelectScreen({
   flow = 'my',
-  organizationName,
+  target,
   onBack,
-  onSubmit,
+  onRequested,
+  onAlreadyMember,
+  onPendingExists,
   titleRef,
 }: {
   flow?: JoinFlow;
-  organizationName: string;
+  /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
+  target: JoinTarget;
+  /** 뒤로 가기. 그사이 회사 코드가 바뀌어 요청이 거절되면 안내 뒤에도 부른다 (코드를 다시 넣는다) */
   onBack: () => void;
-  onSubmit: (type: ParticipationType) => void;
+  /** 서버가 만든 요청. 요청 완료로 간다 */
+  onRequested: (request: ParticipationRequest) => void;
+  /** 이미 참여 중인 회사라 거절됐다 (이미 참여 안내를 닫은 뒤) */
+  onAlreadyMember: () => void;
+  /** 이 회사에 승인 대기 요청이 있어 거절됐다 (승인 대기 안내를 닫은 뒤) */
+  onPendingExists: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   const [selected, setSelected] = useState<ParticipationType | null>(null);
-  // 요청 완료로 넘어가기 전에 연달아 눌러도 같은 회사에 한 번만 요청한다
-  const submitted = useRef(false);
+  const [failure, setFailure] = useState<RequestFailure | null>(null);
+  const request = useRequestParticipation();
+  // 다시 그리기 전에 연달아 눌러도 같은 회사에 한 번만 요청한다. 실패하면 다시 보낼 수 있다
+  const submitting = useRef(false);
   const look = looks[flow];
   const submit = () => {
-    if (selected === null || submitted.current) {
+    if (selected === null || submitting.current) {
       return;
     }
-    submitted.current = true;
-    onSubmit(selected);
+    submitting.current = true;
+    // 화면을 떠난 뒤 온 결과는 mutate 의 콜백을 부르지 않는다 (늦은 결과로 화면을 옮기지 않는다)
+    request.mutate(
+      {
+        companyCode: target.companyCode,
+        desiredType: selected,
+        requestChannel: target.requestChannel,
+      },
+      {
+        onSuccess: created => onRequested(created),
+        onError: error => {
+          submitting.current = false;
+          setFailure(requestFailure(error, target.organizationName));
+        },
+      },
+    );
+  };
+  // 안내를 닫으면 갈 곳으로 간다. 머무는 실패는 다시 보낼 수 있다
+  const closeFailure = () => {
+    const next = failure?.next;
+    setFailure(null);
+    if (next === 'alreadyMember') {
+      onAlreadyMember();
+    } else if (next === 'pending') {
+      onPendingExists();
+    } else if (next === 'reenterCode') {
+      onBack();
+    }
   };
 
   return (
@@ -86,7 +129,7 @@ export function RoleSelectScreen({
             회사명
           </Text>
           <Text variant={look.companyName} color={colors.gray[800]}>
-            {organizationName}
+            {target.organizationName}
           </Text>
         </View>
 
@@ -176,10 +219,12 @@ export function RoleSelectScreen({
       <View style={[readableColumn, flowLayouts[flow].actions]}>
         <CTA
           label="참여 요청하기"
-          disabled={selected === null}
+          disabled={selected === null || request.isPending}
           onPress={submit}
         />
       </View>
+
+      <NoticeModal notice={failure?.notice ?? null} onClose={closeFailure} />
     </SafeAreaView>
   );
 }

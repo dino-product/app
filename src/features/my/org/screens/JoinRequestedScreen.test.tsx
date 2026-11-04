@@ -1,22 +1,32 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   userEvent,
+  waitFor,
 } from '@testing-library/react-native';
+import { Alert, type AlertButton } from 'react-native';
 import { escapeFrom } from '../../../../../jest/voiceOver';
 import {
   colors,
   typography,
   withOpacity,
 } from '../../../../shared/design-system';
+import {
+  networkError,
+  type FakeResponse,
+} from '../../../../shared/testing/fakeServer';
+import { renderWithApi } from '../../../../shared/testing/renderWithApi';
+import { testSession } from '../../../../shared/testing/session';
 import type { ParticipationRequest } from '../model';
+import { cancelRequestPath } from '../participationApi';
+import { createParticipationServer } from '../testing';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 
+// 방금 보낸 요청 (서버 요청 9). 요청 경로는 서버가 돌려주지 않아 이 앱이 보낸 값이다
 const request: ParticipationRequest = {
-  requestId: 'request-9',
-  organizationId: 'org-9',
+  requestId: '9',
+  organizationId: '9',
   organizationName: 'Orbit',
   desiredType: 'TECHNICIAN',
   status: 'PENDING',
@@ -25,6 +35,7 @@ const request: ParticipationRequest = {
 };
 
 const CANCEL_TITLE = 'Orbit 참여 신청을 취소할까요?';
+const CANCEL_PATH = cancelRequestPath('9');
 const cancelTitle = () => screen.queryByRole('header', { name: CANCEL_TITLE });
 // 모달을 감싼 RN Modal (호스트 요소 이름이 Modal 이다)
 const modalHost = () => {
@@ -39,18 +50,47 @@ const modalHost = () => {
 };
 const openCancel = () =>
   userEvent.press(screen.getByRole('button', { name: '신청 취소' }));
+const confirmCancel = () =>
+  userEvent.press(screen.getByRole('button', { name: '취소' }));
+const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
-const renderRequested = () => {
+function renderRequested(
+  extra: Partial<Parameters<typeof JoinRequestedScreen>[0]> = {},
+) {
+  const participation = createParticipationServer({
+    requests: [
+      {
+        requestId: 9,
+        organizationId: 9,
+        organizationName: 'Orbit',
+        desiredType: 'TECHNICIAN',
+        confirmedType: null,
+        status: 'PENDING',
+        rejectReason: null,
+        requestedAt: request.requestedAt,
+        decidedAt: null,
+      },
+    ],
+  });
   const props = {
     request,
     onConfirm: jest.fn(),
-    onCancel: jest.fn(),
+    onCanceled: jest.fn(),
+    onAlreadyDecided: jest.fn(),
     onBack: jest.fn(),
+    ...extra,
   };
-  return render(<JoinRequestedScreen {...props} />).then(() => props);
-};
+  return renderWithApi(<JoinRequestedScreen {...props} />, {
+    server: participation.server,
+    session: testSession(),
+  }).then(view => ({ ...view, props, participation }));
+}
 
 describe('JoinRequestedScreen', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('요청을 보냈다는 안내와 3단계 진행 표시를 보여준다', async () => {
     await renderRequested();
 
@@ -83,12 +123,60 @@ describe('JoinRequestedScreen', () => {
     ).toBeOnTheScreen();
   });
 
+  // 서버는 요청 경로를 돌려주지 않는다. 이 앱이 보내지 않은 요청(다시 연 승인 대기)은 경로를 모른다
+  it('요청 경로를 모르면 그 줄을 빼고 보여준다', async () => {
+    const { requestChannel, ...unknownChannel } = request;
+    expect(requestChannel).toBe('COMPANY_CODE');
+    await renderRequested({ request: unknownChannel });
+
+    expect(screen.getByLabelText('회사, Orbit')).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/^요청 경로/)).toBeNull();
+  });
+
   it('확인을 누르면 onConfirm 을 부른다', async () => {
-    const props = await renderRequested();
+    const { props } = await renderRequested();
 
     await userEvent.press(screen.getByRole('button', { name: '확인' }));
 
     expect(props.onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('확인을 연달아 눌러도 한 번만 알린다', async () => {
+    const { props } = await renderRequested();
+
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+
+    expect(props.onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  // 온보딩은 확인으로 사무실의 결정을 서버에서 확인한다. 확인하는 동안 버튼을 잠그고, 실패하면 다시 누를 수 있다
+  it('확인이 결과를 기다리면 그동안 버튼을 잠그고, 실패하면 알린 뒤 다시 누를 수 있다', async () => {
+    const alert = spyAlert();
+    let reject: (error: Error) => void = () => {};
+    const onConfirm = jest
+      .fn<Promise<void>, []>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_, fail) => {
+            reject = fail;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    await renderRequested({ flow: 'onboarding', onConfirm });
+
+    await userEvent.press(screen.getByRole('button', { name: '확인' }));
+    expect(screen.getByRole('button', { name: '확인' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '신청 취소' })).toBeDisabled();
+    await act(async () => reject(new Error('network')));
+
+    expect(alert).toHaveBeenCalledWith(
+      '결과를 확인하지 못했어요',
+      '잠시 후 다시 시도해 주세요.',
+    );
+    expect(screen.getByRole('button', { name: '확인' })).toBeEnabled();
+    await userEvent.press(screen.getByRole('button', { name: '확인' }));
+    expect(onConfirm).toHaveBeenCalledTimes(2);
   });
 
   // 신청 취소 확인은 바텀 시트가 아니라 화면 가운데 모달이다 (#98). 신청 현황의 시트(2889:13197)는 그대로다
@@ -136,18 +224,29 @@ describe('JoinRequestedScreen', () => {
       });
     });
 
-    it('취소를 누르면 이 신청을 취소한다', async () => {
-      const props = await renderRequested();
+    it('취소를 누르면 서버에 이 신청을 취소하고, 취소되면 알린다', async () => {
+      const { props, server, participation } = await renderRequested();
       await openCancel();
 
-      await userEvent.press(screen.getByRole('button', { name: '취소' }));
+      await confirmCancel();
 
-      expect(props.onCancel).toHaveBeenCalledWith('request-9');
       expect(cancelTitle()).toBeNull();
+      await waitFor(() => expect(props.onCanceled).toHaveBeenCalledTimes(1));
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(1);
+      expect(participation.requests[0].status).toBe('CANCELED');
     });
 
-    it('취소를 연달아 눌러도 한 번만 취소한다', async () => {
-      const props = await renderRequested();
+    it('취소하는 동안에는 확인·신청 취소가 잠기고, 연달아 눌러도 한 번만 취소한다', async () => {
+      const { props, server } = await renderRequested();
+      let release: (response: FakeResponse) => void = () => {};
+      server.on(
+        'POST',
+        CANCEL_PATH,
+        () =>
+          new Promise<FakeResponse>(done => {
+            release = done;
+          }),
+      );
       await openCancel();
 
       // 다시 그리기 전(같은 프레임)에 두 번 눌린 경우
@@ -157,11 +256,64 @@ describe('JoinRequestedScreen', () => {
         await fireEvent.press(confirm);
       });
 
-      expect(props.onCancel).toHaveBeenCalledTimes(1);
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(1);
+      // 취소 중 상태는 서버 상태 캐시가 다음 틱에 알린다
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: '확인' })).toBeDisabled(),
+      );
+      expect(screen.getByRole('button', { name: '신청 취소' })).toBeDisabled();
+      await act(async () => release(networkError()));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: '확인' })).toBeEnabled(),
+      );
+      expect(props.onCanceled).not.toHaveBeenCalled();
+    });
+
+    // 사무실이 그사이 결정했다. 알림의 확인을 누르면 바깥이 서버 상태에 맞는 화면으로 보낸다
+    it('이미 처리된 요청(409 ORGANIZATION-017)이면 알리고, 확인하면 바깥에 알린다', async () => {
+      const alert = spyAlert();
+      const { props, participation } = await renderRequested();
+      participation.decide({ status: 'APPROVED' }, 9);
+      await openCancel();
+
+      await confirmCancel();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '이미 처리된 요청이에요',
+          '사무실이 이미 결정했거나 취소된 요청이라 취소할 수 없어요.',
+          expect.any(Array),
+        ),
+      );
+      expect(props.onAlreadyDecided).not.toHaveBeenCalled();
+      const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
+      await act(() => buttons[0].onPress?.());
+      expect(props.onAlreadyDecided).toHaveBeenCalledTimes(1);
+      expect(props.onCanceled).not.toHaveBeenCalled();
+    });
+
+    it('취소하지 못하면(네트워크 등) 알리고 화면에 머물러 다시 취소할 수 있다', async () => {
+      const alert = spyAlert();
+      const { props, server } = await renderRequested();
+      server.on('POST', CANCEL_PATH, networkError());
+      await openCancel();
+
+      await confirmCancel();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '신청을 취소하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(props.onCanceled).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: '신청 취소' })).toBeEnabled();
+      await openCancel();
+      expect(cancelTitle()).toBeOnTheScreen();
     });
 
     it('오른쪽 위 X 는 스크린리더에서 닫기 버튼이고, 누르면 신청은 그대로 닫힌다', async () => {
-      const props = await renderRequested();
+      const { server } = await renderRequested();
       await openCancel();
 
       const close = screen.getByTestId('cancel-request-modal-close');
@@ -170,38 +322,38 @@ describe('JoinRequestedScreen', () => {
       await userEvent.press(close);
 
       expect(cancelTitle()).toBeNull();
-      expect(props.onCancel).not.toHaveBeenCalled();
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(0);
     });
 
     it('닫기 버튼은 신청을 그대로 두고 닫는다', async () => {
-      const props = await renderRequested();
+      const { server } = await renderRequested();
       await openCancel();
 
       const [, closeButton] = screen.getAllByRole('button', { name: '닫기' });
       await userEvent.press(closeButton);
 
       expect(cancelTitle()).toBeNull();
-      expect(props.onCancel).not.toHaveBeenCalled();
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(0);
     });
 
     it('Android 뒤로가기로 닫히고 신청은 그대로다', async () => {
-      const props = await renderRequested();
+      const { server } = await renderRequested();
       await openCancel();
 
       await act(() => modalHost().props.onRequestClose());
 
       expect(cancelTitle()).toBeNull();
-      expect(props.onCancel).not.toHaveBeenCalled();
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(0);
     });
 
     it('VoiceOver 두 손가락 Z 로 닫히고 신청은 그대로다', async () => {
-      const props = await renderRequested();
+      const { server } = await renderRequested();
       await openCancel();
 
       await escapeFrom(CANCEL_TITLE);
 
       expect(cancelTitle()).toBeNull();
-      expect(props.onCancel).not.toHaveBeenCalled();
+      expect(server.callsTo('POST', CANCEL_PATH)).toHaveLength(0);
     });
 
     it('닫은 뒤 다시 열 수 있다', async () => {
@@ -214,14 +366,7 @@ describe('JoinRequestedScreen', () => {
       expect(cancelTitle()).toBeOnTheScreen();
     });
   });
-  it('확인을 연달아 눌러도 한 번만 알린다 (온보딩은 확인으로 사무실 결정을 흉내 낸다)', async () => {
-    const { onConfirm } = await renderRequested();
 
-    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
-    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
-
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
   describe('흐름별 모양', () => {
     // Figma 회사찾기-요청완료 (3235:14886): 값 Caption/M/Medium Gray800, 안내 상자 없음
     it('마이는 머리 제목이 조직 참여하기이고 요약 값은 Medium Gray800 이다', async () => {
@@ -239,15 +384,7 @@ describe('JoinRequestedScreen', () => {
 
     // Figma 승인 대기 (3227:8824): 값 Caption/M/Semibold Gray800, 버튼 위 안내 상자
     it('온보딩은 머리 제목이 승인 대기이고 요약 값은 SemiBold, 안내 상자가 있다 (#85)', async () => {
-      await render(
-        <JoinRequestedScreen
-          flow="onboarding"
-          request={request}
-          onConfirm={jest.fn()}
-          onCancel={jest.fn()}
-          onBack={jest.fn()}
-        />,
-      );
+      await renderRequested({ flow: 'onboarding' });
 
       expect(
         screen.getByRole('header', { name: '승인 대기' }),

@@ -1,4 +1,3 @@
-import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { makeHistoryMock } from '../../features/history/mockData';
 import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
@@ -9,6 +8,7 @@ import {
   profileMock,
 } from '../../features/my/mockData';
 import type { ParticipationRequest } from '../../features/my/org/model';
+import { createParticipationServer } from '../../features/my/org/testing';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
 import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
 import { JoinRequestsScreen } from '../../features/my/org/screens/JoinRequestsScreen';
@@ -36,6 +36,8 @@ import {
 } from '../../features/work/mockData';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
+import { renderWithApi } from '../testing/renderWithApi';
+import { testSession } from '../testing/session';
 
 // 새로고침이 없는 화면은 맨 위에서 아래로 끌어도 내용이 내려오지 않는다 (#103).
 // 시트·모달 안의 스크롤(약관 시트 등)은 범위 밖이라 화면 본문의 첫 스크롤 뷰만 본다
@@ -138,24 +140,29 @@ const blocked: [string, ReactElement][] = [
     />,
   ],
   ['거절 사유', <RejectReasonScreen onBack={noop} onSubmit={noop} />],
-  [
-    '조직 참여하기',
-    <OrgJoinScreen
-      onBack={noop}
-      lookup={async () => ({ kind: 'invalid' })}
-      onFound={noop}
-    />,
-  ],
+  ['조직 참여하기', <OrgJoinScreen onBack={noop} onFound={noop} />],
   [
     '참여 유형 선택',
-    <RoleSelectScreen organizationName="Orbit" onBack={noop} onSubmit={noop} />,
+    <RoleSelectScreen
+      target={{
+        organizationId: '9',
+        organizationName: 'Orbit',
+        companyCode: 'RBT124',
+        requestChannel: 'COMPANY_CODE',
+      }}
+      onBack={noop}
+      onRequested={noop}
+      onAlreadyMember={noop}
+      onPendingExists={noop}
+    />,
   ],
   [
     '참여 요청을 보냈어요',
     <JoinRequestedScreen
       request={request}
       onConfirm={noop}
-      onCancel={noop}
+      onCanceled={noop}
+      onAlreadyDecided={noop}
       onBack={noop}
     />,
   ],
@@ -225,19 +232,15 @@ const refreshable: [string, ReactElement][] = [
       onBack={noop}
     />,
   ],
-  [
-    '신청 현황',
-    <JoinRequestsScreen
-      requests={[request]}
-      onCancel={noop}
-      onJoin={noop}
-      onBack={noop}
-    />,
-  ],
+  ['신청 현황', <JoinRequestsScreen onJoin={noop} onBack={noop} />],
 ];
 
+// 조직 참여 화면은 서버 상태를 읽어 API 를 붙여 그린다 (#116). 신청 현황은 빈 목록이다
 async function firstScrollView(element: ReactElement) {
-  const { container } = await render(element);
+  const { container } = await renderWithApi(element, {
+    server: createParticipationServer().server,
+    session: testSession(),
+  });
   const [scroll] = container.queryAll(node => node.type === 'RCTScrollView');
   expect(scroll).toBeDefined();
   return scroll;

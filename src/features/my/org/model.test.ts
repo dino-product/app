@@ -6,8 +6,12 @@ import {
   isCompanyCodeComplete,
   lookupOutcome,
   normalizeCompanyCode,
+  countPendingRequests,
+  hasNewApproval,
+  latestRequestOf,
   pendingRequests,
   sanitizeCompanyCodeInput,
+  upsertRequest,
   type ParticipationRequest,
 } from './model';
 
@@ -89,32 +93,39 @@ describe('회사 코드 규칙', () => {
 });
 
 describe('lookupOutcome', () => {
-  const organization = { organizationId: 'org-9', organizationName: 'Orbit' };
+  const organization = { organizationId: '9', organizationName: 'Orbit' };
+  const how = {
+    companyCode: 'RBT124',
+    requestChannel: 'COMPANY_CODE',
+  } as const;
 
-  it('참여할 수 있는 회사면 찾음이다', () => {
+  it('참여할 수 있는 회사면 찾음이고, 찾은 코드·방법을 담은 참여 대상이 된다', () => {
     expect(
-      lookupOutcome({ ...organization, availability: 'AVAILABLE' }),
-    ).toEqual({ kind: 'found', organization });
+      lookupOutcome({ ...organization, availability: 'AVAILABLE' }, how),
+    ).toEqual({ kind: 'found', target: { ...organization, ...how } });
   });
 
   it('없는 코드(서버 404)면 유효하지 않음이다', () => {
-    expect(lookupOutcome(null)).toEqual({ kind: 'invalid' });
+    expect(lookupOutcome(null, how)).toEqual({ kind: 'invalid' });
   });
 
   it('이미 소속된 회사면 이미 참여다', () => {
     expect(
-      lookupOutcome({ ...organization, availability: 'ALREADY_MEMBER' }),
+      lookupOutcome({ ...organization, availability: 'ALREADY_MEMBER' }, how),
     ).toEqual({ kind: 'alreadyMember', organization });
   });
 
-  it('승인 대기 중인 요청이 있으면 대기 중이다', () => {
+  it('승인 대기 중인 요청이 있으면 대기 중이고 그 요청 id 를 담는다', () => {
     expect(
-      lookupOutcome({
-        ...organization,
-        availability: 'PENDING_REQUEST',
-        pendingRequestId: 'request-3',
-      }),
-    ).toEqual({ kind: 'pending', organization });
+      lookupOutcome(
+        {
+          ...organization,
+          availability: 'PENDING_REQUEST',
+          pendingRequestId: '3',
+        },
+        how,
+      ),
+    ).toEqual({ kind: 'pending', organization, requestId: '3' });
   });
 });
 
@@ -136,20 +147,20 @@ describe('요청 일시', () => {
   });
 });
 
-describe('pendingRequests', () => {
-  const request = (
-    requestId: string,
-    status: ParticipationRequest['status'],
-  ): ParticipationRequest => ({
-    requestId,
-    organizationId: 'org-1',
-    organizationName: 'Orbit',
-    desiredType: 'TECHNICIAN',
-    status,
-    requestChannel: 'COMPANY_CODE',
-    requestedAt: '2026-09-23T01:24:00Z',
-  });
+const request = (
+  requestId: string,
+  status: ParticipationRequest['status'],
+  organizationId = '1',
+): ParticipationRequest => ({
+  requestId,
+  organizationId,
+  organizationName: 'Orbit',
+  desiredType: 'TECHNICIAN',
+  status,
+  requestedAt: '2026-09-23T01:24:00Z',
+});
 
+describe('pendingRequests', () => {
   it('승인 대기 요청만 고른다 (마이페이지 배지 숫자)', () => {
     expect(
       pendingRequests([
@@ -160,5 +171,78 @@ describe('pendingRequests', () => {
         request('e', 'APPROVED'),
       ]).map(item => item.requestId),
     ).toEqual(['a', 'c']);
+  });
+});
+
+describe('countPendingRequests', () => {
+  it('승인 대기 건수를 센다 (마이페이지 신청 현황 배지)', () => {
+    expect(
+      countPendingRequests([
+        request('a', 'PENDING'),
+        request('b', 'REJECTED'),
+        request('c', 'PENDING'),
+      ]),
+    ).toBe(2);
+  });
+});
+
+describe('latestRequestOf', () => {
+  // 서버 목록은 요청 일시순이고, 거절·취소 뒤 다시 보낸 요청은 별개 줄이다
+  it('그 회사의 그 상태 요청 중 가장 나중 것을 고른다', () => {
+    const requests = [
+      request('1', 'REJECTED', '9'),
+      request('2', 'APPROVED', '9'),
+      request('3', 'PENDING', '10'),
+      request('4', 'APPROVED', '9'),
+    ];
+
+    expect(latestRequestOf(requests, '9', 'APPROVED')?.requestId).toBe('4');
+    expect(latestRequestOf(requests, '10', 'PENDING')?.requestId).toBe('3');
+    expect(latestRequestOf(requests, '10', 'APPROVED')).toBeUndefined();
+  });
+});
+
+describe('upsertRequest', () => {
+  it('같은 요청이 있으면 그 자리에서 바꾼다', () => {
+    expect(
+      upsertRequest(
+        [request('1', 'PENDING'), request('7', 'PENDING')],
+        request('7', 'CANCELED'),
+      ),
+    ).toEqual([request('1', 'PENDING'), request('7', 'CANCELED')]);
+  });
+
+  it('없는 요청이면 끝(가장 최근)에 더한다', () => {
+    expect(
+      upsertRequest([request('1', 'PENDING')], request('2', 'PENDING')).map(
+        item => item.requestId,
+      ),
+    ).toEqual(['1', '2']);
+  });
+});
+
+// 참여가 승인되면 소속 조회를 다시 불러야 기사 작업 화면이 새 발주사를 쓴다
+describe('hasNewApproval', () => {
+  it('앞 목록에서 승인이 아니던(대기·없던) 요청이 승인됐으면 참이다', () => {
+    expect(
+      hasNewApproval([request('1', 'PENDING')], [request('1', 'APPROVED')]),
+    ).toBe(true);
+    expect(hasNewApproval([], [request('2', 'APPROVED')])).toBe(true);
+  });
+
+  it('이미 알던 승인·거절·대기만 있으면 거짓이다', () => {
+    const before = [request('1', 'APPROVED'), request('2', 'PENDING')];
+
+    expect(
+      hasNewApproval(before, [
+        request('1', 'APPROVED'),
+        request('2', 'REJECTED'),
+      ]),
+    ).toBe(false);
+  });
+
+  it('앞 목록이 없으면(처음 받음) 승인이 하나라도 있을 때 참이다', () => {
+    expect(hasNewApproval(undefined, [request('1', 'APPROVED')])).toBe(true);
+    expect(hasNewApproval(undefined, [request('1', 'PENDING')])).toBe(false);
   });
 });
