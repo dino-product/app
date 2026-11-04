@@ -37,6 +37,8 @@ export const REFRESH_PATH = '/api/v1/auth/refresh';
 export const REFRESH_BEFORE_EXPIRY_MS = 60 * 1000;
 /** 재발급 응답을 잃었을 때 다시 받기 전에 기다린다. 서버 유예(30초) 안이어야 한다 */
 export const REFRESH_RETRY_DELAY_MS = 1000;
+/** 다시 받는 재발급의 타임아웃. 재발급을 기다리는 요청이 최대 15초 + 1초 + 5초 = 21초 안에 끝난다 */
+export const REFRESH_RETRY_TIMEOUT_MS = 5 * 1000;
 
 const TOKEN_FIELDS = [
   'accessToken',
@@ -102,8 +104,8 @@ export function createSessionManager({
   now = Date.now,
 }: {
   store: TokenStore;
-  /** POST /api/v1/auth/refresh 를 부른다 (공개 요청) */
-  refreshTokens: (refreshToken: string) => Promise<unknown>;
+  /** POST /api/v1/auth/refresh 를 부른다 (공개 요청). timeoutMs 가 없으면 기본 타임아웃 */
+  refreshTokens: (refreshToken: string, timeoutMs?: number) => Promise<unknown>;
   now?: () => number;
 }) {
   // undefined: 아직 저장소를 읽지 않음, null: 세션 없음
@@ -148,23 +150,30 @@ export function createSessionManager({
     try {
       await write().catch(write);
     } finally {
-      listeners.forEach(listener => notifySafely(() => listener(next)));
+      // 저장하는 동안 다른 세션으로 바뀌었으면(늦게 끝난 로그인 저장 뒤의 로그아웃 등) 옛 세션을 알리지 않는다
+      if (current === next) {
+        listeners.forEach(listener => notifySafely(() => listener(next)));
+      }
     }
   }
 
   const ignoreFailure = () => undefined;
 
-  // 재발급 응답을 잃었으면(network·timeout) 1초 뒤 같은 refresh 로 한 번 더 받는다.
+  // 재발급 응답을 잃었으면(network·timeout) 1초 뒤 같은 refresh 로 한 번 더(짧은 타임아웃으로) 받는다.
   // 서버는 회전 뒤 30초 안에 같은 refresh 가 다시 오면 같은 새 토큰을 준다. 그대로 두면 다음 재발급이 옛 refresh 로 세션을 철회시킨다
-  async function requestTokens(refreshToken: string): Promise<unknown> {
+  async function requestTokens(before: Session): Promise<unknown> {
     try {
-      return await refreshTokens(refreshToken);
+      return await refreshTokens(before.refreshToken);
     } catch (error) {
       if (!isLost(error)) {
         throw error;
       }
       await delay(REFRESH_RETRY_DELAY_MS);
-      return refreshTokens(refreshToken);
+      // 기다리는 동안 로그아웃·다른 로그인이 있었으면 다시 보내지 않는다 (renew 가 세션이 바뀐 것을 보고 그만둔다)
+      if (current !== before) {
+        return undefined;
+      }
+      return refreshTokens(before.refreshToken, REFRESH_RETRY_TIMEOUT_MS);
     }
   }
 
@@ -173,9 +182,9 @@ export function createSessionManager({
     if (before === null) {
       return null;
     }
-    let tokens: RefreshedTokens | undefined;
+    let response: unknown;
     try {
-      tokens = pickTokens(await requestTokens(before.refreshToken));
+      response = await requestTokens(before);
     } catch (error) {
       if (isRefreshRejected(error) && current === before) {
         await replace(null).catch(ignoreFailure);
@@ -183,16 +192,17 @@ export function createSessionManager({
       }
       throw error;
     }
+    // 재발급하는 동안 로그아웃·다른 로그인이 있었으면 그 세션을 되살리지도, 다른 세션의 토큰을 주지도 않는다
+    if (current !== before) {
+      return null;
+    }
+    const tokens = pickTokens(response);
     if (tokens === undefined) {
       throw new ApiError({
         kind: 'http',
         status: 200,
         message: ApiErrorMessage.invalidResponse,
       });
-    }
-    // 재발급하는 동안 로그아웃·다른 로그인이 있었으면 그 세션을 되살리지도, 다른 세션의 토큰을 주지도 않는다
-    if (current !== before) {
-      return null;
     }
     const next = { ...before, ...tokens };
     await replace(next).catch(ignoreFailure);

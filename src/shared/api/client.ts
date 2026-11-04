@@ -143,14 +143,15 @@ export function createApiClient({
   async function exchange(
     url: string,
     init: RequestInit,
-    signal?: AbortSignal,
+    signal: AbortSignal | undefined,
+    timeoutMs: number,
   ): Promise<RawResponse> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, REQUEST_TIMEOUT_MS);
+    }, timeoutMs);
     const cancel = () => controller.abort();
     signal?.addEventListener('abort', cancel);
     if (signal?.aborted) {
@@ -192,6 +193,7 @@ export function createApiClient({
     path: string,
     { query, body, signal }: RequestOptions,
     accessToken?: string,
+    timeoutMs: number = REQUEST_TIMEOUT_MS,
   ): Promise<T> {
     if (baseUrl === undefined) {
       throw new ApiError({ kind: 'config', message: ApiErrorMessage.config });
@@ -210,7 +212,7 @@ export function createApiClient({
       body: body === undefined ? undefined : JSON.stringify(body),
     };
 
-    let response = await exchange(url, init, signal);
+    let response = await exchange(url, init, signal, timeoutMs);
     // 503 COMMON-503 (DB 커넥션 대기 초과) 는 Retry-After 와 온다. 그만큼 기다려 한 번만 다시 보낸다
     const wait =
       response.status === 503
@@ -219,7 +221,7 @@ export function createApiClient({
     if (wait !== undefined) {
       // 기다리는 동안 취소되면 다시 보내지 않고 취소로 끝낸다
       await delay(wait, signal);
-      response = await exchange(url, init, signal);
+      response = await exchange(url, init, signal, timeoutMs);
     }
     return unwrap<T>(response);
   }
@@ -227,8 +229,14 @@ export function createApiClient({
   const session = createSessionManager({
     store: tokenStore,
     now,
-    refreshTokens: refreshToken =>
-      send('POST', REFRESH_PATH, { body: { refreshToken } }),
+    refreshTokens: (refreshToken, timeoutMs) =>
+      send(
+        'POST',
+        REFRESH_PATH,
+        { body: { refreshToken } },
+        undefined,
+        timeoutMs,
+      ),
   });
 
   async function request<T = unknown>(

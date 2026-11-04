@@ -14,6 +14,7 @@ import {
   REFRESH_BEFORE_EXPIRY_MS,
   REFRESH_PATH,
   REFRESH_RETRY_DELAY_MS,
+  REFRESH_RETRY_TIMEOUT_MS,
   type LoginResponse,
   type Session,
 } from './session';
@@ -619,6 +620,29 @@ describe('구독자 오류', () => {
 });
 
 describe('저장 실패', () => {
+  it('늦게 끝난 로그인 저장은 그 사이 세션을 끝냈으면 구독자에게 옛 세션을 알리지 않는다', async () => {
+    const { client, tokenStore } = setup(null);
+    let finishSave = () => {};
+    jest.spyOn(tokenStore, 'save').mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finishSave = resolve;
+        }),
+    );
+    const changed = jest.fn();
+    client.session.subscribe(changed);
+
+    const starting = client.session.start({
+      ...testSession({}, NOW),
+      registered: true,
+    });
+    await client.session.end();
+    finishSave();
+    await starting;
+
+    expect(changed.mock.calls).toEqual([[null]]);
+  });
+
   it('재발급 뒤 저장에 실패하면 한 번 다시 저장한다', async () => {
     server
       .on('POST', REFRESH_PATH, ok(renewed))
@@ -680,6 +704,41 @@ describe('재발급 응답 유실', () => {
 
     expect(await result).toEqual({ value: {} });
     expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(2);
+  });
+
+  it('다시 받는 재발급은 5초만 기다린다 (최대 15초 + 1초 + 5초)', async () => {
+    jest.useFakeTimers();
+    server
+      .on('POST', REFRESH_PATH, hang())
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    const result = settle(client.get('/api/v1/auth/me'));
+    await jest.advanceTimersByTimeAsync(
+      REQUEST_TIMEOUT_MS + REFRESH_RETRY_DELAY_MS + REFRESH_RETRY_TIMEOUT_MS,
+    );
+
+    const retried = server.callsTo('POST', REFRESH_PATH)[1];
+    expect(REFRESH_RETRY_TIMEOUT_MS).toBe(5_000);
+    expect(retried.signal?.aborted).toBe(true);
+    expect(await result).toMatchObject({ error: { kind: 'timeout' } });
+  });
+
+  it('다시 받기 전에 로그아웃하면 다시 보내지 않는다', async () => {
+    jest.useFakeTimers();
+    server
+      .on('POST', REFRESH_PATH, networkError(), ok(renewed))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    const result = settle(client.get('/api/v1/auth/me'));
+    await jest.advanceTimersByTimeAsync(10);
+    await client.session.end();
+    await jest.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS);
+    await result;
+
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
+    expect(bearerOf('/api/v1/auth/me')).toEqual([undefined]);
   });
 
   it('5xx 로 답했으면(서버가 처리하지 못함) 다시 받지 않는다', async () => {
