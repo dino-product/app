@@ -18,6 +18,7 @@ import {
   readSignedInStep,
   saveSignedInStep,
 } from '../features/onboarding/login';
+import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { createTestApi } from '../shared/testing/renderWithApi';
@@ -116,6 +117,40 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
     expect(header('내 작업')).toBeOnTheScreen();
     expect(readSignedInStep()).toBe('COMPLETED');
   });
+
+  // 켤 때 확인과 마이페이지는 같은 프로필 요청을 함께 기다린다(#115). 마이페이지가 포커스를 잃어 구독을 끊으면
+  // 그 요청이 취소되는데, 켤 때 확인은 그 취소로 끝나지 않고 다시 받아 가입 단계를 맞춘다
+  it.each([
+    ['탭을 건드리지 않으면', [] as string[]],
+    ['마이 탭을 열어 둔 채여도', ['마이']],
+    ['마이 탭을 열었다 다른 탭으로 옮겨도', ['마이', '홈']],
+  ])(
+    '켤 때 확인을 기다리는 동안 %s 늦게 온 결과(약관 재동의)를 반영한다',
+    async (_, tabs) => {
+      const pending = deferred();
+      const first = await renderSignedInApp();
+      first.server.on('GET', PROFILE_PATH, () => pending.response);
+      await first.unmount();
+      const app = await renderApp({
+        server: first.server,
+        session: first.tokenStore.current,
+      });
+      await waitFor(() =>
+        expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2),
+      );
+
+      for (const name of tabs) {
+        await userEvent.press(screen.getByRole('tab', { name }));
+      }
+      await act(async () => pending.answer(ok(accountProfile('TERMS'))));
+
+      expect(
+        await screen.findByRole('header', {
+          name: '서비스 이용을 위해 동의가 필요해요',
+        }),
+      ).toBeOnTheScreen();
+    },
+  );
 
   it('마지막 단계가 PROFILE 이면 프로필 등록으로 연다', async () => {
     await renderSignedInApp({ nextStep: 'PROFILE' });
@@ -358,7 +393,7 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
   it('확인을 기다리는 동안 프로필을 저장해 약관 단계로 갔으면 늦게 온 옛 단계(PROFILE)로 끌려가지 않는다', async () => {
     const pending = deferred();
     saveSignedInStep('PROFILE');
-    await renderApp({
+    const app = await renderApp({
       server: accountServer({ nextStep: 'PROFILE' }).on(
         'GET',
         PROFILE_PATH,
@@ -377,6 +412,14 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
 
     expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
     expect(readSignedInStep()).toBe('TERMS');
+    // 마이페이지가 쓰는 프로필 캐시도 늦게 온 옛 프로필로 덮이지 않는다 (#115)
+    await waitFor(() =>
+      expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
+        nextStep: 'TERMS',
+        name: '박기사',
+      }),
+    );
+    expect(app.queryClient.isFetching({ queryKey: profileQueryKey })).toBe(0);
   });
 });
 
