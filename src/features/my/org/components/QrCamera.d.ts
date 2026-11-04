@@ -10,7 +10,7 @@ export type QrCameraProps = {
   isActive: boolean;
   /** 한 프레임에서 읽은 QR 값들. QR 이 보이는 동안 프레임마다 부른다 */
   onScanned: (values: string[]) => void;
-  /** 카메라를 열지 못했거나 인식에 실패했다 (권한 없음·장치 없음 등) */
+  /** 카메라를 열지 못했다 (권한 없음·장치 없음 등). 한 프레임의 인식 실패는 알리지 않는다 */
   onError: (error: Error) => void;
   style?: StyleProp<ViewStyle>;
 };

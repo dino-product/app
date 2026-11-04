@@ -38,9 +38,15 @@ export function useCompanyCheck({
   onAlreadyMember,
 }: CompanyCheckHandlers) {
   const lookup = useLookupCompany();
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [notice, setNoticeState] = useState<Notice | null>(null);
   const [checking, setChecking] = useState(false);
+  // 다시 그리기 전에도 바로 알 수 있게 ref 로도 든다 (isBusy)
   const checkingRef = useRef(false);
+  const noticeRef = useRef<Notice | null>(null);
+  const setNotice = (next: Notice | null) => {
+    noticeRef.current = next;
+    setNoticeState(next);
+  };
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -108,5 +114,7 @@ export function useCompanyCheck({
     notice,
     showNotice: setNotice,
     closeNotice: () => setNotice(null),
+    /** 확인하는 중이거나 안내가 떠 있는지. 다시 그리기를 기다리지 않는다 (카메라 프레임마다 부르는 QR 인식이 쓴다) */
+    isBusy: () => checkingRef.current || noticeRef.current !== null,
   };
 }

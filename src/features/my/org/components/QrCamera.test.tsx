@@ -120,13 +120,15 @@ describe('QrCamera', () => {
       expect(props.onScanned).not.toHaveBeenCalled();
     });
 
-    it('바코드 인식이 실패하면 onError 로 알린다', async () => {
+    // ML Kit 은 프레임마다 인식하고 실패도 프레임마다 알린다. 카메라는 그대로 켜져 있고 다음 프레임에서 다시 읽는다
+    it('한 프레임의 바코드 인식 실패는 카메라 오류로 알리지 않고 다음 프레임을 읽는다', async () => {
       const props = await renderCamera(AndroidQrCamera);
-      const error = new Error('ml kit');
 
-      await failBarcodeScanner(error);
+      await failBarcodeScanner(new Error('ml kit'));
+      await emitScan('barcodes', [{ format: 'qr-code', rawValue: 'RBT124' }]);
 
-      expect(props.onError).toHaveBeenCalledWith(error);
+      expect(props.onError).not.toHaveBeenCalled();
+      expect(props.onScanned).toHaveBeenCalledWith(['RBT124']);
     });
   });
 });
