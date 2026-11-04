@@ -9,8 +9,8 @@ import { createTestApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
 import { countPendingRequests } from './model';
 import { OrganizationErrorCode } from './participationApi';
+import { membershipsQueryKey } from '../memberships';
 import {
-  membershipsKey,
   participationRequestsKey,
   useCancelParticipationRequest,
   useFetchParticipationRequests,
@@ -71,9 +71,9 @@ describe('useParticipationRequests', () => {
   // 승인되면 소속(GET /api/v1/memberships, #114)이 바뀐다. 기사 작업 화면이 새 발주사를 쓰게 소속 조회를 다시 부른다
   it('다시 받은 목록에 새로 승인된 요청이 있으면 소속 조회를 무효로 만든다', async () => {
     const { wrapper, participation, queryClient } = setup();
-    queryClient.setQueryData(membershipsKey, []);
+    queryClient.setQueryData(membershipsQueryKey, []);
     const membershipsInvalidated = () =>
-      queryClient.getQueryState(membershipsKey)?.isInvalidated;
+      queryClient.getQueryState(membershipsQueryKey)?.isInvalidated;
     const { result } = await renderHook(() => useParticipationRequests(), {
       wrapper,
     });
@@ -88,7 +88,7 @@ describe('useParticipationRequests', () => {
 
   it('승인이 새로 생기지 않았으면 소속 조회는 그대로다', async () => {
     const { wrapper, participation, queryClient } = setup();
-    queryClient.setQueryData(membershipsKey, []);
+    queryClient.setQueryData(membershipsQueryKey, []);
     const { result } = await renderHook(() => useParticipationRequests(), {
       wrapper,
     });
@@ -97,7 +97,7 @@ describe('useParticipationRequests', () => {
     participation.decide({ status: 'REJECTED' }, 1);
     await act(() => result.current.refetch());
 
-    expect(queryClient.getQueryState(membershipsKey)?.isInvalidated).toBe(
+    expect(queryClient.getQueryState(membershipsQueryKey)?.isInvalidated).toBe(
       false,
     );
   });

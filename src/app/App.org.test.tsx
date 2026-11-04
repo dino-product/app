@@ -18,10 +18,8 @@ import {
   OrganizationErrorCode,
   PARTICIPATION_REQUESTS_PATH,
 } from '../features/my/org/participationApi';
-import {
-  membershipsKey,
-  participationRequestsKey,
-} from '../features/my/org/participationQueries';
+import { membershipsQueryKey } from '../features/my/memberships';
+import { participationRequestsKey } from '../features/my/org/participationQueries';
 import {
   EXISTING_REQUESTS,
   participationOf,
@@ -314,12 +312,12 @@ describe('App — 조직 참여', () => {
     // 승인되면 소속이 바뀐다. 기사 작업 화면이 쓰는 소속 조회(#114)를 다시 부르게 한다
     it('신청 현황을 새로 받아 승인을 확인하면 소속 조회를 무효로 만든다', async () => {
       const app = await openMyPage();
-      app.queryClient.setQueryData(membershipsKey, []);
+      app.queryClient.setQueryData(membershipsQueryKey, []);
       await userEvent.press(button('신청 현황, 2건'));
       await screen.findByRole('header', { name: '승인 대기 2' });
-      expect(app.queryClient.getQueryState(membershipsKey)?.isInvalidated).toBe(
-        false,
-      );
+      expect(
+        app.queryClient.getQueryState(membershipsQueryKey)?.isInvalidated,
+      ).toBe(false);
       participationOf(app.server).decide({ status: 'APPROVED' }, 2);
 
       await fireEvent(screen.getByTestId('join-requests-list'), 'refresh');
@@ -327,9 +325,9 @@ describe('App — 조직 참여', () => {
       expect(
         await screen.findByRole('header', { name: '승인 대기 1' }),
       ).toBeOnTheScreen();
-      expect(app.queryClient.getQueryState(membershipsKey)?.isInvalidated).toBe(
-        true,
-      );
+      expect(
+        app.queryClient.getQueryState(membershipsQueryKey)?.isInvalidated,
+      ).toBe(true);
     });
 
     it('마이페이지 신청 현황 배지는 서버 목록을 받지 못하면 두지 않는다', async () => {

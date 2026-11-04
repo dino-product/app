@@ -31,10 +31,14 @@ export function createWorkRepository(
   }
   return createHttpWorkRepository({
     api,
-    // 소속 목록은 마이페이지와 같은 캐시를 쓰고, 받은 적이 있으면 다시 부르지 않는다 (로그아웃·계정 전환 때 비운다)
+    // 소속 목록은 마이페이지·조직 참여와 같은 캐시를 쓰고, 받은 적이 있으면 다시 부르지 않는다 (로그아웃·계정 전환 때 비운다).
+    // 무효가 되면(조직 참여가 새 승인을 봄, #116) 다음 조회 때 다시 받는다
     organizationId: async () => {
       const organizationId = technicianOrganizationId(
-        await queryClient.ensureQueryData(membershipsQuery(api)),
+        await queryClient.fetchQuery({
+          ...membershipsQuery(api),
+          staleTime: Infinity,
+        }),
       );
       if (organizationId === undefined) {
         throw new NoTechnicianOrganizationError();

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../../shared/api';
-import { MEMBERSHIPS_PATH } from '../../my/memberships';
+import { MEMBERSHIPS_PATH, membershipsQueryKey } from '../../my/memberships';
 import { createFakeServer, fail, ok } from '../../../shared/testing/fakeServer';
 import { createTestApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
@@ -313,6 +313,46 @@ describe('createWorkRepository', () => {
     });
 
     await repository.getWorkDetail(10).catch(() => undefined);
+
+    await expect(repository.getWorkDetail(10)).resolves.toMatchObject({
+      id: '10',
+    });
+    expect(api.server.callsTo('GET', MEMBERSHIPS_PATH)).toHaveLength(2);
+  });
+
+  // 조직 참여(#116)는 새로 승인된 요청을 보면 소속 조회를 무효로 만든다. 승인 전에 받아 둔 소속으로 계속 막히지 않게 한다
+  it("'http' 는 소속 조회가 무효가 되면(참여 승인) 다음 조회 때 소속을 다시 받는다", async () => {
+    const api = createTestApi({
+      session: testSession(),
+      server: createFakeServer()
+        .on(
+          'GET',
+          MEMBERSHIPS_PATH,
+          ok({ memberships: [] }),
+          ok({
+            memberships: [
+              {
+                organizationId: 7,
+                organizationName: '오르빗 설비',
+                role: 'TECHNICIAN',
+                status: 'ACTIVE',
+              },
+            ],
+          }),
+        )
+        .on(
+          'GET',
+          '/api/v1/organizations/7/works/10',
+          ok(workDetailResponse()),
+        ),
+    });
+    const repository = createWorkRepository('http', {
+      api: api.client,
+      queryClient: api.queryClient,
+    });
+    await repository.getWorkDetail(10).catch(() => undefined);
+
+    await api.queryClient.invalidateQueries({ queryKey: membershipsQueryKey });
 
     await expect(repository.getWorkDetail(10)).resolves.toMatchObject({
       id: '10',

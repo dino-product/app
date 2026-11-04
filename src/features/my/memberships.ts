@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query';
 import type { ApiClient } from '../../shared/api';
 
 // 내 소속 목록 (GET /api/v1/memberships, api-spec.md O5). 작업 API 경로의 발주사(활성 기사 소속)를 정한다.
-// 캐시 키·조회는 membershipsQuery 하나로 두어 마이페이지(#115)가 같은 캐시를 쓸 수 있게 한다
+// 캐시 키·조회는 membershipsQuery 하나로 두어 마이페이지(#115)가 같은 캐시를 쓰고, 조직 참여(#116)가 새 승인을 보면 이 키를 무효로 한다
 
 export type MemberRoleCode = 'OWNER' | 'STAFF' | 'TECHNICIAN';
 
