@@ -298,7 +298,7 @@ function OnboardingFlow() {
 
 // 약관 동의부터면 그 아래에 프로필 등록을 두어(initial: false), 뒤로 가면 입력해 둔 값을 고칠 수 있다
 function onboardingStart(
-  nextStep: NextStep | undefined,
+  nextStep: NextStep | null,
 ): RootStackParamList['Onboarding'] {
   return nextStep === 'TERMS'
     ? { screen: 'TermsAgreement', initial: false }
@@ -329,10 +329,10 @@ function MainTabs() {
 
 // 로그인 상태에 따라 화면 묶음을 바꾼다 (React Navigation 인증 흐름). 묶음이 바뀌면 이전 묶음의 화면이 스택에서 모두 빠져,
 // 메인에 들어간 뒤에는 뒤로 가기로 온보딩·로그인에, 로그아웃한 뒤에는 메인에 돌아가지 않는다.
-// 세션 복원 중·복원 실패는 바깥(SessionGate)이 내비게이터 대신 그린다
+// 켤 때는 기기에 남긴 가입 단계로 첫 렌더부터 묶음을 고르고, 뒤에서 확인한 단계가 다르면 그 묶음으로 바꾼다 (#113)
 export function RootNavigator() {
   const stackOptions = useStackOptions();
-  const { phase, profile } = useAuth();
+  const { phase, nextStep } = useAuth();
   return (
     <RootStack.Navigator
       screenOptions={stackOptions}
@@ -342,9 +342,9 @@ export function RootNavigator() {
         <RootStack.Screen
           name="Onboarding"
           component={OnboardingFlow}
-          initialParams={onboardingStart(profile?.nextStep)}
+          initialParams={onboardingStart(nextStep)}
         />
-      ) : phase !== 'main' ? (
+      ) : phase === 'signedOut' ? (
         <RootStack.Screen
           name="Login"
           component={LoginRoute}

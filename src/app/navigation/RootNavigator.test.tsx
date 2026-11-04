@@ -10,32 +10,25 @@ import { ApiProvider } from '../../shared/api';
 import { createTestApi } from '../../shared/testing/renderWithApi';
 import { AppStateProvider } from '../AppStateProvider';
 import { AuthProvider } from '../AuthProvider';
-import { SessionGate } from '../SessionGate';
-import {
-  accountServer,
-  signedInSession,
-  waitForSessionRestore,
-} from '../testing';
+import { saveSignedInStep } from '../../features/onboarding/login';
+import { accountServer, signedInSession } from '../testing';
 import { RootNavigator } from './RootNavigator';
 import type { RootStackParamList } from './types';
 
-// 가입을 마친 계정으로 로그인해 둔 상태(가짜 서버와 저장된 세션)에서 내비게이터를 그린다. 복원이 끝날 때까지 기다린다
-async function renderSignedIn(navigator: ReactNode) {
+// 가입을 마친 계정으로 로그인해 둔 기기(가짜 서버, 저장된 세션과 가입 단계 표식)에서 내비게이터를 그린다
+function renderSignedIn(navigator: ReactNode) {
+  saveSignedInStep('COMPLETED');
   const api = createTestApi({
     server: accountServer(),
     session: signedInSession(),
   });
-  const view = await render(
+  return render(
     <ApiProvider client={api.client} queryClient={api.queryClient}>
       <AuthProvider>
-        <AppStateProvider>
-          <SessionGate>{navigator}</SessionGate>
-        </AppStateProvider>
+        <AppStateProvider>{navigator}</AppStateProvider>
       </AuthProvider>
     </ApiProvider>,
   );
-  await waitForSessionRestore();
-  return view;
 }
 
 type Route = {

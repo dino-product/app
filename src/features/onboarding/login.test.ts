@@ -17,11 +17,14 @@ import { createTestApi } from '../../shared/testing/renderWithApi';
 import { testSession } from '../../shared/testing/session';
 import { appStorage } from '../../shared/storage/appStorage';
 import {
+  forgetSignedInStep,
   isLoginCancelled,
   logIn,
   logOut,
   readRecentLoginMethod,
+  readSignedInStep,
   saveRecentLoginMethod,
+  saveSignedInStep,
 } from './login';
 
 // 로그인 흐름 (#113): nonce → SDK → 서버 로그인 → 세션 저장 → 프로필 조회. SDK 는 jest/loginSdk.js 의 목이다
@@ -232,6 +235,16 @@ describe('logIn — 카카오', () => {
     expect(kakaoLogin).not.toHaveBeenCalled();
   });
 
+  it('nonce 응답 모양이 다르면 SDK 를 열지 않고 던진다', async () => {
+    const server = loginServer().on('POST', PATHS.KAKAO.nonce, ok({}));
+    const api = createTestApi({ server });
+
+    const error = await logIn(api.client, 'KAKAO').catch(caught => caught);
+
+    expect(isApiError(error)).toBe(true);
+    expect(kakaoLogin).not.toHaveBeenCalled();
+  });
+
   it('로그인 응답 모양이 다르면 세션을 세우지 않고 던진다', async () => {
     const server = loginServer().on(
       'POST',
@@ -406,5 +419,44 @@ describe('최근 로그인 방식', () => {
 
     expect(readRecentLoginMethod()).toBeNull();
     expect(appStorage.contains('auth.recentLoginMethod')).toBe(false);
+  });
+});
+
+// 켤 때 첫 렌더가 바로 그릴 화면 (#113 낙관적 복원). 토큰이 아니라 로그인 여부와 마지막으로 확인한 가입 단계만 둔다
+describe('로그인한 기기의 가입 단계 표식', () => {
+  it('없으면 로그아웃 상태다', () => {
+    expect(readSignedInStep()).toBeNull();
+  });
+
+  it('저장한 가입 단계를 동기로 다시 읽고, 지우면 로그아웃 상태다', () => {
+    saveSignedInStep('TERMS');
+    expect(readSignedInStep()).toBe('TERMS');
+
+    saveSignedInStep('COMPLETED');
+    expect(readSignedInStep()).toBe('COMPLETED');
+
+    forgetSignedInStep();
+    expect(readSignedInStep()).toBeNull();
+  });
+
+  it('모르는 값이 남아 있으면 로그아웃 상태로 보고 지운다', () => {
+    appStorage.set('auth.signedInStep', 'DONE');
+
+    expect(readSignedInStep()).toBeNull();
+    expect(appStorage.contains('auth.signedInStep')).toBe(false);
+  });
+
+  it('세션 토큰은 기기 저장소(MMKV)에 두지 않는다', async () => {
+    const api = createTestApi({ server: loginServer() });
+
+    await logIn(api.client, 'KAKAO');
+    saveSignedInStep('PROFILE');
+
+    const stored = appStorage
+      .getAllKeys()
+      .map(key => appStorage.getString(key) ?? '')
+      .join(' ');
+    expect(stored).not.toContain('server-access');
+    expect(stored).not.toContain('server-refresh');
   });
 });

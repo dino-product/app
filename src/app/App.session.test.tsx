@@ -1,4 +1,11 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import {
   fail,
@@ -7,6 +14,10 @@ import {
   ok,
   type FakeResponse,
 } from '../shared/testing/fakeServer';
+import {
+  readSignedInStep,
+  saveSignedInStep,
+} from '../features/onboarding/login';
 import { createTestApi } from '../shared/testing/renderWithApi';
 import { readJson } from '../shared/storage/appStorage';
 import App from './App';
@@ -21,7 +32,8 @@ import {
   signedInSession,
 } from './testing';
 
-// 세션 (#113): 다시 켜면 저장된 세션으로 프로필을 조회해 가입 단계 화면으로 연다. 만료·로그아웃이면 로그인으로 간다.
+// 세션 (#113): 다시 켜면 마지막으로 확인한 가입 단계 화면을 바로 그리고, 뒤에서 저장된 세션으로 프로필을 조회해 맞춘다.
+// 만료·로그아웃이면 로그인으로 간다.
 // "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같다)
 const header = (name: string) => screen.queryByRole('header', { name });
 const LOGIN_TITLE = '오늘의 현장, 한눈에. Orbit';
@@ -50,20 +62,10 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('App — 세션 복원 (#113)', () => {
-  it('저장된 세션이 있으면 프로필을 조회하고, 가입을 마친 계정이면 메인으로 바로 연다', async () => {
-    const app = await renderSignedInApp();
-
-    expect(header('내 작업')).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: '홈' })).toBeSelected();
-    expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1);
-    expect(
-      app.server.callsTo('GET', PROFILE_PATH)[0].headers.Authorization,
-    ).toBe('Bearer access-1');
-  });
-
-  it('프로필을 조회하는 동안에는 로그인 화면도 메인도 아니라 첫 화면 배경만 보인다', async () => {
+describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
+  it('로그인해 둔 기기는 첫 렌더부터 마지막으로 확인한 단계(메인)를 그리고, 뒤에서 세션으로 프로필을 조회한다', async () => {
     const pending = deferred();
+    saveSignedInStep('COMPLETED');
     const server = accountServer().on(
       'GET',
       PROFILE_PATH,
@@ -73,26 +75,28 @@ describe('App — 세션 복원 (#113)', () => {
 
     await render(<App api={api} />);
 
-    expect(screen.getByTestId('session-restoring')).toBeOnTheScreen();
+    // 조회가 끝나기 전에도 로그인 화면이 아니라 메인이다
+    expect(header('내 작업')).toBeOnTheScreen();
     expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
-    expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
+    expect(server.callsTo('GET', PROFILE_PATH)).toHaveLength(1);
+    expect(server.callsTo('GET', PROFILE_PATH)[0].headers.Authorization).toBe(
+      'Bearer access-1',
+    );
 
     await act(async () => pending.answer(ok(accountProfile('COMPLETED'))));
 
-    expect(
-      await screen.findByRole('header', { name: '내 작업' }),
-    ).toBeOnTheScreen();
-    expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
+    expect(header('내 작업')).toBeOnTheScreen();
+    expect(readSignedInStep()).toBe('COMPLETED');
   });
 
-  it('가입 단계가 PROFILE 이면 프로필 등록으로 연다', async () => {
+  it('마지막 단계가 PROFILE 이면 프로필 등록으로 연다', async () => {
     await renderSignedInApp({ nextStep: 'PROFILE' });
 
     expect(header('프로필 등록')).toBeOnTheScreen();
     expect(screen.getByLabelText('이름')).toHaveDisplayValue('');
   });
 
-  it('가입 단계가 TERMS 면 약관 동의로 열고, 뒤로 가면 입력해 둔 값이 채워진 프로필 등록이다', async () => {
+  it('마지막 단계가 TERMS 면 약관 동의로 열고, 뒤로 가면 서버에 입력해 둔 값이 채워진 프로필 등록이다', async () => {
     await renderSignedInApp({ nextStep: 'TERMS' });
 
     expect(header('서비스 이용을 위해 동의가 필요해요')).toBeOnTheScreen();
@@ -103,62 +107,133 @@ describe('App — 세션 복원 (#113)', () => {
     expect(screen.getByLabelText('연락처')).toHaveDisplayValue('010-1234-5678');
   });
 
-  it('저장된 세션이 없으면 서버를 부르지 않고 로그인 화면으로 연다', async () => {
-    const app = await renderApp();
+  it.each([
+    ['COMPLETED', 'TERMS', '서비스 이용을 위해 동의가 필요해요'],
+    ['PROFILE', 'COMPLETED', '내 작업'],
+    ['TERMS', 'PROFILE', '프로필 등록'],
+    ['PROFILE', 'TERMS', '서비스 이용을 위해 동의가 필요해요'],
+  ] as const)(
+    '마지막 단계(%s)와 서버 단계(%s)가 다르면 서버 단계 화면(%s)으로 보내고 표식을 바꾼다',
+    async (last, current, title) => {
+      saveSignedInStep(last);
+      await renderApp({
+        server: accountServer({ nextStep: current }),
+        session: signedInSession(),
+      });
+
+      expect(
+        await screen.findByRole('header', { name: title }),
+      ).toBeOnTheScreen();
+      expect(readSignedInStep()).toBe(current);
+    },
+  );
+
+  it('로그인 표식이 없으면 Keychain 에 세션이 남아 있어도 서버를 부르지 않고 로그인 화면으로 연다', async () => {
+    const app = await renderApp({ session: signedInSession() });
 
     expect(header(LOGIN_TITLE)).toBeOnTheScreen();
     expect(app.server.calls).toHaveLength(0);
   });
 
-  it('재발급이 AUTH-009 면 기기 세션을 지우고 로그인 화면으로 연다', async () => {
-    const server = accountServer().on(
-      'POST',
-      REFRESH_PATH,
-      fail(401, 'AUTH-009'),
-    );
+  it('표식은 있는데 저장된 세션이 없으면 표식을 지우고 로그인 화면으로 간다', async () => {
+    saveSignedInStep('COMPLETED');
+    const app = await renderApp();
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(readSignedInStep()).toBeNull();
+    expect(app.server.calls).toHaveLength(0);
+  });
+
+  it('재발급이 AUTH-009 면 로그인 화면으로 가 다시 로그인해 달라고 알리고, 기기 세션과 표식을 지운다', async () => {
+    const alert = spyAlert();
+    saveSignedInStep('COMPLETED');
     const app = await renderApp({
-      server,
+      server: accountServer().on('POST', REFRESH_PATH, fail(401, 'AUTH-009')),
       // access token 이 만료돼 프로필 조회 전에 재발급한다
       session: signedInSession({
         accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString(),
       }),
     });
 
-    expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(alert).toHaveBeenCalledWith(
+      '다시 로그인해 주세요',
+      expect.any(String),
+    );
     expect(app.tokenStore.current).toBeNull();
+    expect(readSignedInStep()).toBeNull();
     expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(0);
   });
 
-  it('복원이 네트워크 오류로 실패하면 연결할 수 없다고 알리고, 다시 시도하면 복원한다', async () => {
-    const server = accountServer();
-    server.on(
-      'GET',
-      PROFILE_PATH,
-      networkError(),
-      ok(accountProfile('COMPLETED')),
+  it('확인이 네트워크 오류면 마지막으로 확인한 화면(메인)에 머물고 알림을 띄우지 않는다', async () => {
+    const alert = spyAlert();
+    saveSignedInStep('COMPLETED');
+    const app = await renderApp({
+      server: accountServer().on('GET', PROFILE_PATH, networkError()),
+      session: signedInSession(),
+    });
+
+    await waitFor(() =>
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
     );
-    await renderApp({ server, session: signedInSession() });
-
-    expect(header('연결할 수 없어요')).toBeOnTheScreen();
-    expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
-
-    await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
-
-    expect(
-      await screen.findByRole('header', { name: '내 작업' }),
-    ).toBeOnTheScreen();
+    expect(header('내 작업')).toBeOnTheScreen();
+    expect(alert).not.toHaveBeenCalled();
+    expect(readSignedInStep()).toBe('COMPLETED');
+    expect(app.tokenStore.current).not.toBeNull();
   });
 
-  it('서버가 이 계정을 모르면(탈퇴 등 PROFILE-002) 기기 세션을 지우고 로그인 화면으로 연다', async () => {
-    const server = accountServer().on(
-      'GET',
+  it('확인이 네트워크 오류여도 가입 단계 화면에 머물러, 그 화면에서 다시 저장하면 이어 간다', async () => {
+    const alert = spyAlert();
+    saveSignedInStep('PROFILE');
+    const app = await renderApp({
+      server: accountServer({ nextStep: 'PROFILE' }),
+      session: signedInSession(),
+    });
+    app.server.on('GET', PROFILE_PATH, networkError());
+    app.server.on(
+      'PUT',
       PROFILE_PATH,
-      fail(404, 'PROFILE-002'),
+      networkError(),
+      ok(accountProfile('TERMS')),
     );
-    const app = await renderApp({ server, session: signedInSession() });
+    await fireEvent.changeText(screen.getByLabelText('이름'), '박기사');
+    await fireEvent.changeText(screen.getByLabelText('연락처'), '01012345678');
 
-    expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '완료' }));
+    await waitFor(() =>
+      expect(alert).toHaveBeenCalledWith(
+        '프로필을 저장하지 못했어요',
+        '잠시 후 다시 시도해 주세요.',
+      ),
+    );
+    expect(header('프로필 등록')).toBeOnTheScreen();
+
+    await userEvent.press(screen.getByRole('button', { name: '완료' }));
+
+    expect(
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      }),
+    ).toBeOnTheScreen();
+    expect(readSignedInStep()).toBe('TERMS');
+  });
+
+  it('서버가 이 계정을 모르면(탈퇴 등 PROFILE-002) 기기 세션과 표식을 지우고 로그인 화면으로 간다', async () => {
+    saveSignedInStep('COMPLETED');
+    const app = await renderApp({
+      server: accountServer().on('GET', PROFILE_PATH, fail(404, 'PROFILE-002')),
+      session: signedInSession(),
+    });
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
     expect(app.tokenStore.current).toBeNull();
+    expect(readSignedInStep()).toBeNull();
   });
 });
 
@@ -182,6 +257,7 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       REFRESH_PATH,
       fail(401, 'AUTH-009'),
     );
+    saveSignedInStep('COMPLETED');
     const app = await renderApp({
       server,
       session: signedInSession({
@@ -206,6 +282,7 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       expect.any(String),
     );
     expect(app.tokenStore.current).toBeNull();
+    expect(readSignedInStep()).toBeNull();
     expect(app.queryClient.getQueryData(['notifications'])).toBeUndefined();
     // 저장한 화면은 로그인 화면뿐이라 다시 켜도 앞 계정의 작업 상세가 열리지 않는다
     const saved = readJson(NAVIGATION_STATE_KEY, value => value);
@@ -230,6 +307,23 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       }),
     ).toBeOnTheScreen();
     expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
+  });
+
+  it('PROFILE-005 뒤 프로필을 다시 받지 못하면 지금 화면에 머문다', async () => {
+    const server = accountServer().on(
+      'GET',
+      '/api/v1/memberships',
+      fail(403, 'PROFILE-005'),
+    );
+    const app = await renderSignedInApp({ server });
+    server.on('GET', PROFILE_PATH, networkError());
+
+    await fetchMemberships(app);
+
+    await waitFor(() =>
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(2),
+    );
+    expect(header('내 작업')).toBeOnTheScreen();
   });
 
   it('약관을 다시 동의하면 회사 찾기 대신 메인으로 돌아간다', async () => {
@@ -278,6 +372,7 @@ describe('App — 로그아웃 (#113)', () => {
     ]);
     expect(app.tokenStore.current).toBeNull();
     expect(app.queryClient.getQueryData(['notifications'])).toBeUndefined();
+    expect(readSignedInStep()).toBeNull();
   });
 
   it('로그아웃 API 가 실패해도 기기 세션을 지우고 로그인 화면으로 간다', async () => {

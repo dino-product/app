@@ -1,6 +1,6 @@
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
 import type { ProfileInput } from '../../features/my/model';
 import { decideParticipationMock } from '../../features/my/org/mockData';
@@ -19,15 +19,17 @@ import {
 import { useOnboarding } from '../../features/onboarding/OnboardingProvider';
 import {
   agreeToTerms,
+  currentAccountId,
   ProfileErrorCode,
   saveProfile,
+  type NextStep,
 } from '../../features/onboarding/profileApi';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { LoginScreen } from '../../features/onboarding/screens/LoginScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
 import { isApiError, useApiClient } from '../../shared/api';
-import { useAuth } from '../AuthProvider';
+import { useAccountProfile, useAuth } from '../AuthProvider';
 import { useFocusTitleOnOpen } from './routes';
 import type { OnboardingScreenProps } from './types';
 
@@ -56,10 +58,12 @@ export function LoginRoute() {
       methods={loginMethodsFor(Platform.OS)}
       recentMethod={recentMethod}
       // 로그인하면 루트가 가입 단계(nextStep) 또는 메인으로 화면 묶음을 바꾼다. 진행 중에 다시 눌러도 겹치지 않는다
-      onLogin={async method => {
-        if ((await logIn(method)) === 'failed') {
-          Alert.alert('로그인하지 못했어요', '잠시 후 다시 시도해 주세요.');
-        }
+      onLogin={method => {
+        logIn(method).then(outcome => {
+          if (outcome === 'failed') {
+            Alert.alert('로그인하지 못했어요', '잠시 후 다시 시도해 주세요.');
+          }
+        });
       }}
     />
   );
@@ -90,51 +94,74 @@ const profileSaveFailure = (error: unknown): [string, string] =>
       ]
     : ['프로필을 저장하지 못했어요', '잠시 후 다시 시도해 주세요.'];
 
+// 켠 뒤 뒤에서 확인한 가입 단계가 마지막 값과 달라지면(다른 기기에서 진행 등) 가입 단계 안에서 그 화면으로 옮긴다.
+// 처음 그릴 때는 부르지 않는다 (그때는 루트가 마지막 단계로 연다)
+function useStepChanged(
+  onChange: (previous: NextStep | null, next: NextStep | null) => void,
+) {
+  const { nextStep } = useAuth();
+  const shown = useRef(nextStep);
+  useEffect(() => {
+    const previous = shown.current;
+    shown.current = nextStep;
+    if (previous !== nextStep) {
+      onChange(previous, nextStep);
+    }
+  }, [nextStep, onChange]);
+}
+
 export function ProfileRegisterRoute({
   navigation,
 }: OnboardingScreenProps<'ProfileRegister'>) {
   const api = useApiClient();
-  const { profile, updateProfile, signOut } = useAuth();
+  const { updateProfile, signOut } = useAuth();
+  const profile = useAccountProfile();
   const titleRef = useFocusTitleOnOpen(navigation);
   useBackToLogin(signOut);
+  useStepChanged(
+    useCallback(
+      (previous, next) => {
+        if (
+          previous === 'PROFILE' &&
+          next === 'TERMS' &&
+          navigation.isFocused()
+        ) {
+          navigation.navigate('TermsAgreement');
+        }
+      },
+      [navigation],
+    ),
+  );
+  // 본인 accountId 는 기기 세션에서 읽는다 (켠 직후 서버 확인 전에도 저장할 수 있다)
   const save = useMutation({
-    mutationFn: ({
-      accountId,
-      input,
-    }: {
-      accountId: number;
-      input: ProfileInput;
-    }) => saveProfile(api, accountId, input),
+    mutationFn: async (input: ProfileInput) =>
+      saveProfile(api, await currentAccountId(api), input),
   });
-  if (!profile) {
-    return null;
-  }
+  // 가입을 마치지 않고 다시 로그인했으면 서버에 입력해 둔 값으로 채운다
+  const entered =
+    profile?.name && profile.phoneNumber
+      ? { name: profile.name, phoneNumber: profile.phoneNumber }
+      : undefined;
 
   return (
     <ProfileRegisterScreen
+      // 켠 직후 뒤에서 확인한 프로필이 늦게 오면 그 값으로 다시 채운다
+      key={entered ? 'entered' : 'empty'}
       titleRef={titleRef}
-      // 가입을 마치지 않고 다시 로그인했으면 입력해 둔 값으로 채운다
-      initialProfile={
-        profile.name !== null && profile.phoneNumber !== null
-          ? { name: profile.name, phoneNumber: profile.phoneNumber }
-          : undefined
-      }
+      initialProfile={entered}
       submitting={save.isPending}
       // 가입 단계 첫 화면이라 뒤로 가면 가입을 그만두고 로그아웃한다 (로그인 화면)
       onBack={() => {
         signOut();
       }}
       onSubmit={input =>
-        save.mutate(
-          { accountId: profile.accountId, input },
-          {
-            onSuccess: saved => {
-              updateProfile(saved);
-              navigation.navigate('TermsAgreement');
-            },
-            onError: error => Alert.alert(...profileSaveFailure(error)),
+        save.mutate(input, {
+          onSuccess: saved => {
+            updateProfile(saved);
+            navigation.navigate('TermsAgreement');
           },
-        )
+          onError: error => Alert.alert(...profileSaveFailure(error)),
+        })
       }
     />
   );
@@ -144,22 +171,29 @@ export function TermsAgreementRoute({
   navigation,
 }: OnboardingScreenProps<'TermsAgreement'>) {
   const api = useApiClient();
-  const { profile, agreedToTerms } = useAuth();
+  const { agreedToTerms } = useAuth();
+  const profile = useAccountProfile();
   const titleRef = useFocusTitleOnOpen(navigation);
+  useStepChanged(
+    useCallback(
+      (previous, next) => {
+        if (
+          previous === 'TERMS' &&
+          next === 'PROFILE' &&
+          navigation.isFocused()
+        ) {
+          navigation.popTo('ProfileRegister');
+        }
+      },
+      [navigation],
+    ),
+  );
   const agree = useMutation({
-    mutationFn: ({
-      accountId,
-      agreement,
-    }: {
-      accountId: number;
-      agreement: TermsAgreement;
-    }) => agreeToTerms(api, accountId, agreement),
+    mutationFn: async (agreement: TermsAgreement) =>
+      agreeToTerms(api, await currentAccountId(api), agreement),
   });
-  if (!profile) {
-    return null;
-  }
   // 가입을 마친 계정이 약관 개정으로 다시 동의하는 경우(PROFILE-005)는 회사 참여 없이 메인으로 돌아간다
-  const firstSignUp = profile.status !== 'ACTIVE';
+  const firstSignUp = profile?.status !== 'ACTIVE';
 
   return (
     <TermsAgreementScreen
@@ -167,20 +201,17 @@ export function TermsAgreementRoute({
       submitting={agree.isPending}
       onBack={() => navigation.goBack()}
       onSignUp={agreement =>
-        agree.mutate(
-          { accountId: profile.accountId, agreement },
-          {
-            onSuccess: saved => {
-              agreedToTerms(saved, firstSignUp);
-              // 소속이 없는 새 사용자라 회사 코드 입력으로 간다 (Spec_프로필 입력 화면)
-              if (firstSignUp) {
-                navigation.navigate('CompanyFind');
-              }
-            },
-            onError: () =>
-              Alert.alert('가입하지 못했어요', '잠시 후 다시 시도해 주세요.'),
+        agree.mutate(agreement, {
+          onSuccess: saved => {
+            agreedToTerms(saved, firstSignUp);
+            // 소속이 없는 새 사용자라 회사 코드 입력으로 간다 (Spec_프로필 입력 화면)
+            if (firstSignUp) {
+              navigation.navigate('CompanyFind');
+            }
           },
-        )
+          onError: () =>
+            Alert.alert('가입하지 못했어요', '잠시 후 다시 시도해 주세요.'),
+        })
       }
     />
   );

@@ -11,7 +11,6 @@ import {
   expectMinTouchTarget,
 } from '../../../shared/testing/touchTarget';
 import { LoginScreen } from './LoginScreen';
-import { SessionRestoreFailedScreen } from './SessionRestoreFailedScreen';
 import { TermsAgreementScreen } from './TermsAgreementScreen';
 
 // 새 버튼·체크박스의 터치 영역 (iOS 44pt, Android 48dp). 보이는 크기는 Figma 그대로 두고 hitSlop 으로 넓힌다
@@ -30,15 +29,6 @@ describe('온보딩 터치 영역', () => {
         height: 56,
       });
     }
-  });
-
-  // 세션 복원 실패 (#113). CTA L 이라 높이 56 이다
-  it('세션 복원 실패의 다시 시도 버튼은 높이 56 이라 그대로 충분하다', async () => {
-    await render(<SessionRestoreFailedScreen onRetry={jest.fn()} />);
-
-    expectMinTouchTarget(screen.getByRole('button', { name: '다시 시도' }), {
-      height: 56,
-    });
   });
 
   describe('약관 동의', () => {

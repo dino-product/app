@@ -87,6 +87,15 @@ export function toTermsAgreementRequest(agreement: TermsAgreement) {
   };
 }
 
+/** 로그인한 본인 accountId. 기기 세션(Keychain)에서 읽는다. 세션이 없으면 던진다 */
+export async function currentAccountId(api: ApiClient): Promise<number> {
+  const session = await api.session.getSession();
+  if (session === null) {
+    throw new Error('로그인 세션이 없다');
+  }
+  return session.accountId;
+}
+
 /** GET /api/v1/profiles/{accountId} */
 export async function fetchProfile(
   api: ApiClient,

@@ -10,7 +10,7 @@ import {
 import { isRecord } from '../../shared/isRecord';
 import { appStorage } from '../../shared/storage/appStorage';
 import type { LoginMethod } from './model';
-import { fetchProfile, type AccountProfile } from './profileApi';
+import { fetchProfile, type AccountProfile, type NextStep } from './profileApi';
 
 // 카카오·Apple 로그인 (#113, 백엔드 §2.1). 사용법: `const result = await logIn(api, 'KAKAO')`
 // nonce 발급 → SDK 로그인 → 서버 로그인 → 세션 저장 → 프로필 조회. 가입 단계는 로그인 응답에 없어 프로필의 nextStep 으로 본다.
@@ -188,4 +188,32 @@ export function saveRecentLoginMethod(method: LoginMethod) {
 /** 탈퇴하면 최근 로그인 표시도 지운다 */
 export function forgetRecentLoginMethod() {
   appStorage.remove(RECENT_LOGIN_KEY);
+}
+
+// 로그인한 기기의 표식과 마지막으로 서버에서 확인한 가입 단계 (#113). 켤 때 첫 렌더가 동기로 읽어 로그인 / 가입 단계 / 메인을
+// 바로 그린다(세션 확인은 뒤에서 한다). 비밀이 아닌 값만 두고 토큰은 두지 않는다 (토큰은 Keychain 세션에만)
+const SIGNED_IN_STEP_KEY = 'auth.signedInStep';
+const NEXT_STEPS: readonly string[] = ['PROFILE', 'TERMS', 'COMPLETED'];
+
+/** 로그인한 기기면 마지막으로 확인한 가입 단계, 아니면 null */
+export function readSignedInStep(): NextStep | null {
+  const value = appStorage.getString(SIGNED_IN_STEP_KEY);
+  if (value === undefined) {
+    return null;
+  }
+  if (!NEXT_STEPS.includes(value)) {
+    appStorage.remove(SIGNED_IN_STEP_KEY);
+    return null;
+  }
+  return value as NextStep;
+}
+
+/** 로그인·프로필 입력·약관 동의·세션 확인으로 가입 단계를 알게 될 때마다 남긴다 */
+export function saveSignedInStep(step: NextStep) {
+  appStorage.set(SIGNED_IN_STEP_KEY, step);
+}
+
+/** 로그아웃·세션 만료·탈퇴 */
+export function forgetSignedInStep() {
+  appStorage.remove(SIGNED_IN_STEP_KEY);
 }

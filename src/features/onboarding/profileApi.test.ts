@@ -5,6 +5,7 @@ import { testSession } from '../../shared/testing/session';
 import { noTermsAgreed, toggleAllTerms, toggleTerm } from './model';
 import {
   agreeToTerms,
+  currentAccountId,
   fetchProfile,
   parseProfile,
   profilePath,
@@ -118,6 +119,18 @@ describe('toTermsAgreementRequest', () => {
 
 describe('프로필 API', () => {
   const signedIn = () => testSession({ accountId: 7 });
+
+  it('본인 accountId 는 기기 세션에서 읽는다', async () => {
+    const { client } = createTestApi({ session: signedIn() });
+
+    await expect(currentAccountId(client)).resolves.toBe(7);
+  });
+
+  it('세션이 없으면 accountId 를 읽지 못하고 던진다', async () => {
+    const { client } = createTestApi();
+
+    await expect(currentAccountId(client)).rejects.toThrow();
+  });
 
   it('경로는 본인 accountId 로 만든다', () => {
     expect(profilePath(7)).toBe(PATH);

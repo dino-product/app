@@ -13,7 +13,6 @@ import { AppStateProvider } from './AppStateProvider';
 import { AuthProvider } from './AuthProvider';
 import { useNavigationPersistence } from './navigation/persistence';
 import { RootNavigator } from './navigation/RootNavigator';
-import { SessionGate } from './SessionGate';
 
 // 전환 중 화면 뒤가 기본 테마의 회색으로 비치지 않게 흰 배경을 쓴다
 const navigationTheme: Theme = {
@@ -23,7 +22,7 @@ const navigationTheme: Theme = {
 
 // 화면 상태는 API 를 붙이기 전까지 AppStateProvider 가 목 데이터로 들고 있다.
 // ApiProvider 는 서버 API 클라이언트와 서버 상태 캐시(React Query)를 준다 (#110).
-// 로그인 상태는 AuthProvider 가 서버 세션으로 정하고(#113), 켤 때 세션을 복원하는 동안은 SessionGate 가 첫 화면 배경을 그린다
+// 로그인 상태는 AuthProvider 가 서버 세션으로 정한다(#113). 켤 때는 기기에 남긴 가입 단계로 바로 그리고 뒤에서 세션을 확인한다
 export default function App({
   api,
 }: {
@@ -40,17 +39,15 @@ export default function App({
       <ApiProvider client={api?.client} queryClient={api?.queryClient}>
         <AuthProvider>
           <AppStateProvider>
-            <SessionGate>
-              <NavigationContainer
-                ref={persistence.ref}
-                theme={navigationTheme}
-                initialState={persistence.initialState}
-                onReady={persistence.onReady}
-                onStateChange={persistence.onStateChange}
-              >
-                <RootNavigator />
-              </NavigationContainer>
-            </SessionGate>
+            <NavigationContainer
+              ref={persistence.ref}
+              theme={navigationTheme}
+              initialState={persistence.initialState}
+              onReady={persistence.onReady}
+              onStateChange={persistence.onStateChange}
+            >
+              <RootNavigator />
+            </NavigationContainer>
           </AppStateProvider>
         </AuthProvider>
       </ApiProvider>

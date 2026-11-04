@@ -470,12 +470,22 @@ describe('App — 온보딩', () => {
 
     it('로그인 중에 다시 누르거나 다른 방식을 눌러도 요청이 겹치지 않고 처음 누른 방식으로 로그인한다', async () => {
       const app = await launch();
-      const kakao = button('카카오로 시작하기');
-      const apple = button('Apple로 시작하기');
+      // nonce 응답을 붙잡아 첫 로그인이 진행 중인 채로 다시 누른다
+      let answerNonce: () => void = () => {};
+      const nonceAnswered = new Promise<void>(resolve => {
+        answerNonce = resolve;
+      });
+      app.server.on('POST', KAKAO_NONCE_PATH, () =>
+        nonceAnswered.then(() =>
+          ok({ nonce: 'nonce-1', expiresAt: '2026-11-04T00:05:00Z' }),
+        ),
+      );
 
-      await fireEvent.press(kakao);
-      await fireEvent.press(kakao);
-      await fireEvent.press(apple);
+      await fireEvent.press(button('카카오로 시작하기'));
+      await fireEvent.press(button('카카오로 시작하기'));
+      await fireEvent.press(button('Apple로 시작하기'));
+      expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+      await act(async () => answerNonce());
 
       expect(
         await screen.findByRole('header', { name: '프로필 등록' }),

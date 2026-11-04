@@ -80,7 +80,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState(signedIn);
   if (signedIn !== account) {
     setAccount(signedIn);
-    if (signedIn === null) {
+    if (!signedIn) {
       setStarted(false);
       setSubmissions({});
       reset();

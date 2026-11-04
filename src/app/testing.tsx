@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
+import { saveSignedInStep } from '../features/onboarding/login';
 import type { NextStep } from '../features/onboarding/profileApi';
 import type { Session } from '../shared/api';
 import {
@@ -11,7 +12,7 @@ import { createTestApi } from '../shared/testing/renderWithApi';
 import { testSession } from '../shared/testing/session';
 import App from './App';
 
-// 앱 전체 테스트 도구 (#113). 로그인 상태는 가짜 서버와 저장된 세션으로 만든다. 사용법:
+// 앱 전체 테스트 도구 (#113). 로그인 상태는 가짜 서버와 기기에 남은 값(Keychain 세션, MMKV 가입 단계 표식)으로 만든다. 사용법:
 //   await renderSignedInApp()                          가입을 마친 계정으로 로그인해 둔 앱 (메인)
 //   await renderApp({ server: accountServer({ nextStep: 'PROFILE' }) })  로그아웃 상태에서 로그인부터
 //   await relaunch(app)                                같은 기기(저장된 세션·MMKV)로 앱을 다시 켠다
@@ -113,12 +114,6 @@ type AppOptions = {
   now?: () => number;
 };
 
-/** 세션 복원(첫 화면 배경)이 끝날 때까지 기다린다 */
-export const waitForSessionRestore = () =>
-  waitFor(() =>
-    expect(screen.queryByTestId('session-restoring')).not.toBeOnTheScreen(),
-  );
-
 export async function renderApp({
   server = accountServer(),
   session = null,
@@ -126,16 +121,19 @@ export async function renderApp({
 }: AppOptions = {}) {
   const api = createTestApi({ server, session, now });
   const view = await render(<App api={api} />);
-  await waitForSessionRestore();
   return { ...view, ...api };
 }
 
-/** 가입을 마친 계정으로 로그인해 둔 앱. 켜면 세션을 복원해 메인으로 연다 */
+/**
+ * 로그인해 둔 기기. Keychain 에 세션이, MMKV 에 마지막으로 확인한 가입 단계가 남아 있다.
+ * 켜면 그 단계 화면(COMPLETED 면 메인)을 바로 그리고 뒤에서 서버 프로필로 확인한다
+ */
 export function renderSignedInApp({
   nextStep = 'COMPLETED',
   server,
   now,
 }: { nextStep?: NextStep; server?: FakeServer; now?: () => number } = {}) {
+  saveSignedInStep(nextStep);
   return renderApp({
     server: accountServer({ nextStep, server }),
     session: signedInSession(),
