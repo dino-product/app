@@ -10,12 +10,29 @@ const infoPlist = fs
   .replace(/<!--[\s\S]*?-->/g, '');
 const rnConfig = require(path.join(ROOT, 'react-native.config.js'));
 
+const plistString = key =>
+  infoPlist.match(
+    new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`),
+  )?.[1];
+
+/** src 아래 앱 코드(테스트 제외) 전부 */
+function appSources(dir = path.join(ROOT, 'src')) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return appSources(file);
+    }
+    return /\.tsx?$/.test(entry.name) &&
+      !/\.(test|perf-test)\./.test(entry.name)
+      ? [fs.readFileSync(file, 'utf8')]
+      : [];
+  });
+}
+
 describe('QR 인식 카메라 설정 (#108)', () => {
   // 앱 지역 설정이 ko 뿐이라(#22) 이 문구가 그대로 권한 대화상자에 나온다. 카메라를 쓰는 일을 모두 적어야 심사에서 거절되지 않는다
   it('iOS 카메라 권한 문구에 완료 보고 사진과 QR 인식을 모두 적는다', () => {
-    const text = infoPlist.match(
-      /<key>NSCameraUsageDescription<\/key>\s*<string>([^<]*)<\/string>/,
-    )?.[1];
+    const text = plistString('NSCameraUsageDescription');
 
     expect(text).toMatch(/사진/);
     expect(text).toMatch(/QR/);
@@ -27,5 +44,23 @@ describe('QR 인식 카메라 설정 (#108)', () => {
     expect(
       rnConfig.dependencies['react-native-vision-camera-barcode-scanner'],
     ).toEqual({ platforms: { ios: null } });
+  });
+
+  // vision-camera 5.2.4 iOS 는 녹화용 마이크 코드(AVCaptureDevice.requestAccess(for: .audio), 마이크 입력 추가)를 늘 컴파일하고,
+  // 빼는 빌드 플래그(podspec·Podfile 변수)가 없다. 문구가 없으면 App Store 업로드가 Missing Purpose String(ITMS-90683)으로 거절될 수 있다
+  it('vision-camera 가 참조하는 마이크 권한 문구를 한국어로 둔다', () => {
+    const text = plistString('NSMicrophoneUsageDescription');
+
+    expect(text).toMatch(/[가-힣]/);
+    expect(text).toMatch(/마이크/);
+  });
+
+  // 그래서 마이크 권한 대화상자는 뜨지 않는다. 녹음이 필요해지면 문구와 함께 다시 본다
+  it('앱 코드는 마이크 권한을 묻거나 소리를 녹음하지 않는다', () => {
+    const sources = appSources().join('\n');
+
+    expect(sources).not.toMatch(
+      /requestMicrophonePermission|useMicrophonePermission|enableAudio/,
+    );
   });
 });
