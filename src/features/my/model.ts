@@ -80,7 +80,8 @@ export type NotificationTarget =
   | { kind: 'work'; organizationId: string; workId: string }
   | { kind: 'participationRejected'; requestId: string };
 
-const WORK_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+/** 작업 화면으로 여는 알림 종류 (알림센터·푸시 공용, #118) */
+export const WORK_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
   'WORK_ASSIGNED',
   'WORK_RESCHEDULED',
   'WORK_REASSIGNED_AWAY',

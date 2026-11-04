@@ -15,6 +15,8 @@ buildscript {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        // 푸시 (#118). google-services.json 이 있을 때만 app 에 건다 (app/build.gradle)
+        classpath("com.google.gms:google-services:4.5.0")
     }
 }
 

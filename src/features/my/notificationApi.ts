@@ -56,7 +56,8 @@ export type NotificationsResponse = {
 const optionalId = (value: number | null) =>
   value === null ? undefined : String(value);
 
-const isKnownType = (type: string): type is NotificationType =>
+/** 기사 앱이 아는 알림 종류인지 (알림센터 응답·푸시 data 공용, #118) */
+export const isNotificationType = (type: string): type is NotificationType =>
   Object.prototype.hasOwnProperty.call(notificationTypeLabels, type);
 
 /**
@@ -66,7 +67,7 @@ const isKnownType = (type: string): type is NotificationType =>
 export function toAppNotification(
   response: NotificationResponse,
 ): AppNotification | null {
-  if (!isKnownType(response.type)) {
+  if (!isNotificationType(response.type)) {
     return null;
   }
   return {

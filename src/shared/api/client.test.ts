@@ -485,6 +485,69 @@ describe('떼어 둔 토큰으로 로그아웃', () => {
   });
 });
 
+// #118: 로그아웃 직전의 푸시 기기 해제도 떼어 둔 access token 으로 보낸다 (로그아웃 서버 요청보다 먼저)
+describe('떼어 둔 토큰으로 보내기', () => {
+  const PUSH_DEVICE_PATH = '/api/v1/push-devices/7';
+
+  it('세션과 상관없이 받은 access token(Bearer)을 붙여 한 번 보낸다', async () => {
+    server.on('DELETE', PUSH_DEVICE_PATH, noContent());
+    const client = createApiClient({
+      baseUrl: server.baseUrl,
+      fetch: server.fetch,
+      tokenStore: createMemoryTokenStore(null),
+    });
+
+    await expect(
+      client.detachedRequest('DELETE', PUSH_DEVICE_PATH, 'detached-access'),
+    ).resolves.toBeUndefined();
+
+    expect(server.calls).toEqual([
+      expect.objectContaining({
+        method: 'DELETE',
+        path: PUSH_DEVICE_PATH,
+        headers: expect.objectContaining({
+          Authorization: 'Bearer detached-access',
+        }),
+      }),
+    ]);
+  });
+
+  it('토큰이 거절돼도(COMMON-404) 재발급해 다시 보내지 않는다 (세션은 이미 떼어 냈다)', async () => {
+    server.on('DELETE', PUSH_DEVICE_PATH, fail(404, ApiErrorCode.notFound));
+
+    await expect(
+      clientFor().detachedRequest(
+        'DELETE',
+        PUSH_DEVICE_PATH,
+        'detached-access',
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(server.calls).toHaveLength(1);
+  });
+
+  it('503 Retry-After 여도 다시 보내지 않고, 짧은 타임아웃(5초)으로 끝낸다', async () => {
+    server.on(
+      'DELETE',
+      PUSH_DEVICE_PATH,
+      fail(503, ApiErrorCode.unavailable, { headers: { 'Retry-After': '1' } }),
+      hang(),
+    );
+    const client = clientFor();
+
+    await expect(
+      client.detachedRequest('DELETE', PUSH_DEVICE_PATH, 'detached-access'),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(server.calls).toHaveLength(1);
+
+    jest.useFakeTimers();
+    const result = settle(
+      client.detachedRequest('DELETE', PUSH_DEVICE_PATH, 'detached-access'),
+    );
+    await jest.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS);
+    expect(await result).toMatchObject({ error: { kind: 'timeout' } });
+  });
+});
+
 describe('설정', () => {
   it('API 주소가 없으면(Release 에 값 없음) 보내지 않고 kind config 로 던진다', async () => {
     const client = createApiClient({

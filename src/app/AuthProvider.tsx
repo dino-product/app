@@ -22,6 +22,7 @@ import {
   saveSignedInStep,
 } from '../features/onboarding/login';
 import { isCheckingWithdrawn } from '../features/my/withdrawalApi';
+import { forgetPushDevice } from '../features/push/push';
 import type { LoginMethod } from '../features/onboarding/model';
 import { clearAllRejectDrafts } from '../features/schedule/rejectDraft';
 import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
@@ -430,9 +431,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signingOut.current ??= (async () => {
         epoch.current += 1;
         forgetSignedInStep();
-        await (tellServer
-          ? logOut(api)
-          : api.session.end().catch(() => undefined));
+        if (tellServer) {
+          await logOut(api);
+        } else {
+          // 탈퇴: 서버가 이 계정의 푸시 기기도 지웠다. 해제 요청 없이 기기 쪽(id·계정·FCM 토큰)만 정리한다 (#118)
+          forgetPushDevice();
+          await api.session.end().catch(() => undefined);
+        }
         resetToSignedOut();
       })().finally(() => {
         signingOut.current = null;

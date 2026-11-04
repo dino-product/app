@@ -431,6 +431,39 @@ describe('logOut', () => {
     );
   });
 
+  // #118: 로그아웃 서버 요청 전에 푸시 기기를 해제한다. 해제가 어떻게 실패해도 로그아웃은 보낸다
+  it('푸시 기기 해제를 먼저 보내고 그 다음 로그아웃을 보낸다', async () => {
+    appStorage.set('push.deviceId', 7);
+    const server = createFakeServer()
+      .on('DELETE', '/api/v1/push-devices/7', noContent())
+      .on('POST', LOGOUT_PATH, noContent());
+    const api = createTestApi({ server, session: testSession() });
+
+    await logOut(api.client);
+
+    await waitFor(() =>
+      expect(server.calls.map(call => `${call.method} ${call.path}`)).toEqual([
+        'DELETE /api/v1/push-devices/7',
+        `POST ${LOGOUT_PATH}`,
+      ]),
+    );
+  });
+
+  it('푸시 기기 해제가 예외를 던져도(기기 저장소 오류) 서버 로그아웃은 보낸다', async () => {
+    jest.spyOn(appStorage, 'getNumber').mockImplementation(() => {
+      throw new Error('storage');
+    });
+    const server = createFakeServer().on('POST', LOGOUT_PATH, noContent());
+    const api = createTestApi({ server, session: testSession() });
+
+    await expect(logOut(api.client)).resolves.toBeUndefined();
+
+    await waitFor(() =>
+      expect(server.callsTo('POST', LOGOUT_PATH)).toHaveLength(1),
+    );
+    jest.restoreAllMocks();
+  });
+
   it('세션이 없으면 서버를 부르지 않는다', async () => {
     const server = createFakeServer();
     const api = createTestApi({ server });

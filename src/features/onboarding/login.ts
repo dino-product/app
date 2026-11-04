@@ -8,6 +8,7 @@ import {
 } from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
 import { appStorage } from '../../shared/storage/appStorage';
+import { unregisterPushDevice } from '../push/push';
 import type { LoginMethod } from './model';
 import { fetchProfile, type AccountProfile, type NextStep } from './profileApi';
 
@@ -200,13 +201,18 @@ export async function logIn(
 
 /**
  * 기기 세션을 먼저 지우고, 떼어 둔 access token(Bearer)과 refresh token 으로 서버 세션을 끝낸다(둘 다 보내야 둘 다 폐기된다).
+ * 그 전에 같은 access token 으로 푸시 기기를 해제한다(#118, 로그아웃 뒤엔 토큰이 무효라 못 부른다. 실패해도 로그아웃은 보낸다).
  * 서버 응답은 기다리지 않는다(짧은 타임아웃, 실패해도 무시). 지운 뒤에는 다른 요청의 재발급 거절이 만료로 알려지지 않는다
  */
 export async function logOut(api: ApiClient): Promise<void> {
   const session = await api.session.getSession().catch(() => null);
   const ended = api.session.end().catch(() => undefined);
   if (session !== null) {
-    api.logOut(session).catch(() => undefined);
+    // 해제는 짧은 타임아웃(5초)으로 끝나고, 어떻게 실패해도(저장소 예외 포함) 로그아웃은 보낸다
+    unregisterPushDevice(api, session.accessToken)
+      .catch(() => undefined)
+      .then(() => api.logOut(session))
+      .catch(() => undefined);
   }
   await ended;
 }

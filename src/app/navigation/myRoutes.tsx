@@ -28,13 +28,15 @@ import {
   withdrawalEligibilityQuery,
   withdrawalMutationKey,
 } from '../../features/my/withdrawalApi';
-import { workDetailQuery } from '../../features/work/data/queries';
-import type { WorkStatusCode } from '../../features/work/data/status';
 import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvider';
 import { useApiClient } from '../../shared/api';
 import { APP_VERSION } from '../appVersion';
 import { useAuth } from '../AuthProvider';
 import { openWebPage } from '../externalLinks';
+import {
+  notificationWorkScreen,
+  type NotificationWorkScreen,
+} from './notificationWork';
 import { useFocusTitleOnOpen } from './routes';
 import {
   HOME_INITIAL_ROUTE,
@@ -145,10 +147,8 @@ const workDetailParams = ({ organizationId, workId }: WorkTarget) => ({
 });
 
 /**
- * 작업 알림을 연다. 수락 대기(배정됨) 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 간다 (홈의 작업 열기와 같은 규칙).
- * 알림에는 작업 상태가 없어 상세를 먼저 받아 고른다. 작업 상세는 같은 캐시 키(작업·발주사)라 받은 상세로 바로 그린다
- * (요청 상세는 발주사 없는 키라 다시 받는다).
- * 미리 받기는 다시 시도하지 않는다. 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다.
+ * 작업 알림을 연다. 수락 대기(배정됨)면 요청 상세, 나머지는 작업 상세 — 상세를 먼저 받아 고른다(notificationWorkScreen, 푸시와 같은 규칙).
+ * 작업 상세는 같은 캐시 키(작업·발주사)라 받은 상세로 바로 그린다 (요청 상세는 발주사 없는 키라 다시 받는다).
  * 받는 동안 다시 누르면 무시하고, 그사이 다른 화면으로 갔으면 열지 않는다
  */
 function useOpenNotificationWork({
@@ -169,26 +169,21 @@ function useOpenNotificationWork({
         return;
       }
       opening.current = true;
-      let status: WorkStatusCode | undefined;
+      let screen: NotificationWorkScreen;
       try {
-        const work = await queryClient.fetchQuery({
-          ...workDetailQuery(
-            repository,
-            Number(target.workId),
-            Number(target.organizationId),
-          ),
-          retry: false,
-        });
-        status = work.workStatus;
-      } catch {
-        // 실패 이유는 작업 상세가 보인다
+        screen = await notificationWorkScreen(
+          queryClient,
+          repository,
+          Number(target.workId),
+          Number(target.organizationId),
+        );
       } finally {
         opening.current = false;
       }
       if (!isFocused()) {
         return;
       }
-      if (status === 'PENDING_ACCEPT') {
+      if (screen === 'request') {
         openRequest(target.workId);
       } else {
         openDetail(target);
