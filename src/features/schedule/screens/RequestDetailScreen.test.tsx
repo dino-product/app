@@ -1,4 +1,10 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import {
+  act,
+  render,
+  screen,
+  userEvent,
+  within,
+} from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../../work/mockData';
@@ -110,6 +116,64 @@ describe('RequestDetailScreen', () => {
 
     expect(screen.getByTestId('work-content-card')).toHaveStyle({
       backgroundColor: colors.gray[50],
+    });
+  });
+  // #104: Figma 응답 필요 작업 상세 `2714-12494` 의 현장 사진 섹션
+  describe('현장 사진 섹션', () => {
+    it('제목 "현장 사진" 은 카드 바깥에 있고 카드 안에 주소와 사진 칸이 있다', async () => {
+      await renderRequest();
+
+      const title = screen.getByRole('header', { name: '현장 사진' });
+      const card = screen.getByTestId('site-photo-card');
+      expect(within(card).queryByText('현장 사진')).not.toBeOnTheScreen();
+      expect(title).toBeOnTheScreen();
+      expect(within(card).getByText('주소')).toBeOnTheScreen();
+      expect(within(card).getByText(workDetail.address)).toBeOnTheScreen();
+      expect(within(card).getAllByTestId('photo-thumb')).toHaveLength(
+        workDetail.requestImages.length,
+      );
+    });
+
+    it('카드는 흰 배경에 Gray100 테두리, 사진 칸은 110×110 이다', async () => {
+      await renderRequest();
+
+      expect(screen.getByTestId('site-photo-card')).toHaveStyle({
+        backgroundColor: colors.white[100],
+        borderColor: colors.gray[100],
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 20,
+        gap: 16,
+      });
+      expect(screen.getAllByTestId('photo-thumb')[0]).toHaveStyle({
+        width: 110,
+        height: 110,
+        borderRadius: 10,
+      });
+    });
+
+    it('보기 전용이다 (추가·삭제 버튼과 "n/6" 이 없다)', async () => {
+      await renderRequest();
+
+      expect(
+        screen.queryByRole('button', { name: /사진.*(추가|삭제)/ }),
+      ).not.toBeOnTheScreen();
+      expect(screen.queryByText(/\/6/)).not.toBeOnTheScreen();
+    });
+
+    it('작업 내용 카드 안에는 작업 요청 이미지 줄이 없다', async () => {
+      await renderRequest();
+
+      expect(screen.queryByText('작업 요청 이미지')).not.toBeOnTheScreen();
+    });
+
+    it('사진이 없어도 섹션은 주소와 함께 남는다', async () => {
+      await renderRequest({ work: { ...workDetail, requestImages: [] } });
+
+      expect(
+        screen.getByRole('header', { name: '현장 사진' }),
+      ).toBeOnTheScreen();
+      expect(screen.queryAllByTestId('photo-thumb')).toHaveLength(0);
     });
   });
 });

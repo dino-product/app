@@ -17,10 +17,13 @@ export function WorkInfoSections({
   work,
   onCall,
   onNavigate,
+  showRequestImages = true,
 }: {
   work: WorkDetail;
   onCall: (phone: string) => void;
   onNavigate: (address: string) => void;
+  /** false 면 카드 아래 "작업 요청 이미지" 줄을 그리지 않는다 (응답 필요 상세는 현장 사진 섹션을 따로 둔다) */
+  showRequestImages?: boolean;
 }) {
   return (
     <>
@@ -124,21 +127,23 @@ export function WorkInfoSections({
             <Text variant="Body/M/SemiBold">{formatPrice(work.price)}</Text>
           </View>
         </InfoCard>
-        <View style={styles.requestImages}>
-          <View style={styles.priceRow}>
-            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-              작업 요청 이미지
-            </Text>
-            <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-              {`${work.requestImages.length}장`}
-            </Text>
+        {showRequestImages && (
+          <View style={styles.requestImages}>
+            <View style={styles.priceRow}>
+              <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+                작업 요청 이미지
+              </Text>
+              <Text variant="Caption/S/Medium" color={colors.gray[600]}>
+                {`${work.requestImages.length}장`}
+              </Text>
+            </View>
+            <View style={styles.thumbs}>
+              {work.requestImages.map(uri => (
+                <PhotoThumb key={uri} uri={uri} />
+              ))}
+            </View>
           </View>
-          <View style={styles.thumbs}>
-            {work.requestImages.map(uri => (
-              <PhotoThumb key={uri} uri={uri} />
-            ))}
-          </View>
-        </View>
+        )}
       </Section>
     </>
   );

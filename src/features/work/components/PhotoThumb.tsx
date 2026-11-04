@@ -6,30 +6,42 @@ import { colors } from '../../../shared/design-system';
 // 열리지 않는 사진: 이어 쓰기(#34)로 복원했는데 촬영·앨범의 임시 파일을 OS 가 지운 경우 등
 const PLACEHOLDER_SCHEMES = ['mock://', 'fake-photo://'];
 
-export function PhotoThumb({ uri }: { uri: string }) {
+// site 는 응답 필요 작업 상세의 현장 사진 칸이다 (Figma 2714-12573: 110×110, 모서리 10)
+export function PhotoThumb({
+  uri,
+  variant = 'default',
+}: {
+  uri: string;
+  variant?: 'default' | 'site';
+}) {
+  const size = variant === 'site' ? styles.siteThumb : styles.thumb;
   // 열리지 않은 URI 를 기억한다. 사진 목록은 위치를 key 로 써서 앞 사진을 지우면 이 자리에 다음 사진이 온다
   const [failedUri, setFailedUri] = useState<string | null>(null);
   if (
     PLACEHOLDER_SCHEMES.some(scheme => uri.startsWith(scheme)) ||
     uri === failedUri
   ) {
-    return (
-      <View testID="photo-thumb" style={[styles.thumb, styles.placeholder]} />
-    );
+    return <View testID="photo-thumb" style={[size, styles.placeholder]} />;
   }
   return (
     <Image
       testID="photo-thumb"
       source={{ uri }}
-      style={styles.thumb}
+      style={size}
       onError={() => setFailedUri(uri)}
     />
   );
 }
 
 export const THUMB_SIZE = 88;
+const SITE_THUMB_SIZE = 110;
 
 const styles = StyleSheet.create({
   thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: 8 },
+  siteThumb: {
+    width: SITE_THUMB_SIZE,
+    height: SITE_THUMB_SIZE,
+    borderRadius: 10,
+  },
   placeholder: { backgroundColor: colors.gray[200] },
 });
