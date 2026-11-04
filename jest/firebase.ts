@@ -149,4 +149,13 @@ export function refreshPushToken(token: string) {
   state.tokenListeners.forEach(listener => listener(token));
 }
 
+/** 지금 붙어 있는 메시지 구독 수 (받기·열기·토큰 갱신) */
+export function pushListenerCount() {
+  return (
+    state.messageListeners.size +
+    state.openedListeners.size +
+    state.tokenListeners.size
+  );
+}
+
 export { AuthorizationStatus };

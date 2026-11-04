@@ -1,3 +1,4 @@
+import { Alert, AppState, type AppStateStatus } from 'react-native';
 import {
   act,
   render,
@@ -27,6 +28,7 @@ import {
   fail,
   noContent,
   ok,
+  type FakeResponse,
 } from '../shared/testing/fakeServer';
 import App from './App';
 import {
@@ -71,6 +73,56 @@ async function registered(app: {
     expect(app.server.callsTo('POST', PUSH_DEVICES_PATH)).toHaveLength(1),
   );
   await waitFor(() => expect(readPushDeviceId()).toBe(7));
+}
+
+// 실서버 작업 저장소(#114)로 켠 앱. 작업 상세는 소속 목록의 활성 기사 계약(발주사 7)으로 부른다
+const workPath = (workId: number) => `/api/v1/organizations/7/works/${workId}`;
+const httpServer = () =>
+  accountServer({ server: pushServer() }).on(
+    'GET',
+    '/api/v1/memberships',
+    ok({
+      memberships: [
+        {
+          organizationId: 1,
+          organizationName: '오빗 서비스',
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+        {
+          organizationId: 5,
+          organizationName: '그린 테크',
+          role: 'TECHNICIAN',
+          status: 'DEACTIVATED',
+        },
+        {
+          organizationId: 7,
+          organizationName: '한빛 설비',
+          role: 'TECHNICIAN',
+          status: 'ACTIVE',
+        },
+      ],
+    }),
+  );
+async function renderHttpApp(server: ReturnType<typeof createFakeServer>) {
+  saveSignedInStep('COMPLETED');
+  const api = createTestApi({ server, session: signedInSession() });
+  const workRepository = createWorkRepository('http', {
+    api: api.client,
+    queryClient: api.queryClient,
+  });
+  await render(<App api={{ ...api, workRepository }} />);
+  await registered({ server });
+  return api;
+}
+
+// 응답을 테스트가 정한 때에 준다
+function deferred() {
+  let answer: (response: FakeResponse) => void = () => {};
+  const response = new Promise<FakeResponse>(resolve => {
+    answer = resolve;
+  });
+  return { response, answer };
 }
 
 async function logout() {
@@ -296,55 +348,21 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
   // 페이로드에 organizationId 가 없다(#112 G8). 작업 상세는 소속 목록의 활성 기사 계약으로 발주사를 정한다 (#114 HTTP 저장소)
   it('작업 알림을 누르면 소속의 활성 기사 계약(발주사)으로 그 작업 상세를 받아 연다', async () => {
     enableFirebase();
-    saveSignedInStep('COMPLETED');
-    const server = accountServer({ server: pushServer() })
-      .on(
-        'GET',
-        '/api/v1/memberships',
-        ok({
-          memberships: [
-            {
-              organizationId: 1,
-              organizationName: '오빗 서비스',
-              role: 'STAFF',
-              status: 'ACTIVE',
-            },
-            {
-              organizationId: 5,
-              organizationName: '그린 테크',
-              role: 'TECHNICIAN',
-              status: 'DEACTIVATED',
-            },
-            {
-              organizationId: 7,
-              organizationName: '한빛 설비',
-              role: 'TECHNICIAN',
-              status: 'ACTIVE',
-            },
-          ],
-        }),
-      )
-      .on(
-        'GET',
-        '/api/v1/organizations/7/works/101',
-        ok(workDetailResponse({ workId: 101, name: '푸시로 연 작업' })),
-      );
-    const api = createTestApi({ server, session: signedInSession() });
-    const workRepository = createWorkRepository('http', {
-      api: api.client,
-      queryClient: api.queryClient,
-    });
-    await render(<App api={{ ...api, workRepository }} />);
-    await registered({ server });
+    const server = httpServer().on(
+      'GET',
+      workPath(101),
+      ok(workDetailResponse({ workId: 101, name: '푸시로 연 작업' })),
+    );
+    await renderHttpApp(server);
 
     await act(async () => openPush(workPush));
 
     expect(await screen.findByText('푸시로 연 작업')).toBeOnTheScreen();
     expect(header('작업 상세')).toBeOnTheScreen();
     // 작업 상세 조회는 모두 활성 기사 소속(7) 경로로 갔다
-    expect(
-      server.callsTo('GET', '/api/v1/organizations/7/works/101').length,
-    ).toBeGreaterThanOrEqual(1);
+    expect(server.callsTo('GET', workPath(101)).length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(
       server.calls.some(call => /organizations\/(1|5)\/works/.test(call.path)),
     ).toBe(false);
@@ -460,5 +478,161 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
     );
 
     expect(header('알림센터')).toBeOnTheScreen();
+  });
+});
+
+describe('App — 푸시 열기: 미리 받기·경합·계정 (#118 리뷰)', () => {
+  it('작업 상세 미리 받기는 다시 시도하지 않는다 (기다리는 동안 표시가 없다)', async () => {
+    enableFirebase();
+    const app = await renderSignedInApp({ server: pushServer() });
+    await registered(app);
+    const fetchQuery = jest.spyOn(app.queryClient, 'fetchQuery');
+
+    await act(async () => openPush(workPush));
+
+    await waitFor(() => expect(header('작업 상세')).toBeOnTheScreen());
+    expect(fetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ retry: false }),
+    );
+  });
+
+  it('미리 받기가 실패하면(볼 수 없는 작업) 작업 상세가 그 상태를 보인다', async () => {
+    enableFirebase();
+    await renderHttpApp(
+      httpServer().on('GET', workPath(101), fail(404, 'SCHEDULE-001')),
+    );
+
+    await act(async () => openPush(workPush));
+
+    expect(await screen.findByText('볼 수 없는 작업이에요')).toBeOnTheScreen();
+    expect(header('작업 상세')).toBeOnTheScreen();
+  });
+
+  it('미리 받는 동안 다시 누르면 마지막에 누른 알림만 연다 (먼저 온 응답이 덮어쓰지 않는다)', async () => {
+    enableFirebase();
+    const first = deferred();
+    const second = deferred();
+    await renderHttpApp(
+      httpServer()
+        .on('GET', workPath(101), () => first.response)
+        .on('GET', workPath(102), () => second.response),
+    );
+
+    await act(async () => openPush(workPush));
+    await act(async () =>
+      openPush(
+        pushMessage({
+          notificationId: '32',
+          type: 'WORK_RESCHEDULED',
+          workId: '102',
+        }),
+      ),
+    );
+    await act(async () =>
+      second.answer(ok(workDetailResponse({ workId: 102, name: '나중 알림' }))),
+    );
+    await act(async () =>
+      first.answer(ok(workDetailResponse({ workId: 101, name: '먼저 알림' }))),
+    );
+
+    expect(await screen.findByText('나중 알림')).toBeOnTheScreen();
+    expect(screen.queryByText('먼저 알림')).not.toBeOnTheScreen();
+  });
+
+  it('미리 받는 사이 사용자가 다른 화면으로 옮겼으면 열지 않는다', async () => {
+    enableFirebase();
+    const detail = deferred();
+    await renderHttpApp(
+      httpServer().on('GET', workPath(101), () => detail.response),
+    );
+
+    await act(async () => openPush(workPush));
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await act(async () =>
+      detail.answer(ok(workDetailResponse({ workId: 101, name: '늦은 알림' }))),
+    );
+
+    expect(header('마이페이지')).toBeOnTheScreen();
+    expect(header('작업 상세')).not.toBeOnTheScreen();
+  });
+
+  it('세션이 만료된 뒤 누른 푸시는 다시 로그인해 메인에 들어오면 그 화면을 연다', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    enableFirebase();
+    // 만료 전에 이 계정(1)으로 등록해 둔 기기
+    appStorage.set('push.deviceId', 7);
+    appStorage.set('push.deviceAccountId', 1);
+    saveSignedInStep('COMPLETED');
+    const app = await renderApp({
+      server: accountServer({ server: pushServer() }).on(
+        'POST',
+        '/api/v1/auth/refresh',
+        fail(401, 'AUTH-009'),
+      ),
+      session: signedInSession({
+        accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString(),
+      }),
+    });
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+
+    await act(async () => openPush(workPush));
+    expect(header(LOGIN_TITLE)).toBeOnTheScreen();
+    await userEvent.press(
+      screen.getByRole('button', { name: '카카오로 시작하기' }),
+    );
+
+    await waitFor(() => expect(header('작업 상세')).toBeOnTheScreen());
+    await waitFor(() =>
+      expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(1),
+    );
+  });
+
+  it('로그인 전에 누른 푸시가 다른 계정의 것이면 로그인 뒤 그 화면을 열지 않고 메인에 머문다', async () => {
+    // 다른 계정(99)으로 등록돼 있던 기기에 온 푸시
+    appStorage.set('push.deviceId', 7);
+    appStorage.set('push.deviceAccountId', 99);
+    enableFirebase({ initialNotification: workPush });
+    const app = await renderApp({
+      server: accountServer({ server: pushServer() }),
+    });
+    await act(async () => {});
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '카카오로 시작하기' }),
+    );
+
+    expect(
+      await screen.findByRole('header', { name: '내 작업' }),
+    ).toBeOnTheScreen();
+    await registered(app);
+    expect(header('작업 상세')).not.toBeOnTheScreen();
+    expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(0);
+  });
+
+  it('메인에서 등록하지 못했으면(첫 실행 토큰 실패) 앱이 앞으로 돌아올 때 다시 등록한다', async () => {
+    const appStateListeners: Array<(status: AppStateStatus) => void> = [];
+    jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_type, handler) => {
+        appStateListeners.push(handler as (status: AppStateStatus) => void);
+        return { remove: () => undefined };
+      });
+    enableFirebase();
+    firebaseMessaging.getToken.mockRejectedValueOnce(
+      new Error('[messaging/unknown] APNS token not ready'),
+    );
+    const app = await renderSignedInApp({ server: pushServer() });
+    await waitFor(() =>
+      expect(firebaseMessaging.getToken).toHaveBeenCalledTimes(1),
+    );
+    expect(readPushDeviceId()).toBeUndefined();
+
+    await act(async () =>
+      appStateListeners.forEach(listener => listener('active')),
+    );
+
+    await registered(app);
   });
 });
