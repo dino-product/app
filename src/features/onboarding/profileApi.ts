@@ -1,3 +1,4 @@
+import { queryOptions } from '@tanstack/react-query';
 import { ApiError, ApiErrorMessage, type ApiClient } from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
 import type { ProfileInput } from '../my/model';
@@ -33,10 +34,29 @@ export const ProfileErrorCode = {
   invalidInput: 'PROFILE-001',
   /** 가입 또는 약관 재동의 전에는 허용 목록 밖 API 를 쓸 수 없다 */
   signupRequired: 'PROFILE-005',
+  /** 탈퇴 직전에 다시 판정했더니 막는 사유가 생겼다. 사유는 본문에 없어 가능 여부를 다시 조회한다 */
+  withdrawalBlocked: 'PROFILE-006',
 } as const;
 
 export const profilePath = (accountId: number) =>
   `/api/v1/profiles/${accountId}`;
+
+/**
+ * 내 프로필 캐시 (#115). 가입 단계 확인(AuthProvider)과 마이페이지가 같은 키·변환을 써서 같은 요청을 두 번 보내지 않는다.
+ * 계정마다 나누지 않는다: 로그아웃·만료·탈퇴 때 서버 상태 캐시를 통째로 비운다(AuthProvider resetToSignedOut)
+ */
+export const profileQueryKey = ['profile'] as const;
+/** 프로필은 이 앱에서 바꾸면(저장·약관 동의) 받은 응답으로 캐시를 바로 고치므로, 화면을 다시 열 때마다 받지 않는다 */
+export const PROFILE_STALE_MS = 5 * 60 * 1000;
+
+/** 기기 세션 계정의 GET /api/v1/profiles/{accountId} */
+export const profileQuery = (api: ApiClient) =>
+  queryOptions({
+    queryKey: profileQueryKey,
+    queryFn: async ({ signal }) =>
+      fetchProfile(api, await currentAccountId(api), { signal }),
+    staleTime: PROFILE_STALE_MS,
+  });
 
 const isOneOf = <T extends string>(
   values: readonly T[],
@@ -96,12 +116,13 @@ export async function currentAccountId(api: ApiClient): Promise<number> {
   return session.accountId;
 }
 
-/** GET /api/v1/profiles/{accountId} */
+/** GET /api/v1/profiles/{accountId}. signal 로 끊으면 요청을 그만둔다 (화면을 떠나 React Query 가 취소할 때) */
 export async function fetchProfile(
   api: ApiClient,
   accountId: number,
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<AccountProfile> {
-  return parseProfile(await api.get(profilePath(accountId)));
+  return parseProfile(await api.get(profilePath(accountId), { signal }));
 }
 
 /** PUT /api/v1/profiles/{accountId}. 연락처는 숫자만 보낸다 (서버도 숫자 외 문자를 지운다) */

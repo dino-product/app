@@ -1,16 +1,16 @@
 import { queryOptions } from '@tanstack/react-query';
-import type { ApiClient } from '../../shared/api';
+import { ApiError, ApiErrorMessage, type ApiClient } from '../../shared/api';
+import { isRecord } from '../../shared/isRecord';
+import { memberRoleLabels, type MemberRole } from './model';
 
-// 내 소속 목록 (GET /api/v1/memberships, api-spec.md O5). 작업 API 경로의 발주사(활성 기사 소속)를 정한다.
-// 캐시 키·조회는 membershipsQuery 하나로 두어 마이페이지(#115)가 같은 캐시를 쓰고, 조직 참여(#116)가 새 승인을 보면 이 키를 무효로 한다
-
-export type MemberRoleCode = 'OWNER' | 'STAFF' | 'TECHNICIAN';
+// 내 소속 목록 (GET /api/v1/memberships, api-spec.md §2.3 O5). 작업 API 경로의 발주사(활성 기사 소속, #114)와
+// 마이페이지 소속 발주사(#115)가 캐시 키·조회(membershipsQuery) 하나를 같이 쓴다. 조직 참여(#116)가 새 승인을 보면 이 키를 무효로 한다
 
 /** MyMembershipsResponse.Membership. 발주사마다 한 줄, 처음 참여한 순서 */
 export type MembershipResponse = {
   organizationId: number;
   organizationName: string;
-  role: MemberRoleCode;
+  role: MemberRole;
   /** DEACTIVATED 면 이 발주사 기능을 쓸 수 없다 */
   status: 'ACTIVE' | 'DEACTIVATED';
 };
@@ -18,15 +18,52 @@ export type MembershipResponse = {
 export const MEMBERSHIPS_PATH = '/api/v1/memberships';
 export const membershipsQueryKey = ['memberships'] as const;
 
+const STATUSES: readonly unknown[] = ['ACTIVE', 'DEACTIVATED'];
+const isMemberRole = (value: unknown): value is MemberRole =>
+  typeof value === 'string' &&
+  Object.prototype.hasOwnProperty.call(memberRoleLabels, value);
+
+const invalidResponse = () =>
+  new ApiError({
+    kind: 'http',
+    status: 200,
+    message: ApiErrorMessage.invalidResponse,
+  });
+
+/** 서버 응답을 확인해 옮긴다. 앱이 모르는 역할의 줄은 라벨을 붙일 수 없어 빼고, 모양이 다르면 서버 응답 오류로 던진다 */
+export function parseMemberships(value: unknown): MembershipResponse[] {
+  if (!isRecord(value) || !Array.isArray(value.memberships)) {
+    throw invalidResponse();
+  }
+  return value.memberships.flatMap(item => {
+    if (
+      !isRecord(item) ||
+      typeof item.organizationId !== 'number' ||
+      typeof item.organizationName !== 'string' ||
+      typeof item.role !== 'string' ||
+      !STATUSES.includes(item.status)
+    ) {
+      throw invalidResponse();
+    }
+    if (!isMemberRole(item.role)) {
+      return [];
+    }
+    return [
+      {
+        organizationId: item.organizationId,
+        organizationName: item.organizationName,
+        role: item.role,
+        status: item.status as MembershipResponse['status'],
+      },
+    ];
+  });
+}
+
 export const membershipsQuery = (api: ApiClient) =>
   queryOptions({
     queryKey: membershipsQueryKey,
-    queryFn: ({ signal }) =>
-      api
-        .get<{ memberships: MembershipResponse[] }>(MEMBERSHIPS_PATH, {
-          signal,
-        })
-        .then(result => result.memberships),
+    queryFn: async ({ signal }) =>
+      parseMemberships(await api.get(MEMBERSHIPS_PATH, { signal })),
   });
 
 /**

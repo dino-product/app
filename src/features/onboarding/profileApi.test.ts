@@ -9,6 +9,8 @@ import {
   fetchProfile,
   parseProfile,
   profilePath,
+  profileQuery,
+  profileQueryKey,
   saveProfile,
   toTermsAgreementRequest,
 } from './profileApi';
@@ -182,6 +184,21 @@ describe('프로필 API', () => {
       privacyPolicy: true,
       marketing: true,
     });
+  });
+
+  // 가입 단계 확인(AuthProvider)과 마이페이지가 같은 캐시를 쓴다
+  it('profileQuery 는 내 프로필 키로 기기 세션 계정의 프로필을 받는다', async () => {
+    const server = createFakeServer().on('GET', PATH, ok(pendingProfile));
+    const { client, queryClient } = createTestApi({
+      server,
+      session: signedIn(),
+    });
+
+    await expect(queryClient.fetchQuery(profileQuery(client))).resolves.toEqual(
+      pendingProfile,
+    );
+    expect(profileQuery(client).queryKey).toEqual(profileQueryKey);
+    expect(queryClient.getQueryData(profileQueryKey)).toEqual(pendingProfile);
   });
 
   it('서버 오류는 코드를 담은 ApiError 로 던진다', async () => {
