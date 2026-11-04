@@ -58,6 +58,7 @@ export function OrgJoinScreen({
   onFound,
   onPending,
   onAlreadyMember,
+  screenFocused = true,
   titleRef,
 }: {
   flow?: JoinFlow;
@@ -71,6 +72,8 @@ export function OrgJoinScreen({
    * 온보딩은 그 회사의 참여 완료로 돌아간다. 처리하지 못했으면(그 회사의 승인 요청이 없음) 알림을 띄운다
    */
   onAlreadyMember?: (organization: Organization) => Promise<boolean>;
+  /** 화면이 보이는지. 아니면(다른 탭으로 옮김) 늦게 온 안내를 다른 화면 위에 띄우지 않고 돌아올 때까지 미룬다 */
+  screenFocused?: boolean;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -257,7 +260,10 @@ export function OrgJoinScreen({
         </ScrollView>
       </KeyboardAvoidingArea>
 
-      <NoticeModal notice={notice} onClose={() => setNotice(null)} />
+      <NoticeModal
+        notice={screenFocused ? notice : null}
+        onClose={() => setNotice(null)}
+      />
     </SafeAreaView>
   );
 }

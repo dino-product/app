@@ -2,6 +2,7 @@ import { render } from '@testing-library/react-native';
 import {
   createParticipationServer,
   EXISTING_REQUESTS,
+  type ServerParticipationRequest,
 } from '../features/my/org/testing';
 import { saveSignedInStep } from '../features/onboarding/login';
 import type { NextStep } from '../features/onboarding/profileApi';
@@ -67,17 +68,20 @@ export const loginResponse = () => ({
  * 로그인·가입 단계·로그아웃·회사 참여를 정한 가짜 서버. 프로필은 서버처럼 이어진다:
  * 프로필 입력(PUT) → TERMS, 약관 동의(POST) → COMPLETED. nextStep 은 처음 프로필 조회가 줄 단계.
  * 회사 참여(#116)도 서버처럼 이어진다(features/my/org/testing). 가입을 마친 계정은 신청 현황에 거절 1·승인 대기 2 가 있고,
- * 새 계정은 비어 있다. 사무실의 결정은 participationOf(app.server).decide 로 정한다.
+ * 새 계정은 비어 있다(requests 로 바꿀 수 있다). 사무실의 결정은 participationOf(app.server).decide 로 정한다.
  * server 를 주면 그 서버에 더한다(계정 경로는 덮어쓴다). 계정 경로의 응답을 바꾸려면 렌더한 뒤 app.server.on 으로 정한다
  */
 export function accountServer({
   nextStep = 'COMPLETED',
   server = createFakeServer(),
-}: { nextStep?: NextStep; server?: FakeServer } = {}) {
-  createParticipationServer({
-    server,
-    requests: nextStep === 'COMPLETED' ? EXISTING_REQUESTS : [],
-  });
+  requests = nextStep === 'COMPLETED' ? EXISTING_REQUESTS : [],
+}: {
+  nextStep?: NextStep;
+  server?: FakeServer;
+  /** 처음 신청 현황 */
+  requests?: readonly ServerParticipationRequest[];
+} = {}) {
+  createParticipationServer({ server, requests });
   let profile = accountProfile(nextStep);
   let nonce = 0;
   const issueNonce = () => {
@@ -141,11 +145,18 @@ export async function renderApp({
 export function renderSignedInApp({
   nextStep = 'COMPLETED',
   server,
+  requests,
   now,
-}: { nextStep?: NextStep; server?: FakeServer; now?: () => number } = {}) {
+}: {
+  nextStep?: NextStep;
+  server?: FakeServer;
+  /** 처음 신청 현황 (없으면 accountServer 기본값) */
+  requests?: readonly ServerParticipationRequest[];
+  now?: () => number;
+} = {}) {
   saveSignedInStep(nextStep);
   return renderApp({
-    server: accountServer({ nextStep, server }),
+    server: accountServer({ nextStep, server, requests }),
     session: signedInSession(),
     now,
   });

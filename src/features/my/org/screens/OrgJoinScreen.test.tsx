@@ -356,6 +356,29 @@ describe('OrgJoinScreen', () => {
     expect(props.onFound).not.toHaveBeenCalled();
   });
 
+  // 다른 탭으로 옮긴 동안 결과가 오면 RN Modal 이 그 탭 위에 뜬다
+  it('화면이 보이지 않는 동안 온 안내는 띄우지 않고, 돌아오면 띄운다', async () => {
+    const { server, props, rerender } = await renderJoin({
+      screenFocused: false,
+    });
+    server.on(
+      'GET',
+      COMPANY_LOOKUP_PATH,
+      fail(429, OrganizationErrorCode.tooManyFailures),
+    );
+
+    await userEvent.type(codeInput(), 'RBT124');
+    await userEvent.press(checkButton());
+    await waitFor(() => expect(checkButton()).toBeEnabled());
+    expect(header('잠시 후 다시 시도해 주세요')).toBeNull();
+
+    await rerender(<OrgJoinScreen {...props} screenFocused />);
+
+    expect(
+      screen.getByRole('header', { name: '잠시 후 다시 시도해 주세요' }),
+    ).toBeOnTheScreen();
+  });
+
   describe('온보딩 흐름 (#85)', () => {
     const renderOnboarding = (
       onAlreadyMember = jest.fn(async (): Promise<boolean> => true),

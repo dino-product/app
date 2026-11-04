@@ -25,10 +25,10 @@ import {
   touchSlop,
 } from '../../../../shared/design-system';
 import { smallestLineHeight } from '../../../../shared/design-system/tokens/touchTarget';
+import { LoadStateView } from '../../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestSheet } from '../components/CancelRequestSheet';
-import { LoadState } from '../components/LoadState';
 import {
   formatRequestDate,
   participationTypeLabels,
@@ -54,6 +54,7 @@ type Canceling = {
 };
 
 const NO_REQUESTS: readonly ParticipationRequest[] = [];
+const NO_IDS: ReadonlySet<string> = new Set();
 
 export function JoinRequestsScreen({
   onJoin,
@@ -69,6 +70,8 @@ export function JoinRequestsScreen({
   const query = useParticipationRequests(pendingRequests);
   const cancel = useCancelParticipationRequest();
   const [canceling, setCanceling] = useState<ParticipationRequest | null>(null);
+  // 서버에 취소를 보내는 중인 신청. 그 카드는 답이 올 때까지 다시 취소할 수 없다 (두 번째는 -017 오안내가 된다)
+  const [sending, setSending] = useState<ReadonlySet<string>>(NO_IDS);
   const [refreshing, setRefreshing] = useState(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -104,16 +107,32 @@ export function JoinRequestsScreen({
     }
   };
   const confirmCancel = (request: ParticipationRequest) => {
+    const { requestId } = request;
+    setCanceling(null);
+    if (sending.has(requestId)) {
+      return;
+    }
     const current = { request, sheetClosed: false, canceled: false };
     canceled.current = current;
-    setCanceling(null);
+    setSending(ids => new Set(ids).add(requestId));
+    const settle = () => {
+      if (mounted.current) {
+        setSending(ids => {
+          const next = new Set(ids);
+          next.delete(requestId);
+          return next.size === 0 ? NO_IDS : next;
+        });
+      }
+    };
     // mutate 의 콜백은 마지막 호출만 불리므로, 연달아 취소해도 건마다 결과를 받게 promise 로 받는다
-    cancel.mutateAsync(request.requestId).then(
+    cancel.mutateAsync(requestId).then(
       () => {
+        settle();
         current.canceled = true;
         announceCanceled(current);
       },
       error => {
+        settle();
         if (canceled.current === current) {
           canceled.current = null;
         }
@@ -140,9 +159,13 @@ export function JoinRequestsScreen({
 
   const renderItem = useCallback(
     ({ item }: { item: ParticipationRequest }) => (
-      <RequestCard request={item} onCancel={setCanceling} />
+      <RequestCard
+        request={item}
+        sending={sending.has(item.requestId)}
+        onCancel={setCanceling}
+      />
     ),
-    [],
+    [sending],
   );
   const requests = query.data;
   const hasRequests = requests !== undefined && requests.length > 0;
@@ -161,6 +184,7 @@ export function JoinRequestsScreen({
         data={requests ?? NO_REQUESTS}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
+        extraData={sending}
         refreshing={refreshing}
         onRefresh={refresh}
         ListHeaderComponent={
@@ -177,10 +201,16 @@ export function JoinRequestsScreen({
         }
         ListEmptyComponent={
           requests === undefined ? (
-            <LoadState
-              failed={failed}
-              failedTitle="신청 현황을 불러오지 못했어요"
-              onRetry={() => query.refetch()}
+            <LoadStateView
+              state={
+                failed
+                  ? {
+                      status: 'error',
+                      message: '신청 현황을 불러오지 못했어요.',
+                      onRetry: () => query.refetch(),
+                    }
+                  : { status: 'loading' }
+              }
             />
           ) : (
             <EmptyRequests titleRef={listTitleRef} onJoin={onJoin} />
@@ -259,9 +289,12 @@ const CANCEL_HIT_SLOP = {
 
 const RequestCard = memo(function MyRequestCard({
   request,
+  sending,
   onCancel,
 }: {
   request: ParticipationRequest;
+  /** 서버에 취소를 보내는 중이다. 답이 올 때까지 '취소 중' 으로 잠근다 (Figma 미확인) */
+  sending: boolean;
   onCancel: (request: ParticipationRequest) => void;
 }) {
   return (
@@ -286,12 +319,19 @@ const RequestCard = memo(function MyRequestCard({
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${request.organizationName} 신청 취소`}
+          accessibilityLabel={`${request.organizationName} 신청 취소${
+            sending ? ' 중' : ''
+          }`}
+          accessibilityState={{ disabled: sending }}
+          disabled={sending}
           hitSlop={CANCEL_HIT_SLOP}
           onPress={() => onCancel(request)}
         >
-          <Text variant="Caption/M/SemiBold" color={colors.warning[1]}>
-            신청 취소
+          <Text
+            variant="Caption/M/SemiBold"
+            color={sending ? colors.gray[400] : colors.warning[1]}
+          >
+            {sending ? '취소 중' : '신청 취소'}
           </Text>
         </Pressable>
       </View>

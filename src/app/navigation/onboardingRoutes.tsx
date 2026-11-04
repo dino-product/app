@@ -1,4 +1,8 @@
-import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import {
+  CommonActions,
+  useFocusEffect,
+  useIsFocused,
+} from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
@@ -230,11 +234,13 @@ export function CompanyFindRoute({
 }: OnboardingScreenProps<'CompanyFind'>) {
   const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
+  const screenFocused = useIsFocused();
 
   return (
     <OrgJoinScreen
       flow="onboarding"
       titleRef={titleRef}
+      screenFocused={screenFocused}
       onFound={target => {
         // 찾는 동안 화면을 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
@@ -248,12 +254,13 @@ export function CompanyFindRoute({
           navigation.navigate('JoinPending', { requestId });
         }
       }}
-      // 서버는 이미 참여 중이라고만 알려 준다. 신청 현황에서 그 회사의 승인 요청을 찾아 참여 완료로 간다 (없으면 화면이 알린다)
+      // 서버는 이미 참여 중이라고만 알려 준다. 신청 현황에서 그 회사의 승인 요청을 찾아 참여 완료로 간다.
+      // 없거나 신청 현황을 받지 못하면 화면이 '이미 참여 중인 회사예요' 를 알린다 (회사 확인 자체는 성공했다)
       onAlreadyMember={async organization => {
-        const approved = latestRequestOf(
-          await fetchRequests(),
-          organization.organizationId,
-          'APPROVED',
+        const approved = await fetchRequests().then(
+          requests =>
+            latestRequestOf(requests, organization.organizationId, 'APPROVED'),
+          () => undefined,
         );
         if (approved && navigation.isFocused()) {
           navigation.navigate('JoinApproved', {
@@ -291,9 +298,11 @@ export function JoinRoleSelectRoute({
 }: OnboardingScreenProps<'JoinRoleSelect'>) {
   const fetchRequests = useFetchParticipationRequests();
   const titleRef = useFocusTitleOnOpen(navigation);
+  const screenFocused = useIsFocused();
   const target = route.params;
   // 서버가 이미 참여 중·승인 대기 요청이 있다고 거절했다(안내는 화면이 띄웠다). 신청 현황에서 그 회사의 요청을 찾아 그 화면으로 간다.
-  // 찾지 못하면(신청 현황을 받지 못함 포함) 회사 찾기로 돌아가 다시 확인하게 한다
+  // 찾지 못하면(신청 현황을 받지 못함 포함) 회사 찾기로 돌아가 다시 확인하게 한다. 받는 동안 화면은 버튼을 잠근다.
+  // 받는 사이 다른 화면으로 옮겼으면(뒤로 가기 등) 늦게 온 결과로 데려가지 않는다
   const showLatest = async (
     status: ParticipationStatus,
     name: JoinResultScreen,
@@ -302,6 +311,9 @@ export function JoinRoleSelectRoute({
       requests => latestRequestOf(requests, target.organizationId, status),
       () => undefined,
     );
+    if (!navigation.isFocused()) {
+      return;
+    }
     if (found) {
       replaceRoleSelect(navigation, name, { requestId: found.requestId });
     } else {
@@ -314,6 +326,7 @@ export function JoinRoleSelectRoute({
       flow="onboarding"
       target={target}
       titleRef={titleRef}
+      screenFocused={screenFocused}
       onBack={() => navigation.goBack()}
       onRequested={request =>
         replaceRoleSelect(navigation, 'JoinPending', {

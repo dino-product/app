@@ -18,8 +18,15 @@ import {
   OrganizationErrorCode,
   PARTICIPATION_REQUESTS_PATH,
 } from '../features/my/org/participationApi';
-import { membershipsKey } from '../features/my/org/participationQueries';
-import { participationOf, REJECT_REASON } from '../features/my/org/testing';
+import {
+  membershipsKey,
+  participationRequestsKey,
+} from '../features/my/org/participationQueries';
+import {
+  EXISTING_REQUESTS,
+  participationOf,
+  REJECT_REASON,
+} from '../features/my/org/testing';
 import { fail, networkError, ok } from '../shared/testing/fakeServer';
 import { renderSignedInApp } from './testing';
 
@@ -329,8 +336,45 @@ describe('App — 조직 참여', () => {
 
       await userEvent.press(tab('마이'));
 
+      // 받기 전에도 배지가 없으니, 실패가 화면에 반영된 뒤에 본다
+      await waitFor(() =>
+        expect(
+          app.queryClient.getQueryState(participationRequestsKey)?.status,
+        ).toBe('error'),
+      );
+      expect(button('신청 현황')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: /^신청 현황, / })).toBeNull();
+    });
+
+    // 마이페이지가 받아 둔 목록에서는 대기였던 요청이 그 뒤 거절됐다. 거절 화면은 캐시가 아니라 다시 받은 서버 목록으로 판단한다
+    it('캐시에 대기로 남은 요청이 거절된 뒤 알림으로 열면 거절 화면과 서버의 거절 사유가 보인다', async () => {
+      const app = await renderSignedInApp({
+        requests: EXISTING_REQUESTS.map(item =>
+          item.requestId === 3
+            ? {
+                ...item,
+                status: 'PENDING',
+                rejectReason: null,
+                decidedAt: null,
+              }
+            : item,
+        ),
+      });
+      await userEvent.press(tab('마이'));
+      await screen.findByRole('button', { name: '신청 현황, 3건' });
+      participationOf(app.server).decide(
+        { status: 'REJECTED', rejectReason: '이번 달 채용이 마감되었습니다' },
+        3,
+      );
+
+      await userEvent.press(button('알림센터'));
+      await userEvent.press(button(/참여 요청이 거절되었습니다/));
+
       expect(
-        await screen.findByRole('button', { name: '신청 현황' }),
+        await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByText('이번 달 채용이 마감되었습니다'),
       ).toBeOnTheScreen();
     });
 
@@ -348,10 +392,9 @@ describe('App — 조직 참여', () => {
       await userEvent.press(button(/참여 요청이 거절되었습니다/));
 
       expect(
-        await screen.findByRole('header', {
-          name: '참여 요청을 불러오지 못했어요',
-        }),
+        await screen.findByText('참여 요청을 불러오지 못했어요.'),
       ).toBeOnTheScreen();
+      expect(header('조직 참여하기')).toBeOnTheScreen();
       expect(tab('마이')).toBeSelected();
 
       reachable = true;

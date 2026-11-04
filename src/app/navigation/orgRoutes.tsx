@@ -1,7 +1,9 @@
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, type ReactElement, type Ref } from 'react';
 import type { TextInstance } from 'react-native';
-import { LoadStateScreen } from '../../features/my/org/components/LoadState';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SubScreenHeader } from '../../features/my/components/SubScreenHeader';
+import { flowLayouts } from '../../features/my/org/components/flowLayouts';
 import type {
   JoinFlow,
   ParticipationRequest,
@@ -13,6 +15,8 @@ import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequested
 import { JoinRequestsScreen } from '../../features/my/org/screens/JoinRequestsScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
+import { LoadStateView } from '../../shared/layout/LoadStateView';
+import { readableColumn } from '../../shared/layout/readableColumn';
 import { useFocusTitleOnOpen } from './routes';
 import {
   MY_INITIAL_ROUTE,
@@ -25,8 +29,10 @@ import {
 
 /**
  * 신청 현황에서 찾은 참여 요청 하나로 화면을 그린다 (요청 완료·거절·참여 완료).
- * 받는 동안·받지 못했을 때는 같은 머리 제목의 자리를 보이고, 목록에 없거나(이미 처리돼 사라짐·잘못된 id)
- * 기대한 상태가 아니면 빈 화면 대신 onMissing 으로 떠난다. onMissing 은 바뀌지 않는 함수여야 한다
+ * 캐시는 옛 상태일 수 있다(대기였다가 거절됨, 다른 기기가 보낸 요청). 캐시에 기대한 요청이 있으면 바로 그리고,
+ * 없으면 이 화면을 연 뒤 서버에서 받은 목록으로 판단한다. 그때까지·받지 못했을 때는 같은 머리 제목의 자리를 보인다.
+ * 받은 목록에도 없거나(이미 처리돼 사라짐·잘못된 id) 기대한 상태가 아니면 빈 화면 대신 onMissing 으로 떠난다.
+ * onMissing 은 바뀌지 않는 함수여야 한다
  */
 export function ParticipationRequestGate({
   requestId,
@@ -51,42 +57,56 @@ export function ParticipationRequestGate({
 }) {
   const query = useParticipationRequest(requestId);
   const request = query.data;
-  const missing =
-    request === null ||
-    (request !== undefined &&
-      status !== undefined &&
-      request.status !== status);
+  const found =
+    request !== undefined &&
+    request !== null &&
+    (status === undefined || request.status === status);
+  // 마운트 뒤 서버에서 받은 결과가 있을 때만 판단한다 (isFetching 등은 캐시로 그리지 못할 때만 읽어 평소 다시 받기로 다시 그리지 않는다)
+  const checked =
+    !found && query.isFetchedAfterMount && !query.isFetching && !query.isError;
+  const missing = !found && checked;
   useEffect(() => {
     if (missing) {
       onMissing();
     }
   }, [missing, onMissing]);
+  if (found) {
+    return children(request);
+  }
   if (missing) {
     return null;
   }
-  if (request) {
-    return children(request);
-  }
   return (
-    <LoadStateScreen
-      flow={flow}
-      title={title}
-      onBack={onBack}
-      titleRef={titleRef}
-      // 다시 받는 동안은 불러오는 중을 보인다
-      failed={query.isError && !query.isFetching}
-      failedTitle="참여 요청을 불러오지 못했어요"
-      onRetry={() => query.refetch()}
-    />
+    <SafeAreaView
+      edges={flowLayouts[flow].edges}
+      style={flowLayouts[flow].screen}
+    >
+      <SubScreenHeader title={title} onBack={onBack} titleRef={titleRef} />
+      <LoadStateView
+        style={readableColumn}
+        // 다시 받는 동안은 불러오는 중을 보인다
+        state={
+          query.isError && !query.isFetching
+            ? {
+                status: 'error',
+                message: '참여 요청을 불러오지 못했어요.',
+                onRetry: () => query.refetch(),
+              }
+            : { status: 'loading' }
+        }
+      />
+    </SafeAreaView>
   );
 }
 
 export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
+  const screenFocused = useIsFocused();
 
   return (
     <OrgJoinScreen
       titleRef={titleRef}
+      screenFocused={screenFocused}
       onFound={target => {
         // 찾는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
@@ -129,11 +149,13 @@ export function RoleSelectRoute({
   route,
 }: MyScreenProps<'OrgRoleSelect'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
+  const screenFocused = useIsFocused();
 
   return (
     <RoleSelectScreen
       target={route.params}
       titleRef={titleRef}
+      screenFocused={screenFocused}
       onBack={() => navigation.goBack()}
       onRequested={request =>
         replaceJoinFlow(navigation, {

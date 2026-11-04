@@ -53,6 +53,9 @@ const listCalls = (server: FakeServer) =>
   server.callsTo('GET', PARTICIPATION_REQUESTS_PATH);
 const pullToRefresh = () =>
   fireEvent(screen.getByTestId('join-requests-list'), 'refresh');
+// 목록은 받은 데이터로 그릴 범위를 묶어서(50ms) 고친다. 그 예약을 테스트 안(act)에서 끝내 테스트가 끝난 뒤 갱신되지 않게 한다
+const settleList = () =>
+  act(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
 
 async function cancelFromSheet(name: string) {
   await userEvent.press(
@@ -83,6 +86,7 @@ describe('JoinRequestsScreen', () => {
     expect(
       await screen.findByRole('header', { name: '승인 대기 2' }),
     ).toBeOnTheScreen();
+    await settleList();
     expect(
       screen.getByRole('header', { name: '참여 신청 현황' }),
     ).toBeOnTheScreen();
@@ -155,9 +159,7 @@ describe('JoinRequestsScreen', () => {
     );
 
     expect(
-      await screen.findByRole('header', {
-        name: '신청 현황을 불러오지 못했어요',
-      }),
+      await screen.findByText('신청 현황을 불러오지 못했어요.'),
     ).toBeOnTheScreen();
     expect(screen.queryByText('참여 신청 내역이 없어요')).toBeNull();
     await userEvent.press(screen.getByRole('button', { name: '다시 시도' }));
@@ -307,6 +309,77 @@ describe('JoinRequestsScreen', () => {
         }),
         'focus',
       );
+    });
+
+    // 서버가 답하기 전에 같은 신청을 다시 취소하면 두 번째는 -017 로 '이미 처리된 요청' 오안내가 된다
+    it('취소를 보내는 동안 그 카드는 취소 중으로 잠겨 다시 취소할 수 없다', async () => {
+      const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const { server, participation } = await renderRequests();
+      let release: (response: FakeResponse) => void = () => {};
+      server.on(
+        'POST',
+        cancelRequestPath('1'),
+        () =>
+          new Promise<FakeResponse>(done => {
+            // 서버가 취소를 처리하고 답한다
+            release = response => {
+              const held = participation.requests.find(
+                item => item.requestId === 1,
+              );
+              if (held) {
+                held.status = 'CANCELED';
+              }
+              done(response);
+            };
+          }),
+      );
+
+      await cancelFromSheet('한빛 설비');
+      await finishAnimations();
+
+      const busy = screen.getByRole('button', {
+        name: '한빛 설비 신청 취소 중',
+      });
+      expect(busy).toBeDisabled();
+      expect(screen.getByText('취소 중')).toBeOnTheScreen();
+      await userEvent.press(busy);
+      expect(sheetTitle('한빛 설비')).toBeNull();
+      // 다른 신청은 그대로 취소할 수 있다
+      expect(
+        screen.getByRole('button', { name: '그린 테크 신청 취소' }),
+      ).toBeEnabled();
+
+      await act(async () =>
+        release(
+          ok({
+            requestId: 1,
+            organizationId: 10,
+            organizationName: '한빛 설비',
+            desiredType: 'TECHNICIAN',
+            status: 'CANCELED',
+            requestedAt: '2026-09-23T01:24:00Z',
+          }),
+        ),
+      );
+      expect(
+        await screen.findByRole('header', { name: '승인 대기 1' }),
+      ).toBeOnTheScreen();
+      expect(server.callsTo('POST', cancelRequestPath('1'))).toHaveLength(1);
+      expect(alert).not.toHaveBeenCalled();
+    });
+
+    it('취소하지 못하면 그 카드의 잠금을 풀어 다시 취소할 수 있다', async () => {
+      jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const { server } = await renderRequests();
+      server.on('POST', cancelRequestPath('1'), networkError());
+
+      await cancelFromSheet('한빛 설비');
+      await finishAnimations();
+
+      expect(
+        await screen.findByRole('button', { name: '한빛 설비 신청 취소' }),
+      ).toBeEnabled();
+      expect(screen.queryByText('취소 중')).toBeNull();
     });
 
     it('시트가 먼저 내려가도 서버가 취소를 받은 뒤에 알린다', async () => {

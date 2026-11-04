@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react-native';
 import { colors } from '../../../../shared/design-system';
 import {
+  ok,
   fail,
   networkError,
   type FakeResponse,
@@ -277,27 +278,74 @@ describe('RoleSelectScreen', () => {
   it('보내는 동안 화면을 떠나면 늦게 온 결과로 요청 완료에 데려가지 않는다', async () => {
     const { server, props, unmount } = await renderRole();
     let release: () => void = () => {};
-    const respond = server.on(
+    server.on(
       'POST',
       PARTICIPATION_REQUESTS_PATH,
       () =>
         new Promise<FakeResponse>(done => {
+          // 서버는 요청을 만들어 성공으로 답한다 (화면이 남아 있었다면 요청 완료로 갔을 응답)
           release = () =>
             done(
-              fail(409, OrganizationErrorCode.alreadyMember) as FakeResponse,
+              ok({
+                requestId: 31,
+                organizationId: 9,
+                organizationName: 'Orbit',
+                desiredType: 'TECHNICIAN',
+                status: 'PENDING',
+                requestedAt: '2026-11-04T01:24:00Z',
+              }),
             );
         }),
     );
     await requestAs('기사');
+    expect(requests(server)).toHaveLength(1);
 
     await unmount();
     await act(async () => release());
 
-    expect(respond.callsTo('POST', PARTICIPATION_REQUESTS_PATH)).toHaveLength(
-      1,
-    );
     expect(props.onRequested).not.toHaveBeenCalled();
-    expect(props.onAlreadyMember).not.toHaveBeenCalled();
+  });
+
+  // 갈 곳을 서버에 묻는 동안(온보딩: 신청 현황 다시 받기) 다시 보내지 않게 한다
+  it('안내를 닫은 뒤 갈 곳을 찾는 동안 참여 요청하기가 잠긴다', async () => {
+    let done: () => void = () => {};
+    const onAlreadyMember = jest.fn(
+      () =>
+        new Promise<void>(resolve => {
+          done = resolve;
+        }),
+    );
+    await renderRole({
+      target: target('BS0001', '오빗 서비스'),
+      onAlreadyMember,
+    });
+    await requestAs('기사');
+    await screen.findByRole('header', { name: '이미 참여 중인 회사예요' });
+
+    await userEvent.press(screen.getByRole('button', { name: '확인' }));
+
+    expect(onAlreadyMember).toHaveBeenCalledTimes(1);
+    expect(submit()).toBeDisabled();
+    await act(async () => done());
+    expect(submit()).toBeEnabled();
+  });
+
+  // 다른 탭으로 옮긴 동안 실패 응답이 오면 RN Modal 이 그 탭 위에 뜬다
+  it('화면이 보이지 않는 동안 온 실패 안내는 띄우지 않고, 돌아오면 띄운다', async () => {
+    const { server, props, rerender } = await renderRole({
+      screenFocused: false,
+    });
+    server.on('POST', PARTICIPATION_REQUESTS_PATH, networkError());
+
+    await requestAs('기사');
+    await waitFor(() => expect(submit()).toBeEnabled());
+    expect(header('참여 요청을 보내지 못했어요')).toBeNull();
+
+    await rerender(<RoleSelectScreen {...props} screenFocused />);
+
+    expect(
+      screen.getByRole('header', { name: '참여 요청을 보내지 못했어요' }),
+    ).toBeOnTheScreen();
   });
 
   it('온보딩에서는 머리 제목이 참여 요청이다 (#85)', async () => {

@@ -1,4 +1,4 @@
-import { useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -45,6 +45,7 @@ export function RoleSelectScreen({
   onRequested,
   onAlreadyMember,
   onPendingExists,
+  screenFocused = true,
   titleRef,
 }: {
   flow?: JoinFlow;
@@ -54,18 +55,29 @@ export function RoleSelectScreen({
   onBack: () => void;
   /** 서버가 만든 요청. 요청 완료로 간다 */
   onRequested: (request: ParticipationRequest) => void;
-  /** 이미 참여 중인 회사라 거절됐다 (이미 참여 안내를 닫은 뒤) */
-  onAlreadyMember: () => void;
-  /** 이 회사에 승인 대기 요청이 있어 거절됐다 (승인 대기 안내를 닫은 뒤) */
-  onPendingExists: () => void;
+  /** 이미 참여 중인 회사라 거절됐다 (이미 참여 안내를 닫은 뒤). 갈 곳을 서버에 물으면(온보딩) 끝날 때까지 버튼을 잠근다 */
+  onAlreadyMember: () => void | Promise<void>;
+  /** 이 회사에 승인 대기 요청이 있어 거절됐다 (승인 대기 안내를 닫은 뒤). 기다리는 동안 버튼을 잠근다 */
+  onPendingExists: () => void | Promise<void>;
+  /** 화면이 보이는지. 아니면(다른 탭으로 옮김) 늦게 온 안내를 다른 화면 위에 띄우지 않고 돌아올 때까지 미룬다 */
+  screenFocused?: boolean;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   const [selected, setSelected] = useState<ParticipationType | null>(null);
   const [failure, setFailure] = useState<RequestFailure | null>(null);
+  // 안내를 닫은 뒤 갈 곳을 찾는 중 (온보딩은 신청 현황을 다시 받는다)
+  const [leaving, setLeaving] = useState(false);
   const request = useRequestParticipation();
   // 다시 그리기 전에 연달아 눌러도 같은 회사에 한 번만 요청한다. 실패하면 다시 보낼 수 있다
   const submitting = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const look = looks[flow];
   const submit = () => {
     if (selected === null || submitting.current) {
@@ -89,15 +101,31 @@ export function RoleSelectScreen({
     );
   };
   // 안내를 닫으면 갈 곳으로 간다. 머무는 실패는 다시 보낼 수 있다
-  const closeFailure = () => {
+  const closeFailure = async () => {
     const next = failure?.next;
     setFailure(null);
-    if (next === 'alreadyMember') {
-      onAlreadyMember();
-    } else if (next === 'pending') {
-      onPendingExists();
-    } else if (next === 'reenterCode') {
+    if (next === 'reenterCode') {
       onBack();
+      return;
+    }
+    const leave =
+      next === 'alreadyMember'
+        ? onAlreadyMember
+        : next === 'pending'
+        ? onPendingExists
+        : undefined;
+    if (!leave) {
+      return;
+    }
+    submitting.current = true;
+    setLeaving(true);
+    try {
+      await leave();
+    } finally {
+      submitting.current = false;
+      if (mounted.current) {
+        setLeaving(false);
+      }
     }
   };
 
@@ -219,12 +247,15 @@ export function RoleSelectScreen({
       <View style={[readableColumn, flowLayouts[flow].actions]}>
         <CTA
           label="참여 요청하기"
-          disabled={selected === null || request.isPending}
+          disabled={selected === null || request.isPending || leaving}
           onPress={submit}
         />
       </View>
 
-      <NoticeModal notice={failure?.notice ?? null} onClose={closeFailure} />
+      <NoticeModal
+        notice={screenFocused ? failure?.notice ?? null : null}
+        onClose={closeFailure}
+      />
     </SafeAreaView>
   );
 }
