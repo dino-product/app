@@ -9,6 +9,12 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 const original = Object.getOwnPropertyDescriptor(AppState, 'currentState');
 const listeners = new Set<(state: AppStateStatus) => void>();
+// 프리셋의 addEventListener 는 이미 목이라 spyOn 이 새 spy 를 만들지 않고 그 목의 동작만 바꾼다. 되돌릴 동작을 남겨 둔다
+const listen = AppState.addEventListener;
+const presetListen = jest.isMockFunction(listen)
+  ? listen.getMockImplementation()
+  : undefined;
+let listenSpy: jest.SpyInstance | undefined;
 
 function setCurrentState(state: AppStateStatus) {
   Object.defineProperty(AppState, 'currentState', {
@@ -19,7 +25,7 @@ function setCurrentState(state: AppStateStatus) {
 
 export function mockAppState(state: AppStateStatus = 'active') {
   setCurrentState(state);
-  jest
+  listenSpy = jest
     .spyOn(AppState, 'addEventListener')
     .mockImplementation((type, handler) => {
       const listener = handler as (next: AppStateStatus) => void;
@@ -40,6 +46,14 @@ export function changeAppState(state: AppStateStatus) {
 export function restoreAppState() {
   if (original) {
     Object.defineProperty(AppState, 'currentState', original);
+  }
+  if (listenSpy) {
+    if (presetListen) {
+      listenSpy.mockImplementation(presetListen);
+    } else {
+      listenSpy.mockRestore();
+    }
+    listenSpy = undefined;
   }
   listeners.clear();
 }
