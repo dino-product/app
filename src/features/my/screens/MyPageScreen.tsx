@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { Fragment, memo, type Ref } from 'react';
 import {
   Pressable,
@@ -8,6 +9,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useApiClient } from '../../../shared/api';
 import {
   colors,
   createTextStyle,
@@ -18,21 +20,25 @@ import {
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
+import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
+import { profileQuery } from '../../onboarding/profileApi';
+import { membershipsQuery, type MembershipResponse } from '../memberships';
 import {
   formatJoinDate,
   formatPhoneNumber,
   memberRoleLabels,
-  type Membership,
+  toMyProfile,
   type Profile,
 } from '../model';
+import { queryState } from '../queryState';
 
-// Figma 마이페이지 (3235:17104)
+// Figma 마이페이지 (3235:17104). 프로필은 GET /profiles/{accountId}, 소속 발주사는 GET /memberships 결과다 (#115).
+// 받는 중·실패(다시 시도)는 카드마다 따로 보이고, 설정 행(로그아웃 등)은 그동안에도 쓸 수 있다.
+// 로딩·오류 자리는 Figma 에 없어 공용 자리(LoadStateView)로 둔다 (Figma 미확인)
 export type MyPageScreenProps = {
-  profile: Profile;
-  memberships: readonly Membership[];
   /** 아직 결과가 나오지 않은 조직 참여 신청 수 */
   pendingRequestCount: number;
   onOpenNotifications: () => void;
@@ -46,11 +52,11 @@ export type MyPageScreenProps = {
   onOpenAccount: () => void;
   /** 바깥에서 맨 위로 올릴 때 쓴다 */
   scrollRef?: Ref<ScrollViewInstance>;
+  /** 화면이 보이는 동안만 서버 상태를 구독한다. 하위 화면·다른 탭에 가 있는 동안에는 다시 그리거나 다시 받지 않는다 */
+  focused?: boolean;
 };
 
 export function MyPageScreen({
-  profile,
-  memberships,
   pendingRequestCount,
   onOpenNotifications,
   onEditProfile,
@@ -60,9 +66,22 @@ export function MyPageScreen({
   onOpenTerms,
   onOpenAccount,
   scrollRef,
+  focused = true,
 }: MyPageScreenProps) {
-  const phone = formatPhoneNumber(profile.phoneNumber);
-  const joinDate = `가입일 ${formatJoinDate(profile.signedUpAt)}`;
+  const api = useApiClient();
+  // 켤 때 가입 단계 확인(AuthProvider)이 받아 둔 프로필을 같은 캐시에서 쓴다
+  const profile = queryState(
+    useQuery({
+      ...profileQuery(api),
+      select: toMyProfile,
+      subscribed: focused,
+    }),
+    '프로필을 불러오지 못했어요.',
+  );
+  const memberships = queryState(
+    useQuery({ ...membershipsQuery(api), subscribed: focused }),
+    '소속 발주사를 불러오지 못했어요.',
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -73,27 +92,13 @@ export function MyPageScreen({
         ref={scrollRef}
         contentContainerStyle={[readableColumn, styles.content]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${profile.name}, ${phone}, ${joinDate}`}
-          accessibilityHint="프로필을 수정합니다"
-          onPress={onEditProfile}
-          style={profileCardStyle}
-        >
-          <View style={styles.avatar}>
-            <Icon name="user" size={30} color={colors.support.sideBarIcon} />
+        {profile.status === 'ready' ? (
+          <ProfileCard profile={profile.data} onPress={onEditProfile} />
+        ) : (
+          <View style={[styles.card, styles.loadCard]}>
+            <LoadStateView state={profile} style={styles.cardLoad} />
           </View>
-          <View style={styles.profileText}>
-            <Text variant="Body/S/SemiBold">{profile.name}</Text>
-            <Text variant="Caption/M/Medium" color={colors.gray[700]}>
-              {phone}
-            </Text>
-            <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-              {joinDate}
-            </Text>
-          </View>
-          <Icon name="chevron-right-line" color={CHEVRON_COLOR} />
-        </Pressable>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionRow}>
@@ -144,7 +149,9 @@ export function MyPageScreen({
             </View>
           </View>
           <View style={[styles.card, styles.membershipCard]}>
-            {memberships.length === 0 ? (
+            {memberships.status !== 'ready' ? (
+              <LoadStateView state={memberships} style={styles.cardLoad} />
+            ) : memberships.data.length === 0 ? (
               <Text
                 variant="Caption/M/Medium"
                 color={colors.gray[600]}
@@ -153,7 +160,7 @@ export function MyPageScreen({
                 아직 소속된 발주사가 없어요
               </Text>
             ) : (
-              memberships.map((membership, index) => (
+              memberships.data.map((membership, index) => (
                 <Fragment key={membership.organizationId}>
                   {index > 0 && <View style={styles.divider} />}
                   <MembershipRow membership={membership} />
@@ -204,12 +211,55 @@ const chipBackgrounds = StyleSheet.create({
   DEACTIVATED: { backgroundColor: statusSpec.DEACTIVATED.background },
 });
 
+// 누르면 프로필 수정으로 간다. 가입 시각이 아직 없으면(가입을 마치기 전) 가입일 줄을 비운다
+function ProfileCard({
+  profile,
+  onPress,
+}: {
+  profile: Profile;
+  onPress: () => void;
+}) {
+  const phone = formatPhoneNumber(profile.phoneNumber);
+  const joinDate =
+    profile.signedUpAt === null
+      ? null
+      : `가입일 ${formatJoinDate(profile.signedUpAt)}`;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={[profile.name, phone, joinDate]
+        .filter(Boolean)
+        .join(', ')}
+      accessibilityHint="프로필을 수정합니다"
+      onPress={onPress}
+      style={profileCardStyle}
+    >
+      <View style={styles.avatar}>
+        <Icon name="user" size={30} color={colors.support.sideBarIcon} />
+      </View>
+      <View style={styles.profileText}>
+        <Text variant="Body/S/SemiBold">{profile.name}</Text>
+        <Text variant="Caption/M/Medium" color={colors.gray[700]}>
+          {phone}
+        </Text>
+        {joinDate !== null && (
+          <Text variant="Caption/S/Medium" color={colors.gray[600]}>
+            {joinDate}
+          </Text>
+        )}
+      </View>
+      <Icon name="chevron-right-line" color={CHEVRON_COLOR} />
+    </Pressable>
+  );
+}
+
 // Figma 에 누르는 동작이 없어 정보 행이다. 스크린리더는 한 줄로 읽는다.
 // 누르고 있는 동안에는 다른 리스트 행처럼 회색 배경을 보인다 (#102). 동작은 없어 버튼으로 읽히지 않는다
 const MembershipRow = memo(function MyMembershipRow({
   membership,
 }: {
-  membership: Membership;
+  membership: MembershipResponse;
 }) {
   const { organizationId, organizationName, role, status } = membership;
   const spec = statusSpec[status];
@@ -334,6 +384,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background[2],
   },
   profileText: { flex: 1 },
+  // 프로필을 받는 중·실패 자리. 카드 모양은 그대로 두고 안을 비운다
+  loadCard: { boxShadow: '0px 0px 12px rgba(0, 0, 0, 0.04)' },
+  cardLoad: { paddingHorizontal: 20, paddingVertical: 20 },
   section: { gap: 12 },
   sectionRow: {
     flexDirection: 'row',

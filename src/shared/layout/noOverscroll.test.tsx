@@ -1,7 +1,7 @@
+import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { makeHistoryMock } from '../../features/history/mockData';
 import { WorkHistoryScreen } from '../../features/history/screens/WorkHistoryScreen';
-import { membershipsMock, profileMock } from '../../features/my/mockData';
 import { cachedNotificationTestApi } from '../../features/my/notificationTesting';
 import type { ParticipationRequest } from '../../features/my/org/model';
 import { createParticipationServer } from '../../features/my/org/testing';
@@ -18,6 +18,7 @@ import { ProfileEditScreen } from '../../features/my/screens/ProfileEditScreen';
 import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
+import { myServer, seedMyCache } from '../../features/my/profileTesting';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
@@ -32,7 +33,7 @@ import {
 } from '../../features/work/mockData';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
-import { renderWithApi } from '../testing/renderWithApi';
+import { createTestApi } from '../testing/renderWithApi';
 import { testSession } from '../testing/session';
 
 // 새로고침이 없는 화면은 맨 위에서 아래로 끌어도 내용이 내려오지 않는다 (#103).
@@ -62,8 +63,6 @@ const blocked: [string, ReactElement][] = [
   [
     '마이페이지',
     <MyPageScreen
-      profile={profileMock}
-      memberships={membershipsMock}
       pendingRequestCount={0}
       onOpenNotifications={noop}
       onEditProfile={noop}
@@ -74,14 +73,7 @@ const blocked: [string, ReactElement][] = [
       onOpenAccount={noop}
     />,
   ],
-  [
-    '프로필 수정',
-    <ProfileEditScreen
-      profile={{ name: '김현진', phoneNumber: '01012345678' }}
-      onBack={noop}
-      onSave={noop}
-    />,
-  ],
+  ['프로필 수정', <ProfileEditScreen onBack={noop} onSaved={noop} />],
   [
     '알림 설정',
     withNotificationApi(<NotificationSettingsScreen onBack={noop} />),
@@ -105,15 +97,11 @@ const blocked: [string, ReactElement][] = [
       onOpenWithdrawalBlocked={noop}
     />,
   ],
-  ['계정 탈퇴', <WithdrawalScreen onBack={noop} onWithdraw={noop} />],
   [
-    '탈퇴 불가',
-    <WithdrawalBlockedScreen
-      blocks={[{ reason: 'WORK_IN_PROGRESS', count: 1 }]}
-      onOpenBlock={noop}
-      onBack={noop}
-    />,
+    '계정 탈퇴',
+    <WithdrawalScreen onBack={noop} onWithdrawn={noop} onBlocked={noop} />,
   ],
+  ['탈퇴 불가', <WithdrawalBlockedScreen onOpenBlock={noop} onBack={noop} />],
   [
     '작업 상세',
     <WorkDetailScreen
@@ -228,12 +216,20 @@ const refreshable: [string, ReactElement][] = [
   ['신청 현황', <JoinRequestsScreen onJoin={noop} onBack={noop} />],
 ];
 
-// 조직 참여 화면은 서버 상태를 읽어 API 를 붙여 그린다 (#116). 신청 현황은 빈 목록이다
+// 서버 상태를 읽는 화면은 API 를 붙여 그린다. 조직 참여(#116)는 빈 신청 현황, 마이페이지·프로필 수정·탈퇴 불가(#115)는
+// 받아 둔 프로필·소속·탈퇴 가능 여부로 그린다
 async function firstScrollView(element: ReactElement) {
-  const { container } = await renderWithApi(element, {
-    server: createParticipationServer().server,
+  const api = createTestApi({
+    server: myServer({ server: createParticipationServer().server }),
     session: testSession(),
   });
+  seedMyCache(api.queryClient, {
+    eligibility: {
+      withdrawable: false,
+      blocks: [{ reason: 'WORK_IN_PROGRESS', count: 1 }],
+    },
+  });
+  const { container } = await render(element, { wrapper: api.wrapper });
   const [scroll] = container.queryAll(node => node.type === 'RCTScrollView');
   expect(scroll).toBeDefined();
   return scroll;

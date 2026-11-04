@@ -29,6 +29,8 @@ import {
   currentAccountId,
   fetchProfile,
   ProfileErrorCode,
+  profileQuery,
+  profileQueryKey,
   type AccountProfile,
   type NextStep,
 } from '../features/onboarding/profileApi';
@@ -117,7 +119,10 @@ type Auth = {
   completeOnboarding: () => void;
   /** 서버 로그아웃을 부르고(실패해도) 기기 세션·캐시를 지운 뒤 로그인 화면으로 간다 */
   signOut: () => Promise<void>;
-  /** 탈퇴 (#115 에서 POST /profiles/{accountId}/withdrawals 를 붙인다). 지금은 로그아웃하고 최근 로그인 표시를 지운다 */
+  /**
+   * 탈퇴를 마쳤다 (POST /profiles/{accountId}/withdrawals 204, #115). 최근 로그인 표시를 지우고
+   * 로그아웃과 같은 길로 기기 세션·캐시·표식·초안을 지운 뒤 로그인 화면으로 간다
+   */
   withdraw: () => Promise<void>;
   profileStore: ProfileStore;
 };
@@ -158,10 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 뒤에서 온 결과(켤 때 확인, PROFILE-005 재조회)는 시작할 때의 세대가 그대로일 때만 반영해 더 새 상태를 덮지 않는다
   const epoch = useRef(0);
 
-  // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다
+  // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다.
+  // 마이페이지가 쓰는 프로필 캐시도 같은 값으로 바꾼다 (#115, 다시 받지 않는다)
   const applyProfile = useCallback(
     (profile: AccountProfile, joining?: boolean) => {
       profileStore.set(profile);
+      queryClient.setQueryData(profileQueryKey, profile);
       saveSignedInStep(profile.nextStep);
       setState(current => {
         const nextJoining =
@@ -177,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
       });
     },
-    [profileStore],
+    [profileStore, queryClient],
   );
 
   // 사용자 동작의 결과 (뒤에서 오던 옛 결과는 버려진다)
@@ -241,9 +248,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetToSignedOut();
         return;
       }
+      // 마이페이지와 같은 프로필 캐시로 받는다. 보던 마이페이지로 켜져 그쪽이 먼저 받고 있으면 그 요청을 같이 기다린다 (#115)
       try {
         applyBackgroundProfile(
-          await fetchProfile(api, session.accountId),
+          await queryClient.fetchQuery(profileQuery(api)),
           startedAt,
         );
       } catch (error) {
@@ -266,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
     })();
-  }, [api, applyBackgroundProfile, resetToSignedOut]);
+  }, [api, queryClient, applyBackgroundProfile, resetToSignedOut]);
 
   // 재발급이 거절됐다(AUTH-009). 로그인해 있었으면 로그인 화면으로 가고 다시 로그인해 달라고 알린다.
   // 로그아웃으로 세션을 먼저 지운 뒤에 끝난 재발급은 세션 관리자가 만료로 알리지 않는다
@@ -408,6 +416,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return signingOut.current;
   }, [api, resetToSignedOut]);
 
+  // 서버는 이미 이 계정의 모든 토큰을 거부한다. 함께 보내는 로그아웃은 무효 토큰에도 204 라 결과를 바꾸지 않는다
   const withdraw = useCallback(async () => {
     forgetRecentLoginMethod();
     setRecentMethod(null);

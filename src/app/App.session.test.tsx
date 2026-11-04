@@ -439,12 +439,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   });
 
   it('다른 API 가 PROFILE-005 를 주면 프로필을 다시 조회해 그 가입 단계(약관 재동의) 화면으로 보낸다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     // 필수 약관 버전이 올라 재동의가 필요해졌다
     server.on('GET', PROFILE_PATH, ok(accountProfile('TERMS')));
 
@@ -459,12 +456,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   });
 
   it('PROFILE-005 뒤 프로필을 다시 받지 못하면 지금 화면에 머문다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, networkError());
 
     await fetchMemberships(app);
@@ -477,12 +471,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
 
   it('PROFILE-005 재조회를 기다리는 동안 로그아웃했으면 늦게 온 프로필로 가입 단계에 가지 않는다', async () => {
     const pending = deferred();
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, () => pending.response);
     await fetchMemberships(app);
     await waitFor(() =>
@@ -511,12 +502,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
   }
 
   it('약관을 다시 동의하면 회사 찾기 대신 메인으로 돌아가고, 건드리지 않은 마케팅 동의는 서버 값 그대로 보낸다', async () => {
-    const server = accountServer().on(
-      'GET',
-      '/api/v1/memberships',
-      fail(403, 'PROFILE-005'),
-    );
-    const app = await renderSignedInApp({ server });
+    const app = await renderSignedInApp();
+    const { server } = app;
+    server.on('GET', '/api/v1/memberships', fail(403, 'PROFILE-005'));
     server.on('GET', PROFILE_PATH, ok(reconsentProfile(true)));
     await fetchMemberships(app);
     await screen.findByRole('header', {

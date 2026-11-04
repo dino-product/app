@@ -5,6 +5,7 @@ import {
   formatPhoneNumber,
   formatRelativeTime,
   notificationTargetOf,
+  toMyProfile,
   withdrawalBlockCards,
   type AppNotification,
   type WithdrawalEligibility,
@@ -47,6 +48,40 @@ describe('formatJoinDate', () => {
     expect(formatJoinDate(new Date(2025, 0, 5, 12).toISOString())).toBe(
       '2025.01.05',
     );
+  });
+});
+
+describe('toMyProfile', () => {
+  const account = {
+    accountId: 1,
+    status: 'ACTIVE' as const,
+    nextStep: 'COMPLETED' as const,
+    name: '김현진',
+    phoneNumber: '01012345678',
+    signedUpAt: '2024-03-15T03:00:00Z',
+    marketingAgreed: false,
+  };
+
+  it('프로필 응답에서 마이페이지에 보일 이름·연락처(숫자)·가입 시각만 옮긴다', () => {
+    expect(toMyProfile(account)).toEqual({
+      name: '김현진',
+      phoneNumber: '01012345678',
+      signedUpAt: '2024-03-15T03:00:00Z',
+    });
+  });
+
+  // 켠 직후 서버 확인 전에는 가입을 마치지 않은 계정의 프로필이 잠깐 올 수 있다 (곧 가입 단계 화면으로 바뀐다)
+  it('아직 입력하지 않은 값(null)은 빈 이름·연락처, 가입 시각 없음으로 둔다', () => {
+    expect(
+      toMyProfile({
+        ...account,
+        status: 'PENDING_SIGNUP',
+        nextStep: 'PROFILE',
+        name: null,
+        phoneNumber: null,
+        signedUpAt: null,
+      }),
+    ).toEqual({ name: '', phoneNumber: '', signedUpAt: null });
   });
 });
 

@@ -1,25 +1,32 @@
-// 마이 탭의 데이터 모양. Dino 백엔드 응답(/api/v1/profiles, /memberships, /notification-settings,
-// /notifications, /users/{accountId}/withdrawal-eligibility)과 같은 이름을 써서 연동 때 그대로 옮긴다.
+import type { AccountProfile } from '../onboarding/profileApi';
 
+// 마이 탭의 데이터 모양. Dino 백엔드 응답(/api/v1/profiles, /memberships, /notification-settings,
+// /notifications, /profiles/{accountId}/withdrawal-eligibility)과 같은 이름을 써서 연동 때 그대로 옮긴다.
+
+/** 마이페이지·프로필 수정에 보이는 프로필 */
 export type Profile = {
   name: string;
   /** 숫자 11자리. 화면에서는 010-0000-0000 으로 보여 준다 */
   phoneNumber: string;
-  /** 가입을 마친 시각 (ISO, UTC) */
-  signedUpAt: string;
+  /** 가입을 마친 시각 (ISO, UTC). 가입을 마치기 전이면 null */
+  signedUpAt: string | null;
 };
 
 export type ProfileInput = Pick<Profile, 'name' | 'phoneNumber'>;
 
-export type MemberRole = 'OWNER' | 'STAFF' | 'TECHNICIAN';
+/**
+ * 프로필 응답(ProfileResponse) → 마이 탭 프로필. 가입을 마친 계정은 값이 다 있다.
+ * 켠 직후 서버 확인 전에는 가입을 마치지 않은 계정의 응답이 잠깐 올 수 있어 빈 값(null)도 받는다
+ */
+export function toMyProfile({
+  name,
+  phoneNumber,
+  signedUpAt,
+}: AccountProfile): Profile {
+  return { name: name ?? '', phoneNumber: phoneNumber ?? '', signedUpAt };
+}
 
-export type Membership = {
-  organizationId: string;
-  organizationName: string;
-  role: MemberRole;
-  /** DEACTIVATED 면 이 발주사 기능을 쓸 수 없다 */
-  status: 'ACTIVE' | 'DEACTIVATED';
-};
+export type MemberRole = 'OWNER' | 'STAFF' | 'TECHNICIAN';
 
 export const memberRoleLabels: Record<MemberRole, string> = {
   OWNER: '총관리자',
@@ -168,6 +175,9 @@ export function formatRelativeTime(at: string, now: Date): string {
 }
 
 // 서버(SaveProfileRequest)와 같은 규칙. 이름은 앞뒤 공백을 지운 뒤 2~20자 한글·영문, 연락처는 010 으로 시작하는 11자리
+/** 서버가 입력 규칙 위반(PROFILE-001)으로 거절했을 때 보이는 규칙 문구. 서버는 어느 칸이 틀렸는지 알려 주지 않는다 */
+export const PROFILE_RULE_MESSAGE =
+  '이름은 한글·영문 2~20자, 연락처는 010으로 시작하는 11자리로 입력해 주세요.';
 const NAME_PATTERN = /^[가-힣a-zA-Z]{2,20}$/;
 const PHONE_PATTERN = /^010\d{8}$/;
 

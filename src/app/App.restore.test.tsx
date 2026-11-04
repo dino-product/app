@@ -10,8 +10,10 @@ import {
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
+import { ok } from '../shared/testing/fakeServer';
 import {
   accountServer,
+  ELIGIBILITY_PATH,
   findHomeLoaded,
   findWorkDetailLoaded,
   fixAppTestClock,
@@ -391,7 +393,16 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
 
   // 하위 내비게이터는 남아 있는 하위 이동 파라미터(screen)를 저장한 하위 상태보다 먼저 쓴다 (useNavigationBuilder)
   it('바깥에서 하위 화면을 골라 옮긴 뒤(탈퇴 불가 › 진행 중인 작업 보기)에도 보던 하위 화면을 복원한다', async () => {
-    const kill = await launch();
+    const app = await renderSignedInApp({ workRepository });
+    const kill = () => app.unmount();
+    app.server.on(
+      'GET',
+      ELIGIBILITY_PATH,
+      ok({
+        withdrawable: false,
+        blocks: [{ reason: 'WORK_IN_PROGRESS', count: 1 }],
+      }),
+    );
     await userEvent.press(
       await screen.findByRole('button', { name: '작업 시작' }),
     );

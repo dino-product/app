@@ -13,11 +13,29 @@ import {
   type AlertButton,
 } from 'react-native';
 import { escapeFrom, escapeTarget } from '../../jest/voiceOver';
-import { colors } from '../shared/design-system';
+import { formatJoinDate } from '../features/my/model';
 import {
+  readRecentLoginMethod,
+  readSignedInStep,
+  saveRecentLoginMethod,
+  saveSignedInStep,
+} from '../features/onboarding/login';
+import { profileQueryKey } from '../features/onboarding/profileApi';
+import { saveRejectDraft } from '../features/schedule/rejectDraft';
+import { colors } from '../shared/design-system';
+import { appStorage } from '../shared/storage/appStorage';
+import { fail, noContent, ok } from '../shared/testing/fakeServer';
+import {
+  accountProfile,
+  accountServer,
+  ELIGIBILITY_PATH,
   fixAppTestClock,
+  PROFILE_PATH,
+  relaunch,
+  renderApp,
   renderSignedInApp,
-  renderSignedInHome,
+  signedInSession,
+  WITHDRAWALS_PATH,
 } from './testing';
 
 // 마이 탭(#72). 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로
@@ -36,19 +54,22 @@ const pressAlertButton = async (
   await act(() => buttons.find(item => item.text === text)?.onPress?.());
 };
 
+// 가입을 마친 계정(박기사)으로 켜서 마이 탭을 열고 프로필·소속을 받을 때까지 기다린다.
 // 알림센터·알림 설정은 서버에서 받는다 (#117, 가짜 서버는 accountServer 가 정한다)
 async function openMyPage(
   options: Parameters<typeof renderSignedInApp>[0] = {},
 ) {
   const app = await renderSignedInApp(options);
   await userEvent.press(tab('마이'));
+  await screen.findByRole('button', { name: /^박기사/ });
+  await screen.findByLabelText('오르빗 설비, 기사, 활성');
   return app;
 }
 
 // 마이페이지에서 바로 여는 하위 화면: [누를 버튼, 열린 화면 제목]
 const subScreens = [
   ['알림센터', '알림센터'],
-  [/^김현진/, '프로필 수정'],
+  [/^박기사/, '프로필 수정'],
   ['알림 설정', '알림 설정'],
   ['약관 및 앱 정보', '약관 및 앱 정보'],
   ['계정 관리', '계정 관리'],
@@ -100,19 +121,115 @@ describe('App — 마이 탭', () => {
 
   // 신청 현황·조직 참여 화면은 App.org.test (#73)
 
-  it('프로필을 저장하면 마이페이지로 돌아와 바뀐 이름·연락처를 보여준다', async () => {
-    await openMyPage();
+  describe('프로필·소속 (#115)', () => {
+    it('마이페이지는 서버 프로필의 이름·연락처·가입일과 서버 소속 발주사를 보여준다', async () => {
+      await openMyPage();
 
-    await userEvent.press(button(/^김현진/));
-    await userEvent.clear(screen.getByLabelText('이름'));
-    await userEvent.type(screen.getByLabelText('이름'), '박기사');
-    await userEvent.clear(screen.getByLabelText('연락처'));
-    await userEvent.type(screen.getByLabelText('연락처'), '01098765432');
-    await userEvent.press(button('저장하기'));
+      const card = button(/^박기사/);
+      expect(card).toHaveAccessibleName(
+        `박기사, 010-1234-5678, 가입일 ${formatJoinDate(
+          accountProfile().signedUpAt as string,
+        )}`,
+      );
+      expect(
+        screen.getByLabelText('오르빗 설비, 기사, 활성'),
+      ).toBeOnTheScreen();
+    });
 
-    expect(header('마이페이지')).toBeOnTheScreen();
-    expect(screen.getByText('박기사')).toBeOnTheScreen();
-    expect(screen.getByText('010-9876-5432')).toBeOnTheScreen();
+    // 켤 때 가입 단계 확인(AuthProvider)과 마이페이지가 같은 캐시를 쓴다
+    it('켤 때 확인한 프로필을 마이페이지가 다시 요청하지 않는다', async () => {
+      const app = await openMyPage();
+
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1);
+    });
+
+    it('보던 마이페이지로 다시 켜도 가입 단계 확인과 마이페이지가 프로필을 한 번만 요청한다', async () => {
+      const app = await openMyPage();
+      const before = app.server.callsTo('GET', PROFILE_PATH).length;
+
+      await relaunch(app);
+
+      expect(
+        await screen.findByRole('button', { name: /^박기사/ }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(before + 1);
+    });
+
+    it('프로필을 저장하면 PUT 응답으로 마이페이지와 로그인 상태의 프로필이 바뀌고 돌아온다', async () => {
+      const app = await openMyPage();
+
+      await userEvent.press(button(/^박기사/));
+      await userEvent.clear(screen.getByLabelText('이름'));
+      await userEvent.type(screen.getByLabelText('이름'), '이기사');
+      await userEvent.clear(screen.getByLabelText('연락처'));
+      await userEvent.type(screen.getByLabelText('연락처'), '01098765432');
+      await userEvent.press(button('저장하기'));
+
+      expect(
+        await screen.findByRole('header', { name: '마이페이지' }),
+      ).toBeOnTheScreen();
+      expect(button(/^이기사/)).toHaveAccessibleName(
+        /^이기사, 010-9876-5432, 가입일/,
+      );
+      expect(app.server.callsTo('PUT', PROFILE_PATH)[0].body).toEqual({
+        name: '이기사',
+        phoneNumber: '01098765432',
+      });
+      expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
+        name: '이기사',
+        phoneNumber: '01098765432',
+      });
+      // 저장 응답으로 바꿨으니 다시 받지 않는다
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1);
+    });
+
+    it('저장에 실패하면 프로필 수정에 머물고 마이페이지 값은 그대로다', async () => {
+      const alert = spyAlert();
+      const app = await openMyPage();
+      app.server.on('PUT', PROFILE_PATH, fail(409, 'COMMON-409'));
+
+      await userEvent.press(button(/^박기사/));
+      await userEvent.clear(screen.getByLabelText('이름'));
+      await userEvent.type(screen.getByLabelText('이름'), '이기사');
+      await userEvent.press(button('저장하기'));
+
+      await waitFor(() => expect(alert).toHaveBeenCalled());
+      expect(header('프로필 수정')).toBeOnTheScreen();
+      expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
+        name: '박기사',
+      });
+    });
+
+    // 켤 때 확인(1)이 실패하면 마이페이지를 열 때 한 번 더 묻고(2), 그래도 실패하면 다시 시도(3)로 받는다
+    it('켤 때 프로필 확인에 실패했으면 마이페이지가 다시 받고, 또 실패하면 다시 시도로 받아 온다', async () => {
+      saveSignedInStep('COMPLETED');
+      const app = await renderApp({
+        server: accountServer().on(
+          'GET',
+          PROFILE_PATH,
+          fail(503, 'COMMON-503'),
+          fail(503, 'COMMON-503'),
+          ok(accountProfile()),
+        ),
+        session: signedInSession(),
+      });
+      await waitFor(() =>
+        expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
+      );
+
+      await userEvent.press(tab('마이'));
+      expect(
+        await screen.findByText('프로필을 불러오지 못했어요.'),
+      ).toBeOnTheScreen();
+      // 로그인 화면으로 가지 않고 메인에 머문다
+      expect(tab('마이')).toBeSelected();
+      await userEvent.press(button('다시 시도'));
+
+      expect(
+        await screen.findByRole('button', { name: /^박기사/ }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(3);
+    });
   });
 
   it('알림 설정은 바로 반영되고 서버에 저장돼 다녀와도 남아 있다', async () => {
@@ -226,65 +343,80 @@ describe('App — 마이 탭', () => {
     expect(header('계정 관리')).not.toBeOnTheScreen();
   });
 
-  describe('계정 탈퇴', () => {
-    it('응답 필요 요청이 있으면 탈퇴 불가로 가고, > 를 누르면 내 일정의 응답 필요로 간다', async () => {
-      await openMyPage();
+  describe('계정 탈퇴 (#115)', () => {
+    const NO_REASON =
+      '지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.';
+    const withdrawable = { withdrawable: true, blocks: [] };
+    const blockedBy = (reason: string, count: number) => ({
+      withdrawable: false,
+      blocks: [{ reason, count }],
+    });
 
+    /** 마이페이지 › 계정 관리 › 계정 탈퇴. 가능 여부는 서버가 정한다 */
+    async function pressWithdraw(...eligibility: object[]) {
+      const app = await openMyPage();
+      app.server.on(
+        'GET',
+        ELIGIBILITY_PATH,
+        ...eligibility.map(value => ok(value)),
+      );
       await userEvent.press(button('계정 관리'));
       await userEvent.press(button('계정 탈퇴'));
+      return app;
+    }
+
+    /** 탈퇴하기 → 최종 확인의 탈퇴 */
+    async function confirmWithdraw(alert: ReturnType<typeof spyAlert>) {
+      await userEvent.press(
+        await screen.findByRole('button', { name: '탈퇴하기' }),
+      );
+      await pressAlertButton(alert, '탈퇴');
+    }
+
+    it('가능 여부 API 가 응답 필요 사유를 주면 탈퇴 불가에 그 건수를 보이고, > 를 누르면 내 일정의 응답 필요로 간다', async () => {
+      const app = await pressWithdraw(blockedBy('WORK_PENDING_ACCEPT', 2));
 
       expect(
         await screen.findByRole('header', { name: '계정 탈퇴 불가' }),
       ).toBeOnTheScreen();
-      // 있는 사유만 카드로 보인다 (작업을 시작하지 않았다)
+      expect(app.server.callsTo('GET', ELIGIBILITY_PATH)).toHaveLength(1);
+      // 있는 사유만 카드로 보인다
       expect(
         screen.queryByTestId('withdrawal-block-WORK_IN_PROGRESS'),
       ).toBeNull();
       expect(
-        screen.getByTestId('withdrawal-block-WORK_PENDING_ACCEPT'),
+        screen.getByText('수락 대기 중인 작업 2건이 있습니다'),
       ).toBeOnTheScreen();
-      await userEvent.press(button(/^미완료 작업 배정 \d+건 보기$/));
+      await userEvent.press(button('미완료 작업 배정 2건 보기'));
 
       expect(header('내 일정')).toBeOnTheScreen();
       expect(tab('내 일정')).toBeSelected();
       expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
     });
 
-    it('응답 필요를 정리하고 돌아오면 탈퇴 불가 화면의 사유도 바뀐다', async () => {
-      await openMyPage();
-      await userEvent.press(button('계정 관리'));
-      await userEvent.press(button('계정 탈퇴'));
+    it('사유를 정리하러 갔다가 돌아오면 가능 여부를 다시 물어 탈퇴 불가 화면의 사유도 바뀐다', async () => {
+      const app = await pressWithdraw(
+        blockedBy('WORK_PENDING_ACCEPT', 2),
+        withdrawable,
+      );
       await userEvent.press(
         await screen.findByRole('button', { name: /^미완료 작업 배정/ }),
       );
-      await screen.findAllByRole('button', { name: /수락$/ });
+      expect(header('내 일정')).toBeOnTheScreen();
 
-      while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
-        await userEvent.press(
-          screen.getAllByRole('button', { name: /수락$/ })[0],
-        );
-      }
       await userEvent.press(tab('마이'));
 
       expect(header('계정 탈퇴 불가')).toBeOnTheScreen();
+      expect(await screen.findByText(NO_REASON)).toBeOnTheScreen();
       expect(
         screen.queryByTestId('withdrawal-block-WORK_PENDING_ACCEPT'),
       ).toBeNull();
-      expect(
-        screen.getByText(
-          '지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.',
-        ),
-      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', ELIGIBILITY_PATH)).toHaveLength(2);
     });
 
-    it('진행 중인 작업이 있으면 그 사유도 보이고, > 를 누르면 홈으로 간다', async () => {
-      await renderSignedInHome();
-      await userEvent.press(button('작업 시작'));
-      await screen.findByRole('button', { name: '작업 수행중' });
-      await userEvent.press(tab('마이'));
+    it('진행 중인 작업이 있으면 그 사유가 보이고, > 를 누르면 홈으로 간다', async () => {
+      await pressWithdraw(blockedBy('WORK_IN_PROGRESS', 1));
 
-      await userEvent.press(button('계정 관리'));
-      await userEvent.press(button('계정 탈퇴'));
       await userEvent.press(
         await screen.findByRole('button', {
           name: '진행 중인 작업 1건 보기',
@@ -295,22 +427,37 @@ describe('App — 마이 탭', () => {
       expect(tab('홈')).toBeSelected();
     });
 
-    it('막는 사유가 없으면 계정 탈퇴로 가고, 최종 확인 뒤 로그인 화면으로 간다', async () => {
+    it('유일한 총관리자이면 그 사유와 발주사 수를 보인다', async () => {
+      await pressWithdraw(blockedBy('SOLE_OWNER', 2));
+
+      expect(
+        await screen.findByText('총관리자가 나 혼자인 발주사 2곳이 있습니다'),
+      ).toBeOnTheScreen();
+    });
+
+    it('가능 여부를 확인하지 못하면 계정 관리에 머물러 알린다', async () => {
       const alert = spyAlert();
-      await renderSignedInApp();
-      // 응답 필요 요청을 모두 수락해 탈퇴를 막는 사유를 없앤다
-      await userEvent.press(tab('내 일정'));
-      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
-      await screen.findAllByRole('button', { name: /수락$/ });
-      while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
-        await userEvent.press(
-          screen.getAllByRole('button', { name: /수락$/ })[0],
-        );
-      }
-      await userEvent.press(tab('마이'));
+      const app = await openMyPage();
+      app.server.on('GET', ELIGIBILITY_PATH, fail(500, 'COMMON-500'));
 
       await userEvent.press(button('계정 관리'));
       await userEvent.press(button('계정 탈퇴'));
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '탈퇴할 수 있는지 확인하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(header('계정 관리')).toBeOnTheScreen();
+    });
+
+    it('막는 사유가 없으면 계정 탈퇴로 가고, 사유를 보내 204 면 기기 세션·캐시·표식·초안·최근 로그인 표시를 지우고 로그인 화면으로 간다', async () => {
+      const alert = spyAlert();
+      saveRecentLoginMethod('KAKAO');
+      saveRejectDraft('request-1', { selected: 'other', otherText: '고장' });
+      const app = await pressWithdraw(withdrawable);
+      app.server.on('POST', WITHDRAWALS_PATH, noContent());
       expect(
         await screen.findByRole('header', {
           name: '정말 Orbit을 탈퇴하시겠습니까?',
@@ -318,11 +465,73 @@ describe('App — 마이 탭', () => {
       ).toBeOnTheScreen();
       expect(tab('마이')).toBeSelected();
 
-      await userEvent.press(button('탈퇴하기'));
-      await pressAlertButton(alert, '탈퇴');
+      await userEvent.type(
+        screen.getByLabelText('탈퇴 사유 입력'),
+        '더 이상 쓰지 않아요',
+      );
+      await confirmWithdraw(alert);
 
-      expect(header('오늘의 현장, 한눈에. Orbit')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', {
+          name: '오늘의 현장, 한눈에. Orbit',
+        }),
+      ).toBeOnTheScreen();
       expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
+      expect(app.server.callsTo('POST', WITHDRAWALS_PATH)[0]).toMatchObject({
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' }),
+        body: { reason: '더 이상 쓰지 않아요' },
+      });
+      expect(app.tokenStore.current).toBeNull();
+      expect(readSignedInStep()).toBeNull();
+      expect(readRecentLoginMethod()).toBeNull();
+      expect(screen.queryByText('최근에 로그인 했어요!')).toBeNull();
+      expect(app.queryClient.getQueryData(profileQueryKey)).toBeUndefined();
+      expect(
+        appStorage.getAllKeys().filter(key => key.includes('Draft')),
+      ).toEqual([]);
+    });
+
+    it('탈퇴가 PROFILE-006 이면 가능 여부를 다시 물어 탈퇴 불가 화면으로 가고, 뒤로 가면 계정 관리다', async () => {
+      const alert = spyAlert();
+      const app = await pressWithdraw(
+        withdrawable,
+        blockedBy('WORK_IN_PROGRESS', 1),
+      );
+      app.server.on('POST', WITHDRAWALS_PATH, fail(409, 'PROFILE-006'));
+
+      await confirmWithdraw(alert);
+
+      expect(
+        await screen.findByRole('header', { name: '계정 탈퇴 불가' }),
+      ).toBeOnTheScreen();
+      expect(
+        await screen.findByText('현재 작업 중 상태인 작업 1건이 있습니다'),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', ELIGIBILITY_PATH)).toHaveLength(2);
+      expect(app.tokenStore.current).not.toBeNull();
+
+      // 계정 탈퇴 화면을 바꿔 열었으니 뒤로 가면 그 아래 계정 관리다 (두 화면 모두 제목이 계정 관리라 메뉴로 본다)
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('계정 탈퇴 불가')).not.toBeOnTheScreen();
+      expect(header('정말 Orbit을 탈퇴하시겠습니까?')).not.toBeOnTheScreen();
+      expect(button('로그아웃')).toBeOnTheScreen();
+    });
+
+    it('탈퇴가 다른 이유로 실패하면 계정 탈퇴에 머물러 알리고 로그인해 둔 채다', async () => {
+      const alert = spyAlert();
+      const app = await pressWithdraw(withdrawable);
+      app.server.on('POST', WITHDRAWALS_PATH, fail(500, 'COMMON-500'));
+
+      await confirmWithdraw(alert);
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenLastCalledWith(
+          '탈퇴하지 못했어요',
+          '잠시 후 다시 시도해 주세요.',
+        ),
+      );
+      expect(header('정말 Orbit을 탈퇴하시겠습니까?')).toBeOnTheScreen();
+      expect(app.tokenStore.current).not.toBeNull();
     });
   });
 
@@ -421,19 +630,21 @@ describe('App — 마이 탭', () => {
       ['계정 탈퇴', '정말 Orbit을 탈퇴하시겠습니까?'],
       ['계정 탈퇴 불가', '계정 탈퇴 불가'],
     ] as const;
-    // 응답 필요 요청을 모두 수락했는지에 따라 계정 탈퇴·탈퇴 불가로 간다
+    // 서버 가능 여부에 따라 계정 탈퇴·탈퇴 불가로 간다
     async function openDeep(name: (typeof deepScreens)[number][0]) {
-      await renderSignedInApp();
-      if (name === '계정 탈퇴') {
-        await userEvent.press(tab('내 일정'));
-        await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
-        while (screen.queryAllByRole('button', { name: /수락$/ }).length > 0) {
-          await userEvent.press(
-            screen.getAllByRole('button', { name: /수락$/ })[0],
-          );
-        }
-      }
-      await userEvent.press(tab('마이'));
+      const app = await openMyPage();
+      app.server.on(
+        'GET',
+        ELIGIBILITY_PATH,
+        ok(
+          name === '계정 탈퇴'
+            ? { withdrawable: true, blocks: [] }
+            : {
+                withdrawable: false,
+                blocks: [{ reason: 'WORK_IN_PROGRESS', count: 1 }],
+              },
+        ),
+      );
       await userEvent.press(button('계정 관리'));
       await userEvent.press(button('계정 탈퇴'));
     }

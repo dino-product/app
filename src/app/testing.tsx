@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { MEMBERSHIPS_PATH } from '../features/my/memberships';
 import type { NotificationResponse } from '../features/my/notificationApi';
 import { notificationServer } from '../features/my/notificationTesting';
 import {
@@ -32,6 +33,9 @@ import App from './App';
 export const ACCOUNT_ID = 1;
 export const PROFILE_PATH = `/api/v1/profiles/${ACCOUNT_ID}`;
 export const LOGOUT_PATH = '/api/v1/auth/logout';
+/** 탈퇴 가능 여부·탈퇴 (#115). 테스트마다 app.server.on 으로 응답을 정한다 */
+export const ELIGIBILITY_PATH = `${PROFILE_PATH}/withdrawal-eligibility`;
+export const WITHDRAWALS_PATH = `${PROFILE_PATH}/withdrawals`;
 
 const HOUR_MS = 60 * 60 * 1000;
 // 오래 걸리는 시나리오나 Date.now 를 앞당기는 테스트가 재발급을 타지 않게 access token 을 길게 둔다
@@ -71,8 +75,18 @@ export const loginResponse = () => ({
   refreshTokenExpiresAt: new Date(Date.now() + LONG_LIVED_MS).toISOString(),
 });
 
+/** 내 소속 목록 (마이페이지 소속 발주사). 활성 기사 소속 하나 */
+export const accountMemberships = () => [
+  {
+    organizationId: 1,
+    organizationName: '오르빗 설비',
+    role: 'TECHNICIAN',
+    status: 'ACTIVE',
+  },
+];
+
 /**
- * 로그인·가입 단계·로그아웃·회사 참여를 정한 가짜 서버. 프로필은 서버처럼 이어진다:
+ * 로그인·가입 단계·로그아웃·회사 참여·내 소속을 정한 가짜 서버. 프로필은 서버처럼 이어진다:
  * 프로필 입력(PUT) → TERMS, 약관 동의(POST) → COMPLETED. nextStep 은 처음 프로필 조회가 줄 단계.
  * 회사 참여(#116)도 서버처럼 이어진다(features/my/org/testing). 가입을 마친 계정은 신청 현황에 거절 1·승인 대기 2 가 있고,
  * 새 계정은 비어 있다(requests 로 바꿀 수 있다). 사무실의 결정은 participationOf(app.server).decide 로 정한다.
@@ -130,7 +144,8 @@ export function accountServer({
       };
       return ok(profile);
     })
-    .on('POST', LOGOUT_PATH, noContent());
+    .on('POST', LOGOUT_PATH, noContent())
+    .on('GET', MEMBERSHIPS_PATH, ok({ memberships: accountMemberships() }));
 }
 
 type AppOptions = {

@@ -1,4 +1,5 @@
-import { memo, type Ref } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { memo, useEffect, useRef, type Ref } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,32 +8,51 @@ import {
   type TextInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useApiClient } from '../../../shared/api';
 import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
+import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
   withdrawalBlockCards,
-  type WithdrawalBlock,
   type WithdrawalBlockCard,
   type WithdrawalBlockReason,
 } from '../model';
+import { queryState } from '../queryState';
+import { withdrawalEligibilityQuery } from '../withdrawalApi';
 
-// Figma 마이페이지-탈퇴 불가 (2935:14696). 있는 사유만 카드로 보인다
+// Figma 마이페이지-탈퇴 불가 (2935:14696). 서버가 준 사유(GET withdrawal-eligibility, #115) 중 건수가 있는 것만 카드로 보인다.
+// 처음 열 때는 계정 관리가 탈퇴를 누른 때 물어 둔 결과를 쓰고, 사유를 정리하러 다른 화면에 갔다가 돌아오면 다시 묻는다.
+// 받는 중·실패 자리는 Figma 에 없어 공용 자리(LoadStateView)로 둔다 (Figma 미확인)
 export function WithdrawalBlockedScreen({
-  blocks,
   onOpenBlock,
   onBack,
   titleRef,
+  focused = true,
 }: {
-  blocks: readonly WithdrawalBlock[];
   /** 사유를 정리할 곳(진행 중인 작업 → 홈, 미완료 배정 → 내 일정 응답 필요)으로 */
   onOpenBlock: (reason: WithdrawalBlockReason) => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
+  /** 화면이 보이는지. 다시 보이면 가능 여부를 다시 묻는다 */
+  focused?: boolean;
 }) {
-  const cards = withdrawalBlockCards(blocks);
+  const api = useApiClient();
+  const result = useQuery({
+    ...withdrawalEligibilityQuery(api),
+    refetchOnMount: false,
+  });
+  const { refetch } = result;
+  const wasFocused = useRef(focused);
+  useEffect(() => {
+    if (focused && !wasFocused.current) {
+      refetch();
+    }
+    wasFocused.current = focused;
+  }, [focused, refetch]);
+  const eligibility = queryState(result, '탈퇴할 수 있는지 확인하지 못했어요.');
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -54,24 +74,44 @@ export function WithdrawalBlockedScreen({
             현재 다음 사유로 인해 탈퇴가 불가능합니다
           </Text>
         </View>
-        {cards.length > 0 ? (
-          <View style={styles.cards}>
-            {cards.map(card => (
-              <BlockCard key={card.reason} card={card} onOpen={onOpenBlock} />
-            ))}
-          </View>
+        {eligibility.status === 'ready' ? (
+          <BlockCards
+            cards={withdrawalBlockCards(eligibility.data.blocks)}
+            onOpen={onOpenBlock}
+          />
         ) : (
-          // 사유를 다 정리하고 돌아왔거나, 서버가 사유 없이 탈퇴 불가를 준 경우 (문구는 기본안)
-          <Text
-            variant="Caption/M/Medium"
-            color={colors.gray[600]}
-            style={styles.center}
-          >
-            지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.
-          </Text>
+          <LoadStateView state={eligibility} style={styles.load} />
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function BlockCards({
+  cards,
+  onOpen,
+}: {
+  cards: readonly WithdrawalBlockCard[];
+  onOpen: (reason: WithdrawalBlockReason) => void;
+}) {
+  if (cards.length === 0) {
+    // 사유를 다 정리하고 돌아왔거나, 서버가 사유 없이 탈퇴 불가를 준 경우 (문구는 기본안)
+    return (
+      <Text
+        variant="Caption/M/Medium"
+        color={colors.gray[600]}
+        style={styles.center}
+      >
+        지금은 탈퇴를 막는 사유가 없어요. 계정 관리에서 다시 시도해 주세요.
+      </Text>
+    );
+  }
+  return (
+    <View style={styles.cards}>
+      {cards.map(card => (
+        <BlockCard key={card.reason} card={card} onOpen={onOpen} />
+      ))}
+    </View>
   );
 }
 
@@ -159,6 +199,7 @@ const styles = StyleSheet.create({
   intro: { alignItems: 'center', gap: 8 },
   center: { textAlign: 'center' },
   cards: { gap: 12 },
+  load: { paddingVertical: 24 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

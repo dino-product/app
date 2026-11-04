@@ -1,17 +1,19 @@
 import { render, screen } from '@testing-library/react-native';
+import { createTestApi } from '../../../shared/testing/renderWithApi';
+import { testSession } from '../../../shared/testing/session';
 import {
   expectIconButtonTouchTarget,
   expectMinTouchTarget,
   stylePt,
 } from '../../../shared/testing/touchTarget';
-import { membershipsMock, profileMock } from '../mockData';
+import { myServer, seedMyCache } from '../profileTesting';
 import { MyPageScreen } from './MyPageScreen';
 
-const renderMyPage = () =>
-  render(
+const renderMyPage = () => {
+  const api = createTestApi({ server: myServer(), session: testSession() });
+  seedMyCache(api.queryClient);
+  return render(
     <MyPageScreen
-      profile={profileMock}
-      memberships={membershipsMock}
       pendingRequestCount={3}
       onOpenNotifications={jest.fn()}
       onEditProfile={jest.fn()}
@@ -21,7 +23,9 @@ const renderMyPage = () =>
       onOpenTerms={jest.fn()}
       onOpenAccount={jest.fn()}
     />,
+    { wrapper: api.wrapper },
   );
+};
 
 describe('MyPageScreen 터치 영역', () => {
   it('종 버튼은 26 아이콘 그대로 최소 터치 영역으로 넓힌다', async () => {
