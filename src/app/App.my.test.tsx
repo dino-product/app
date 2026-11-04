@@ -45,7 +45,10 @@ import {
 } from './testing';
 
 // 마이 탭(#72). 네이티브 스택은 아래 화면을 스크린리더에서만 숨기므로
-// "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식)
+// "지금 보이는 화면" 은 헤더가 접근성 트리에 있는지로 확인한다 (App.test 와 같은 방식).
+// 켜기 → 마이 → 계정 관리 → 탈퇴 → 로그인 화면까지 한 번에 지나가는 흐름이 있어 커버리지·병렬 실행에서 기본 5초를 넘을 수 있다
+// (App.onboarding.test 와 같다)
+jest.setTimeout(20_000);
 const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
