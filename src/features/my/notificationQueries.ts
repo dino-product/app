@@ -129,10 +129,10 @@ const PARTICIPATION_RESULTS: ReadonlySet<NotificationType> = new Set([
   'PARTICIPATION_REQUEST_REJECTED',
 ]);
 
-/** 알림을 열었다. 참여 요청 결과(승인·거절)면 신청 현황과 소속(승인되면 새 소속)을 다시 받게 한다 (#116) */
+/** 알림을 열었다(알림센터·푸시). 참여 요청 결과(승인·거절)면 신청 현황과 소속(승인되면 새 소속)을 다시 받게 한다 (#116) */
 export function refreshForOpenedNotification(
   queryClient: QueryClient,
-  { type }: AppNotification,
+  { type }: Pick<AppNotification, 'type'>,
 ) {
   if (PARTICIPATION_RESULTS.has(type)) {
     queryClient.invalidateQueries({ queryKey: participationRequestsKey });

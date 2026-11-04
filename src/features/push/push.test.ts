@@ -21,7 +21,6 @@ import {
   defaultMessaging,
   forgetPushDevice,
   hasPushPermission,
-  markPushRead,
   PUSH_DEVICES_PATH,
   readPushDeviceId,
   readPushDeviceOwner,
@@ -455,43 +454,6 @@ describe('forgetPushDevice', () => {
     expect(() => forgetPushDevice()).not.toThrow();
     expect(readPushDeviceId()).toBeUndefined();
     expect(firebaseMessaging.deleteToken).not.toHaveBeenCalled();
-  });
-});
-
-describe('markPushRead', () => {
-  it('알림을 읽음 처리한다 (N3)', async () => {
-    const server = createFakeServer().on(
-      'PUT',
-      '/api/v1/notifications/31/read',
-      noContent(),
-    );
-
-    await markPushRead(apiWith(server), '31');
-
-    expect(server.callsTo('PUT', '/api/v1/notifications/31/read')).toHaveLength(
-      1,
-    );
-  });
-
-  it.each([
-    ['id 없음', undefined],
-    ['숫자가 아닌 id', '../31'],
-  ])('%s 이면 보내지 않는다', async (_, id) => {
-    const server = createFakeServer();
-
-    await markPushRead(apiWith(server), id);
-
-    expect(server.calls).toHaveLength(0);
-  });
-
-  it('실패해도 던지지 않는다 (다른 계정의 알림 등)', async () => {
-    const server = createFakeServer().on(
-      'PUT',
-      '/api/v1/notifications/31/read',
-      fail(403, 'NOTIFICATION-003'),
-    );
-
-    await expect(markPushRead(apiWith(server), '31')).resolves.toBeUndefined();
   });
 });
 

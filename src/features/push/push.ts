@@ -13,7 +13,7 @@ import { ApiError, ApiErrorMessage, type ApiClient } from '../../shared/api';
 import { isRecord } from '../../shared/isRecord';
 import { appStorage } from '../../shared/storage/appStorage';
 
-// 앱 푸시 (#118, 백엔드 §2.5 N3·N6·N7). 사용법:
+// 앱 푸시 (#118, 백엔드 §2.5 N6·N7). 사용법:
 //   const messaging = defaultMessaging()           Firebase 설정 파일이 없는 빌드면 null → 푸시를 쓰지 않는다
 //   await registerPushDevice(api, messaging)       가입을 마친 뒤(메인): 권한 → FCM 토큰 → 서버 등록 → pushDeviceId 저장
 //   await unregisterPushDevice(api, accessToken)   로그아웃 서버 요청 직전: 저장한 id 로 해제하고 지운다
@@ -181,17 +181,6 @@ export async function unregisterPushDevice(
       )
       .catch(ignore);
   }
-}
-
-/** 알림을 눌러 열었다 → 읽음 (N3). 실패해도(다른 계정의 알림 등) 화면 이동은 그대로다 */
-export async function markPushRead(
-  api: ApiClient,
-  notificationId: string | undefined,
-): Promise<void> {
-  if (notificationId === undefined || !/^\d+$/.test(notificationId)) {
-    return;
-  }
-  await api.put(`/api/v1/notifications/${notificationId}/read`).catch(ignore);
 }
 
 /**

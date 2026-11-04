@@ -9,14 +9,15 @@ import type { NavigationContainerRefWithCurrent } from '@react-navigation/native
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { participationRequestsKey } from '../features/my/org/participationQueries';
+import {
+  notificationKeys,
+  refreshForOpenedNotification,
+  useMarkNotificationRead,
+} from '../features/my/notificationQueries';
 import { workKeys } from '../features/work/data/keys';
-import { workDetailQuery } from '../features/work/data/queries';
-import type { WorkStatusCode } from '../features/work/data/status';
 import { useWorkRepository } from '../features/work/data/WorkRepositoryProvider';
 import {
   defaultMessaging,
-  markPushRead,
   readPushDeviceId,
   readPushDeviceOwner,
   refreshPushDevice,
@@ -24,6 +25,7 @@ import {
 } from '../features/push/push';
 import { useApiClient } from '../shared/api';
 import { useAuth } from './AuthProvider';
+import { notificationWorkScreen } from './navigation/notificationWork';
 import {
   parsePushData,
   pushRouteOf,
@@ -41,9 +43,6 @@ import type { RootStackParamList } from './navigation/types';
 //   로그인 전·가입 중·세션 만료면 메인에 들어온 뒤 연다. 다른 계정으로 로그인했으면 열지 않고 메인에 머문다
 // Firebase 설정 파일이 없는 빌드는 아무것도 하지 않는다
 
-// 알림센터 캐시의 접두사 (#117 notificationKeys 가 머지되면 그 키로 바꾼다)
-const NOTIFICATIONS_KEY = ['notifications'] as const;
-
 const ignore = () => undefined;
 
 /** 누른 알림과, 누른 때 이 기기를 등록해 둔 계정 */
@@ -57,6 +56,8 @@ export function PushNotifications({
   const api = useApiClient();
   const queryClient = useQueryClient();
   const repository = useWorkRepository();
+  // 읽음은 알림센터(#117)와 같이 보낸다: 목록에서 바로 읽음으로 보이고, 실패하면 되돌린다
+  const markRead = useMarkNotificationRead();
   const inMain = useAuth().phase === 'main';
   const [messaging] = useState(defaultMessaging);
   const inMainRef = useRef(inMain);
@@ -65,13 +66,13 @@ export function PushNotifications({
 
   const refresh = useCallback(
     (data: PushData) => {
-      queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.list });
       if (data.workId !== undefined) {
         queryClient.invalidateQueries({ queryKey: workKeys.all });
       }
-      // 승인이면 신청 현황을 다시 받으며 소속(['memberships'])도 무효화된다 (#116)
-      if (data.participationRequestId !== undefined) {
-        queryClient.invalidateQueries({ queryKey: participationRequestsKey });
+      // 참여 요청 결과면 신청 현황과 소속을 다시 받게 한다 (알림센터에서 열 때와 같다, #116·#117)
+      if (data.type !== undefined) {
+        refreshForOpenedNotification(queryClient, { type: data.type });
       }
     },
     [queryClient],
@@ -86,23 +87,6 @@ export function PushNotifications({
     [navigation],
   );
 
-  // 작업 알림은 상세를 먼저 받아 수락 대기인지 본다. 받은 상세는 캐시(같은 키)에 남아 연 화면이 바로 그린다.
-  // 다시 시도하지 않는다(기다리는 동안 표시가 없다). 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다
-  const workStatusOf = useCallback(
-    (data: PushData): Promise<WorkStatusCode | undefined> => {
-      const workId = pushWorkIdOf(data);
-      return workId === undefined
-        ? Promise.resolve(undefined)
-        : queryClient
-            .fetchQuery({
-              ...workDetailQuery(repository, Number(workId)),
-              retry: false,
-            })
-            .then(work => work.workStatus, ignore);
-    },
-    [queryClient, repository],
-  );
-
   // 열 화면. 이 기기를 등록한 계정이 아닌 계정으로 로그인했으면(로그인 전에 누른 다른 계정의 푸시) 이을 수 없어 null
   const routeOf = useCallback(
     async ({ data, owner }: PendingPush): Promise<PushRoute | null> => {
@@ -110,9 +94,20 @@ export function PushNotifications({
       if (owner !== undefined && session?.accountId !== owner) {
         return null;
       }
-      return pushRouteOf(data, await workStatusOf(data));
+      // 작업 알림은 상세를 먼저 받아 수락 대기면 요청 상세로 연다 (알림센터와 같은 규칙)
+      const workId = pushWorkIdOf(data);
+      return pushRouteOf(
+        data,
+        workId === undefined
+          ? undefined
+          : await notificationWorkScreen(
+              queryClient,
+              repository,
+              Number(workId),
+            ),
+      );
     },
-    [api, workStatusOf],
+    [api, queryClient, repository],
   );
 
   // 마지막에 누른 알림만 열고, 고르는 사이 사용자가 화면을 옮겼거나 로그아웃했으면 열지 않는다 (#117 알림센터와 같은 규칙).
@@ -141,11 +136,11 @@ export function PushNotifications({
       } else {
         navigation.navigate('Main', route.params);
       }
-      markPushRead(api, target.data.notificationId).then(() =>
-        queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
-      );
+      if (target.data.notificationId !== undefined) {
+        markRead(target.data.notificationId);
+      }
     });
-  }, [api, mainReady, navigation, queryClient, routeOf]);
+  }, [mainReady, markRead, navigation, routeOf]);
 
   useEffect(() => {
     inMainRef.current = inMain;

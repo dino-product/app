@@ -36,6 +36,19 @@ describe('parsePushData', () => {
   ])('%s → 빈 값', (_, data) => {
     expect(parsePushData(data)).toEqual({});
   });
+
+  it('앱이 모르는 종류(사무실 알림·새 종류)는 버린다 (알림센터 #117 의 NotificationType)', () => {
+    expect(
+      parsePushData({
+        notificationId: '40',
+        type: 'ROLE_CHANGED',
+        workId: '10',
+      }),
+    ).toEqual({ notificationId: '40', workId: '10' });
+    expect(parsePushData({ type: 'WORK_ACCEPTED', workId: '10' })).toEqual({
+      workId: '10',
+    });
+  });
 });
 
 const main = (params: object) => ({ name: 'Main', params });
@@ -51,8 +64,8 @@ describe('pushWorkIdOf', () => {
     ['작업 id 가 없는 작업 알림', { type: 'WORK_ASSIGNED' }],
     ['숫자가 아닌 작업 id', { type: 'WORK_ASSIGNED', workId: '../10' }],
     ['참여 결과 알림', { type: 'PARTICIPATION_REQUEST_APPROVED' }],
-    ['앱이 모르는 종류', { type: 'ROLE_CHANGED', workId: '10' }],
-  ])('%s → 없음', (_, data) => {
+    ['앱이 모르는 종류', parsePushData({ type: 'ROLE_CHANGED', workId: '10' })],
+  ] as const)('%s → 없음', (_, data) => {
     expect(pushWorkIdOf(data)).toBeUndefined();
   });
 });
@@ -64,23 +77,23 @@ describe('pushRouteOf', () => {
     'WORK_REASSIGNED_AWAY',
     'WORK_CANCELED',
     'COMPLETION_REPORT_REQUESTED',
-  ])(
-    '작업 알림 %s → 홈 탭의 그 작업 상세 (발주사는 넘기지 않는다, 상태를 모르면 작업 상세)',
+  ] as const)(
+    '작업 알림 %s → 홈 탭의 그 작업 상세 (발주사는 넘기지 않는다, 고른 화면이 없으면 작업 상세)',
     type => {
       expect(pushRouteOf({ notificationId: '31', type, workId: '10' })).toEqual(
         homeScreen('WorkDetail', { id: '10' }),
       );
       expect(
-        pushRouteOf({ notificationId: '31', type, workId: '10' }, 'ACCEPTED'),
+        pushRouteOf({ notificationId: '31', type, workId: '10' }, 'detail'),
       ).toEqual(homeScreen('WorkDetail', { id: '10' }));
     },
   );
 
-  it('수락 대기 작업이면 수락·거절하는 요청 상세 (홈·알림센터의 작업 열기와 같은 규칙)', () => {
+  it('수락 대기 작업이라 요청 상세를 골랐으면 수락·거절하는 요청 상세 (알림센터와 같은 규칙)', () => {
     expect(
       pushRouteOf(
         { notificationId: '31', type: 'WORK_ASSIGNED', workId: '10' },
-        'PENDING_ACCEPT',
+        'request',
       ),
     ).toEqual({ name: 'RequestDetail', params: { id: '10' } });
   });
@@ -122,9 +135,9 @@ describe('pushRouteOf', () => {
   it.each([
     ['작업 id 가 없는 작업 알림', { type: 'WORK_ASSIGNED' }],
     ['요청 id 가 없는 참여 거절', { type: 'PARTICIPATION_REQUEST_REJECTED' }],
-    ['앱이 모르는 종류', { type: 'ROLE_CHANGED', workId: '10' }],
+    ['앱이 모르는 종류', parsePushData({ type: 'ROLE_CHANGED', workId: '10' })],
     ['종류 없음', {}],
-  ])('%s → 홈 탭의 알림센터', (_, data) => {
+  ] as const)('%s → 홈 탭의 알림센터', (_, data) => {
     expect(pushRouteOf(data)).toEqual(homeScreen('NotificationCenter'));
   });
 });
