@@ -14,6 +14,7 @@ import {
   ICON_HIT_SLOP,
   Text,
 } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
@@ -74,7 +75,15 @@ export function RequestDetailScreen({
           onPress={onReject}
           style={styles.action}
         />
-        <CTA size="M" label="수락" onPress={onAccept} style={styles.action} />
+        <CTA
+          size="M"
+          label="수락"
+          onPress={() => {
+            haptic.success();
+            onAccept();
+          }}
+          style={styles.action}
+        />
       </View>
     </SafeAreaView>
   );

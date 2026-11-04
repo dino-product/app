@@ -14,6 +14,7 @@ import {
   Text,
   UnderlineTabs,
 } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
@@ -124,16 +125,23 @@ export function ScheduleScreen({
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
     [],
   );
+  const accept = useCallback(
+    (id: string) => {
+      haptic.success();
+      onAccept(id);
+    },
+    [onAccept],
+  );
   const renderPending = useCallback(
     ({ item }: { item: PendingRequest }) => (
       <PendingRequestCard
         item={item}
-        onAccept={onAccept}
+        onAccept={accept}
         onReject={onReject}
         onOpen={onOpenRequest}
       />
     ),
-    [onAccept, onReject, onOpenRequest],
+    [accept, onReject, onOpenRequest],
   );
 
   // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)

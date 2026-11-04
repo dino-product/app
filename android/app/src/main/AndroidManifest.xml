@@ -1,6 +1,10 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- react-native-haptic-feedback 이 합치는 VIBRATE 는 쓰지 않는다. 햅틱은 View.performHapticFeedback 만 쓴다 -->
+    <uses-permission android:name="android.permission.VIBRATE" tools:node="remove" />
 
     <application
       android:name=".MainApplication"

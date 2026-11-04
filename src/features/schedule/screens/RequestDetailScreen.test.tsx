@@ -1,9 +1,34 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../../work/mockData';
 import { RequestDetailScreen } from './RequestDetailScreen';
 
+jest.mock('../../../shared/haptics', () => ({
+  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
+}));
+
 describe('RequestDetailScreen', () => {
+  it('수락하면 성공 햅틱을, 거절 화면으로 갈 때는 울리지 않는다', async () => {
+    jest.mocked(haptic.success).mockClear();
+    await render(
+      <RequestDetailScreen
+        work={workDetail}
+        onBack={jest.fn()}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+        onCall={jest.fn()}
+        onNavigate={jest.fn()}
+      />,
+    );
+
+    await userEvent.press(screen.getByRole('button', { name: '거절' }));
+    expect(haptic.success).not.toHaveBeenCalled();
+
+    await userEvent.press(screen.getByRole('button', { name: '수락' }));
+    expect(haptic.success).toHaveBeenCalledTimes(1);
+  });
+
   it('작업 정보를 보여주고 하단의 거절·수락·뒤로가 콜백을 부른다', async () => {
     const onAccept = jest.fn();
     const onReject = jest.fn();

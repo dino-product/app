@@ -1,8 +1,46 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../tokens/colors';
+import { haptic } from '../../haptics';
 import { Toggle } from './Toggle';
 
+jest.mock('../../haptics', () => ({
+  haptic: { toggle: jest.fn() },
+}));
+
 describe('Toggle', () => {
+  beforeEach(() => jest.mocked(haptic.toggle).mockClear());
+
+  it('누르면 바뀐 값으로 토글 햅틱을 울린다', async () => {
+    const { rerender } = await render(
+      <Toggle
+        value={false}
+        accessibilityLabel="알림"
+        onValueChange={jest.fn()}
+      />,
+    );
+    await userEvent.press(screen.getByRole('switch', { name: '알림' }));
+    expect(haptic.toggle).toHaveBeenLastCalledWith(true);
+
+    await rerender(
+      <Toggle value accessibilityLabel="알림" onValueChange={jest.fn()} />,
+    );
+    await userEvent.press(screen.getByRole('switch', { name: '알림' }));
+    expect(haptic.toggle).toHaveBeenLastCalledWith(false);
+  });
+
+  it('비활성이면 울리지 않는다', async () => {
+    await render(
+      <Toggle
+        value={false}
+        disabled
+        accessibilityLabel="알림"
+        onValueChange={jest.fn()}
+      />,
+    );
+    await userEvent.press(screen.getByRole('switch', { name: '알림' }));
+    expect(haptic.toggle).not.toHaveBeenCalled();
+  });
+
   it('스위치 역할과 켜짐 상태를 노출한다', async () => {
     await render(
       <Toggle value accessibilityLabel="알림" onValueChange={jest.fn()} />,
