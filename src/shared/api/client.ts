@@ -29,6 +29,12 @@ export type RequestOptions = {
   signal?: AbortSignal;
 };
 type ReadOptions = Omit<RequestOptions, 'body'>;
+/** 한 번 주고받기의 설정. 토큰을 붙일지, 타임아웃, 503 Retry-After 를 기다려 한 번 더 보낼지 */
+type SendOptions = {
+  accessToken?: string;
+  timeoutMs?: number;
+  resendUnavailable?: boolean;
+};
 
 /** 응답이 없으면 요청을 끊고 timeout 으로 던진다 */
 export const REQUEST_TIMEOUT_MS = 15 * 1000;
@@ -194,8 +200,11 @@ export function createApiClient({
     method: HttpMethod,
     path: string,
     { query, body, signal }: RequestOptions,
-    accessToken?: string,
-    timeoutMs: number = REQUEST_TIMEOUT_MS,
+    {
+      accessToken,
+      timeoutMs = REQUEST_TIMEOUT_MS,
+      resendUnavailable = true,
+    }: SendOptions = {},
   ): Promise<T> {
     if (baseUrl === undefined) {
       throw new ApiError({ kind: 'config', message: ApiErrorMessage.config });
@@ -217,7 +226,7 @@ export function createApiClient({
     let response = await exchange(url, init, signal, timeoutMs);
     // 503 COMMON-503 (DB 커넥션 대기 초과) 는 Retry-After 와 온다. 그만큼 기다려 한 번만 다시 보낸다
     const wait =
-      response.status === 503
+      response.status === 503 && resendUnavailable
         ? retryAfterMs(response.retryAfter, now())
         : undefined;
     if (wait !== undefined) {
@@ -232,13 +241,7 @@ export function createApiClient({
     store: tokenStore,
     now,
     refreshTokens: (refreshToken, timeoutMs) =>
-      send(
-        'POST',
-        REFRESH_PATH,
-        { body: { refreshToken } },
-        undefined,
-        timeoutMs,
-      ),
+      send('POST', REFRESH_PATH, { body: { refreshToken } }, { timeoutMs }),
   });
 
   async function request<T = unknown>(
@@ -251,11 +254,15 @@ export function createApiClient({
     }
     if (path === LOGOUT_PATH) {
       const current = await session.getSession();
-      return send<T>(method, path, options, current?.accessToken);
+      return send<T>(method, path, options, {
+        accessToken: current?.accessToken,
+      });
     }
     const credentials = await session.getCredentials();
     try {
-      return await send<T>(method, path, options, credentials?.accessToken);
+      return await send<T>(method, path, options, {
+        accessToken: credentials?.accessToken,
+      });
     } catch (error) {
       // 만료·폐기된 access token 은 401 이 아니라 진짜 없는 자원과 같은 404 COMMON-404 로 온다
       if (
@@ -268,7 +275,7 @@ export function createApiClient({
       if (renewed === undefined) {
         throw error;
       }
-      return send<T>(method, path, options, renewed);
+      return send<T>(method, path, options, { accessToken: renewed });
     }
   }
 
@@ -284,7 +291,8 @@ export function createApiClient({
       request<T>('DELETE', path, options),
     /**
      * 기기 세션을 지운 뒤 떼어 둔 토큰으로 서버 세션을 끝낸다 (#113). 지금 세션과 상관없이 받은 토큰을 붙이고,
-     * 재발급·재시도 없이 짧은 타임아웃으로 보낸다. 서버는 무효 토큰이어도 204 다
+     * 재발급도, 503 Retry-After 재전송도 없이 짧은 타임아웃으로 한 번만 보낸다(결과를 기다리는 화면이 없다).
+     * 서버는 무효 토큰이어도 204 다
      */
     logOut: ({
       accessToken,
@@ -297,8 +305,11 @@ export function createApiClient({
         'POST',
         LOGOUT_PATH,
         { body: { refreshToken } },
-        accessToken,
-        LOGOUT_TIMEOUT_MS,
+        {
+          accessToken,
+          timeoutMs: LOGOUT_TIMEOUT_MS,
+          resendUnavailable: false,
+        },
       ),
     /** 로그인 세션 (start·end·subscribe·onExpired) */
     session,

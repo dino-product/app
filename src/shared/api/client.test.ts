@@ -458,6 +458,20 @@ describe('떼어 둔 토큰으로 로그아웃', () => {
     ]);
   });
 
+  it('503 Retry-After 여도 다시 보내지 않는다 (결과를 기다리지 않는 요청이다)', async () => {
+    server.on(
+      'POST',
+      LOGOUT_PATH,
+      fail(503, ApiErrorCode.unavailable, { headers: { 'Retry-After': '1' } }),
+      noContent(),
+    );
+
+    await expect(clientFor().logOut(tokens)).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(server.calls).toHaveLength(1);
+  });
+
   it('짧은 타임아웃(5초)으로 끝내고 재발급·재시도는 하지 않는다', async () => {
     jest.useFakeTimers();
     server.on('POST', LOGOUT_PATH, hang());
