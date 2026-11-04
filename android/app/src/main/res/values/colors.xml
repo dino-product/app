@@ -1,0 +1,4 @@
+<resources>
+    <!-- 런치 배경. src/shared/design-system/tokens/colors.ts 의 background[3] 과 같은 값(#21, 라이트 고정). -->
+    <color name="launch_background">#F5F6F8</color>
+</resources>
