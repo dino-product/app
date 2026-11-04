@@ -28,7 +28,9 @@ import {
   myScheduleQuery,
   useMySchedule,
   useMySchedules,
+  workDetailQuery,
 } from '../../features/work/data/queries';
+import type { WorkStatusCode } from '../../features/work/data/status';
 import type { ScheduledWork } from '../../features/work/data/types';
 import {
   pendingOf,
@@ -181,48 +183,123 @@ function NotificationCenterContent({
   );
 }
 
+type WorkTarget = Extract<NotificationTarget, { kind: 'work' }>;
+
 // 작업 상세는 홈 탭 스택에 있다. id 는 작업 id, 알림이 생긴 발주사도 같이 넘긴다
-const workDetailParams = ({
-  organizationId,
-  workId,
-}: Extract<NotificationTarget, { kind: 'work' }>) => ({
+const workDetailParams = ({ organizationId, workId }: WorkTarget) => ({
   id: workId,
   organizationId,
 });
 
+/**
+ * 작업 알림을 연다. 수락 대기(배정됨) 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 간다 (홈의 작업 열기와 같은 규칙).
+ * 알림에는 작업 상태가 없어 상세를 먼저 받아 고른다. 받은 상세는 캐시(같은 키)에 남아 연 화면이 바로 그린다.
+ * 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다.
+ * 받는 동안 다시 누르면 무시하고, 그사이 다른 화면으로 갔으면 열지 않는다
+ */
+function useOpenNotificationWork({
+  isFocused,
+  openRequest,
+  openDetail,
+}: {
+  isFocused: () => boolean;
+  openRequest: (id: string) => void;
+  openDetail: (target: WorkTarget) => void;
+}) {
+  const repository = useWorkRepository();
+  const queryClient = useQueryClient();
+  const opening = useRef(false);
+  return useCallback(
+    async (target: WorkTarget) => {
+      if (opening.current) {
+        return;
+      }
+      opening.current = true;
+      let status: WorkStatusCode | undefined;
+      try {
+        const work = await queryClient.fetchQuery(
+          workDetailQuery(
+            repository,
+            Number(target.workId),
+            Number(target.organizationId),
+          ),
+        );
+        status = work.workStatus;
+      } catch {
+        // 실패 이유는 작업 상세가 보인다
+      } finally {
+        opening.current = false;
+      }
+      if (!isFocused()) {
+        return;
+      }
+      if (status === 'PENDING_ACCEPT') {
+        openRequest(target.workId);
+      } else {
+        openDetail(target);
+      }
+    },
+    [isFocused, openDetail, openRequest, queryClient, repository],
+  );
+}
+
 export function NotificationCenterRoute({
   navigation,
 }: MyScreenProps<'NotificationCenter'>) {
-  // 작업 알림은 홈 탭의 작업 상세를 연다 (그 아래는 내 작업 홈). 참여 거절 알림은 거절 화면을 연다 (#73)
-  const open = useCallback(
-    (target: NotificationTarget) => {
-      if (target.kind === 'work') {
+  // 작업 알림은 홈 탭의 작업 상세(그 아래는 내 작업 홈) 또는 요청 상세를 연다. 참여 거절 알림은 거절 화면을 연다 (#73)
+  const openWork = useOpenNotificationWork({
+    isFocused: navigation.isFocused,
+    openRequest: useCallback(
+      (id: string) => navigation.navigate('RequestDetail', { id }),
+      [navigation],
+    ),
+    openDetail: useCallback(
+      (target: WorkTarget) =>
         navigation.navigate('home', {
           screen: 'WorkDetail',
           params: workDetailParams(target),
           initial: false,
-        });
+        }),
+      [navigation],
+    ),
+  });
+  const open = useCallback(
+    (target: NotificationTarget) => {
+      if (target.kind === 'work') {
+        openWork(target);
       } else {
         navigation.navigate('OrgJoinRejected', {
           requestId: target.requestId,
         });
       }
     },
-    [navigation],
+    [navigation, openWork],
   );
 
   return <NotificationCenterContent navigation={navigation} open={open} />;
 }
 
 // 내 작업 홈의 종으로 연 알림센터 (#96). 홈 탭 스택에 쌓아 뒤로 가면(뒤로 가기·스와이프·Android 뒤로가기) 홈으로 돌아온다.
-// 작업 알림은 같은 스택에 작업 상세를 쌓는다. 참여 거절 화면은 마이 탭 스택에 있어 마이 탭에서 연다 (그 아래는 마이페이지)
+// 작업 알림은 같은 스택에 작업 상세를 쌓는다(수락 대기면 요청 상세). 참여 거절 화면은 마이 탭 스택에 있어 마이 탭에서 연다 (그 아래는 마이페이지)
 export function HomeNotificationCenterRoute({
   navigation,
 }: HomeScreenProps<'NotificationCenter'>) {
+  const openWork = useOpenNotificationWork({
+    isFocused: navigation.isFocused,
+    openRequest: useCallback(
+      (id: string) => navigation.navigate('RequestDetail', { id }),
+      [navigation],
+    ),
+    openDetail: useCallback(
+      (target: WorkTarget) =>
+        navigation.navigate('WorkDetail', workDetailParams(target)),
+      [navigation],
+    ),
+  });
   const open = useCallback(
     (target: NotificationTarget) => {
       if (target.kind === 'work') {
-        navigation.navigate('WorkDetail', workDetailParams(target));
+        openWork(target);
       } else {
         navigation.navigate('my', {
           screen: 'OrgJoinRejected',
@@ -231,7 +308,7 @@ export function HomeNotificationCenterRoute({
         });
       }
     },
-    [navigation],
+    [navigation, openWork],
   );
 
   return <NotificationCenterContent navigation={navigation} open={open} />;

@@ -158,6 +158,25 @@ describe('App — 마이 탭', () => {
     expect(unread()).toHaveLength(3);
   });
 
+  // 수락 대기(배정됨) 작업은 수락·거절하는 요청 상세(탭 바 없는 화면)로 연다. 뒤로 가면 마이 탭의 알림센터다
+  it('알림센터에서 배정됨 작업 알림을 누르면 요청 상세가 열리고, 뒤로 가면 알림센터로 돌아온다', async () => {
+    await openMyPage();
+
+    await userEvent.press(button('알림센터'));
+    await userEvent.press(
+      await screen.findByRole('button', {
+        name: /^읽지 않음, 신규 배정, \[보일러 점검\]/,
+      }),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: '수락' }),
+    ).toBeOnTheScreen();
+    await userEvent.press(button('뒤로 가기'));
+    expect(header('알림센터')).toBeOnTheScreen();
+    expect(tab('마이')).toBeSelected();
+  });
+
   // 서버 신청 현황에 없는 참여 요청(이미 처리돼 사라짐 등)의 거절 알림. 빈 거절 화면을 남기지 않고 알림센터로 돌아온다
   it('참여 거절 알림의 요청을 찾지 못하면 거절 화면 대신 알림센터로 돌아온다', async () => {
     await openMyPage({
