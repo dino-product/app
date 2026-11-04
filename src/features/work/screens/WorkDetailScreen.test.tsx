@@ -8,9 +8,19 @@ import {
 import { Platform } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
 import { colors } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../mockData';
 import type { WorkDetail } from '../model';
 import { WorkDetailScreen } from './WorkDetailScreen';
+
+jest.mock('../../../shared/haptics', () => ({
+  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
+}));
+
+beforeEach(() => {
+  jest.mocked(haptic.success).mockClear();
+  jest.mocked(haptic.selection).mockClear();
+});
 
 const renderDetail = (
   overrides: Partial<Parameters<typeof WorkDetailScreen>[0]> = {},
@@ -513,6 +523,52 @@ describe('WorkDetailScreen', () => {
     expect(
       await screen.findByRole('header', { name: '제출 완료' }),
     ).toBeOnTheScreen();
+  });
+
+  it('제출이 성공하면 성공 햅틱을 한 번 울린다', async () => {
+    await renderDetail();
+    await fillRequired();
+    expect(haptic.success).not.toHaveBeenCalled();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    );
+    expect(haptic.success).toHaveBeenCalledTimes(1);
+  });
+
+  it('제출이 실패하면 햅틱을 울리지 않는다', async () => {
+    const onSubmitReport = jest.fn().mockRejectedValue(new Error('network'));
+    await renderDetail({ onSubmitReport });
+    await fillRequired();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    );
+    expect(haptic.success).not.toHaveBeenCalled();
+  });
+
+  it('작업이 취소돼 제출이 반려되면 성공 햅틱을 울리지 않는다', async () => {
+    const onSubmitReport = jest.fn(() => ({
+      kind: 'canceled' as const,
+      reason: '고객 취소',
+      at: '10.01 15:15',
+    }));
+    await renderDetail({ onSubmitReport });
+    await fillRequired();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    );
+    expect(haptic.success).not.toHaveBeenCalled();
+  });
+
+  it('결제 방식을 고르면 선택 햅틱을 울린다', async () => {
+    await renderDetail();
+    await userEvent.press(
+      screen.getByRole('button', { name: '결제 방식 선택' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
+    expect(haptic.selection).toHaveBeenCalledTimes(1);
   });
 
   it('제출이 실패하면 다시 누를 수 있다', async () => {

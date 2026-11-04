@@ -10,6 +10,7 @@ import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
@@ -660,7 +661,30 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
   });
 });
 
+jest.mock('../../../shared/haptics', () => ({
+  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
+}));
+
 describe('ScheduleScreen — 응답 필요', () => {
+  it('수락하면 성공 햅틱을 울리고, 거절·상세에서는 울리지 않는다', async () => {
+    jest.mocked(haptic.success).mockClear();
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '수전 교체 거절' }),
+    );
+    await userEvent.press(
+      screen.getByRole('button', { name: /^에어컨 필터 교체 상세/ }),
+    );
+    expect(haptic.success).not.toHaveBeenCalled();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),
+    );
+    expect(haptic.success).toHaveBeenCalledTimes(1);
+  });
+
   it('요청 카드를 보여주고 수락·거절·상세 콜백을 부른다', async () => {
     const onAccept = jest.fn();
     const onReject = jest.fn();

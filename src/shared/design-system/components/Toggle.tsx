@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { haptic } from '../../haptics';
 import { colors } from '../tokens/colors';
 import { touchSlop } from '../tokens/touchTarget';
 
@@ -30,7 +31,10 @@ export const Toggle = memo(function DesignSystemToggle({
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
       hitSlop={HIT_SLOP}
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        haptic.toggle(!value);
+        onValueChange(!value);
+      }}
       style={[styles.track, value ? styles.trackOn : styles.trackOff]}
       testID={testID}
     >

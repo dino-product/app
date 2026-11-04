@@ -40,6 +40,7 @@ import {
   PaymentMethodSelect,
 } from '../components/ReportFields';
 import { ResultModal } from '../components/ResultModal';
+import { haptic } from '../../../shared/haptics';
 import {
   canSubmitReport,
   emptyReport,
@@ -165,7 +166,12 @@ export function WorkDetailScreen({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      setResult(await onSubmitReport(report));
+      const submitted = await onSubmitReport(report);
+      setResult(submitted);
+      // 취소된 작업이라 보고가 반려된 경우는 성공이 아니다
+      if (submitted.kind === 'submitted') {
+        haptic.success();
+      }
     } catch {
       // 실패하면 다시 누를 수 있게 둔다 (오류 안내 UI 는 API 연동 때)
     } finally {
@@ -281,7 +287,10 @@ export function WorkDetailScreen({
               <FieldLabel>결제 방식</FieldLabel>
               <PaymentMethodSelect
                 value={shown.paymentMethod}
-                onChange={paymentMethod => update({ paymentMethod })}
+                onChange={paymentMethod => {
+                  haptic.selection();
+                  update({ paymentMethod });
+                }}
                 readOnly={readOnly}
               />
             </Section>

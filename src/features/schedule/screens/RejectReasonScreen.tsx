@@ -25,6 +25,7 @@ import {
   Text,
   typography,
 } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
@@ -115,6 +116,7 @@ export function RejectReasonScreen({
 
   const select = (key: RejectReasonKey) => {
     // 고른 사유를 다시 누르면 선택을 푼다 (#101). 기타면 입력란도 접는다
+    haptic.selection();
     const next = key === selected ? null : key;
     const expand = next === 'other';
     if (expand !== expanded) {
@@ -149,6 +151,7 @@ export function RejectReasonScreen({
   const submit = () => {
     const result = validateRejection(selected, otherText);
     if (result.ok) {
+      haptic.warning();
       onSubmit(result.reason);
     } else if (result.error === 'otherText') {
       setOtherTextError(true);

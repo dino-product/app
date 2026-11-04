@@ -18,7 +18,12 @@ import {
 } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
 import { colors, typography } from '../../../shared/design-system';
+import { haptic } from '../../../shared/haptics';
 import { RejectReasonScreen } from './RejectReasonScreen';
+
+jest.mock('../../../shared/haptics', () => ({
+  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
+}));
 
 const renderReject = (
   overrides: Partial<Parameters<typeof RejectReasonScreen>[0]> = {},
@@ -97,6 +102,30 @@ describe('RejectReasonScreen', () => {
     ).toBeNull();
     expect(otherInputEvenHidden()).toBeNull();
     expect(otherOption()).toBeCollapsed();
+  });
+
+  it('사유를 고르거나 풀 때 선택 햅틱, 거절을 제출하면 경고 햅틱을 울린다', async () => {
+    jest.mocked(haptic.selection).mockClear();
+    jest.mocked(haptic.warning).mockClear();
+    await renderReject();
+
+    await userEvent.press(option('일정이 맞지 않습니다'));
+    await userEvent.press(option('일정이 맞지 않습니다'));
+    expect(haptic.selection).toHaveBeenCalledTimes(2);
+    expect(haptic.warning).not.toHaveBeenCalled();
+
+    await userEvent.press(option('일정이 맞지 않습니다'));
+    await userEvent.press(submitButton());
+    expect(haptic.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it('사유 없이 누르거나 기타 내용이 비어 제출되지 않으면 경고 햅틱을 울리지 않는다', async () => {
+    jest.mocked(haptic.warning).mockClear();
+    await renderReject();
+    await userEvent.press(submitButton());
+    await userEvent.press(otherOption());
+    await userEvent.press(submitButton());
+    expect(haptic.warning).not.toHaveBeenCalled();
   });
 
   it('사유를 고르기 전에는 거절 제출이 비활성이고, 아무 사유나 고르면 활성이 된다', async () => {
