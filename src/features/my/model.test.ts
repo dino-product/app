@@ -4,7 +4,7 @@ import {
   formatJoinDate,
   formatPhoneNumber,
   formatRelativeTime,
-  rejectedRequestOf,
+  notificationTargetOf,
   withdrawalBlockCards,
   type AppNotification,
   type WithdrawalEligibility,
@@ -195,7 +195,7 @@ describe('withdrawalBlockCards', () => {
   });
 });
 
-describe('rejectedRequestOf', () => {
+describe('notificationTargetOf', () => {
   const notification = (patch: Partial<AppNotification>): AppNotification => ({
     id: 'n',
     type: 'PARTICIPATION_REQUEST_REJECTED',
@@ -206,10 +206,25 @@ describe('rejectedRequestOf', () => {
   });
 
   // 참여 거절 알림을 누르면 거절 화면으로 간다 (#73). 승인 결과 화면은 아직 없다
-  it('참여 거절 알림이면 그 참여 요청 id 를 준다', () => {
+  it('참여 거절 알림이면 그 참여 요청을 연다', () => {
     expect(
-      rejectedRequestOf(notification({ participationRequestId: 'request-3' })),
-    ).toBe('request-3');
+      notificationTargetOf(notification({ participationRequestId: '3' })),
+    ).toEqual({ kind: 'participationRejected', requestId: '3' });
+  });
+
+  // 작업 알림은 작업 상세를 연다 (#117). 볼 수 없게 된 작업(다른 기사에게 넘어감)은 상세가 그 상태를 보인다
+  it.each([
+    'WORK_ASSIGNED',
+    'WORK_RESCHEDULED',
+    'WORK_REASSIGNED_AWAY',
+    'WORK_CANCELED',
+    'COMPLETION_REPORT_REQUESTED',
+  ] as const)('%s 는 그 발주사의 작업 상세를 연다', type => {
+    expect(
+      notificationTargetOf(
+        notification({ type, organizationId: '1', workId: '10' }),
+      ),
+    ).toEqual({ kind: 'work', organizationId: '1', workId: '10' });
   });
 
   it.each<[string, Partial<AppNotification>]>([
@@ -218,8 +233,9 @@ describe('rejectedRequestOf', () => {
       '참여 승인 알림이면',
       { type: 'PARTICIPATION_REQUEST_APPROVED', participationRequestId: 'r' },
     ],
-    ['작업 알림이면', { type: 'WORK_ASSIGNED' }],
+    ['작업 알림인데 작업 id 가 없으면', { type: 'WORK_ASSIGNED' }],
+    ['작업 알림인데 발주사가 없으면', { type: 'WORK_ASSIGNED', workId: '10' }],
   ])('%s 열 곳이 없다', (_, patch) => {
-    expect(rejectedRequestOf(notification(patch))).toBeNull();
+    expect(notificationTargetOf(notification(patch))).toBeNull();
   });
 });

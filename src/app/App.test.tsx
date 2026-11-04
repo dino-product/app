@@ -161,7 +161,7 @@ describe('App', () => {
     ).toBeOnTheScreen();
   });
 
-  // #96: 탭 화면의 종은 알림센터로 가는 버튼이다
+  // #96: 탭 화면의 종은 알림센터로 가는 버튼이다. 알림 목록은 서버에서 받는다 (#117)
   describe('내 작업 홈의 종', () => {
     it('누르면 알림센터가 열리고, 뒤로 가면 내 작업 홈으로 돌아온다', async () => {
       await renderSignedInHome();
@@ -192,16 +192,40 @@ describe('App', () => {
         screen.getAllByRole('button', { name: /^읽지 않음/ }).length;
 
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await screen.findByRole('button', { name: /^읽지 않음, 작업 취소/ });
       const before = unread();
+      // 작업 알림은 작업 상세를 연다. 닫고 알림센터·홈으로 돌아온다
       await userEvent.press(
         screen.getByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+      );
+      await userEvent.press(
+        await screen.findByRole('button', { name: '뒤로 가기' }),
       );
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
 
       await userEvent.press(tab('마이'));
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
       expect(header('알림센터')).toBeOnTheScreen();
-      expect(unread()).toBe(before - 1);
+      await waitFor(() => expect(unread()).toBe(before - 1));
+    });
+
+    it('작업 알림을 누르면 그 작업 상세가 열리고, 뒤로 가면 알림센터로 돌아온다', async () => {
+      await renderSignedInHome();
+
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+      );
+
+      expect(
+        await screen.findByRole('header', { name: '작업 상세' }),
+      ).toBeOnTheScreen();
+      expect(tab('홈')).toBeSelected();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('button', { name: /^작업 취소/ }),
+      ).toBeOnTheScreen();
     });
 
     it('참여 거절 알림을 누르면 마이 탭의 거절 화면을 연다', async () => {
@@ -209,10 +233,14 @@ describe('App', () => {
 
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
       await userEvent.press(
-        screen.getByRole('button', { name: /참여 요청이 거절되었습니다/ }),
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
       );
 
-      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+      expect(
+        await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+      ).toBeOnTheScreen();
       expect(tab('마이')).toBeSelected();
     });
   });

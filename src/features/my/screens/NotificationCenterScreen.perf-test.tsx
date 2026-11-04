@@ -1,20 +1,18 @@
 import { measureRenders } from 'reassure';
 import { perfBudget } from '../../../shared/perf/budget';
-import { makeNotificationsMock } from '../mockData';
+import { cachedNotificationTestApi } from '../notificationTesting';
 import { NotificationCenterScreen } from './NotificationCenterScreen';
 
 const now = new Date(2026, 10, 2, 15, 0);
-const notifications = makeNotificationsMock(now);
 
 describe('NotificationCenterScreen 렌더 예산', () => {
   it('마운트 시 추가 렌더와 중복 렌더가 예산 이내다', async () => {
+    // 캐시에 미리 넣은 목록으로 그린다. 마운트 때 다시 받지 않아 서버 응답이 렌더 횟수에 섞이지 않는다
+    const api = cachedNotificationTestApi(now);
+
     const result = await measureRenders(
-      <NotificationCenterScreen
-        notifications={notifications}
-        now={now}
-        onRead={() => {}}
-        onBack={() => {}}
-      />,
+      <NotificationCenterScreen onOpen={() => {}} onBack={() => {}} />,
+      { wrapper: api.wrapper },
     );
 
     expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(

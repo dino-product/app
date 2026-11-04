@@ -36,9 +36,13 @@ const pressAlertButton = async (
   await act(() => buttons.find(item => item.text === text)?.onPress?.());
 };
 
-async function openMyPage() {
-  await renderSignedInApp();
+// 알림센터·알림 설정은 서버에서 받는다 (#117, 가짜 서버는 accountServer 가 정한다)
+async function openMyPage(
+  options: Parameters<typeof renderSignedInApp>[0] = {},
+) {
+  const app = await renderSignedInApp(options);
   await userEvent.press(tab('마이'));
+  return app;
 }
 
 // 마이페이지에서 바로 여는 하위 화면: [누를 버튼, 열린 화면 제목]
@@ -111,37 +115,74 @@ describe('App — 마이 탭', () => {
     expect(screen.getByText('010-9876-5432')).toBeOnTheScreen();
   });
 
-  it('알림 설정은 바로 반영되고 다녀와도 남아 있다', async () => {
-    await openMyPage();
+  it('알림 설정은 바로 반영되고 서버에 저장돼 다녀와도 남아 있다', async () => {
+    const { server } = await openMyPage();
 
     await userEvent.press(button('알림 설정'));
     await userEvent.press(
-      screen.getByRole('switch', { name: '일정 변경 알림' }),
+      await screen.findByRole('switch', { name: '일정 변경 알림' }),
+    );
+    await waitFor(() =>
+      expect(
+        server.callsTo('PUT', '/api/v1/notification-settings'),
+      ).toHaveLength(1),
     );
     await userEvent.press(button('뒤로 가기'));
     await userEvent.press(button('알림 설정'));
 
     expect(
-      screen.getByRole('switch', { name: '일정 변경 알림' }),
+      await screen.findByRole('switch', { name: '일정 변경 알림' }),
     ).not.toBeChecked();
     expect(
       screen.getByRole('switch', { name: '작업 배정 알림' }),
     ).toBeChecked();
   });
 
-  it('알림센터에서 읽지 않은 알림을 누르면 흰 배경이 되고, 다녀와도 읽음이다', async () => {
+  // 작업 알림은 홈 탭의 작업 상세를 연다 (참여 거절 알림은 거절 화면을 연다, App.org.test)
+  it('알림센터에서 작업 알림을 누르면 홈 탭의 작업 상세가 열리고, 마이 탭에 돌아오면 읽음이다', async () => {
     await openMyPage();
 
     await userEvent.press(button('알림센터'));
     const unread = () => screen.getAllByRole('button', { name: /^읽지 않음/ });
-    const before = unread().length;
-    // 작업 알림은 읽음 처리만 한다 (참여 거절 알림은 거절 화면을 연다, App.org.test)
-    await userEvent.press(button(/^읽지 않음, 작업 취소/));
-    expect(unread()).toHaveLength(before - 1);
+    await userEvent.press(
+      await screen.findByRole('button', { name: /^읽지 않음, 작업 취소/ }),
+    );
+    expect(
+      await screen.findByRole('header', { name: '작업 상세' }),
+    ).toBeOnTheScreen();
+    expect(tab('홈')).toBeSelected();
 
-    await userEvent.press(button('뒤로 가기'));
+    await userEvent.press(tab('마이'));
+    expect(header('알림센터')).toBeOnTheScreen();
+    expect(button(/^작업 취소/)).toBeOnTheScreen();
+    expect(unread()).toHaveLength(3);
+  });
+
+  // 서버 신청 현황에 없는 참여 요청(이미 처리돼 사라짐 등)의 거절 알림. 빈 거절 화면을 남기지 않고 알림센터로 돌아온다
+  it('참여 거절 알림의 요청을 찾지 못하면 거절 화면 대신 알림센터로 돌아온다', async () => {
+    await openMyPage({
+      notifications: [
+        {
+          id: 1,
+          type: 'PARTICIPATION_REQUEST_REJECTED',
+          organizationId: 2,
+          workId: null,
+          participationRequestId: 99,
+          message: '[사라진 회사] 참여 요청이 거절되었습니다.',
+          read: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
     await userEvent.press(button('알림센터'));
-    expect(unread()).toHaveLength(before - 1);
+    await userEvent.press(
+      await screen.findByRole('button', { name: /참여 요청이 거절되었습니다/ }),
+    );
+
+    await waitFor(() => expect(header('알림센터')).toBeOnTheScreen());
+    expect(header('참여 요청이 거절되었어요')).not.toBeOnTheScreen();
+    expect(tab('마이')).toBeSelected();
   });
 
   it('약관 주소가 아직 없어 약관 행은 비활성이고 앱 버전을 보여준다', async () => {

@@ -5,15 +5,14 @@ import {
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { ScrollViewInstance } from 'react-native';
 import { checkWithdrawalEligibilityMock } from '../../features/my/mockData';
-import type { WithdrawalBlockReason } from '../../features/my/model';
-import {
-  useMyNotifications,
-  useMyNotificationSettings,
-  useMyProfile,
-} from '../../features/my/MyStateProvider';
+import type {
+  NotificationTarget,
+  WithdrawalBlockReason,
+} from '../../features/my/model';
+import { useMyProfile } from '../../features/my/MyStateProvider';
 import { countPendingRequests } from '../../features/my/org/model';
 import { useParticipationRequests } from '../../features/my/org/participationQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
@@ -146,88 +145,96 @@ export function ProfileEditRoute({ navigation }: MyScreenProps<'ProfileEdit'>) {
 export function NotificationSettingsRoute({
   navigation,
 }: MyScreenProps<'NotificationSettings'>) {
-  const { notificationSettings, setNotificationSetting } =
-    useMyNotificationSettings();
   const titleRef = useFocusTitleOnOpen(navigation);
 
   return (
     <NotificationSettingsScreen
-      settings={notificationSettings}
       titleRef={titleRef}
-      onChange={setNotificationSetting}
       onBack={() => navigation.goBack()}
     />
   );
 }
 
-// 알림센터는 마이페이지의 종(마이 탭 스택)과 내 작업 홈의 종(홈 탭 스택, #96)에서 연다. 알림 목록은 같다
+// 알림센터는 마이페이지의 종(마이 탭 스택)과 내 작업 홈의 종(홈 탭 스택, #96)에서 연다. 알림 목록(서버, #117)은 같다
 function NotificationCenterContent({
   navigation,
-  openRejected,
+  open,
 }: {
   navigation: Pick<
     NativeStackNavigationProp<ParamListBase>,
     'addListener' | 'goBack'
   >;
-  /** 참여 거절 알림을 눌렀을 때. 행이 memo 라 렌더마다 새로 만들지 않는 함수를 넘긴다 */
-  openRejected: (requestId: string) => void;
+  /** 작업·참여 거절 알림을 눌렀을 때. 행이 memo 라 렌더마다 새로 만들지 않는 함수를 넘긴다 */
+  open: (target: NotificationTarget) => void;
 }) {
-  const { notifications, markNotificationRead } = useMyNotifications();
   const titleRef = useFocusTitleOnOpen(navigation);
-  // 화면을 연 시각 기준의 상대 시간. 열어 둔 동안 시간이 흘러도 다시 그리지 않는다 (유휴 상태 = 0 작업)
-  const [now] = useState(() => new Date());
+  // 위에 연 화면(작업 상세 등)을 닫고 돌아오면 목록을 다시 받는다
+  const focused = useIsFocused();
 
   return (
     <NotificationCenterScreen
-      notifications={notifications}
-      now={now}
+      focused={focused}
       titleRef={titleRef}
-      onRead={markNotificationRead}
-      onOpen={openRejected}
+      onOpen={open}
       onBack={() => navigation.goBack()}
     />
   );
 }
 
+// 작업 상세는 홈 탭 스택에 있다. id 는 작업 id, 알림이 생긴 발주사도 같이 넘긴다
+const workDetailParams = ({
+  organizationId,
+  workId,
+}: Extract<NotificationTarget, { kind: 'work' }>) => ({
+  id: workId,
+  organizationId,
+});
+
 export function NotificationCenterRoute({
   navigation,
 }: MyScreenProps<'NotificationCenter'>) {
-  // 참여 거절 알림은 거절 화면을 연다 (#73)
-  const openRejected = useCallback(
-    (requestId: string) =>
-      navigation.navigate('OrgJoinRejected', { requestId }),
+  // 작업 알림은 홈 탭의 작업 상세를 연다 (그 아래는 내 작업 홈). 참여 거절 알림은 거절 화면을 연다 (#73)
+  const open = useCallback(
+    (target: NotificationTarget) => {
+      if (target.kind === 'work') {
+        navigation.navigate('home', {
+          screen: 'WorkDetail',
+          params: workDetailParams(target),
+          initial: false,
+        });
+      } else {
+        navigation.navigate('OrgJoinRejected', {
+          requestId: target.requestId,
+        });
+      }
+    },
     [navigation],
   );
 
-  return (
-    <NotificationCenterContent
-      navigation={navigation}
-      openRejected={openRejected}
-    />
-  );
+  return <NotificationCenterContent navigation={navigation} open={open} />;
 }
 
 // 내 작업 홈의 종으로 연 알림센터 (#96). 홈 탭 스택에 쌓아 뒤로 가면(뒤로 가기·스와이프·Android 뒤로가기) 홈으로 돌아온다.
-// 참여 거절 화면은 마이 탭 스택에 있어 마이 탭에서 연다 (그 아래는 마이페이지)
+// 작업 알림은 같은 스택에 작업 상세를 쌓는다. 참여 거절 화면은 마이 탭 스택에 있어 마이 탭에서 연다 (그 아래는 마이페이지)
 export function HomeNotificationCenterRoute({
   navigation,
 }: HomeScreenProps<'NotificationCenter'>) {
-  const openRejected = useCallback(
-    (requestId: string) =>
-      navigation.navigate('my', {
-        screen: 'OrgJoinRejected',
-        params: { requestId },
-        initial: false,
-      }),
+  const open = useCallback(
+    (target: NotificationTarget) => {
+      if (target.kind === 'work') {
+        navigation.navigate('WorkDetail', workDetailParams(target));
+      } else {
+        navigation.navigate('my', {
+          screen: 'OrgJoinRejected',
+          params: { requestId: target.requestId },
+          initial: false,
+        });
+      }
+    },
     [navigation],
   );
 
-  return (
-    <NotificationCenterContent
-      navigation={navigation}
-      openRejected={openRejected}
-    />
-  );
+  return <NotificationCenterContent navigation={navigation} open={open} />;
 }
 
 export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {

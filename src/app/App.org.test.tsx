@@ -199,9 +199,13 @@ describe('App — 조직 참여', () => {
     await openMyPage();
     await userEvent.press(button('알림센터'));
 
-    await userEvent.press(button(/참여 요청이 거절되었습니다/));
+    await userEvent.press(
+      await screen.findByRole('button', { name: /참여 요청이 거절되었습니다/ }),
+    );
 
-    expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+    ).toBeOnTheScreen();
     expect(
       screen.getByText('현재 기사 인원이 충분해 요청을 받지 않고 있어요.'),
     ).toBeOnTheScreen();
@@ -368,7 +372,11 @@ describe('App — 조직 참여', () => {
       );
 
       await userEvent.press(button('알림센터'));
-      await userEvent.press(button(/참여 요청이 거절되었습니다/));
+      await userEvent.press(
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
+      );
 
       expect(
         await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
@@ -389,7 +397,11 @@ describe('App — 조직 참여', () => {
       );
       await userEvent.press(tab('마이'));
       await userEvent.press(button('알림센터'));
-      await userEvent.press(button(/참여 요청이 거절되었습니다/));
+      await userEvent.press(
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
+      );
 
       expect(
         await screen.findByText('참여 요청을 불러오지 못했어요.'),

@@ -1,10 +1,4 @@
-import type {
-  AppNotification,
-  Membership,
-  NotificationSettings,
-  Profile,
-  WithdrawalEligibility,
-} from './model';
+import type { Membership, Profile, WithdrawalEligibility } from './model';
 
 // Figma 마이페이지 섹션의 예시 데이터. API 연동 전까지 마이 탭 상태(MyStateProvider)의 초기값이다.
 
@@ -35,74 +29,6 @@ export const membershipsMock: readonly Membership[] = [
     status: 'ACTIVE',
   },
 ];
-
-export const notificationSettingsMock: NotificationSettings = {
-  workAssignmentEnabled: true,
-  scheduleChangeEnabled: true,
-  workCancellationEnabled: true,
-};
-
-const HOUR = 60 * 60_000;
-
-/** 알림센터 예시. 상대 시간이 Figma 처럼 보이도록 지금을 기준으로 만든다 */
-export function makeNotificationsMock(now: Date): AppNotification[] {
-  const hoursAgo = (hours: number) =>
-    new Date(now.getTime() - hours * HOUR).toISOString();
-  return [
-    // 거절된 참여 요청. 누르면 거절 화면을 열고 사유는 서버 신청 현황에서 받는다 (#73, #116).
-    // 요청 id 는 서버 숫자 id 를 문자열로 바꾼 값이다 (org/participationApi)
-    {
-      id: 'notification-0',
-      type: 'PARTICIPATION_REQUEST_REJECTED',
-      message: '[스마트 홈케어] 참여 요청이 거절되었습니다.',
-      read: false,
-      createdAt: hoursAgo(1),
-      participationRequestId: '3',
-    },
-    {
-      id: 'notification-1',
-      type: 'WORK_CANCELED',
-      message: '[정수기 필터 교체] 작업이 취소되었습니다.',
-      read: false,
-      createdAt: hoursAgo(3),
-    },
-    {
-      id: 'notification-2',
-      type: 'WORK_ASSIGNED',
-      message: '[에어컨 필터 교체] 작업이 배정되었습니다.',
-      read: false,
-      createdAt: hoursAgo(3),
-    },
-    {
-      id: 'notification-3',
-      type: 'WORK_ASSIGNED',
-      message: '[보일러 점검] 작업이 배정되었습니다.',
-      read: false,
-      createdAt: hoursAgo(3),
-    },
-    {
-      id: 'notification-4',
-      type: 'WORK_ASSIGNED',
-      message: '[세탁기 설치] 작업이 배정되었습니다.',
-      read: true,
-      createdAt: hoursAgo(7),
-    },
-    {
-      id: 'notification-5',
-      type: 'WORK_ASSIGNED',
-      message: '[식기세척기 수리] 작업이 배정되었습니다.',
-      read: true,
-      createdAt: hoursAgo(21),
-    },
-    {
-      id: 'notification-6',
-      type: 'WORK_ASSIGNED',
-      message: '[정수기 필터 교체] 작업이 배정되었습니다.',
-      read: true,
-      createdAt: hoursAgo(49),
-    },
-  ];
-}
 
 /**
  * 탈퇴 가능 여부. 서버는 기사 소속의 작업중·응답 전 작업을 센다.
