@@ -12,7 +12,8 @@ import {
 
 // 거절 사유 화면에서 고르던 것 (#34). 앱이 종료돼도 같은 요청의 화면을 다시 열면 이어 고르도록 요청 id 별로 기기에 둔다.
 // 제출하거나 화면을 나가면 지운다
-const draftKey = (requestId: string) => `schedule.rejectDraft.${requestId}`;
+const DRAFT_KEY_PREFIX = 'schedule.rejectDraft.';
+const draftKey = (requestId: string) => `${DRAFT_KEY_PREFIX}${requestId}`;
 
 export function loadRejectDraft(
   requestId: string,
@@ -27,6 +28,14 @@ export function saveRejectDraft(requestId: string, draft: RejectReasonDraft) {
   } else {
     writeJson(draftKey(requestId), draft);
   }
+}
+
+/** 모든 거절 사유 초안을 지운다. 로그아웃·탈퇴·세션 만료 때 다음 계정에 앞 계정의 초안이 열리지 않게 한다 (#113) */
+export function clearAllRejectDrafts() {
+  appStorage
+    .getAllKeys()
+    .filter(key => key.startsWith(DRAFT_KEY_PREFIX))
+    .forEach(key => appStorage.remove(key));
 }
 
 export function clearRejectDraft(requestId: string) {

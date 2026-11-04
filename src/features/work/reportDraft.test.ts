@@ -1,6 +1,7 @@
 import { appStorage, writeJson } from '../../shared/storage/appStorage';
 import { emptyReport, type WorkReport } from './model';
 import {
+  clearAllReportDrafts,
   clearReportDraft,
   loadReportDraft,
   saveReportDraft,
@@ -57,5 +58,18 @@ describe('완료 보고 초안', () => {
 
     expect(loadReportDraft('w1')).toBeUndefined();
     expect(appStorage.getAllKeys()).toEqual([]);
+  });
+
+  // #113: 공용 기기에서 다음 계정에 앞 계정이 쓰던 보고가 열리지 않게 로그아웃·탈퇴·세션 만료 때 모두 지운다
+  it('로그아웃하면 모든 작업의 초안을 지우고 다른 값은 남긴다', () => {
+    saveReportDraft('w1', report);
+    saveReportDraft('w2', report);
+    appStorage.set('schedule.rejectDraft.r1', '{}');
+
+    clearAllReportDrafts();
+
+    expect(loadReportDraft('w1')).toBeUndefined();
+    expect(loadReportDraft('w2')).toBeUndefined();
+    expect(appStorage.getAllKeys()).toEqual(['schedule.rejectDraft.r1']);
   });
 });
