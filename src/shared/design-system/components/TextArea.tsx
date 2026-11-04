@@ -13,6 +13,8 @@ export type TextAreaProps = {
   error?: boolean;
   /** 값은 보이고 고칠 수 없다 (제출을 마친 완료 보고) */
   readOnly?: boolean;
+  /** 이 길이를 넘게 입력할 수 없다 (서버 길이 제한) */
+  maxLength?: number;
 };
 
 export const TextArea = memo(function DesignSystemTextArea({
@@ -22,11 +24,13 @@ export const TextArea = memo(function DesignSystemTextArea({
   onChangeText,
   error = false,
   readOnly = false,
+  maxLength,
 }: TextAreaProps) {
   return (
     <TextInput
       accessibilityLabel={label}
       editable={!readOnly}
+      maxLength={maxLength}
       multiline
       placeholder={placeholder}
       placeholderTextColor={colors.gray[400]}
