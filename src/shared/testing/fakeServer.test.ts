@@ -1,4 +1,12 @@
-import { createFakeServer, fail, noContent, ok } from './fakeServer';
+import {
+  createFakeServer,
+  fail,
+  FAKE_NO_ROUTE_CODE,
+  hang,
+  noContent,
+  ok,
+  verifyFakeServers,
+} from './fakeServer';
 
 describe('가짜 서버', () => {
   it('경로·메서드별 응답을 차례로 주고 마지막 응답을 되풀이한다', async () => {
@@ -76,14 +84,51 @@ describe('가짜 서버', () => {
     await expect(response.text()).resolves.toBe('');
   });
 
-  it('정하지 않은 경로나 다른 주소면 어디가 빠졌는지 알려 준다', async () => {
+  it('정하지 않은 경로는 501 FAKE-NO-ROUTE 로 답하고 처리 못 한 요청으로 남긴다', async () => {
     const server = createFakeServer();
 
+    const response = await server.fetch(`${server.baseUrl}/api/v1/nothing`);
+
+    expect(response.status).toBe(501);
+    expect(JSON.parse(await response.text())).toMatchObject({
+      success: false,
+      code: FAKE_NO_ROUTE_CODE,
+      message: '가짜 서버에 없는 경로: GET /api/v1/nothing',
+    });
+    expect(server.takeUnhandled()).toEqual(['GET /api/v1/nothing']);
+    expect(server.takeUnhandled()).toEqual([]);
+  });
+
+  it('가짜 서버 밖의 주소도 처리 못 한 요청으로 남긴다', async () => {
+    const server = createFakeServer();
+
+    const response = await server.fetch('https://elsewhere.test/a', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(501);
+    expect(server.takeUnhandled()).toEqual(['POST https://elsewhere.test/a']);
+  });
+
+  it('처리 못 한 요청이 남은 채 테스트가 끝나면 실패시킨다 (jest/setupAfterEnv 가 테스트마다 부른다)', async () => {
+    const server = createFakeServer();
+    await server.fetch(`${server.baseUrl}/api/v1/membership`);
+
+    expect(() => verifyFakeServers()).toThrow('GET /api/v1/membership');
+    // 한 번 알리면 비운다
+    expect(() => verifyFakeServers()).not.toThrow();
+  });
+
+  it('이미 취소된 signal 이면 보내지 않고 바로 취소로 끝낸다', async () => {
+    const server = createFakeServer().on('GET', '/api/v1/memberships', hang());
+    const controller = new AbortController();
+    controller.abort();
+
     await expect(
-      server.fetch(`${server.baseUrl}/api/v1/nothing`),
-    ).rejects.toThrow('가짜 서버에 없는 경로: GET /api/v1/nothing');
-    await expect(server.fetch('https://elsewhere.test/a')).rejects.toThrow(
-      '가짜 서버(http://localhost:8080) 밖의 주소',
-    );
+      server.fetch(`${server.baseUrl}/api/v1/memberships`, {
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(server.calls).toHaveLength(0);
   });
 });

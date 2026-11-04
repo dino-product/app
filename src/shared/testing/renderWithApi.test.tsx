@@ -7,7 +7,8 @@ import {
 } from '@testing-library/react-native';
 import { Pressable, Text } from 'react-native';
 import { useApiClient } from '../api';
-import { createFakeServer, fail, ok } from './fakeServer';
+import { REFRESH_PATH } from '../api/session';
+import { createFakeServer, fail, ok, verifyFakeServers } from './fakeServer';
 import {
   createTestApi,
   createTestQueryClient,
@@ -15,12 +16,11 @@ import {
 } from './renderWithApi';
 import { testSession } from './session';
 
-function Memberships() {
+function Memberships({ path = '/api/v1/memberships' }: { path?: string }) {
   const api = useApiClient();
   const { data, error } = useQuery({
     queryKey: ['memberships'],
-    queryFn: ({ signal }) =>
-      api.get<string[]>('/api/v1/memberships', { signal }),
+    queryFn: ({ signal }) => api.get<string[]>(path, { signal }),
   });
   if (error) {
     return <Text>{error.message}</Text>;
@@ -55,6 +55,47 @@ describe('renderWithApi', () => {
       await screen.findByText('서버 오류가 발생했습니다.'),
     ).toBeOnTheScreen();
     expect(server.calls).toHaveLength(1);
+  });
+
+  it('경로를 잘못 쓰면 오류 화면으로 거짓 통과하지 않고 테스트가 실패한다', async () => {
+    const server = createFakeServer().on(
+      'GET',
+      '/api/v1/memberships',
+      ok(['오르빗 설비']),
+    );
+
+    await renderWithApi(<Memberships path="/api/v1/membership" />, {
+      server,
+      session: testSession(),
+    });
+
+    expect(
+      await screen.findByText('가짜 서버에 없는 경로: GET /api/v1/membership'),
+    ).toBeOnTheScreen();
+    // jest/setupAfterEnv 가 테스트 끝에 부르는 검사를 여기서 먼저 불러 실패하는 것을 확인한다
+    expect(() => verifyFakeServers()).toThrow('GET /api/v1/membership');
+  });
+
+  it('now 를 주면 세션 만료를 그 시각으로 판단한다', async () => {
+    const issuedAt = Date.parse('2030-01-01T00:00:00Z');
+    const api = createTestApi({
+      session: testSession({}, issuedAt),
+      now: () => issuedAt + 2 * 60 * 60 * 1000,
+    });
+    api.server
+      .on(
+        'POST',
+        REFRESH_PATH,
+        ok({ ...testSession({ accessToken: 'access-2' }, issuedAt) }),
+      )
+      .on('GET', '/api/v1/auth/me', ok({}));
+
+    await api.client.get('/api/v1/auth/me');
+
+    expect(api.server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
+    expect(
+      api.server.callsTo('GET', '/api/v1/auth/me')[0].headers,
+    ).toMatchObject({ Authorization: 'Bearer access-2' });
   });
 
   it('세션 없이 시작하면 저장소가 비어 있다', async () => {

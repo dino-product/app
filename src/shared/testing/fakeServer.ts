@@ -5,6 +5,7 @@ import { DEV_API_BASE_URL } from '../api/config';
 //   const server = createFakeServer().on('GET', '/api/v1/memberships', ok([...]));
 //   createApiClient({ baseUrl: server.baseUrl, fetch: server.fetch, tokenStore }) 또는 renderWithApi(<X />, { server })
 // 경로·메서드마다 응답을 차례로 주고(마지막 응답은 계속 되풀이), 받은 요청을 calls 에 남긴다.
+// 정하지 않은 경로는 501 FAKE-NO-ROUTE 로 답하고, 그런 요청이 있었으면 테스트가 끝날 때 실패한다(verifyFakeServers).
 // 응답은 백엔드 봉투 모양을 만드는 ok·fail·noContent 로 만든다
 
 /** 가짜 서버가 받은 요청 */
@@ -37,12 +38,13 @@ type Handler =
   | ((call: RecordedCall) => FakeResponse | Promise<FakeResponse>);
 
 type ResponseOptions = { headers?: Record<string, string> };
+type HttpResponse = Extract<FakeResponse, { type: 'response' }>;
 
 const json = (
   status: number,
   body: unknown,
   headers: Record<string, string> = {},
-): FakeResponse => ({
+): HttpResponse => ({
   type: 'response',
   status,
   text: JSON.stringify(body),
@@ -107,6 +109,28 @@ export const hang = (): FakeResponse => ({ type: 'hang' });
 const abortError = () =>
   Object.assign(new Error('Aborted'), { name: 'AbortError' });
 
+/** 정하지 않은 경로에 주는 오류 코드. 서버에 없는 코드라 화면 오류 처리와 섞이지 않는다 */
+export const FAKE_NO_ROUTE_CODE = 'FAKE-NO-ROUTE';
+
+// 이번 테스트에서 만든 가짜 서버들. verifyFakeServers 가 처리 못 한 요청을 모아 본다
+const servers = new Set<{ takeUnhandled: () => string[] }>();
+
+/**
+ * 정하지 않은 경로로 온 요청이 있었으면 던진다. jest/setupAfterEnv.js 가 테스트마다 부른다.
+ * 오타 난 경로가 오류 화면으로 보여 "오류 상태" 테스트가 거짓으로 통과하는 일을 막는다
+ */
+export function verifyFakeServers() {
+  const unhandled = [...servers].flatMap(server => server.takeUnhandled());
+  servers.clear();
+  if (unhandled.length > 0) {
+    throw new Error(
+      `가짜 서버에 응답을 정하지 않은 요청이 있었다 (server.on 으로 정한다):\n${unhandled.join(
+        '\n',
+      )}`,
+    );
+  }
+}
+
 function parseUrl(url: string, baseUrl: string) {
   const [path, search = ''] = url.slice(baseUrl.length).split('?');
   const query: Record<string, string> = {};
@@ -117,15 +141,7 @@ function parseUrl(url: string, baseUrl: string) {
   return { path, query };
 }
 
-function toResponse({
-  status,
-  text,
-  headers,
-}: {
-  status: number;
-  text: string;
-  headers: Record<string, string>;
-}) {
+function toResponse({ status, text, headers }: HttpResponse) {
   const lower = Object.fromEntries(
     Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
@@ -140,16 +156,31 @@ function toResponse({
 export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
   const routes = new Map<string, { handlers: Handler[]; hits: number }>();
   const calls: RecordedCall[] = [];
+  let unhandled: string[] = [];
+
+  // 정하지 않은 요청: 기록해 두고(테스트가 끝날 때 실패) 서버에 없는 코드로 답한다
+  const noRoute = (request: string) => {
+    unhandled.push(request);
+    return toResponse(
+      fail(501, FAKE_NO_ROUTE_CODE, {
+        message: `가짜 서버에 없는 경로: ${request}`,
+      }),
+    );
+  };
 
   const fetch = async (
     input: RequestInfo,
     init: RequestInit = {},
   ): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input.url;
-    if (!url.startsWith(baseUrl)) {
-      throw new Error(`가짜 서버(${baseUrl}) 밖의 주소: ${url}`);
+    // 실제 fetch 처럼 이미 취소된 요청은 보내지 않는다
+    if (init.signal?.aborted) {
+      throw abortError();
     }
+    const url = typeof input === 'string' ? input : input.url;
     const method = (init.method ?? 'GET') as HttpMethod;
+    if (!url.startsWith(baseUrl)) {
+      return noRoute(`${method} ${url}`);
+    }
     const { path, query } = parseUrl(url, baseUrl);
     const call: RecordedCall = {
       method,
@@ -164,7 +195,7 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
 
     const route = routes.get(`${method} ${path}`);
     if (!route) {
-      throw new Error(`가짜 서버에 없는 경로: ${method} ${path}`);
+      return noRoute(`${method} ${path}`);
     }
     const handler =
       route.handlers[Math.min(route.hits, route.handlers.length - 1)];
@@ -172,6 +203,10 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
     const response =
       typeof handler === 'function' ? await handler(call) : handler;
 
+    // 함수 응답을 기다리는 동안 취소됐다
+    if (call.signal?.aborted) {
+      throw abortError();
+    }
     if (response.type === 'networkError') {
       throw new TypeError('Network request failed');
     }
@@ -179,9 +214,6 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
       return new Promise((_, reject) => {
         call.signal?.addEventListener('abort', () => reject(abortError()));
       });
-    }
-    if (call.signal?.aborted) {
-      throw abortError();
     }
     return toResponse(response);
   };
@@ -199,7 +231,14 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
       routes.set(`${method} ${path}`, { handlers, hits: 0 });
       return server;
     },
+    /** 정하지 않은 경로로 온 요청('GET /api/v1/x')을 꺼내고 비운다. 일부러 부르는 테스트만 쓴다 */
+    takeUnhandled() {
+      const taken = unhandled;
+      unhandled = [];
+      return taken;
+    },
   };
+  servers.add(server);
   return server;
 }
 

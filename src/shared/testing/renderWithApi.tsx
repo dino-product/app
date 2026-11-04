@@ -18,6 +18,8 @@ type TestApiOptions = {
   server?: FakeServer;
   /** 로그인한 상태로 시작할 세션 (testSession()). 없으면 로그아웃 상태 */
   session?: Session | null;
+  /** 토큰 만료를 판단할 지금 시각. 없으면 Date.now */
+  now?: () => number;
 };
 
 /** 재시도를 끄고(오류가 바로 보임), 캐시 정리 타이머를 두지 않는다(jest 가 끝나지 않는 일을 막음) */
@@ -33,12 +35,14 @@ export function createTestQueryClient() {
 export function createTestApi({
   server = createFakeServer(),
   session = null,
+  now,
 }: TestApiOptions = {}) {
   const tokenStore = createMemoryTokenStore(session);
   const client = createApiClient({
     baseUrl: server.baseUrl,
     fetch: server.fetch,
     tokenStore,
+    now,
   });
   const queryClient = createTestQueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
