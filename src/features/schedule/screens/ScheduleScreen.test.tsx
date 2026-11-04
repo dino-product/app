@@ -11,6 +11,10 @@ import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { colors } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
+
+jest.mock('../../../shared/haptics', () => ({
+  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
+}));
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
@@ -660,10 +664,6 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
     expect(node.props.scrollEnabled).not.toBe(false);
   });
 });
-
-jest.mock('../../../shared/haptics', () => ({
-  haptic: { success: jest.fn(), warning: jest.fn(), selection: jest.fn() },
-}));
 
 describe('ScheduleScreen — 응답 필요', () => {
   it('수락하면 성공 햅틱을 울리고, 거절·상세에서는 울리지 않는다', async () => {

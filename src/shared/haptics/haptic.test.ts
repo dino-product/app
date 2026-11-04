@@ -2,37 +2,35 @@ import { Platform } from 'react-native';
 import RNHapticFeedback from 'react-native-haptic-feedback';
 import { haptic } from './haptic';
 
-jest.mock('react-native-haptic-feedback', () => ({
-  __esModule: true,
-  default: { trigger: jest.fn() },
-}));
-
-const trigger = RNHapticFeedback.trigger as jest.Mock;
+// 라이브러리는 jest/setup.js 의 전역 목
+const trigger = jest.mocked(RNHapticFeedback.trigger);
 
 beforeEach(() => trigger.mockReset());
 afterEach(() => jest.restoreAllMocks());
 
-describe.each([
-  ['ios', 'notificationSuccess', 'notificationWarning', 'selection'],
-  ['android', 'confirm', 'reject', 'segmentTick'],
-] as const)('%s', (os, success, warning, selection) => {
+const asAndroid = (version: number) => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  jest.spyOn(Platform, 'Version', 'get').mockReturnValue(version);
+};
+
+describe('ios', () => {
   beforeEach(() => {
-    jest.replaceProperty(Platform, 'OS', os);
+    jest.replaceProperty(Platform, 'OS', 'ios');
   });
 
-  it('success 는 성공 종류를 울린다', () => {
+  it('success·warning·selection·toggle 은 UIKit 생성기 종류를 울린다', () => {
     haptic.success();
-    expect(trigger).toHaveBeenCalledWith(success);
-  });
-
-  it('warning 은 경고 종류를 울린다', () => {
     haptic.warning();
-    expect(trigger).toHaveBeenCalledWith(warning);
-  });
-
-  it('selection 은 선택 종류를 울린다', () => {
     haptic.selection();
-    expect(trigger).toHaveBeenCalledWith(selection);
+    haptic.toggle(true);
+    haptic.toggle(false);
+    expect(trigger.mock.calls).toEqual([
+      ['notificationSuccess'],
+      ['notificationWarning'],
+      ['selection'],
+      ['selection'],
+      ['selection'],
+    ]);
   });
 
   it('시스템 설정을 따르도록 옵션을 넘기지 않는다', () => {
@@ -41,19 +39,37 @@ describe.each([
   });
 });
 
-describe('toggle', () => {
-  it('iOS 는 켜고 꺼도 selection 이다', () => {
-    jest.replaceProperty(Platform, 'OS', 'ios');
-    haptic.toggle(true);
-    haptic.toggle(false);
-    expect(trigger.mock.calls).toEqual([['selection'], ['selection']]);
+// 라이브러리 Android 구현은 View 상수 맵에 있는 종류만 시스템 터치 진동 설정을 따른다.
+// 맵에 없으면 Vibrator 폴백(설정 무시)이라, 그 API 레벨의 맵에 있는 종류만 쓴다
+describe('android — API 레벨별 View 상수', () => {
+  it.each([
+    [24, 'virtualKey', 'longPress', 'contextClick'],
+    [29, 'virtualKey', 'longPress', 'contextClick'],
+    [30, 'confirm', 'reject', 'segmentTick'],
+    [34, 'confirm', 'reject', 'segmentTick'],
+  ])('API %i: success·warning·selection', (v, success, warning, selection) => {
+    asAndroid(v);
+    haptic.success();
+    haptic.warning();
+    haptic.selection();
+    expect(trigger.mock.calls).toEqual([[success], [warning], [selection]]);
   });
 
-  it('Android 는 켬/끔을 구분한다', () => {
-    jest.replaceProperty(Platform, 'OS', 'android');
+  it.each([
+    [24, 'contextClick', 'clockTick'],
+    [33, 'contextClick', 'clockTick'],
+    [34, 'toggleOn', 'toggleOff'],
+  ])('API %i: toggle 켬·끔', (v, on, off) => {
+    asAndroid(v);
     haptic.toggle(true);
     haptic.toggle(false);
-    expect(trigger.mock.calls).toEqual([['toggleOn'], ['toggleOff']]);
+    expect(trigger.mock.calls).toEqual([[on], [off]]);
+  });
+
+  it('시스템 설정을 따르도록 옵션을 넘기지 않는다', () => {
+    asAndroid(34);
+    haptic.success();
+    expect(trigger.mock.calls[0]).toHaveLength(1);
   });
 });
 
