@@ -25,7 +25,8 @@ import type {
 // 그래서 사용자가 앱 전환기에서 직접 종료해도(OS 가 앱에 구분해 알려 주지 않는다) 복원한다.
 // 대신 마지막으로 화면이 바뀐 지 오래됐으면 다시 열지 않는다. 다음 날 아침 어제 보던 상세로 시작하지 않게 첫 화면으로 돌아간다.
 // React Navigation "State persistence" 가이드의 initialState·onStateChange 방식이다.
-// 딥링크·알림으로 여는 길을 붙이면 그때는 복원하지 않게 직접 막아야 한다. NavigationContainer 는 initialState 가 있으면 링크보다 그것을 쓴다
+// 딥링크(linking)를 붙이면 그때는 복원하지 않게 직접 막아야 한다. NavigationContainer 는 initialState 가 있으면 링크보다 그것을 쓴다.
+// 알림(#118)은 복원한 뒤 PushNotifications 가 그 화면으로 옮긴다
 export const NAVIGATION_STATE_KEY = 'navigation.state';
 export const NAVIGATION_STATE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
