@@ -187,6 +187,20 @@ describe('네트워크·타임아웃', () => {
     expect(server.calls[0].signal?.aborted).toBe(true);
   });
 
+  it('응답을 받으면 타임아웃 타이머를 남기지 않는다', async () => {
+    jest.useFakeTimers();
+    server
+      .on('GET', '/api/v1/memberships', ok([]))
+      .on('GET', '/api/v1/notifications', fail(404, 'NOTIFICATION-002'));
+
+    await clientFor().get('/api/v1/memberships');
+    await clientFor()
+      .get('/api/v1/notifications')
+      .catch(() => undefined);
+
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it('부른 쪽이 취소하면(React Query signal) 요청을 끊고 취소를 그대로 던진다', async () => {
     server.on('GET', '/api/v1/memberships', hang());
     const controller = new AbortController();
@@ -274,6 +288,24 @@ describe('503 Retry-After', () => {
     await jest.advanceTimersByTimeAsync(1);
 
     expect(await result).toEqual({ value: [] });
+  });
+
+  it('기다리는 동안 취소되면 바로 취소로 끝내고 다시 보내지 않는다', async () => {
+    jest.useFakeTimers();
+    server.on('GET', '/api/v1/memberships', unavailable('5'), ok([]));
+    const controller = new AbortController();
+
+    const result = settle(
+      clientFor().get('/api/v1/memberships', { signal: controller.signal }),
+    );
+    await jest.advanceTimersByTimeAsync(10);
+    controller.abort();
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(await result).toMatchObject({ error: { name: 'AbortError' } });
+    expect(jest.getTimerCount()).toBe(0);
+    await jest.advanceTimersByTimeAsync(MAX_RETRY_AFTER_MS);
+    expect(server.calls).toHaveLength(1);
   });
 
   it('Retry-After 가 없거나 읽을 수 없으면 다시 보내지 않는다', async () => {

@@ -5,6 +5,7 @@ import {
   ApiErrorMessage,
   isApiError,
 } from './ApiError';
+import { delay } from './delay';
 import type { TokenStore } from './tokenStore';
 
 // 로그인 세션(토큰)을 들고 access token 을 제때 다시 받는다. 사용법 (useApiClient().session):
@@ -34,6 +35,8 @@ type RefreshedTokens = Omit<Session, 'accountId'>;
 export const REFRESH_PATH = '/api/v1/auth/refresh';
 /** access 만료까지 이만큼 이하로 남았으면 요청 전에 미리 재발급한다 (만료는 시계 오차 없이 정각부터 거부) */
 export const REFRESH_BEFORE_EXPIRY_MS = 60 * 1000;
+/** 재발급 응답을 잃었을 때 다시 받기 전에 기다린다. 서버 유예(30초) 안이어야 한다 */
+export const REFRESH_RETRY_DELAY_MS = 1000;
 
 const TOKEN_FIELDS = [
   'accessToken',
@@ -62,6 +65,34 @@ function pickTokens(value: unknown): RefreshedTokens | undefined {
 const isRefreshRejected = (error: unknown) =>
   isApiError(error) &&
   (error.code === ApiErrorCode.refreshRejected || error.status === 401);
+
+// 답을 받지 못했다. 서버는 이미 처리(회전)했을 수 있다
+const isLost = (error: unknown) =>
+  isApiError(error) && (error.kind === 'network' || error.kind === 'timeout');
+
+// 서버가 잠시 답하지 못했다 (다시 하면 될 수 있다)
+const isTransient = (error: unknown) =>
+  isLost(error) ||
+  (isApiError(error) &&
+    error.kind === 'http' &&
+    error.status !== undefined &&
+    error.status >= 500);
+
+// 구독자 하나가 던져도 저장·다른 구독자 알림·요청을 막지 않는다. 오류는 남긴다 (세션 값은 남기지 않는다)
+function notifySafely(listener: () => void) {
+  try {
+    listener();
+  } catch (error) {
+    console.error('세션 구독자가 오류를 던졌다', error);
+  }
+}
+
+/** 요청을 보낸 세션. 404 뒤 다시 보낼 때 같은 계정인지 본다 */
+export type Credentials = { accountId: number; accessToken: string };
+const credentialsOf = ({ accountId, accessToken }: Session): Credentials => ({
+  accountId,
+  accessToken,
+});
 
 export type SessionManager = ReturnType<typeof createSessionManager>;
 
@@ -109,15 +140,33 @@ export function createSessionManager({
     return loading;
   }
 
-  // 메모리는 바로 바꾸고 저장소에 남긴다
-  function replace(next: Session | null): Promise<void> {
+  // 메모리는 바로 바꾼다(다음 요청이 새 토큰을 쓰게). 저장소에 먼저 남기고(실패하면 한 번 더) 구독자에게 알린다.
+  // 두 번 다 실패하면 던진다: 로그인·로그아웃은 부른 쪽이 알고, 재발급은 무시한다(이번 실행 동안은 메모리 토큰을 쓴다)
+  async function replace(next: Session | null): Promise<void> {
     current = next;
-    listeners.forEach(listener => listener(next));
-    return next === null ? store.clear() : store.save(next);
+    const write = () => (next === null ? store.clear() : store.save(next));
+    try {
+      await write().catch(write);
+    } finally {
+      listeners.forEach(listener => notifySafely(() => listener(next)));
+    }
   }
 
-  // 재발급 중에는 저장에 실패해도 요청을 실패시키지 않는다. 이번 실행 동안은 메모리의 새 토큰으로 요청한다
   const ignoreFailure = () => undefined;
+
+  // 재발급 응답을 잃었으면(network·timeout) 1초 뒤 같은 refresh 로 한 번 더 받는다.
+  // 서버는 회전 뒤 30초 안에 같은 refresh 가 다시 오면 같은 새 토큰을 준다. 그대로 두면 다음 재발급이 옛 refresh 로 세션을 철회시킨다
+  async function requestTokens(refreshToken: string): Promise<unknown> {
+    try {
+      return await refreshTokens(refreshToken);
+    } catch (error) {
+      if (!isLost(error)) {
+        throw error;
+      }
+      await delay(REFRESH_RETRY_DELAY_MS);
+      return refreshTokens(refreshToken);
+    }
+  }
 
   async function renew(): Promise<Session | null> {
     const before = await load();
@@ -126,11 +175,11 @@ export function createSessionManager({
     }
     let tokens: RefreshedTokens | undefined;
     try {
-      tokens = pickTokens(await refreshTokens(before.refreshToken));
+      tokens = pickTokens(await requestTokens(before.refreshToken));
     } catch (error) {
       if (isRefreshRejected(error) && current === before) {
         await replace(null).catch(ignoreFailure);
-        expiredListeners.forEach(listener => listener());
+        expiredListeners.forEach(notifySafely);
       }
       throw error;
     }
@@ -141,9 +190,9 @@ export function createSessionManager({
         message: ApiErrorMessage.invalidResponse,
       });
     }
-    // 재발급하는 동안 로그아웃·다른 로그인이 있었으면 그 세션을 되살리지 않는다
+    // 재발급하는 동안 로그아웃·다른 로그인이 있었으면 그 세션을 되살리지도, 다른 세션의 토큰을 주지도 않는다
     if (current !== before) {
-      return current ?? null;
+      return null;
     }
     const next = { ...before, ...tokens };
     await replace(next).catch(ignoreFailure);
@@ -185,27 +234,42 @@ export function createSessionManager({
     /** 재발급이 거절돼 세션이 끝났을 때 한 번 받는다 → 로그인 화면으로 */
     onExpired: (listener: () => void) => listen(expiredListeners, listener),
 
-    /** 요청에 붙일 access token. 곧 만료되면 먼저 재발급한다. 세션이 없으면 undefined */
-    async getAccessToken(): Promise<string | undefined> {
+    /**
+     * 요청에 붙일 세션. 곧 만료되면 먼저 재발급한다. 세션이 없으면 undefined.
+     * 재발급이 일시 오류(5xx·network·timeout)로 실패해도 access 가 아직 만료 전이면 지금 토큰을 준다
+     */
+    async getCredentials(): Promise<Credentials | undefined> {
       const session = await load();
       if (session === null) {
         return undefined;
       }
       const left = Date.parse(session.accessTokenExpiresAt) - now();
       if (left > REFRESH_BEFORE_EXPIRY_MS) {
-        return session.accessToken;
+        return credentialsOf(session);
       }
-      return (await renewOnce())?.accessToken;
+      try {
+        const renewed = await renewOnce();
+        return renewed === null ? undefined : credentialsOf(renewed);
+      } catch (error) {
+        if (left > 0 && isTransient(error)) {
+          return credentialsOf(session);
+        }
+        throw error;
+      }
     },
-    /** 서버가 이 access token 을 거절했다(COMMON-404). 이미 바뀌었으면 그 토큰을, 아니면 재발급한 토큰을 준다 */
-    async renewAfterRejection(
-      rejectedToken: string,
-    ): Promise<string | undefined> {
+    /**
+     * 서버가 이 access token 을 거절했다(COMMON-404). 이미 바뀌었으면 그 토큰을, 아니면 재발급한 토큰을 준다.
+     * 요청을 보낸 뒤 로그아웃했거나 다른 계정으로 바뀌었으면 undefined (다시 보내지 않는다)
+     */
+    async renewAfterRejection({
+      accountId,
+      accessToken,
+    }: Credentials): Promise<string | undefined> {
       const session = await load();
-      if (session === null) {
+      if (session === null || session.accountId !== accountId) {
         return undefined;
       }
-      if (session.accessToken !== rejectedToken) {
+      if (session.accessToken !== accessToken) {
         return session.accessToken;
       }
       return (await renewOnce())?.accessToken;

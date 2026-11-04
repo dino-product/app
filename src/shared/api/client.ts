@@ -5,12 +5,16 @@ import {
   ApiErrorMessage,
   isApiError,
 } from './ApiError';
+import { delay } from './delay';
 import { createSessionManager, REFRESH_PATH } from './session';
 import type { TokenStore } from './tokenStore';
 
 // 서버 API 를 부른다. 사용법: `const api = useApiClient(); api.get<Membership[]>('/api/v1/memberships', { signal })`
 // 봉투 { success, code, message, result } 를 풀어 result 를 돌려주고(204 는 undefined), 실패는 ApiError 로 던진다.
-// 인증 경로에는 access token 을 붙이고(곧 만료면 먼저 재발급), 만료·폐기된 토큰이 받는 COMMON-404 는 한 번 재발급해 한 번 다시 보낸다
+// 경로는 세 가지로 다룬다
+// - 공개(로그인·재발급): 토큰을 붙이지 않는다
+// - 로그아웃: 있는 access token 을 그대로 붙인다. 재발급·재시도는 하지 않는다 (서버는 무효 토큰이어도 204)
+// - 그 밖(인증): access token 을 붙이고(곧 만료면 먼저 재발급), 만료·폐기된 토큰이 받는 COMMON-404 는 한 번 재발급해 한 번 다시 보낸다
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 /** 값이 undefined·null 인 항목은 빼고 보낸다 */
@@ -31,8 +35,10 @@ export const REQUEST_TIMEOUT_MS = 15 * 1000;
 /** 503 의 Retry-After 를 이만큼까지만 기다린다 */
 export const MAX_RETRY_AFTER_MS = 5 * 1000;
 
-// 토큰 없이 부르는 경로 (백엔드 AuthSecurityCustomizer). 로그아웃은 Bearer 를 같이 보내라고 해서 인증 요청으로 둔다
+// 토큰 없이 부르는 경로 (백엔드 AuthSecurityCustomizer)
 const PUBLIC_PATH_PREFIXES = ['/api/v1/auth/kakao/', '/api/v1/auth/apple/'];
+/** POST, 본문 { refreshToken } 선택. Bearer 도 같이 보내야 그 access token 까지 폐기된다 */
+export const LOGOUT_PATH = '/api/v1/auth/logout';
 const isPublicPath = (path: string) =>
   path === REFRESH_PATH ||
   PUBLIC_PATH_PREFIXES.some(prefix => path.startsWith(prefix));
@@ -77,9 +83,6 @@ function retryAfterMs(value: string | null, now: number): number | undefined {
     ? undefined
     : Math.min(Math.max(ms, 0), MAX_RETRY_AFTER_MS);
 }
-
-const delay = (ms: number) =>
-  new Promise<void>(resolve => setTimeout(resolve, ms));
 
 function parseJson(text: string): unknown {
   try {
@@ -214,7 +217,8 @@ export function createApiClient({
         ? retryAfterMs(response.retryAfter, now())
         : undefined;
     if (wait !== undefined) {
-      await delay(wait);
+      // 기다리는 동안 취소되면 다시 보내지 않고 취소로 끝낸다
+      await delay(wait, signal);
       response = await exchange(url, init, signal);
     }
     return unwrap<T>(response);
@@ -235,15 +239,22 @@ export function createApiClient({
     if (isPublicPath(path)) {
       return send<T>(method, path, options);
     }
-    const token = await session.getAccessToken();
+    if (path === LOGOUT_PATH) {
+      const current = await session.getSession();
+      return send<T>(method, path, options, current?.accessToken);
+    }
+    const credentials = await session.getCredentials();
     try {
-      return await send<T>(method, path, options, token);
+      return await send<T>(method, path, options, credentials?.accessToken);
     } catch (error) {
       // 만료·폐기된 access token 은 401 이 아니라 진짜 없는 자원과 같은 404 COMMON-404 로 온다
-      if (token === undefined || !isApiError(error, ApiErrorCode.notFound)) {
+      if (
+        credentials === undefined ||
+        !isApiError(error, ApiErrorCode.notFound)
+      ) {
         throw error;
       }
-      const renewed = await session.renewAfterRejection(token);
+      const renewed = await session.renewAfterRejection(credentials);
       if (renewed === undefined) {
         throw error;
       }

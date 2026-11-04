@@ -1,16 +1,19 @@
 import {
   createFakeServer,
   fail,
+  hang,
   networkError,
+  noContent,
   ok,
   type FakeServer,
 } from '../testing/fakeServer';
 import { createMemoryTokenStore, testSession } from '../testing/session';
 import { ApiErrorCode } from './ApiError';
-import { createApiClient } from './client';
+import { createApiClient, LOGOUT_PATH, REQUEST_TIMEOUT_MS } from './client';
 import {
   REFRESH_BEFORE_EXPIRY_MS,
   REFRESH_PATH,
+  REFRESH_RETRY_DELAY_MS,
   type LoginResponse,
   type Session,
 } from './session';
@@ -44,8 +47,35 @@ const expiringSoon = (msLeft: number) =>
 const bearerOf = (path: string) =>
   server.callsTo('GET', path).map(call => call.headers.Authorization);
 
+// 실패를 기다리는 동안 처리되지 않은 거절로 잡히지 않게 먼저 받아 둔다
+const settle = (promise: Promise<unknown>) =>
+  promise.then(
+    value => ({ value }),
+    error => ({ error }),
+  );
+
+// 요청이 서버에 닿은 뒤 열 때까지 답을 붙잡아 두는 응답
+function gated<T>(response: T) {
+  let open = () => {};
+  const gate = new Promise<void>(resolve => {
+    open = resolve;
+  });
+  return {
+    open: () => open(),
+    handler: async () => {
+      await gate;
+      return response;
+    },
+  };
+}
+
 beforeEach(() => {
   server = createFakeServer();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 describe('선제 재발급', () => {
@@ -273,6 +303,8 @@ describe('세션 만료 (AUTH-009)', () => {
     expect(expired).toHaveBeenCalledTimes(1);
     expect(changed).toHaveBeenCalledWith(null);
     expect(server.callsTo('GET', '/api/v1/auth/me')).toHaveLength(0);
+    // 거절은 다시 받아도 같다
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
   });
 
   it('404 뒤 재발급이 AUTH-009 여도 세션을 지우고 한 번 알린다', async () => {
@@ -311,7 +343,8 @@ describe('세션 만료 (AUTH-009)', () => {
     expect(expired).toHaveBeenCalledTimes(1);
   });
 
-  it('재발급이 네트워크 오류면 세션을 지우지 않는다', async () => {
+  it('재발급을 다시 받아도 네트워크 오류면 세션을 지우지 않는다', async () => {
+    jest.useFakeTimers();
     server
       .on('POST', REFRESH_PATH, networkError())
       .on('GET', '/api/v1/auth/me', ok({}));
@@ -320,9 +353,11 @@ describe('세션 만료 (AUTH-009)', () => {
     const expired = jest.fn();
     client.session.onExpired(expired);
 
-    await expect(client.get('/api/v1/auth/me')).rejects.toMatchObject({
-      kind: 'network',
-    });
+    const result = settle(client.get('/api/v1/auth/me'));
+    await jest.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS);
+
+    expect(await result).toMatchObject({ error: { kind: 'network' } });
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(2);
     expect(tokenStore.current).toEqual(session);
     expect(expired).not.toHaveBeenCalled();
   });
@@ -451,9 +486,29 @@ describe('세션 세우기·끝내기', () => {
     expect(bearerOf('/api/v1/auth/me')).toEqual([undefined]);
   });
 
+  it('재발급하는 동안 다른 계정으로 바뀌면 그 계정 토큰으로 보내지 않는다', async () => {
+    const { client } = setup(expiringSoon(0));
+    server
+      .on('POST', REFRESH_PATH, async () => {
+        await client.session.end();
+        await client.session.start({
+          ...testSession({ accountId: 2, accessToken: 'access-B' }, NOW),
+          registered: false,
+        });
+        return ok(renewed);
+      })
+      .on('GET', '/api/v1/auth/me', ok({}));
+
+    await client.get('/api/v1/auth/me');
+
+    expect(bearerOf('/api/v1/auth/me')).toEqual([undefined]);
+  });
+
   it('저장에 실패해도 이번 실행 동안은 새 토큰으로 요청한다', async () => {
     const { client, tokenStore } = setup(expiringSoon(0));
-    jest.spyOn(tokenStore, 'save').mockRejectedValue(new Error('disk'));
+    const save = jest
+      .spyOn(tokenStore, 'save')
+      .mockRejectedValue(new Error('disk'));
     server
       .on('POST', REFRESH_PATH, ok(renewed))
       .on('GET', '/api/v1/auth/me', ok({}));
@@ -461,6 +516,7 @@ describe('세션 세우기·끝내기', () => {
     await client.get('/api/v1/auth/me');
 
     expect(bearerOf('/api/v1/auth/me')).toEqual(['Bearer access-2']);
+    expect(save).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -493,5 +549,285 @@ describe('토큰 값 노출', () => {
       expect(printed).not.toContain(token);
     }
     spies.forEach(spy => spy.mockRestore());
+  });
+});
+
+describe('구독자 오류', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  const boom = () => {
+    throw new Error('listener boom');
+  };
+
+  it('세션 구독자가 던져도 회전된 refresh 를 저장하고 요청을 보낸다', async () => {
+    server
+      .on('POST', REFRESH_PATH, ok(renewed))
+      .on('GET', '/api/v1/auth/me', ok({ accountId: 1 }));
+    const { client, tokenStore } = setup(expiringSoon(0));
+    client.session.subscribe(boom);
+
+    await expect(client.get('/api/v1/auth/me')).resolves.toEqual({
+      accountId: 1,
+    });
+
+    expect(tokenStore.current?.refreshToken).toBe('refresh-2');
+    expect(bearerOf('/api/v1/auth/me')).toEqual(['Bearer access-2']);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('세션 구독자가 던져도 AUTH-009 면 세션을 지우고 만료를 알린다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(401, ApiErrorCode.refreshRejected))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client, tokenStore } = setup(expiringSoon(0));
+    const expired = jest.fn();
+    client.session.subscribe(boom);
+    client.session.onExpired(expired);
+
+    await expect(client.get('/api/v1/auth/me')).rejects.toMatchObject({
+      code: 'AUTH-009',
+    });
+
+    expect(tokenStore.current).toBeNull();
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('만료 구독자 하나가 던져도 다른 만료 구독자에게 알린다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(401, ApiErrorCode.refreshRejected))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+    const expired = jest.fn();
+    client.session.onExpired(boom);
+    client.session.onExpired(expired);
+
+    await client.get('/api/v1/auth/me').catch(() => undefined);
+
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('로그인할 때 구독자가 던져도 세션을 저장한다', async () => {
+    const { client, tokenStore } = setup(null);
+    client.session.subscribe(boom);
+
+    await client.session.start({ ...testSession({}, NOW), registered: true });
+
+    expect(tokenStore.current).toEqual(testSession({}, NOW));
+  });
+});
+
+describe('저장 실패', () => {
+  it('재발급 뒤 저장에 실패하면 한 번 다시 저장한다', async () => {
+    server
+      .on('POST', REFRESH_PATH, ok(renewed))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client, tokenStore } = setup(expiringSoon(0));
+    const save = jest
+      .spyOn(tokenStore, 'save')
+      .mockRejectedValueOnce(new Error('busy'));
+
+    await client.get('/api/v1/auth/me');
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(tokenStore.current?.refreshToken).toBe('refresh-2');
+  });
+
+  it('로그인 저장이 두 번 다 실패하면 로그인한 쪽에 알린다', async () => {
+    const { client, tokenStore } = setup(null);
+    jest.spyOn(tokenStore, 'save').mockRejectedValue(new Error('disk'));
+
+    await expect(
+      client.session.start({ ...testSession({}, NOW), registered: true }),
+    ).rejects.toThrow('disk');
+  });
+});
+
+describe('재발급 응답 유실', () => {
+  it('재발급이 네트워크 오류면 1초 뒤 같은 refresh 로 한 번 더 받는다 (서버는 30초 안의 재전송에 같은 새 토큰을 준다)', async () => {
+    jest.useFakeTimers();
+    server
+      .on('POST', REFRESH_PATH, networkError(), ok(renewed))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client, tokenStore } = setup(expiringSoon(0));
+
+    const result = settle(client.get('/api/v1/auth/me'));
+    await jest.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS - 1);
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
+    await jest.advanceTimersByTimeAsync(1);
+
+    expect(await result).toEqual({ value: {} });
+    expect(REFRESH_RETRY_DELAY_MS).toBe(1_000);
+    expect(server.callsTo('POST', REFRESH_PATH).map(call => call.body)).toEqual(
+      [{ refreshToken: 'refresh-1' }, { refreshToken: 'refresh-1' }],
+    );
+    expect(tokenStore.current?.refreshToken).toBe('refresh-2');
+    expect(bearerOf('/api/v1/auth/me')).toEqual(['Bearer access-2']);
+  });
+
+  it('재발급이 타임아웃이어도 한 번 더 받는다', async () => {
+    jest.useFakeTimers();
+    server
+      .on('POST', REFRESH_PATH, hang(), ok(renewed))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    const result = settle(client.get('/api/v1/auth/me'));
+    await jest.advanceTimersByTimeAsync(
+      REQUEST_TIMEOUT_MS + REFRESH_RETRY_DELAY_MS,
+    );
+
+    expect(await result).toEqual({ value: {} });
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(2);
+  });
+
+  it('5xx 로 답했으면(서버가 처리하지 못함) 다시 받지 않는다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(500, ApiErrorCode.serverError))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    await expect(client.get('/api/v1/auth/me')).rejects.toMatchObject({
+      status: 500,
+    });
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
+  });
+});
+
+describe('선제 재발급이 잠시 실패할 때', () => {
+  it('일시 오류(5xx)여도 access 가 아직 만료 전이면 그 토큰으로 보낸다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(503, ApiErrorCode.unavailable))
+      .on('GET', '/api/v1/auth/me', ok({ accountId: 1 }));
+    const { client } = setup(expiringSoon(30_000));
+
+    await expect(client.get('/api/v1/auth/me')).resolves.toEqual({
+      accountId: 1,
+    });
+    expect(bearerOf('/api/v1/auth/me')).toEqual(['Bearer access-1']);
+  });
+
+  it('만료가 지났으면 그 오류를 던진다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(500, ApiErrorCode.serverError))
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    await expect(client.get('/api/v1/auth/me')).rejects.toMatchObject({
+      status: 500,
+    });
+    expect(server.callsTo('GET', '/api/v1/auth/me')).toHaveLength(0);
+  });
+
+  it('재발급이 실패한 뒤 다음 요청은 다시 재발급한다 (single-flight 를 푼다)', async () => {
+    server
+      .on(
+        'POST',
+        REFRESH_PATH,
+        fail(500, ApiErrorCode.serverError),
+        ok(renewed),
+      )
+      .on('GET', '/api/v1/auth/me', ok({}));
+    const { client } = setup(expiringSoon(0));
+
+    await client.get('/api/v1/auth/me').catch(() => undefined);
+    await client.get('/api/v1/auth/me');
+
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(2);
+    expect(bearerOf('/api/v1/auth/me')).toEqual(['Bearer access-2']);
+  });
+});
+
+describe('요청 중 세션이 바뀔 때', () => {
+  const invalidToken = fail(404, ApiErrorCode.notFound);
+
+  it('요청 중 로그아웃하면 404 를 받아도 재발급하지 않고 원래 오류를 던진다', async () => {
+    const late = gated(invalidToken);
+    server
+      .on('POST', REFRESH_PATH, ok(renewed))
+      .on('GET', '/api/v1/memberships', late.handler);
+    const { client } = setup();
+
+    const pending = settle(client.get('/api/v1/memberships'));
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await client.session.end();
+    late.open();
+
+    expect(await pending).toMatchObject({
+      error: { status: 404, code: 'COMMON-404' },
+    });
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(0);
+    expect(server.callsTo('GET', '/api/v1/memberships')).toHaveLength(1);
+  });
+
+  it('요청 중 다른 계정으로 바뀌면 404 뒤 그 계정 토큰으로 다시 보내지 않는다', async () => {
+    const late = gated(invalidToken);
+    server
+      .on('POST', REFRESH_PATH, ok(renewed))
+      .on('PUT', '/api/v1/profiles/1', late.handler, ok('done'));
+    const { client } = setup();
+
+    const pending = settle(client.put('/api/v1/profiles/1', { name: 'A' }));
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await client.session.end();
+    await client.session.start({
+      ...testSession({ accountId: 2, accessToken: 'access-B' }, NOW),
+      registered: false,
+    });
+    late.open();
+
+    expect(await pending).toMatchObject({ error: { code: 'COMMON-404' } });
+    expect(
+      server
+        .callsTo('PUT', '/api/v1/profiles/1')
+        .map(call => call.headers.Authorization),
+    ).toEqual(['Bearer access-1']);
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(0);
+  });
+});
+
+describe('로그아웃', () => {
+  it('있는 access 토큰을 그대로 붙이고, 곧 만료여도 먼저 재발급하지 않는다', async () => {
+    server
+      .on('POST', REFRESH_PATH, fail(401, ApiErrorCode.refreshRejected))
+      .on('POST', LOGOUT_PATH, noContent());
+    const { client } = setup(expiringSoon(0));
+    const expired = jest.fn();
+    client.session.onExpired(expired);
+
+    await expect(
+      client.post(LOGOUT_PATH, { refreshToken: 'refresh-1' }),
+    ).resolves.toBeUndefined();
+
+    expect(server.callsTo('POST', LOGOUT_PATH)[0].headers.Authorization).toBe(
+      'Bearer access-1',
+    );
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(0);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('404 를 받아도 재발급·재전송하지 않는다 (서버는 무효 토큰이어도 204 로 답한다)', async () => {
+    server
+      .on('POST', REFRESH_PATH, ok(renewed))
+      .on('POST', LOGOUT_PATH, fail(404, ApiErrorCode.notFound));
+    const { client } = setup();
+
+    await expect(client.post(LOGOUT_PATH)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(server.callsTo('POST', LOGOUT_PATH)).toHaveLength(1);
+    expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(0);
+  });
+
+  it('세션이 없으면 토큰 없이 보낸다', async () => {
+    server.on('POST', LOGOUT_PATH, noContent());
+    const { client } = setup(null);
+
+    await client.post(LOGOUT_PATH, { refreshToken: null });
+
+    expect(
+      server.callsTo('POST', LOGOUT_PATH)[0].headers.Authorization,
+    ).toBeUndefined();
   });
 });
