@@ -1,4 +1,9 @@
-import { Alert, AppState, type AppStateStatus } from 'react-native';
+import {
+  Alert,
+  AppState,
+  type AlertButton,
+  type AppStateStatus,
+} from 'react-native';
 import {
   act,
   render,
@@ -18,7 +23,7 @@ import {
 import { saveSignedInStep } from '../features/onboarding/login';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
 import { REJECT_REASON } from '../features/my/org/testing';
-import { readPushDeviceId } from '../features/push/push';
+import { readPushDeviceId, readPushDeviceOwner } from '../features/push/push';
 import { createWorkRepository } from '../features/work/data/config';
 import { workDetailResponse } from '../features/work/data/testing';
 import { appStorage } from '../shared/storage/appStorage';
@@ -33,10 +38,12 @@ import {
 import App from './App';
 import {
   accountServer,
+  ELIGIBILITY_PATH,
   LOGOUT_PATH,
   renderApp,
   renderSignedInApp,
   signedInSession,
+  WITHDRAWALS_PATH,
 } from './testing';
 
 // 앱 푸시 (#118). FCM 은 jest/firebase 목이 흉내 낸다. 기본은 Firebase 설정 파일이 없는 빌드라 테스트마다 enableFirebase 로 켠다.
@@ -634,5 +641,40 @@ describe('App — 푸시 열기: 미리 받기·경합·계정 (#118 리뷰)', (
     );
 
     await registered(app);
+  });
+});
+
+describe('App — 탈퇴 때 기기 정리 (#118)', () => {
+  // 탈퇴하면 서버가 이 계정의 푸시 기기를 지운다. 해제 요청은 보내지 않고 기기 쪽(id·계정·FCM 토큰)만 정리한다
+  it('탈퇴하면 해제 요청 없이 저장한 id·계정을 지우고 FCM 토큰도 지운다', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    enableFirebase();
+    const app = await renderSignedInApp({ server: pushServer() });
+    await registered(app);
+    app.server
+      .on('GET', ELIGIBILITY_PATH, ok({ withdrawable: true, blocks: [] }))
+      .on('POST', WITHDRAWALS_PATH, noContent());
+
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await userEvent.press(
+      await screen.findByRole('button', { name: '계정 관리' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '계정 탈퇴' }));
+    await userEvent.press(
+      await screen.findByRole('button', { name: '탈퇴하기' }),
+    );
+    const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
+    await act(() => buttons.find(item => item.text === '탈퇴')?.onPress?.());
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(app.server.callsTo('POST', WITHDRAWALS_PATH)).toHaveLength(1);
+    expect(readPushDeviceId()).toBeUndefined();
+    expect(readPushDeviceOwner()).toBeUndefined();
+    expect(firebaseMessaging.deleteToken).toHaveBeenCalledTimes(1);
+    expect(
+      app.server.calls.filter(call => call.method === 'DELETE'),
+    ).toHaveLength(0);
   });
 });

@@ -93,7 +93,11 @@ async function registerToken(
   isCurrent: () => boolean,
 ): Promise<boolean> {
   const started = generation;
+  // 로그아웃 상태면 보내지 않는다 (서버가 COMMON-401 로 답한다)
   const session = await api.session.getSession().catch(() => null);
+  if (session === null) {
+    return false;
+  }
   const result = await api.post(PUSH_DEVICES_PATH, {
     platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
     token,
@@ -105,7 +109,7 @@ async function registerToken(
       message: ApiErrorMessage.invalidResponse,
     });
   }
-  if (!isCurrent() || generation !== started || session === null) {
+  if (!isCurrent() || generation !== started) {
     return false;
   }
   appStorage.set(DEVICE_ID_KEY, result.pushDeviceId);
@@ -144,18 +148,30 @@ export async function refreshPushDevice(
 }
 
 /**
- * 로그아웃 서버 요청 직전에 부른다 (로그아웃 뒤엔 access token 이 무효). 저장한 id 를 지우고, 떼어 둔 access token 으로 해제(N7)한다.
- * 실패해도 던지지 않는다(로그아웃은 계속한다). 해제하지 못했어도 이 기기로 앞 계정의 푸시가 오지 않게 FCM 토큰도 지운다.
- * 탈퇴는 서버가 기기를 지우므로 해제가 필요 없다(실패해도 그대로 지나간다)
+ * 기기 쪽만 정리한다: 세대를 올려(그 전에 보낸 등록의 응답은 남기지 않는다) id·계정을 지우고 FCM 토큰도 지운다.
+ * 탈퇴는 서버가 이 계정의 기기를 지우므로 이것만 부른다. 서버에 보내지 않고 던지지 않는다
+ */
+export function forgetPushDevice(): void {
+  generation += 1;
+  appStorage.remove(DEVICE_ID_KEY);
+  appStorage.remove(DEVICE_OWNER_KEY);
+  // FCM 토큰을 지워 서버에 기기가 남았어도 이 기기로 앞 계정의 푸시가 오지 않게 한다 (다음 로그인 때 새 토큰으로 등록)
+  const messaging = defaultMessaging();
+  if (messaging !== null) {
+    deleteToken(messaging).catch(ignore);
+  }
+}
+
+/**
+ * 로그아웃 서버 요청 직전에 부른다 (로그아웃 뒤엔 access token 이 무효). 기기 쪽을 정리하고(forgetPushDevice),
+ * 저장해 둔 id 를 떼어 둔 access token 으로 해제(N7)한다. 실패해도 던지지 않는다(로그아웃은 계속한다)
  */
 export async function unregisterPushDevice(
   api: ApiClient,
   accessToken: string,
 ): Promise<void> {
-  generation += 1;
   const pushDeviceId = readPushDeviceId();
-  appStorage.remove(DEVICE_ID_KEY);
-  appStorage.remove(DEVICE_OWNER_KEY);
+  forgetPushDevice();
   if (pushDeviceId !== undefined) {
     await api
       .detachedRequest(
@@ -164,11 +180,6 @@ export async function unregisterPushDevice(
         accessToken,
       )
       .catch(ignore);
-  }
-  // 로그아웃 서버 요청은 이것을 기다리지 않는다
-  const messaging = defaultMessaging();
-  if (messaging !== null) {
-    deleteToken(messaging).catch(ignore);
   }
 }
 

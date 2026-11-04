@@ -19,6 +19,7 @@ import { createTestApi } from '../../shared/testing/renderWithApi';
 import { testSession } from '../../shared/testing/session';
 import {
   defaultMessaging,
+  forgetPushDevice,
   hasPushPermission,
   markPushRead,
   PUSH_DEVICES_PATH,
@@ -248,6 +249,18 @@ describe('registerPushDevice', () => {
     expect(readPushDeviceId()).toBeUndefined();
   });
 
+  it('세션이 없으면(로그아웃 상태) 보내지 않는다', async () => {
+    enableFirebase();
+    const server = createFakeServer();
+    const api = createTestApi({ server, session: null }).client;
+
+    await expect(registerPushDevice(api, defaultMessaging()!)).resolves.toBe(
+      false,
+    );
+    expect(server.calls).toHaveLength(0);
+    expect(readPushDeviceId()).toBeUndefined();
+  });
+
   it('등록 응답을 기다리는 사이 해제(로그아웃 시작)되면 id 를 남기지 않는다', async () => {
     enableFirebase();
     let answer: (response: FakeResponse) => void = () => {};
@@ -393,6 +406,55 @@ describe('unregisterPushDevice', () => {
     await expect(
       unregisterPushDevice(apiWith(), 'detached-access'),
     ).resolves.toBeUndefined();
+  });
+});
+
+// 탈퇴는 서버가 기기를 지운다. 기기 쪽(id·계정·FCM 토큰)만 정리한다
+describe('forgetPushDevice', () => {
+  it('서버에 보내지 않고 기기의 id·계정과 FCM 토큰을 지운다', async () => {
+    enableFirebase();
+    appStorage.set('push.deviceId', 7);
+    appStorage.set('push.deviceAccountId', 1);
+
+    forgetPushDevice();
+
+    expect(readPushDeviceId()).toBeUndefined();
+    expect(readPushDeviceOwner()).toBeUndefined();
+    expect(firebaseMessaging.deleteToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('지우기 전에 보낸 등록의 응답은 남기지 않는다', async () => {
+    enableFirebase();
+    let answer: (response: FakeResponse) => void = () => {};
+    const server = createFakeServer().on(
+      'POST',
+      PUSH_DEVICES_PATH,
+      () =>
+        new Promise<FakeResponse>(resolve => {
+          answer = resolve;
+        }),
+    );
+
+    const registering = registerPushDevice(
+      apiWith(server),
+      defaultMessaging()!,
+    );
+    await waitFor(() =>
+      expect(server.callsTo('POST', PUSH_DEVICES_PATH)).toHaveLength(1),
+    );
+    forgetPushDevice();
+    answer(ok({ pushDeviceId: 7 }));
+
+    await expect(registering).resolves.toBe(false);
+    expect(readPushDeviceId()).toBeUndefined();
+  });
+
+  it('Firebase 설정 파일이 없어도 던지지 않는다', () => {
+    appStorage.set('push.deviceId', 7);
+
+    expect(() => forgetPushDevice()).not.toThrow();
+    expect(readPushDeviceId()).toBeUndefined();
+    expect(firebaseMessaging.deleteToken).not.toHaveBeenCalled();
   });
 });
 
