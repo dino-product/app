@@ -70,11 +70,15 @@ export function QrScanScreen({
   // 검은 카메라 화면이라 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다
   useLightStatusBar(focused);
 
-  // 돌아오면(그사이 다른 화면이 올라왔다 내려감) 같은 QR 에도 다시 반응한다. 찾은 회사로 데려가지 못했을 수 있다.
-  // 확인 중이거나 미뤄 둔 안내가 있으면 그대로 둔다 (안내를 닫은 직후 같은 QR 로 저절로 다시 묻지 않게)
+  // 마지막 확인 결과가 다른 화면으로 데려가야 했던 갈래인지 (찾음·승인 대기·이미 참여)
+  const lastNeededMove = useRef(false);
+  // 돌아오면(그사이 다른 화면이 올라왔다 내려감) 데려가지 못했을 수 있으니 같은 QR 에도 다시 반응한다.
+  // 유효하지 않은 코드·확인 실패는 데려갈 곳이 없어 그대로 둔다 (실패 한도를 채우지 않게).
+  // 확인 중이거나 미뤄 둔 안내가 있어도 그대로 둔다 (안내를 닫은 직후 같은 QR 로 저절로 다시 묻지 않게)
   useEffect(() => {
-    if (focused && !isBusy()) {
+    if (focused && lastNeededMove.current && !isBusy()) {
       lastValue.current = null;
+      lastNeededMove.current = false;
     }
   }, [focused, isBusy]);
 
@@ -82,6 +86,8 @@ export function QrScanScreen({
     lastCode.current = code;
     setCheckFailed(false);
     const kind = await check(code, 'QR_CODE');
+    lastNeededMove.current =
+      kind === 'found' || kind === 'pending' || kind === 'alreadyMember';
     if (kind === 'invalid') {
       // 없는 코드·폐기된 이전 코드. 안내를 닫아도 같은 QR 은 다시 확인하지 않는다
       showNotice(invalidCodeNotice);

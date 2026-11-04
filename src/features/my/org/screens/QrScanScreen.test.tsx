@@ -419,6 +419,21 @@ describe('QrScanScreen', () => {
       expect(lookups(server)).toHaveLength(2);
     });
 
+    // 데려갈 화면이 없던 결과(유효하지 않은 코드)는 돌아와도 다시 묻지 않는다. 실패 한도(10분에 10번)를 채우지 않게
+    it('유효하지 않은 코드였으면 화면을 떠났다 돌아와도 같은 QR 로 다시 확인하지 않는다', async () => {
+      const { props, server, rerender } = await renderScan();
+      await scanQr('PRV014');
+      await userEvent.press(
+        await screen.findByRole('button', { name: '확인' }),
+      );
+
+      await rerender(<QrScanScreen {...props} focused={false} />);
+      await rerender(<QrScanScreen {...props} focused />);
+      await scanQr('PRV014');
+
+      expect(lookups(server)).toHaveLength(1);
+    });
+
     it('돌아왔을 때 미뤄 둔 실패 안내가 있으면 닫은 뒤에도 같은 QR 로 다시 묻지 않는다', async () => {
       const { server, props, rerender } = await renderScan();
       server.on('GET', COMPANY_LOOKUP_PATH, networkError());
