@@ -18,7 +18,7 @@ import { loginIllustrationXml, orbitLogoXml } from '../components/loginArt';
 import type { LoginMethod } from '../model';
 
 // Figma 로그인 (3284:21451), 로그인-최근 로그인 (3551:18597). 보라 배경 위 문구·로고·일러스트, 아래 흰 시트에 시작 버튼.
-// 실제 로그인 전이라 버튼을 누르면 더미 계정으로 로그인한다 (바깥이 정한다).
+// 버튼을 누르면 바깥(LoginRoute)이 카카오·Apple SDK 로 로그인한다 (#113).
 // 보라 배경의 흰 상태 표시줄 글자는 화면이 보이는 동안만 쓰도록 바깥(LoginRoute)이 맡는다
 const RECENT_LOGIN = '최근에 로그인 했어요!';
 
