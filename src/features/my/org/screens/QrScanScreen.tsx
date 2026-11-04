@@ -4,7 +4,6 @@ import {
   AppState,
   Platform,
   Pressable,
-  StatusBar,
   StyleSheet,
   View,
   type TextInstance,
@@ -19,6 +18,7 @@ import {
   withOpacity,
 } from '../../../../shared/design-system';
 import { RETRY_LABEL } from '../../../../shared/layout/LoadStateView';
+import { useLightStatusBar } from '../../../../shared/layout/useLightStatusBar';
 import { NoticeModal } from '../components/NoticeModal';
 import { QrCamera } from '../components/QrCamera';
 import { companyCodeFromQr } from '../model';
@@ -67,6 +67,7 @@ export function QrScanScreen({
   const lastValue = useRef<string | null>(null);
   // 마지막으로 확인한 회사 코드 (다시 시도)
   const lastCode = useRef<string | null>(null);
+  // 검은 카메라 화면이라 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다
   useLightStatusBar(focused);
 
   // 돌아오면(그사이 다른 화면이 올라왔다 내려감) 같은 QR 에도 다시 반응한다. 찾은 회사로 데려가지 못했을 수 있다.
@@ -223,17 +224,6 @@ function useAppActive() {
     return () => subscription.remove();
   }, []);
   return active;
-}
-
-// 검은 카메라 화면이라 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다
-function useLightStatusBar(focused: boolean) {
-  useEffect(() => {
-    if (!focused) {
-      return;
-    }
-    const entry = StatusBar.pushStackEntry({ barStyle: 'light-content' });
-    return () => StatusBar.popStackEntry(entry);
-  }, [focused]);
 }
 
 const DIM = withOpacity(colors.black, 0.5);

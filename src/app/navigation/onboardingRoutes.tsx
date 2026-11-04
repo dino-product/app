@@ -6,7 +6,7 @@ import {
 } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Alert, BackHandler, Platform, StatusBar } from 'react-native';
+import { Alert, BackHandler, Platform } from 'react-native';
 import type { ProfileInput } from '../../features/my/model';
 import {
   latestRequestOf,
@@ -36,6 +36,7 @@ import { LoginScreen } from '../../features/onboarding/screens/LoginScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
 import { isApiError, useApiClient } from '../../shared/api';
+import { useLightStatusBar } from '../../shared/layout/useLightStatusBar';
 import { useAccountProfile, useAuth } from '../AuthProvider';
 import { ParticipationRequestGate } from './orgRoutes';
 import { useFocusTitleOnOpen } from './routes';
@@ -47,20 +48,10 @@ import type { OnboardingScreenProps, OnboardingStackParamList } from './types';
 // 참여 결과(참여 완료·거절) 화면은 서버 신청 현황의 상태로 정한다.
 // 실패 안내 문구는 Figma 에 없어 기본안이다 (Figma 미확인)
 
-// 보라 배경이라 로그인 화면이 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다.
-// 온보딩을 위에 쌓아도 로그인 화면은 아래에 남아 있으므로, 마운트가 아니라 포커스로 켜고 끈다
-function useLightStatusBar() {
-  useFocusEffect(
-    useCallback(() => {
-      const entry = StatusBar.pushStackEntry({ barStyle: 'light-content' });
-      return () => StatusBar.popStackEntry(entry);
-    }, []),
-  );
-}
-
 export function LoginRoute() {
   const { logIn, recentMethod } = useAuth();
-  useLightStatusBar();
+  // 보라 배경이라 로그인 화면이 보이는 동안만 상태 표시줄 글자를 흰색으로 둔다 (위에 온보딩을 쌓아도 아래에 남는다)
+  useLightStatusBar(useIsFocused());
 
   return (
     <LoginScreen
