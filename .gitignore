@@ -23,6 +23,9 @@ DerivedData
 **/.xcode.env.local
 # 카카오 네이티브 앱 키 등 비밀 빌드 값 (#113). ios/Config/Secrets.example.xcconfig 참고
 ios/Config/Secrets.xcconfig
+# Firebase 설정 파일 (#118). 저장소는 공개다. 없으면 푸시만 꺼진 채로 빌드된다
+ios/DinoApp/GoogleService-Info.plist
+android/app/google-services.json
 
 # Android/IntelliJ
 #

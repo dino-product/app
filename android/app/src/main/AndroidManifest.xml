@@ -10,6 +10,8 @@
     <!-- CAMERA 권한이 카메라 하드웨어 필수로 읽히지 않게 한다. 카메라가 없어도 앨범으로 보고를 쓸 수 있다 -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <!-- 앱 푸시 (#118). Android 13 이상은 가입을 마치고 메인에 들어올 때 런타임으로 받는다 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
       android:name=".MainApplication"

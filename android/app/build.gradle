@@ -3,6 +3,16 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 /**
+ * 푸시 (#118). Firebase 설정 파일(google-services.json)은 저장소에 넣지 않는다. 이 폴더(android/app)에 있을 때만 플러그인을 건다.
+ * 없으면(CI 등) Firebase 기본 앱이 만들어지지 않고, JS 가 그것을 보고 푸시만 끈다
+ */
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+} else {
+    logger.warn("google-services.json 이 없어 푸시 없이 빌드한다 (#118)")
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */

@@ -14,8 +14,18 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
+# 푸시 (#118). @react-native-firebase 26 은 Firebase iOS SDK 를 CocoaPods 로 받는다.
+# SPM 으로 받으면 모든 pod 를 동적 프레임워크로 링크해야 해(use_frameworks! :linkage => :dynamic) 콜드 스타트에 dyld 비용이 붙는다.
+# 다른 pod 의 링크 방식(정적 라이브러리)은 그대로 두고, 모듈이 필요한 pod 만 모듈로 낸다:
+# FirebaseCore 는 AppDelegate(Swift)가 가져오고, GoogleUtilities 는 Swift pod FirebaseCoreInternal 이 가져온다.
+# GoogleUtilities 는 하위 스펙 하나로 적는다 (루트로 적으면 테스트용 하위 스펙까지 들어온다. 모듈 설정은 pod 전체에 걸린다)
+$RNFirebaseDisableSPM = true
+
 target 'DinoApp' do
   config = use_native_modules!
+
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'GoogleUtilities/Environment', :modular_headers => true
 
   use_react_native!(
     :path => config[:reactNativePath],
