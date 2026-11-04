@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   Camera,
   isScannedCode,
@@ -20,7 +20,9 @@ export function QrCamera({
 }: QrCameraProps) {
   // 화면이 다시 그려져 onScanned 가 바뀌어도 네이티브 출력의 콜백은 그대로 두고 마지막 onScanned 를 부른다
   const latestOnScanned = useRef(onScanned);
-  latestOnScanned.current = onScanned;
+  useLayoutEffect(() => {
+    latestOnScanned.current = onScanned;
+  });
   const onObjectsScanned = useCallback((objects: ScannedObject[]) => {
     const values = objects.flatMap(object =>
       isScannedCode(object) && object.value ? [object.value] : [],
