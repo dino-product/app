@@ -32,6 +32,31 @@ PODS:
   - KakaoSDKUser (2.22.7):
     - KakaoSDKAuth (= 2.22.7)
   - MMKVCore (2.4.0)
+  - NitroImage (0.15.2):
+    - hermes-engine
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - NitroMmkv (4.3.2):
     - hermes-engine
     - MMKVCore (= 2.4.0)
@@ -2050,6 +2075,32 @@ PODS:
     - Yoga
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
+  - VisionCamera (5.2.4):
+    - hermes-engine
+    - NitroImage
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - Yoga (0.0.0):
     - React-Core-prebuilt
 
@@ -2062,6 +2113,7 @@ DEPENDENCIES:
   - glog (from `build/rndeps-facades/glog`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - "kakao-login (from `../node_modules/@react-native-seoul/kakao-login`)"
+  - NitroImage (from `../node_modules/react-native-nitro-image`)
   - NitroMmkv (from `../node_modules/react-native-mmkv`)
   - NitroModules (from `../node_modules/react-native-nitro-modules`)
   - RCT-Folly (from `build/rndeps-facades/RCT-Folly`)
@@ -2150,6 +2202,7 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
+  - VisionCamera (from `../node_modules/react-native-vision-camera`)
   - Yoga (from `build/rncore-facades/Yoga`)
 
 SPEC REPOS:
@@ -2178,6 +2231,8 @@ EXTERNAL SOURCES:
     :tag: hermes-v260318099.0.2
   kakao-login:
     :path: "../node_modules/@react-native-seoul/kakao-login"
+  NitroImage:
+    :path: "../node_modules/react-native-nitro-image"
   NitroMmkv:
     :path: "../node_modules/react-native-mmkv"
   NitroModules:
@@ -2352,6 +2407,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   SocketRocket:
     :path: build/rndeps-facades/SocketRocket
+  VisionCamera:
+    :path: "../node_modules/react-native-vision-camera"
   Yoga:
     :path: build/rncore-facades/Yoga
 
@@ -2369,6 +2426,7 @@ SPEC CHECKSUMS:
   KakaoSDKCommon: 132164a6bac8bcd3a4346d3bf777f34f8f39fdca
   KakaoSDKUser: 4c9cf1da78710d19d0b2c2dd32d1a44c544cdfa4
   MMKVCore: 3d16ce9f7d411e135020915fde98a056859a1efa
+  NitroImage: eb713c7afe8fe1f6122d26e28d5c35f2b6495b82
   NitroMmkv: 1cbda910413acda474751ac9b2522a6d466f74ad
   NitroModules: c32f969b7c536e0b6b401a9dfdb35bb4eba071ef
   RCT-Folly: 82921e585c0400eda46fac1068297aa9dfb035e4
@@ -2456,6 +2514,7 @@ SPEC CHECKSUMS:
   RNScreens: 6d0d3b7819284dbf9f222899eb819f069fce4b8b
   RNSVG: c35beed3dcf6fd14b50ca1fc0d4214a17ec5334d
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
+  VisionCamera: 0f292837bb94d00194221bc7cdc3278299418965
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
 PODFILE CHECKSUM: 87cfd22e043ebd4f122f184a0188df5a008e8a41

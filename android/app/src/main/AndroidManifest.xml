@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- react-native-haptic-feedback 이 합치는 VIBRATE 는 쓰지 않는다. 햅틱은 View.performHapticFeedback 만 쓴다 -->
     <uses-permission android:name="android.permission.VIBRATE" tools:node="remove" />
-    <!-- 완료 보고 사진 촬영 (#111). 촬영 전에 런타임으로 받는다. 선언하지 않은 권한은 요청해도 바로 거부된다 -->
+    <!-- 완료 보고 사진 촬영 (#111)·회사 찾기 QR 인식 (#108). 쓰기 전에 런타임으로 받는다. 선언하지 않은 권한은 요청해도 바로 거부된다 -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- CAMERA 권한이 카메라 하드웨어 필수로 읽히지 않게 한다. 카메라가 없어도 앨범으로 보고를 쓸 수 있다 -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
