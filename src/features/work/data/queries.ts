@@ -7,7 +7,7 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { LoadState } from '../../../shared/layout/LoadStateView';
 import { shouldRefetchAfter, workErrorMessage } from './errors';
 import { workKeys } from './keys';
@@ -59,18 +59,19 @@ export function useMySchedule(
   });
 }
 
-const combineWith =
-  (loadOf: (results: UseQueryResult<MySchedule>[]) => LoadState) =>
-  (results: UseQueryResult<MySchedule>[]) => ({
-    works: results.flatMap(result => result.data?.works ?? []),
-    load: loadOf(results),
-    refetch: () => Promise.all(results.map(result => result.refetch())),
-  });
-// 불러오는 상태: 첫 구간만 (내 일정은 고른 날의 달을 먼저 두고, 펼친 달력의 달은 점만 늦게 온다) / 모든 구간
-const combineByFirst = combineWith(results => loadStateOf(results[0]));
-const combineByAll = combineWith(results => loadStateOf(...results));
+// 여러 구간의 결과를 합친다. React Query 가 결과를 깊게 비교해 같은 값이면 앞 결과를 그대로 주므로(replaceEqualDeep)
+// 함수(refetch·onRetry)는 넣지 않는다: 함수가 들면 매번 새 객체가 되어 화면이 다시 그려진다
+const combineSchedules = (results: UseQueryResult<MySchedule>[]) => ({
+  works: results.flatMap(result => result.data?.works ?? []),
+  statuses: results.map(({ data, isPending, isError, error }) => ({
+    data: data === undefined ? undefined : true,
+    isPending,
+    isError,
+    error,
+  })),
+});
 
-/** 여러 구간의 내 일정을 합친다 (구간은 하나 이상) */
+/** 여러 구간의 내 일정을 합친다 (구간은 하나 이상). periods 는 같은 값이면 같은 배열로 준다 (useMemo) */
 export function useMySchedules(
   periods: readonly Period[],
   {
@@ -79,11 +80,32 @@ export function useMySchedules(
   }: Omit<WorkQueryOptions, 'enabled'> & { loadBy?: 'first' | 'all' } = {},
 ) {
   const repository = useWorkRepository();
-  return useQueries({
+  const queryClient = useQueryClient();
+  const { works, statuses } = useQueries({
     queries: periods.map(period => myScheduleQuery(repository, period)),
-    combine: loadBy === 'first' ? combineByFirst : combineByAll,
+    combine: combineSchedules,
     subscribed,
   });
+  const refetch = useCallback(
+    () =>
+      Promise.all(
+        periods.map(period =>
+          queryClient.refetchQueries({
+            queryKey: workKeys.schedule(period),
+            exact: true,
+          }),
+        ),
+      ),
+    [periods, queryClient],
+  );
+  // 불러오는 상태: 첫 구간만 (내 일정은 고른 날의 달을 먼저 두고, 펼친 달력의 달은 점만 늦게 온다) / 모든 구간
+  const state = loadStateOf(
+    ...(loadBy === 'first' ? statuses.slice(0, 1) : statuses).map(status => ({
+      ...status,
+      refetch,
+    })),
+  );
+  return { works, load: useStableLoadState(state, refetch), refetch };
 }
 
 export function useWorkDetail(
@@ -162,6 +184,36 @@ export const useSubmitCompletionReport = () =>
       command: Parameters<WorkRepository['submitCompletionReport']>[0],
     ) => repository.submitCompletionReport(command),
   );
+
+/**
+ * loadStateOf 를 화면에 줄 값으로: 상태·문구가 같으면 같은 객체라 화면(memo)이 다시 그려지지 않는다.
+ * 다시 시도는 retry 로 한다 (같은 함수를 주어야 한다)
+ */
+function useStableLoadState(
+  state: LoadState,
+  retry: () => Promise<unknown>,
+): LoadState {
+  const { status } = state;
+  const message = state.status === 'error' ? state.message : undefined;
+  return useMemo(
+    () =>
+      status === 'error'
+        ? {
+            status,
+            message: message ?? '',
+            onRetry: () => {
+              retry();
+            },
+          }
+        : { status },
+    [status, message, retry],
+  );
+}
+
+/** 조회 하나의 로딩·오류(다시 시도) 상태. 상태·문구가 같으면 같은 객체다 */
+export function useLoadState(query: QueryLike): LoadState {
+  return useStableLoadState(loadStateOf(query), query.refetch);
+}
 
 type QueryLike = {
   data: unknown;

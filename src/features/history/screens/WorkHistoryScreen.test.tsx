@@ -17,7 +17,10 @@ import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
-import { WorkHistoryScreen } from './WorkHistoryScreen';
+import {
+  WorkHistoryScreen,
+  type WorkHistoryScreenProps,
+} from './WorkHistoryScreen';
 
 const today = new Date(2026, 8, 28); // 월요일
 
@@ -43,9 +46,7 @@ const works: CompletedWork[] = [
   { ...base, id: 'a1', dateKey: '2026-08-20', title: '도어록 교체' },
 ];
 
-const renderHistory = (
-  overrides: Partial<Parameters<typeof WorkHistoryScreen>[0]> = {},
-) =>
+const renderHistory = (overrides: Partial<WorkHistoryScreenProps> = {}) =>
   render(
     <WorkHistoryScreen
       today={today}

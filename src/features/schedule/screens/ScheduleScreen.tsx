@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -86,7 +87,7 @@ function visibleMonths(selected: Date, view: YearMonth): YearMonth[] {
 
 export type ScheduleTab = 'confirmed' | 'pending';
 
-export function ScheduleScreen({
+function ScheduleScreenView({
   today,
   confirmed,
   pending,
@@ -403,3 +404,6 @@ const styles = StyleSheet.create({
   },
   empty: { textAlign: 'center', paddingVertical: 40 },
 });
+
+// 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)
+export const ScheduleScreen = memo(ScheduleScreenView);

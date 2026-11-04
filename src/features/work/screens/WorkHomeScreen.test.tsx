@@ -14,11 +14,9 @@ import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import type { ScheduleItem } from '../model';
-import { WorkHomeScreen } from './WorkHomeScreen';
+import { WorkHomeScreen, type WorkHomeScreenProps } from './WorkHomeScreen';
 
-const renderHome = (
-  overrides: Partial<Parameters<typeof WorkHomeScreen>[0]> = {},
-) =>
+const renderHome = (overrides: Partial<WorkHomeScreenProps> = {}) =>
   render(
     <WorkHomeScreen
       currentWork={currentWork}
@@ -285,9 +283,7 @@ describe('WorkHomeScreen 블록 보기', () => {
     item('b', '2026-09-19', '세탁기 설치'),
     item('c', '2026-09-19', '보일러 점검'),
   ];
-  const renderBlock = async (
-    overrides: Partial<Parameters<typeof WorkHomeScreen>[0]> = {},
-  ) => {
+  const renderBlock = async (overrides: Partial<WorkHomeScreenProps> = {}) => {
     await renderHome({ schedule, ...overrides });
     await userEvent.press(toggle('블록 보기'));
   };

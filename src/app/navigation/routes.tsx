@@ -44,6 +44,7 @@ import {
   useStartWork,
   useSubmitCompletionReport,
   useWorkDetail,
+  useLoadState,
   useWorkHistory,
   workDetailQuery,
 } from '../../features/work/data/queries';
@@ -151,6 +152,7 @@ function requireAssignment(
 }
 
 const UNAVAILABLE: WorkDetailStatus = { status: 'unavailable' };
+const LOADING = { status: 'loading' } as const;
 
 // 상세를 아직 그릴 수 없는 이유. 서버가 볼 수 없다고 답했으면(404·403) 다시 시도하지 않는다
 function detailStatusOf(
@@ -198,6 +200,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
   const schedule = useMySchedule(week, { subscribed: useIsFocused() });
   const startWork = useStartWork().mutateAsync;
   const { refreshing, onRefresh } = useRefresh(schedule.refetch);
+  const load = useLoadState(schedule);
 
   const works = schedule.data?.works;
   const current = useMemo(
@@ -256,7 +259,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
       onOpenWork={openWork}
       onOpenNotifications={openNotifications}
       listRef={listRef}
-      load={loadStateOf(schedule)}
+      load={load}
       refreshing={refreshing}
       onRefresh={onRefresh}
     />
@@ -602,6 +605,7 @@ export function WorkHistoryRoute({
     { subscribed: useIsFocused() },
   );
   const { refreshing, onRefresh } = useRefresh(history.refetch);
+  const historyLoad = useLoadState(history);
   // 달을 바꾸는 동안 보이는 앞 달 결과는 목록에 쓰지 않는다 (누적 완료 수만 그대로 둔다)
   const ready = !history.isPlaceholderData;
   const data = history.data;
@@ -622,7 +626,7 @@ export function WorkHistoryRoute({
       totalCompleted={data ? data.totalCompleted : null}
       onOpenWork={openWork}
       listRef={listRef}
-      load={ready ? loadStateOf(history) : { status: 'loading' }}
+      load={ready ? historyLoad : LOADING}
       onMonthChange={setMonth}
       refreshing={refreshing}
       onRefresh={onRefresh}

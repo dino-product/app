@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -55,7 +56,7 @@ export type WorkHistoryScreenProps = {
 
 const READY: LoadState = { status: 'ready' };
 
-export function WorkHistoryScreen({
+function WorkHistoryScreenView({
   today,
   works,
   totalCompleted = works.length,
@@ -190,3 +191,6 @@ const styles = StyleSheet.create({
   emptyText: { alignItems: 'center', gap: 12, maxWidth: 304 },
   centered: { textAlign: 'center' },
 });
+
+// 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)
+export const WorkHistoryScreen = memo(WorkHistoryScreenView);

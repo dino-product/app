@@ -20,7 +20,7 @@ import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
-import { ScheduleScreen } from './ScheduleScreen';
+import { ScheduleScreen, type ScheduleScreenProps } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15); // 화요일
 
@@ -64,9 +64,7 @@ const pending: PendingRequest[] = [
   },
 ];
 
-const renderSchedule = (
-  overrides: Partial<Parameters<typeof ScheduleScreen>[0]> = {},
-) =>
+const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
   render(
     <ScheduleScreen
       today={today}

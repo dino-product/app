@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type Ref } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type Ref } from 'react';
 import {
   FlatList,
   Pressable,
@@ -60,7 +60,7 @@ const READY: LoadState = { status: 'ready' };
 /** 일정 보기: 이번 주 목록 / 날짜 칸으로 고른 날 (블록) */
 type ScheduleView = 'list' | 'block';
 
-export function WorkHomeScreen({
+function WorkHomeScreenView({
   currentWork,
   schedule,
   today,
@@ -311,3 +311,6 @@ const emptyWeek = (
 const emptyDay = (
   <EmptySchedule title="이 날은 일정이 없어요" style={styles.emptyDay} />
 );
+
+// 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)
+export const WorkHomeScreen = memo(WorkHomeScreenView);
