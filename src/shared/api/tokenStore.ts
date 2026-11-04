@@ -1,5 +1,6 @@
 import * as Keychain from 'react-native-keychain';
-import { appStorage, isRecord } from '../storage/appStorage';
+import { isRecord } from '../isRecord';
+import { appStorage } from '../storage/appStorage';
 import type { Session } from './session';
 
 // 로그인 세션을 iOS Keychain·Android Keystore(react-native-keychain)에 둔다. 사용법: createApiClient({ tokenStore: createKeychainTokenStore() })

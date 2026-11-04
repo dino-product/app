@@ -30,11 +30,4 @@ describe('appStorage', () => {
     expect(readJson(KEY, parseCount)).toBeUndefined();
     expect(appStorage.contains(KEY)).toBe(false);
   });
-
-  it('객체만 레코드로 본다', () => {
-    expect(isRecord({})).toBe(true);
-    expect(isRecord(null)).toBe(false);
-    expect(isRecord([])).toBe(false);
-    expect(isRecord('a')).toBe(false);
-  });
 });

@@ -1,4 +1,4 @@
-import { isRecord } from '../storage/appStorage';
+import { isRecord } from '../isRecord';
 import {
   ApiError,
   ApiErrorCode,
