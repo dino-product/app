@@ -87,19 +87,35 @@ export function requestFailure(
   };
 }
 
-/** 신청 취소 실패. 이미 처리된 요청(409 ORGANIZATION-017)이면 받아 둔 목록이 옛 상태라 다시 받는다 */
+/** 받아 둔 신청 현황이 옛 상태라 취소하지 못한 실패: 이미 처리된 요청(409 -017), 없는·다른 계정의 요청(403 -016) */
+export function isOutdatedCancel(error: unknown): boolean {
+  return (
+    isApiError(error, OrganizationErrorCode.alreadyDecided) ||
+    isApiError(error, OrganizationErrorCode.notOwnRequest)
+  );
+}
+
+/** 신청 취소 실패. outdated 면 받아 둔 목록이 옛 상태라 다시 받고 지금 상태로 보낸다 */
 export function cancelFailure(error: unknown): Notice & {
-  alreadyDecided: boolean;
+  outdated: boolean;
 } {
-  return isApiError(error, OrganizationErrorCode.alreadyDecided)
-    ? {
-        alreadyDecided: true,
-        title: '이미 처리된 요청이에요',
-        message: '사무실이 이미 결정했거나 취소된 요청이라 취소할 수 없어요.',
-      }
-    : {
-        alreadyDecided: false,
-        title: '신청을 취소하지 못했어요',
-        message: '잠시 후 다시 시도해 주세요.',
-      };
+  if (isApiError(error, OrganizationErrorCode.alreadyDecided)) {
+    return {
+      outdated: true,
+      title: '이미 처리된 요청이에요',
+      message: '사무실이 이미 결정했거나 취소된 요청이라 취소할 수 없어요.',
+    };
+  }
+  if (isApiError(error, OrganizationErrorCode.notOwnRequest)) {
+    return {
+      outdated: true,
+      title: '처리할 수 없는 요청이에요',
+      message: '이미 사라졌거나 이 계정의 요청이 아니에요.',
+    };
+  }
+  return {
+    outdated: false,
+    title: '신청을 취소하지 못했어요',
+    message: '잠시 후 다시 시도해 주세요.',
+  };
 }

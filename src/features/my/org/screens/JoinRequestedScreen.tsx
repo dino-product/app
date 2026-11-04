@@ -46,7 +46,7 @@ export function JoinRequestedScreen({
   onConfirm: () => void | Promise<void>;
   /** 서버가 신청 취소를 받았다 */
   onCanceled: () => void;
-  /** 사무실이 이미 결정한 요청이라 취소하지 못했다 (안내를 닫은 뒤) */
+  /** 사무실이 이미 결정했거나(-017) 없는·다른 계정의 요청(-016)이라 취소하지 못했다 (안내를 닫은 뒤). 지금 상태의 화면으로 보낸다 */
   onAlreadyDecided: () => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
@@ -76,8 +76,8 @@ export function JoinRequestedScreen({
       onSuccess: () => onCanceled(),
       onError: error => {
         canceled.current = false;
-        const { alreadyDecided, title, message } = cancelFailure(error);
-        if (alreadyDecided) {
+        const { outdated, title, message } = cancelFailure(error);
+        if (outdated) {
           Alert.alert(title, message, [
             { text: '확인', onPress: onAlreadyDecided },
           ]);

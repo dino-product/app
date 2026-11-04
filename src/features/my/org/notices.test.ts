@@ -103,25 +103,33 @@ describe('requestFailure (참여 요청 실패 → 안내와 닫은 뒤 갈 곳)
 });
 
 describe('cancelFailure (신청 취소 실패)', () => {
-  it('이미 처리된 요청(409 ORGANIZATION-017)이면 그렇게 알리고 목록을 다시 받을 것을 알린다', () => {
+  it('이미 처리된 요청(409 ORGANIZATION-017)이면 그렇게 알리고, 받아 둔 목록이 옛 상태라고 알린다', () => {
     expect(
       cancelFailure(httpError(409, OrganizationErrorCode.alreadyDecided)),
     ).toEqual({
-      alreadyDecided: true,
+      outdated: true,
       title: '이미 처리된 요청이에요',
       message: '사무실이 이미 결정했거나 취소된 요청이라 취소할 수 없어요.',
     });
   });
 
+  // 서버는 없는 요청과 다른 계정의 요청을 구분하지 않는다. 받아 둔 목록이 옛 상태일 수 있다
+  it('없는·다른 계정의 요청(403 ORGANIZATION-016)이면 처리할 수 없다고 알리고, 받아 둔 목록이 옛 상태라고 알린다', () => {
+    expect(
+      cancelFailure(httpError(403, OrganizationErrorCode.notOwnRequest)),
+    ).toEqual({
+      outdated: true,
+      title: '처리할 수 없는 요청이에요',
+      message: '이미 사라졌거나 이 계정의 요청이 아니에요.',
+    });
+  });
+
   it.each([
     ['네트워크', networkError],
-    [
-      '다른 계정의 요청(403 ORGANIZATION-016)',
-      httpError(403, 'ORGANIZATION-016'),
-    ],
+    ['서버 오류', httpError(500, 'COMMON-500')],
   ])('%s 는 취소하지 못했다고 한다', (_, error) => {
     expect(cancelFailure(error)).toEqual({
-      alreadyDecided: false,
+      outdated: false,
       title: '신청을 취소하지 못했어요',
       message: '잠시 후 다시 시도해 주세요.',
     });

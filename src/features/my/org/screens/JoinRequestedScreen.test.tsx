@@ -13,13 +13,14 @@ import {
   withOpacity,
 } from '../../../../shared/design-system';
 import {
+  fail,
   networkError,
   type FakeResponse,
 } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
 import type { ParticipationRequest } from '../model';
-import { cancelRequestPath } from '../participationApi';
+import { cancelRequestPath, OrganizationErrorCode } from '../participationApi';
 import { createParticipationServer } from '../testing';
 import { JoinRequestedScreen } from './JoinRequestedScreen';
 
@@ -158,8 +159,8 @@ describe('JoinRequestedScreen', () => {
       .fn<Promise<void>, []>()
       .mockImplementationOnce(
         () =>
-          new Promise<void>((_, fail) => {
-            reject = fail;
+          new Promise<void>((_, rejectConfirm) => {
+            reject = rejectConfirm;
           }),
       )
       .mockResolvedValue(undefined);
@@ -290,6 +291,31 @@ describe('JoinRequestedScreen', () => {
       await act(() => buttons[0].onPress?.());
       expect(props.onAlreadyDecided).toHaveBeenCalledTimes(1);
       expect(props.onCanceled).not.toHaveBeenCalled();
+    });
+
+    // 서버는 없는 요청과 다른 계정의 요청을 구분하지 않는다. -017 처럼 지금 상태의 화면으로 보낸다
+    it('없는·다른 계정의 요청(403 ORGANIZATION-016)이면 처리할 수 없다고 알리고, 확인하면 바깥에 알린다', async () => {
+      const alert = spyAlert();
+      const { props, server } = await renderRequested();
+      server.on(
+        'POST',
+        CANCEL_PATH,
+        fail(403, OrganizationErrorCode.notOwnRequest),
+      );
+      await openCancel();
+
+      await confirmCancel();
+
+      await waitFor(() =>
+        expect(alert).toHaveBeenCalledWith(
+          '처리할 수 없는 요청이에요',
+          '이미 사라졌거나 이 계정의 요청이 아니에요.',
+          expect.any(Array),
+        ),
+      );
+      const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
+      await act(() => buttons[0].onPress?.());
+      expect(props.onAlreadyDecided).toHaveBeenCalledTimes(1);
     });
 
     it('취소하지 못하면(네트워크 등) 알리고 화면에 머물러 다시 취소할 수 있다', async () => {

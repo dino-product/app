@@ -5,7 +5,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { isApiError, useApiClient, type ApiClient } from '../../../shared/api';
+import { useApiClient, type ApiClient } from '../../../shared/api';
 import {
   hasNewApproval,
   upsertRequest,
@@ -13,11 +13,11 @@ import {
   type ParticipationType,
   type RequestChannel,
 } from './model';
+import { isOutdatedCancel } from './notices';
 import {
   cancelParticipationRequest,
   fetchParticipationRequests,
   lookupCompany,
-  OrganizationErrorCode,
   requestParticipation,
 } from './participationApi';
 
@@ -119,7 +119,7 @@ export function useRequestParticipation() {
 }
 
 /**
- * 참여 요청 취소. 이미 처리된 요청(ORGANIZATION-017)이면 받아 둔 목록이 옛 상태라 다시 받는다.
+ * 참여 요청 취소. 이미 처리된 요청(ORGANIZATION-017)·없는·다른 계정의 요청(-016)이면 받아 둔 목록이 옛 상태라 다시 받는다.
  * 그 밖의 실패는 신청 현황을 바꾸지 않는다
  */
 export function useCancelParticipationRequest() {
@@ -130,7 +130,7 @@ export function useCancelParticipationRequest() {
       cancelParticipationRequest(api, requestId),
     onSuccess: canceled => applyToList(queryClient, canceled),
     onError: error => {
-      if (isApiError(error, OrganizationErrorCode.alreadyDecided)) {
+      if (isOutdatedCancel(error)) {
         queryClient.invalidateQueries({ queryKey: participationRequestsKey });
       }
     },

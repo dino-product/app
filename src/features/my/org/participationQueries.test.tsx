@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { isApiError } from '../../../shared/api';
-import { ok, type FakeResponse } from '../../../shared/testing/fakeServer';
+import {
+  fail,
+  ok,
+  type FakeResponse,
+} from '../../../shared/testing/fakeServer';
 import { createTestApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
 import { countPendingRequests } from './model';
@@ -254,6 +258,35 @@ describe('useCancelParticipationRequest', () => {
     expect(isApiError(error, OrganizationErrorCode.alreadyDecided)).toBe(true);
     await waitFor(() =>
       expect(result.current.request.data?.status).toBe('APPROVED'),
+    );
+  });
+
+  it('없는·다른 계정의 요청(ORGANIZATION-016)이어도 목록을 다시 받는다', async () => {
+    const { wrapper, server } = setup();
+    server.on(
+      'POST',
+      '/api/v1/participation-requests/1/cancel',
+      fail(403, OrganizationErrorCode.notOwnRequest),
+    );
+    const { result } = await renderHook(
+      () => ({
+        request: useParticipationRequest('1'),
+        cancel: useCancelParticipationRequest(),
+      }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.request.data?.status).toBe('PENDING'),
+    );
+
+    await act(() =>
+      result.current.cancel.mutateAsync('1').catch(() => undefined),
+    );
+
+    await waitFor(() =>
+      expect(
+        server.callsTo('GET', '/api/v1/participation-requests'),
+      ).toHaveLength(2),
     );
   });
 
