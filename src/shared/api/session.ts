@@ -43,7 +43,7 @@ const TOKEN_FIELDS = [
 ] as const;
 
 /** 서버가 준 값에서 토큰 네 개를 꺼낸다. 모양이 다르면 undefined */
-export function pickTokens(value: unknown): RefreshedTokens | undefined {
+function pickTokens(value: unknown): RefreshedTokens | undefined {
   if (
     !isRecord(value) ||
     !TOKEN_FIELDS.every(key => typeof value[key] === 'string')
