@@ -21,6 +21,8 @@ DerivedData
 *.ipa
 *.xcuserstate
 **/.xcode.env.local
+# 카카오 네이티브 앱 키 등 비밀 빌드 값 (#113). ios/Config/Secrets.example.xcconfig 참고
+ios/Config/Secrets.xcconfig
 
 # Android/IntelliJ
 #

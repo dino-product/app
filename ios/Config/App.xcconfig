@@ -1,0 +1,6 @@
+// 프로젝트 공통 빌드 설정 (#113). 타깃 설정은 CocoaPods 의 Pods-DinoApp.*.xcconfig 를 그대로 쓰고, 이 값은 프로젝트에서 물려받는다.
+// 비밀 값(카카오 네이티브 앱 키)은 저장소에 넣지 않는다. 이 폴더에 Secrets.xcconfig 를 만들어 넣는다 (Secrets.example.xcconfig 참고, gitignore).
+// 파일이 없으면(CI 등) 빈 값으로 빌드되고, 실행 중 카카오 로그인만 실패 안내를 띄운다
+KAKAO_NATIVE_APP_KEY =
+
+#include? "Secrets.xcconfig"
