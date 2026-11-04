@@ -8,6 +8,7 @@ import {
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { participationRequestsKey } from '../features/my/org/participationQueries';
 import {
   defaultMessaging,
   markPushRead,
@@ -25,7 +26,7 @@ import type { RootStackParamList } from './navigation/types';
 
 // 앱 푸시를 앱에 잇는다 (#118). 아무것도 그리지 않고, 상태를 두지 않아 다시 그리게 하지 않는다.
 // - 메인(가입 완료)에 들어올 때마다 권한을 확인하고 기기를 등록한다. 토큰이 바뀌면 다시 등록한다 (가입 전엔 PROFILE-005)
-// - 앱이 앞에 있을 때 받으면 알림센터·(작업 알림이면) 작업 캐시를 다시 받게 한다. iOS 는 배너도 뜬다(firebase.json),
+// - 앱이 앞에 있을 때 받으면 알림센터·(작업 알림이면) 작업·(참여 결과면) 신청 현황 캐시를 다시 받게 한다. iOS 는 배너도 뜬다(firebase.json),
 //   Android 는 시스템이 띄우지 않아 알림센터 갱신으로 대신한다
 // - 알림을 눌러 열면(백그라운드·종료) 그 화면을 열고 읽음 처리한다. 로그인 전·가입 중·세션 만료면 메인에 들어온 뒤 연다
 // Firebase 설정 파일이 없는 빌드는 아무것도 하지 않는다
@@ -54,6 +55,10 @@ export function PushNotifications({
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
       if (data.workId !== undefined) {
         queryClient.invalidateQueries({ queryKey: WORK_KEY });
+      }
+      // 승인이면 신청 현황을 다시 받으며 소속(['memberships'])도 무효화된다 (#116)
+      if (data.participationRequestId !== undefined) {
+        queryClient.invalidateQueries({ queryKey: participationRequestsKey });
       }
     },
     [queryClient],

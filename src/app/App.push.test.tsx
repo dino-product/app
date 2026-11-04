@@ -8,6 +8,8 @@ import {
   receivePush,
   refreshPushToken,
 } from '../../jest/firebase';
+import { participationRequestsKey } from '../features/my/org/participationQueries';
+import { REJECT_REASON } from '../features/my/org/testing';
 import { readPushDeviceId } from '../features/push/push';
 import { appStorage } from '../shared/storage/appStorage';
 import {
@@ -218,9 +220,10 @@ describe('App — 로그아웃 때 기기 해제 (#118)', () => {
 });
 
 describe('App — 앱이 앞에 있을 때 받은 푸시 (#118)', () => {
-  // 알림센터(#117 ['notifications', …])·작업(#114 ['work', …]) 캐시. 받으면 무효화해 다시 받게 한다
+  // 알림센터(#117 ['notifications', …])·작업(#114 ['work', …])·신청 현황(#116) 캐시. 받으면 무효화해 다시 받게 한다
   const NOTIFICATIONS_KEY = ['notifications', 'list'];
   const WORK_KEY = ['work', 'detail', 10, null];
+  const REQUESTS_KEY = [...participationRequestsKey];
 
   async function seededApp() {
     enableFirebase();
@@ -228,6 +231,7 @@ describe('App — 앱이 앞에 있을 때 받은 푸시 (#118)', () => {
     await registered(app);
     app.queryClient.setQueryData(NOTIFICATIONS_KEY, ['알림']);
     app.queryClient.setQueryData(WORK_KEY, { id: 10 });
+    app.queryClient.setQueryData(REQUESTS_KEY, []);
     return app;
   }
   const invalidated = (
@@ -242,16 +246,18 @@ describe('App — 앱이 앞에 있을 때 받은 푸시 (#118)', () => {
 
     expect(invalidated(app, NOTIFICATIONS_KEY)).toBe(true);
     expect(invalidated(app, WORK_KEY)).toBe(true);
+    expect(invalidated(app, REQUESTS_KEY)).toBe(false);
     expect(header('내 작업')).toBeOnTheScreen();
     expect(app.server.callsTo('PUT', readPath('31'))).toHaveLength(0);
   });
 
-  it('참여 결과 알림이면 알림센터만 다시 받게 한다', async () => {
+  it('참여 결과 알림이면 알림센터와 신청 현황(마이페이지 배지)을 다시 받게 하고 작업은 그대로 둔다', async () => {
     const app = await seededApp();
 
     await act(async () => receivePush(approvedPush));
 
     expect(invalidated(app, NOTIFICATIONS_KEY)).toBe(true);
+    expect(invalidated(app, REQUESTS_KEY)).toBe(true);
     expect(invalidated(app, WORK_KEY)).toBe(false);
   });
 });
@@ -297,6 +303,33 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
     expect(screen.getByRole('tab', { name: '마이' })).toBeSelected();
     await waitFor(() =>
       expect(app.server.callsTo('PUT', readPath('32'))).toHaveLength(1),
+    );
+  });
+
+  it('참여 거절 알림을 누르면 마이 탭에 그 요청의 거절 화면(서버 사유)을 연다', async () => {
+    enableFirebase();
+    const app = await renderSignedInApp({
+      server: pushServer().on('PUT', readPath('33'), noContent()),
+    });
+    await registered(app);
+
+    await act(async () =>
+      openPush(
+        pushMessage({
+          notificationId: '33',
+          type: 'PARTICIPATION_REQUEST_REJECTED',
+          participationRequestId: '3',
+        }),
+      ),
+    );
+
+    expect(
+      await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+    ).toBeOnTheScreen();
+    expect(await screen.findByText(REJECT_REASON)).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: '마이' })).toBeSelected();
+    await waitFor(() =>
+      expect(app.server.callsTo('PUT', readPath('33'))).toHaveLength(1),
     );
   });
 
