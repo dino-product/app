@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { Fragment, memo, type Ref } from 'react';
 import {
   Pressable,
@@ -9,7 +8,6 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useApiClient } from '../../../shared/api';
 import {
   colors,
   createTextStyle,
@@ -24,21 +22,22 @@ import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
-import { profileQuery } from '../../onboarding/profileApi';
-import { membershipsQuery, type MembershipResponse } from '../memberships';
+import type { MembershipResponse } from '../memberships';
 import {
   formatJoinDate,
   formatPhoneNumber,
   memberRoleLabels,
-  toMyProfile,
   type Profile,
 } from '../model';
-import { queryState } from '../queryState';
+import type { QueryState } from '../queryState';
 
 // Figma 마이페이지 (3235:17104). 프로필은 GET /profiles/{accountId}, 소속 발주사는 GET /memberships 결과다 (#115).
+// 경로가 조회(useMyProfile·useMyMemberships)해 넘기고, 받은 값·상태가 같으면 다시 그리지 않는다(memo, 탭 전환 렌더 0).
 // 받는 중·실패(다시 시도)는 카드마다 따로 보이고, 설정 행(로그아웃 등)은 그동안에도 쓸 수 있다.
 // 로딩·오류 자리는 Figma 에 없어 공용 자리(LoadStateView)로 둔다 (Figma 미확인)
 export type MyPageScreenProps = {
+  profile: QueryState<Profile>;
+  memberships: QueryState<readonly MembershipResponse[]>;
   /** 아직 결과가 나오지 않은 조직 참여 신청 수 */
   pendingRequestCount: number;
   onOpenNotifications: () => void;
@@ -52,11 +51,11 @@ export type MyPageScreenProps = {
   onOpenAccount: () => void;
   /** 바깥에서 맨 위로 올릴 때 쓴다 */
   scrollRef?: Ref<ScrollViewInstance>;
-  /** 화면이 보이는 동안만 서버 상태를 구독한다. 하위 화면·다른 탭에 가 있는 동안에는 다시 그리거나 다시 받지 않는다 */
-  focused?: boolean;
 };
 
-export function MyPageScreen({
+function MyPageScreenView({
+  profile,
+  memberships,
   pendingRequestCount,
   onOpenNotifications,
   onEditProfile,
@@ -66,23 +65,7 @@ export function MyPageScreen({
   onOpenTerms,
   onOpenAccount,
   scrollRef,
-  focused = true,
 }: MyPageScreenProps) {
-  const api = useApiClient();
-  // 켤 때 가입 단계 확인(AuthProvider)이 받아 둔 프로필을 같은 캐시에서 쓴다
-  const profile = queryState(
-    useQuery({
-      ...profileQuery(api),
-      select: toMyProfile,
-      subscribed: focused,
-    }),
-    '프로필을 불러오지 못했어요.',
-  );
-  const memberships = queryState(
-    useQuery({ ...membershipsQuery(api), subscribed: focused }),
-    '소속 발주사를 불러오지 못했어요.',
-  );
-
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <TabHeader title="마이페이지" onOpenNotifications={onOpenNotifications} />
@@ -192,6 +175,8 @@ export function MyPageScreen({
     </SafeAreaView>
   );
 }
+
+export const MyPageScreen = memo(MyPageScreenView);
 
 const statusSpec = {
   ACTIVE: {

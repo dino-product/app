@@ -22,8 +22,11 @@ import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { testSession } from '../../../shared/testing/session';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { MEMBERSHIPS_PATH } from '../memberships';
+import { useMyMemberships, useMyProfile } from '../myQueries';
 import {
   MY_PROFILE_PATH,
+  myMemberships,
+  myProfile,
   myProfileResponse,
   myServer,
   seedMyCache,
@@ -40,36 +43,45 @@ const callbacks = () => ({
   onOpenAccount: jest.fn(),
 });
 
-/** 가짜 서버로 연다. 기본은 프로필·소속 셋을 주는 서버 */
-async function renderMyPage(
-  overrides: Partial<MyPageScreenProps> = {},
-  server: FakeServer = myServer(),
-) {
+/** 받아 둔 프로필(김현진)·소속(발주사 셋)으로 그린다 */
+async function renderLoadedMyPage(overrides: Partial<MyPageScreenProps> = {}) {
   const props: MyPageScreenProps = {
+    profile: { status: 'ready', data: myProfile },
+    memberships: { status: 'ready', data: myMemberships },
     pendingRequestCount: 3,
     ...callbacks(),
     ...overrides,
   };
-  const view = await renderWithApi(<MyPageScreen {...props} />, {
+  await render(<MyPageScreen {...props} />);
+  return props;
+}
+
+type ScreenCallbacks = Omit<MyPageScreenProps, 'profile' | 'memberships'>;
+
+// 경로처럼 조회 훅(useMyProfile·useMyMemberships)의 결과를 화면에 넘긴다
+function ConnectedMyPage(props: ScreenCallbacks) {
+  const profile = useMyProfile();
+  const memberships = useMyMemberships();
+  return (
+    <MyPageScreen {...props} profile={profile} memberships={memberships} />
+  );
+}
+
+/** 가짜 서버로 받아 그린다. 기본은 프로필·소속 셋을 주는 서버 */
+async function renderMyPage(server: FakeServer = myServer()) {
+  const props: ScreenCallbacks = { pendingRequestCount: 3, ...callbacks() };
+  const view = await renderWithApi(<ConnectedMyPage {...props} />, {
     server,
     session: testSession(),
   });
   return { ...view, props };
 }
 
-/** 프로필·소속을 다 받을 때까지 기다린다 */
-async function renderLoadedMyPage(overrides: Partial<MyPageScreenProps> = {}) {
-  const view = await renderMyPage(overrides);
-  await screen.findByRole('button', { name: /^김현진/ });
-  await screen.findByTestId('membership-1');
-  return view.props;
-}
-
 const loading = () => screen.queryAllByLabelText('불러오는 중');
 const retry = () => screen.getByRole('button', { name: '다시 시도' });
 
 describe('MyPageScreen', () => {
-  it('제목과 서버 프로필(이름, 010-0000-0000 연락처, 가입일)을 보여준다', async () => {
+  it('제목과 프로필(이름, 010-0000-0000 연락처, 가입일)을 보여준다', async () => {
     await renderLoadedMyPage();
 
     expect(
@@ -81,7 +93,7 @@ describe('MyPageScreen', () => {
     expect(within(card).getByText('가입일 2024.03.15')).toBeOnTheScreen();
   });
 
-  it('소속 발주사마다 이름, 역할, 활성/비활성 칩을 서버 순서대로 보여준다', async () => {
+  it('소속 발주사마다 이름, 역할, 활성/비활성 칩을 받은 순서대로 보여준다', async () => {
     await renderLoadedMyPage();
 
     expect(
@@ -112,18 +124,42 @@ describe('MyPageScreen', () => {
   });
 
   it('소속 발주사가 없으면 안내 문구를 보여준다', async () => {
-    await renderMyPage({}, myServer({ memberships: [] }));
+    await renderLoadedMyPage({ memberships: { status: 'ready', data: [] } });
 
-    expect(
-      await screen.findByText('아직 소속된 발주사가 없어요'),
-    ).toBeOnTheScreen();
+    expect(screen.getByText('아직 소속된 발주사가 없어요')).toBeOnTheScreen();
     expect(screen.queryAllByTestId(/^membership-\d+$/)).toHaveLength(0);
   });
 
-  describe('불러오기', () => {
+  it('가입 시각이 아직 없으면 가입일을 비운다', async () => {
+    await renderLoadedMyPage({
+      profile: { status: 'ready', data: { ...myProfile, signedUpAt: null } },
+    });
+
+    const card = screen.getByRole('button', { name: /^김현진/ });
+    expect(card).toHaveAccessibleName('김현진, 010-1234-5678');
+    expect(within(card).queryByText(/^가입일/)).toBeNull();
+  });
+
+  describe('서버 연동 (GET /profiles/{accountId}, GET /memberships)', () => {
+    it('서버 프로필과 소속 발주사를 보여준다', async () => {
+      await renderMyPage();
+
+      expect(
+        await screen.findByRole('button', { name: /^김현진/ }),
+      ).toHaveAccessibleName('김현진, 010-1234-5678, 가입일 2024.03.15');
+      expect(await screen.findAllByTestId(/^membership-\d+$/)).toHaveLength(3);
+    });
+
+    it('소속이 없으면 지금의 빈 상태다', async () => {
+      await renderMyPage(myServer({ memberships: [] }));
+
+      expect(
+        await screen.findByText('아직 소속된 발주사가 없어요'),
+      ).toBeOnTheScreen();
+    });
+
     it('받는 동안 프로필 카드와 소속 카드 자리에 진행 표시를 보이고, 설정 행은 그대로 쓸 수 있다', async () => {
       const { props } = await renderMyPage(
-        {},
         myServer()
           .on('GET', MY_PROFILE_PATH, hang())
           .on('GET', MEMBERSHIPS_PATH, hang()),
@@ -143,7 +179,7 @@ describe('MyPageScreen', () => {
         fail(500, 'COMMON-500'),
         ok(myProfileResponse()),
       );
-      await renderMyPage({}, server);
+      await renderMyPage(server);
 
       expect(
         await screen.findByText('프로필을 불러오지 못했어요.'),
@@ -167,7 +203,7 @@ describe('MyPageScreen', () => {
         networkError(),
         ok({ memberships: [] }),
       );
-      await renderMyPage({}, server);
+      await renderMyPage(server);
 
       expect(
         await screen.findByText('소속 발주사를 불러오지 못했어요.'),
@@ -191,23 +227,13 @@ describe('MyPageScreen', () => {
       });
       seedMyCache(api.queryClient);
 
-      await render(<MyPageScreen pendingRequestCount={0} {...callbacks()} />, {
-        wrapper: api.wrapper,
-      });
+      await render(
+        <ConnectedMyPage pendingRequestCount={0} {...callbacks()} />,
+        { wrapper: api.wrapper },
+      );
 
       expect(screen.getByRole('button', { name: /^김현진/ })).toBeOnTheScreen();
       expect(api.server.callsTo('GET', MY_PROFILE_PATH)).toHaveLength(0);
-    });
-
-    it('가입 시각이 아직 없으면 가입일을 비운다', async () => {
-      await renderMyPage(
-        {},
-        myServer({ profile: myProfileResponse({ signedUpAt: null }) }),
-      );
-
-      const card = await screen.findByRole('button', { name: /^김현진/ });
-      expect(card).toHaveAccessibleName('김현진, 010-1234-5678');
-      expect(within(card).queryByText(/^가입일/)).toBeNull();
     });
   });
 

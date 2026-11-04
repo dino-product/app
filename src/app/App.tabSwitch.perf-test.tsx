@@ -2,10 +2,10 @@ import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ComponentType, ReactNode } from 'react';
 import { fixAppTestClock, renderSignedInHome } from './testing';
 
-// 탭 전환 렌더 예산 (#114 리뷰). 탭 첫 화면(내 작업·내 일정·작업 이력)은 포커스를 잃으면 조회 구독을 멈추고(useIsFocused)
+// 탭 전환 렌더 예산 (#114·#115 리뷰). 탭 첫 화면(내 작업·내 일정·작업 이력·마이페이지)은 포커스를 잃으면 조회 구독을 멈추고(useIsFocused)
 // 돌아오면 다시 구독한다. 그때 경로는 다시 그려지지만, 화면에 줄 값(데이터·불러오는 상태·콜백)이 같으면 화면은 다시 그리지 않는다.
 // 목표: 떠나는 탭의 화면 0, 데이터가 바뀌지 않은 채 돌아온 탭의 화면 0. 화면 컴포넌트가 실제로 그려진 횟수를 센다
-const mockRenders = { home: 0, schedule: 0, history: 0 };
+const mockRenders = { home: 0, schedule: 0, history: 0, my: 0 };
 
 // memo 로 감싼 화면의 안쪽 함수를 같은 memo 로 감싸 실제로 그려질 때만 센다
 function mockCounted<P extends object>(
@@ -45,6 +45,13 @@ jest.mock('../features/history/screens/WorkHistoryScreen', () =>
     'history',
   ),
 );
+jest.mock('../features/my/screens/MyPageScreen', () =>
+  mockCounted(
+    jest.requireActual('../features/my/screens/MyPageScreen'),
+    'MyPageScreen',
+    'my',
+  ),
+);
 
 fixAppTestClock();
 
@@ -55,11 +62,14 @@ describe('탭 전환 렌더 예산', () => {
     // 다시 받는 조회가 끝날 때까지 (돌아온 탭은 오래된 조회를 새로 받는다. 같은 값이면 화면에 주는 값도 같다)
     const settle = () =>
       waitFor(() => expect(app.queryClient.isFetching()).toBe(0));
-    // 세 탭을 한 번씩 열어 데이터를 받아 둔다
+    // 네 탭을 한 번씩 열어 데이터를 받아 둔다
     await userEvent.press(tab('내 일정'));
     await screen.findAllByRole('button', { name: /^\d+월 \d+일 .요일$/ });
     await userEvent.press(tab('작업 이력'));
     await screen.findAllByRole('button', { name: /, 완료, / });
+    await userEvent.press(tab('마이'));
+    await screen.findByRole('button', { name: /^박기사/ });
+    await screen.findByLabelText('오르빗 설비, 기사, 활성');
     await settle();
     const before = { ...mockRenders };
     // 세기가 실제로 걸렸는지 (목 경로가 깨지면 0 으로 그냥 통과하지 않게)
@@ -67,7 +77,15 @@ describe('탭 전환 렌더 예산', () => {
     expect(before.schedule).toBeGreaterThan(0);
     expect(before.history).toBeGreaterThan(0);
 
-    for (const name of ['홈', '내 일정', '작업 이력', '홈', '내 일정']) {
+    for (const name of [
+      '홈',
+      '내 일정',
+      '마이',
+      '작업 이력',
+      '마이',
+      '홈',
+      '내 일정',
+    ]) {
       await userEvent.press(tab(name));
       await settle();
     }
@@ -76,6 +94,7 @@ describe('탭 전환 렌더 예산', () => {
       home: mockRenders.home - before.home,
       schedule: mockRenders.schedule - before.schedule,
       history: mockRenders.history - before.history,
-    }).toEqual({ home: 0, schedule: 0, history: 0 });
+      my: mockRenders.my - before.my,
+    }).toEqual({ home: 0, schedule: 0, history: 0, my: 0 });
   });
 });

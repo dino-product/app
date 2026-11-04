@@ -24,12 +24,18 @@ import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
 import { colors } from '../shared/design-system';
 import { appStorage } from '../shared/storage/appStorage';
-import { fail, noContent, ok } from '../shared/testing/fakeServer';
+import {
+  fail,
+  noContent,
+  ok,
+  type FakeResponse,
+} from '../shared/testing/fakeServer';
 import {
   accountProfile,
   accountServer,
   ELIGIBILITY_PATH,
   fixAppTestClock,
+  LOGOUT_PATH,
   PROFILE_PATH,
   relaunch,
   renderApp,
@@ -53,6 +59,15 @@ const pressAlertButton = async (
   const buttons: AlertButton[] = alert.mock.calls.at(-1)?.[2] ?? [];
   await act(() => buttons.find(item => item.text === text)?.onPress?.());
 };
+
+// 응답을 테스트가 정한 때에 준다
+function deferred() {
+  let answer: (response: FakeResponse) => void = () => {};
+  const response = new Promise<FakeResponse>(resolve => {
+    answer = resolve;
+  });
+  return { response, answer };
+}
 
 // 가입을 마친 계정(박기사)으로 켜서 마이 탭을 열고 프로필·소속을 받을 때까지 기다린다.
 // 알림센터·알림 설정은 서버에서 받는다 (#117, 가짜 서버는 accountServer 가 정한다)
@@ -197,6 +212,31 @@ describe('App — 마이 탭', () => {
       expect(header('프로필 수정')).toBeOnTheScreen();
       expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
         name: '박기사',
+      });
+    });
+
+    // 저장 결과는 화면을 떠났어도 로그인 상태·프로필 캐시에 반영한다 (TanStack v5 는 떠난 화면의 mutate 콜백을 부르지 않는다)
+    it('저장을 기다리는 동안 뒤로 가도, 성공하면 마이페이지에 바로 반영된다', async () => {
+      const pending = deferred();
+      const app = await openMyPage();
+      app.server.on('PUT', PROFILE_PATH, () => pending.response);
+
+      await userEvent.press(button(/^박기사/));
+      await userEvent.clear(screen.getByLabelText('이름'));
+      await userEvent.type(screen.getByLabelText('이름'), '이기사');
+      await userEvent.press(button('저장하기'));
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('마이페이지')).toBeOnTheScreen();
+      await act(async () =>
+        pending.answer(ok({ ...accountProfile(), name: '이기사' })),
+      );
+
+      expect(
+        await screen.findByRole('button', { name: /^이기사/ }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('PUT', PROFILE_PATH)).toHaveLength(1);
+      expect(app.queryClient.getQueryData(profileQueryKey)).toMatchObject({
+        name: '이기사',
       });
     });
 
@@ -532,6 +572,69 @@ describe('App — 마이 탭', () => {
       );
       expect(header('정말 Orbit을 탈퇴하시겠습니까?')).toBeOnTheScreen();
       expect(app.tokenStore.current).not.toBeNull();
+    });
+
+    // 보내는 동안 떠나면 204 를 받아도 세션을 끝내지 못한다. 떠나지 못하게 막고, 떠났어도 세션 종료는 화면과 상관없이 한다
+    it('보내는 동안 뒤로 가기(머리·Android 뒤로가기·iOS 스와이프)는 막히고, 204 면 로그인 화면으로 가고 최근 로그인 표시를 지운다', async () => {
+      const alert = spyAlert();
+      type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+      const handlers = new Set<Handler>();
+      jest
+        .spyOn(BackHandler, 'addEventListener')
+        .mockImplementation((_event, handler) => {
+          handlers.add(handler);
+          return { remove: () => handlers.delete(handler) };
+        });
+      saveRecentLoginMethod('KAKAO');
+      const pending = deferred();
+      const app = await pressWithdraw(withdrawable);
+      app.server.on('POST', WITHDRAWALS_PATH, () => pending.response);
+
+      await confirmWithdraw(alert);
+      await userEvent.press(button('뒤로 가기'));
+      await act(() => {
+        [...handlers]
+          .reverse()
+          .some(handler => handler(undefined as never) === true);
+      });
+
+      const title = '정말 Orbit을 탈퇴하시겠습니까?';
+      expect(header(title)).toBeOnTheScreen();
+      let nativeScreen = screen.getByRole('header', { name: title }).parent;
+      while (nativeScreen && !nativeScreen.props.onNativeDismissCancelled) {
+        nativeScreen = nativeScreen.parent;
+      }
+      expect(nativeScreen?.props.preventNativeDismiss).toBe(true);
+
+      await act(async () => pending.answer(noContent()));
+
+      expect(
+        await screen.findByRole('header', {
+          name: '오늘의 현장, 한눈에. Orbit',
+        }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('POST', WITHDRAWALS_PATH)).toHaveLength(1);
+      expect(readRecentLoginMethod()).toBeNull();
+      expect(app.tokenStore.current).toBeNull();
+      // 서버가 이미 모든 토큰을 거부하므로 로그아웃 요청은 보내지 않는다
+      expect(app.server.callsTo('POST', LOGOUT_PATH)).toHaveLength(0);
+    });
+
+    // 동시에 두 번 보내면 늦은 쪽이 COMMON-409(이미 탈퇴됨)를 받는다 (api-spec P6)
+    it('탈퇴가 COMMON-409(이미 탈퇴됨)이면 탈퇴를 마친 것으로 보고 로그인 화면으로 간다', async () => {
+      const alert = spyAlert();
+      const app = await pressWithdraw(withdrawable);
+      app.server.on('POST', WITHDRAWALS_PATH, fail(409, 'COMMON-409'));
+
+      await confirmWithdraw(alert);
+
+      expect(
+        await screen.findByRole('header', {
+          name: '오늘의 현장, 한눈에. Orbit',
+        }),
+      ).toBeOnTheScreen();
+      expect(app.tokenStore.current).toBeNull();
+      expect(alert).toHaveBeenCalledTimes(1);
     });
   });
 

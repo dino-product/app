@@ -60,10 +60,23 @@ async function renderWithdrawal(
 const reasonInput = () => screen.getByLabelText('탈퇴 사유 입력');
 const withdrawButton = () => screen.getByRole('button', { name: '탈퇴하기' });
 
+// React Query 는 화면에 다음 차례(setTimeout 0)에 알린다. 보내기·응답이 화면에 닿을 때까지 act 안에서 기다린다
+const settle = () =>
+  act(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
+
+/** 최종 확인 알림창의 버튼을 누르고 화면이 바뀔 때까지 기다린다 */
+async function pressAlertButton(
+  alert: ReturnType<typeof spyAlert>,
+  text: string,
+) {
+  await act(() => alertButton(alert, text).onPress?.());
+  await settle();
+}
+
 /** 탈퇴하기 → 최종 확인의 '탈퇴' */
 async function confirmWithdraw(alert: ReturnType<typeof spyAlert>) {
   await userEvent.press(withdrawButton());
-  await act(() => alertButton(alert, '탈퇴').onPress?.());
+  await pressAlertButton(alert, '탈퇴');
 }
 
 describe('WithdrawalScreen', () => {
@@ -102,7 +115,7 @@ describe('WithdrawalScreen', () => {
 
     const confirm = alertButton(alert, '탈퇴');
     expect(confirm.style).toBe('destructive');
-    await act(() => confirm.onPress?.());
+    await pressAlertButton(alert, '탈퇴');
 
     await waitFor(() => expect(onWithdrawn).toHaveBeenCalledTimes(1));
     expect(server.callsTo('POST', WITHDRAWALS_PATH)[0].body).toEqual({
@@ -135,7 +148,7 @@ describe('WithdrawalScreen', () => {
     const { server, onWithdrawn } = await renderWithdrawal();
 
     await userEvent.press(withdrawButton());
-    await act(() => alertButton(alert, '취소').onPress?.());
+    await pressAlertButton(alert, '취소');
 
     expect(server.callsTo('POST', WITHDRAWALS_PATH)).toHaveLength(0);
     expect(onWithdrawn).not.toHaveBeenCalled();
@@ -161,11 +174,60 @@ describe('WithdrawalScreen', () => {
     expect(alert).toHaveBeenCalledTimes(1);
 
     await act(async () => answer(noContent()));
+    await settle();
 
     await waitFor(() => expect(onWithdrawn).toHaveBeenCalledTimes(1));
     expect(server.callsTo('POST', WITHDRAWALS_PATH)).toHaveLength(1);
     // 로그인 화면으로 가는 동안에도 다시 보내지 않는다
     expect(withdrawButton()).toBeDisabled();
+  });
+
+  // TanStack v5 는 떠난 화면의 mutate 콜백을 부르지 않는다. 세션 종료는 화면과 상관없이 한다
+  it('보내는 중에 화면이 사라져도 204 면 onWithdrawn 을 부른다', async () => {
+    const alert = spyAlert();
+    let answer: (response: FakeResponse) => void = () => {};
+    const { onWithdrawn, unmount } = await renderWithdrawal(
+      createFakeServer().on(
+        'POST',
+        WITHDRAWALS_PATH,
+        () =>
+          new Promise<FakeResponse>(resolve => {
+            answer = resolve;
+          }),
+      ),
+    );
+
+    await confirmWithdraw(alert);
+    await unmount();
+    await act(async () => answer(noContent()));
+
+    await waitFor(() => expect(onWithdrawn).toHaveBeenCalledTimes(1));
+  });
+
+  // 머리·Android 뒤로가기·iOS 스와이프로 떠나는 것은 경로가 막는다 (App.my.test). 머리 버튼은 꺼 둔다
+  it('보내는 동안 뒤로 가기 버튼이 꺼진다', async () => {
+    const alert = spyAlert();
+    const back = () => screen.getByRole('button', { name: '뒤로 가기' });
+    let answer: (response: FakeResponse) => void = () => {};
+    await renderWithdrawal(
+      createFakeServer().on(
+        'POST',
+        WITHDRAWALS_PATH,
+        () =>
+          new Promise<FakeResponse>(resolve => {
+            answer = resolve;
+          }),
+      ),
+    );
+    expect(back()).toBeEnabled();
+
+    await confirmWithdraw(alert);
+    expect(back()).toBeDisabled();
+
+    // 실패하면 머무르니 다시 켠다
+    await act(async () => answer(fail(500, 'COMMON-500')));
+    await settle();
+    expect(back()).toBeEnabled();
   });
 
   // 탈퇴 직전에 막는 사유가 생겼다. 사유는 본문에 없어 탈퇴 불가 화면이 가능 여부를 새로 묻는다

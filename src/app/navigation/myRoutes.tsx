@@ -1,16 +1,18 @@
 import {
   useIsFocused,
+  usePreventRemove,
   useScrollToTop,
   type ParamListBase,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef } from 'react';
 import type { ScrollViewInstance } from 'react-native';
 import type {
   NotificationTarget,
   WithdrawalBlockReason,
 } from '../../features/my/model';
+import { useMyMemberships, useMyProfile } from '../../features/my/myQueries';
 import { countPendingRequests } from '../../features/my/org/model';
 import { useParticipationRequests } from '../../features/my/org/participationQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
@@ -22,7 +24,10 @@ import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
 import { termsLinks } from '../../features/my/termsLinks';
-import { withdrawalEligibilityQuery } from '../../features/my/withdrawalApi';
+import {
+  withdrawalEligibilityQuery,
+  withdrawalMutationKey,
+} from '../../features/my/withdrawalApi';
 import { workDetailQuery } from '../../features/work/data/queries';
 import type { WorkStatusCode } from '../../features/work/data/status';
 import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvider';
@@ -47,22 +52,31 @@ export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
-  // 하위 화면·다른 탭에 가 있는 동안은 프로필·소속을 구독하지 않는다 (돌아오면 오래된 값만 다시 받는다)
-  const focused = useIsFocused();
+  // 하위 화면·다른 탭에 가 있는 동안은 프로필·소속을 구독하지 않는다 (돌아오면 오래된 값만 다시 받는다).
+  // 경로는 포커스가 바뀔 때 다시 그려지지만, 화면(memo)에 주는 값이 같으면 화면은 다시 그리지 않는다
+  const subscribed = useIsFocused();
+  const profile = useMyProfile({ subscribed });
+  const memberships = useMyMemberships({ subscribed });
+  const open = useMemo(
+    () => ({
+      onOpenNotifications: () => navigation.navigate('NotificationCenter'),
+      onEditProfile: () => navigation.navigate('ProfileEdit'),
+      onOpenRequestStatus: () => navigation.navigate('OrgJoinRequests'),
+      onJoinOrganization: () => navigation.navigate('OrgJoin'),
+      onOpenNotificationSettings: () =>
+        navigation.navigate('NotificationSettings'),
+      onOpenTerms: () => navigation.navigate('Terms'),
+      onOpenAccount: () => navigation.navigate('Account'),
+    }),
+    [navigation],
+  );
 
   return (
     <MyPageScreen
-      focused={focused}
+      profile={profile}
+      memberships={memberships}
       pendingRequestCount={pendingRequestCount}
-      onOpenNotifications={() => navigation.navigate('NotificationCenter')}
-      onEditProfile={() => navigation.navigate('ProfileEdit')}
-      onOpenRequestStatus={() => navigation.navigate('OrgJoinRequests')}
-      onJoinOrganization={() => navigation.navigate('OrgJoin')}
-      onOpenNotificationSettings={() =>
-        navigation.navigate('NotificationSettings')
-      }
-      onOpenTerms={() => navigation.navigate('Terms')}
-      onOpenAccount={() => navigation.navigate('Account')}
+      {...open}
       scrollRef={scrollRef}
     />
   );
@@ -75,12 +89,10 @@ export function ProfileEditRoute({ navigation }: MyScreenProps<'ProfileEdit'>) {
   return (
     <ProfileEditScreen
       titleRef={titleRef}
+      // 저장에 성공하면 화면이 이것으로 돌아온다
       onBack={() => navigation.goBack()}
-      // 서버가 돌려준 프로필로 로그인 상태의 프로필과 프로필 캐시(마이페이지)를 바꾸고 돌아간다
-      onSaved={profile => {
-        updateProfile(profile);
-        navigation.goBack();
-      }}
+      // 서버가 돌려준 프로필로 로그인 상태의 프로필과 프로필 캐시(마이페이지)를 바꾼다. 저장 중에 화면을 떠났어도 부른다
+      onSaved={updateProfile}
     />
   );
 }
@@ -314,6 +326,10 @@ export function AccountRoute({ navigation }: MyScreenProps<'Account'>) {
 export function WithdrawalRoute({ navigation }: MyScreenProps<'Withdrawal'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const { withdraw } = useAuth();
+  // 탈퇴 요청을 보내는 동안에는 화면을 닫지 않는다 (머리 뒤로 가기·Android 뒤로가기·iOS 스와이프·마이 탭 다시 누르기).
+  // 결과(로그인 화면 또는 탈퇴 불가·실패 안내)는 이 화면에서 받는다
+  const sending = useIsMutating({ mutationKey: withdrawalMutationKey }) > 0;
+  usePreventRemove(sending, () => {});
 
   return (
     <WithdrawalScreen

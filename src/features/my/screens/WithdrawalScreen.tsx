@@ -23,6 +23,7 @@ import {
   WITHDRAWAL_REASON_MAX_LENGTH,
   withdrawAccount,
   withdrawalEligibilityQueryKey,
+  withdrawalMutationKey,
 } from '../withdrawalApi';
 
 // Figma 마이페이지-탈퇴 (2935:15259). 최종 확인 뒤 POST /profiles/{accountId}/withdrawals 로 사유와 함께 탈퇴한다 (#115).
@@ -65,11 +66,15 @@ export function WithdrawalScreen({
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
   // 본인 accountId 는 기기 세션에서 읽는다. 사유는 선택이라 빈 문자열일 수 있다
+  // 탈퇴를 마치면 세션 종료(onWithdrawn)는 useMutation 옵션에서 한다. mutate 에 넘긴 콜백은 화면을 떠나면
+  // 불리지 않아(TanStack v5) 204 를 받고도 로그인해 둔 채가 된다. 보내는 동안 떠나지 못하게 경로가 키로 막는다
   const withdrawal = useMutation({
+    mutationKey: withdrawalMutationKey,
     mutationFn: async (text: string) =>
       withdrawAccount(api, await currentAccountId(api), text),
+    onSuccess: () => onWithdrawn(),
   });
-  // 보내는 동안과, 탈퇴를 마치고 로그인 화면으로 가는 동안에는 다시 보내지 않는다
+  // 보내는 동안과, 탈퇴를 마치고 로그인 화면으로 가는 동안에는 다시 보내거나 뒤로 가지 않는다
   const locked = withdrawal.isPending || withdrawal.isSuccess;
 
   const withdraw = () => {
@@ -77,7 +82,6 @@ export function WithdrawalScreen({
       return;
     }
     withdrawal.mutate(reason, {
-      onSuccess: () => onWithdrawn(),
       onError: error => {
         if (isApiError(error, ProfileErrorCode.withdrawalBlocked)) {
           // 계정 관리에서 받아 둔 '탈퇴 가능' 은 더 맞지 않다. 탈퇴 불가 화면이 새로 받는다
@@ -106,7 +110,12 @@ export function WithdrawalScreen({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <SubScreenHeader title="계정 관리" onBack={onBack} titleRef={titleRef} />
+      <SubScreenHeader
+        title="계정 관리"
+        onBack={onBack}
+        backDisabled={locked}
+        titleRef={titleRef}
+      />
 
       {/* Android 는 edge-to-edge 라 키보드가 떠도 창이 줄지 않아, 가린 만큼 스크롤 영역을 줄인다 */}
       <KeyboardAvoidingArea testID="withdrawal-body">

@@ -19,7 +19,7 @@ import {
   type WithdrawalBlockCard,
   type WithdrawalBlockReason,
 } from '../model';
-import { queryState } from '../queryState';
+import { useQueryState } from '../queryState';
 import { withdrawalEligibilityQuery } from '../withdrawalApi';
 
 // Figma 마이페이지-탈퇴 불가 (2935:14696). 서버가 준 사유(GET withdrawal-eligibility, #115) 중 건수가 있는 것만 카드로 보인다.
@@ -40,9 +40,11 @@ export function WithdrawalBlockedScreen({
   focused?: boolean;
 }) {
   const api = useApiClient();
+  // 보이지 않는 동안에는 구독하지 않는다 (다시 그리거나, 앱이 앞으로 와도 다시 받지 않는다)
   const result = useQuery({
     ...withdrawalEligibilityQuery(api),
     refetchOnMount: false,
+    subscribed: focused,
   });
   const { refetch } = result;
   const wasFocused = useRef(focused);
@@ -52,7 +54,10 @@ export function WithdrawalBlockedScreen({
     }
     wasFocused.current = focused;
   }, [focused, refetch]);
-  const eligibility = queryState(result, '탈퇴할 수 있는지 확인하지 못했어요.');
+  const eligibility = useQueryState(
+    result,
+    '탈퇴할 수 있는지 확인하지 못했어요.',
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>

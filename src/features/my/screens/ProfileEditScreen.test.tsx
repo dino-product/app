@@ -161,15 +161,16 @@ describe('ProfileEditScreen', () => {
   });
 
   describe('저장', () => {
-    it('PUT 으로 앞뒤 공백을 지운 이름과 숫자만 남긴 연락처를 보내고, 성공하면 서버 프로필로 onSaved 를 부른다', async () => {
+    it('PUT 으로 앞뒤 공백을 지운 이름과 숫자만 남긴 연락처를 보내고, 성공하면 서버 프로필로 onSaved 를 부른 뒤 돌아간다', async () => {
       const server = savingServer();
-      const { onSaved } = await renderLoadedEdit(server);
+      const { onSaved, onBack } = await renderLoadedEdit(server);
 
       await editProfile();
       expect(saveButton()).toBeEnabled();
       await userEvent.press(saveButton());
 
-      await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+      expect(onSaved).toHaveBeenCalledTimes(1);
       expect(server.callsTo('PUT', MY_PROFILE_PATH)[0].body).toEqual({
         name: '박기사',
         phoneNumber: '01098765432',
@@ -181,6 +182,33 @@ describe('ProfileEditScreen', () => {
           phoneNumber: '01098765432',
         }),
       );
+    });
+
+    // TanStack v5 는 떠난 화면의 mutate 콜백을 부르지 않는다. 저장한 값은 화면과 상관없이 반영한다
+    it('저장을 기다리는 동안 화면을 떠나도, 성공하면 서버 프로필로 onSaved 를 부른다', async () => {
+      let answer: (response: FakeResponse) => void = () => {};
+      const { onSaved, onBack, unmount } = await renderLoadedEdit(
+        myServer().on(
+          'PUT',
+          MY_PROFILE_PATH,
+          () =>
+            new Promise<FakeResponse>(resolve => {
+              answer = resolve;
+            }),
+        ),
+      );
+
+      await editProfile();
+      await userEvent.press(saveButton());
+      await unmount();
+      await act(async () => answer(ok(myProfileResponse({ name: '박기사' }))));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+      expect(onSaved).toHaveBeenCalledWith(
+        expect.objectContaining({ name: '박기사' }),
+      );
+      // 이미 떠난 화면이라 다시 돌아가지 않는다
+      expect(onBack).not.toHaveBeenCalled();
     });
 
     it('저장하는 동안 저장하기가 꺼져 다시 눌러도 한 번만 보낸다', async () => {

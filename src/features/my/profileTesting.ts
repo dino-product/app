@@ -14,7 +14,7 @@ import {
   membershipsQueryKey,
   type MembershipResponse,
 } from './memberships';
-import type { WithdrawalEligibility } from './model';
+import { toMyProfile, type Profile, type WithdrawalEligibility } from './model';
 import {
   withdrawalEligibilityPath,
   withdrawalEligibilityQueryKey,
@@ -44,6 +44,11 @@ export function myProfileResponse(
     ...overrides,
   };
 }
+
+/** myProfileResponse 의 화면 모델 (김현진, 01012345678, 2024.03.15 가입) */
+export const myProfile: Profile = toMyProfile(
+  parseProfile(myProfileResponse()),
+);
 
 /** 소속 발주사 셋 (총관리자 활성, 기사 비활성, 총관리자 활성) */
 export const myMemberships: readonly MembershipResponse[] = [

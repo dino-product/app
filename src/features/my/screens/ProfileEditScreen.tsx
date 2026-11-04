@@ -31,26 +31,28 @@ import {
   toMyProfile,
   type ProfileInput,
 } from '../model';
-import { queryState } from '../queryState';
+import { useQueryState } from '../queryState';
 
 // Figma 마이페이지-프로필 수정 (3255:19508 빈 입력 / 3255:19478 입력 중).
 // 서버의 지금 이름·연락처를 채워 열고, 바뀐 값이 규칙에 맞을 때만 '저장하기' 가 켜진다.
-// 저장은 PUT /profiles/{accountId} (#115). 성공하면 서버가 돌려준 프로필로 onSaved, 실패하면 머물러 입력을 지키고 알린다.
+// 저장은 PUT /profiles/{accountId} (#115). 성공하면 서버가 돌려준 프로필로 onSaved 를 부르고(화면을 떠났어도 부른다)
+// 화면에 있으면 onBack 으로 돌아간다. 실패하면 머물러 입력을 지키고 알린다.
 // 받는 중·실패 자리와 저장 실패 알림창은 Figma 에 없어 기본안이다 (Figma 미확인)
 export function ProfileEditScreen({
   onBack,
   onSaved,
   titleRef,
 }: {
+  /** 뒤로 가기, 그리고 저장에 성공한 뒤 돌아갈 때 */
   onBack: () => void;
-  /** 저장에 성공했다. 서버가 돌려준 프로필 */
+  /** 저장에 성공했다. 서버가 돌려준 프로필. 저장을 기다리는 동안 화면을 떠났어도 부른다 */
   onSaved: (profile: AccountProfile) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   const api = useApiClient();
   // 마이페이지가 받아 둔 프로필을 쓴다. 보던 화면을 복원해 바로 열렸으면 여기서 받는다
-  const profile = queryState(
+  const profile = useQueryState(
     useQuery({ ...profileQuery(api), select: toMyProfile }),
     '프로필을 불러오지 못했어요.',
   );
@@ -63,7 +65,7 @@ export function ProfileEditScreen({
         titleRef={titleRef}
       />
       {profile.status === 'ready' ? (
-        <ProfileForm saved={profile.data} onSaved={onSaved} />
+        <ProfileForm saved={profile.data} onSaved={onSaved} onDone={onBack} />
       ) : (
         <LoadStateView state={profile} />
       )}
@@ -89,9 +91,11 @@ const saveFailure = (error: unknown): [string, string] => {
 function ProfileForm({
   saved,
   onSaved,
+  onDone,
 }: {
   saved: ProfileInput;
   onSaved: (profile: AccountProfile) => void;
+  onDone: () => void;
 }) {
   const api = useApiClient();
   const [name, setName] = useState(saved.name);
@@ -103,10 +107,12 @@ function ProfileForm({
     (text: string) => setPhone(formatPhoneNumber(text)),
     [],
   );
-  // 본인 accountId 는 기기 세션에서 읽는다
+  // 본인 accountId 는 기기 세션에서 읽는다.
+  // 저장한 프로필은 useMutation 옵션에서 반영한다. mutate 에 넘긴 콜백은 화면을 떠나면 불리지 않는다 (TanStack v5)
   const save = useMutation({
     mutationFn: async (input: ProfileInput) =>
       saveProfile(api, await currentAccountId(api), input),
+    onSuccess: profile => onSaved(profile),
   });
   const canSave =
     canSaveProfile(saved, { name, phoneNumber: phone }) && !save.isPending;
@@ -118,7 +124,7 @@ function ProfileForm({
     save.mutate(
       { name: name.trim(), phoneNumber: phone.replace(/\D/g, '') },
       {
-        onSuccess: profile => onSaved(profile),
+        onSuccess: () => onDone(),
         onError: error => Alert.alert(...saveFailure(error)),
       },
     );

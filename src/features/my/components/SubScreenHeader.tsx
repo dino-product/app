@@ -13,10 +13,13 @@ import { readableColumn } from '../../../shared/layout/readableColumn';
 export function SubScreenHeader({
   title,
   onBack,
+  backDisabled = false,
   titleRef,
 }: {
   title?: string;
   onBack: () => void;
+  /** 떠나면 안 되는 동안(탈퇴 요청을 보내는 중) 뒤로 가기를 끈다 */
+  backDisabled?: boolean;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -25,6 +28,8 @@ export function SubScreenHeader({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="뒤로 가기"
+        accessibilityState={{ disabled: backDisabled }}
+        disabled={backDisabled}
         hitSlop={ICON_HIT_SLOP}
         onPress={onBack}
         style={styles.back}

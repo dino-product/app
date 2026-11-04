@@ -18,7 +18,12 @@ import { ProfileEditScreen } from '../../features/my/screens/ProfileEditScreen';
 import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
-import { myServer, seedMyCache } from '../../features/my/profileTesting';
+import {
+  myMemberships,
+  myProfile,
+  myServer,
+  seedMyCache,
+} from '../../features/my/profileTesting';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
@@ -63,6 +68,8 @@ const blocked: [string, ReactElement][] = [
   [
     '마이페이지',
     <MyPageScreen
+      profile={{ status: 'ready', data: myProfile }}
+      memberships={{ status: 'ready', data: myMemberships }}
       pendingRequestCount={0}
       onOpenNotifications={noop}
       onEditProfile={noop}

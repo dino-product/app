@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import {
   createFakeServer,
@@ -14,6 +14,7 @@ import {
 import { testSession } from '../../../shared/testing/session';
 import type { WithdrawalBlock, WithdrawalEligibility } from '../model';
 import { MY_ELIGIBILITY_PATH, seedMyCache } from '../profileTesting';
+import { withdrawalEligibilityQueryKey } from '../withdrawalApi';
 import { WithdrawalBlockedScreen } from './WithdrawalBlockedScreen';
 
 const blocked = (
@@ -167,6 +168,32 @@ describe('WithdrawalBlockedScreen', () => {
 
       expect(cards()).toHaveLength(2);
       expect(api.server.calls).toHaveLength(0);
+    });
+
+    // 보이지 않는 동안에는 캐시가 바뀌어도 다시 그리지 않는다 (subscribed)
+    it('다른 화면에 가 있는 동안에는 가능 여부 캐시를 구독하지 않는다', async () => {
+      const api = createTestApi({ session: testSession() });
+      seedMyCache(api.queryClient, { eligibility: blocked(both) });
+      const ui = (focused: boolean) => (
+        <WithdrawalBlockedScreen
+          focused={focused}
+          onOpenBlock={jest.fn()}
+          onBack={jest.fn()}
+        />
+      );
+      const { rerender } = await render(ui(true), { wrapper: api.wrapper });
+
+      await rerender(ui(false));
+      // React Query 는 구독자에게 다음 차례(setTimeout 0)에 알린다. 그 알림까지 기다린다
+      await act(async () => {
+        api.queryClient.setQueryData(withdrawalEligibilityQueryKey, {
+          withdrawable: true,
+          blocks: [],
+        });
+        await new Promise<void>(resolve => setTimeout(resolve, 10));
+      });
+
+      expect(cards()).toHaveLength(2);
     });
 
     // 사유를 정리하러 다른 탭에 갔다가 돌아왔다
