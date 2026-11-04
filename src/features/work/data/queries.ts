@@ -7,8 +7,11 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
-import type { LoadState } from '../../../shared/layout/LoadStateView';
+import { useCallback, useState } from 'react';
+import {
+  useStableLoadState,
+  type LoadState,
+} from '../../../shared/layout/LoadStateView';
 import { shouldRefetchAfter, workErrorMessage } from './errors';
 import { workKeys } from './keys';
 import type { MySchedule, Period, WorkRepository } from './types';
@@ -184,31 +187,6 @@ export const useSubmitCompletionReport = () =>
       command: Parameters<WorkRepository['submitCompletionReport']>[0],
     ) => repository.submitCompletionReport(command),
   );
-
-/**
- * loadStateOf 를 화면에 줄 값으로: 상태·문구가 같으면 같은 객체라 화면(memo)이 다시 그려지지 않는다.
- * 다시 시도는 retry 로 한다 (같은 함수를 주어야 한다)
- */
-function useStableLoadState(
-  state: LoadState,
-  retry: () => Promise<unknown>,
-): LoadState {
-  const { status } = state;
-  const message = state.status === 'error' ? state.message : undefined;
-  return useMemo(
-    () =>
-      status === 'error'
-        ? {
-            status,
-            message: message ?? '',
-            onRetry: () => {
-              retry();
-            },
-          }
-        : { status },
-    [status, message, retry],
-  );
-}
 
 /** 조회 하나의 로딩·오류(다시 시도) 상태. 상태·문구가 같으면 같은 객체다 */
 export function useLoadState(query: QueryLike): LoadState {

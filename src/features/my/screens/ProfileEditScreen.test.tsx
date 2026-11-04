@@ -65,9 +65,8 @@ async function editProfile() {
 }
 
 describe('ProfileEditScreen', () => {
-  // 끝난 저장·조회를 화면에 알리는 것(React Query 는 다음 차례 setTimeout 0)까지 act 안에서 받고 끝낸다
-  afterEach(async () => {
-    await act(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
+  // 끝난 저장·조회의 늦은 알림은 jest/setupAfterEnv 가 테스트 끝에 act 안에서 받는다
+  afterEach(() => {
     jest.restoreAllMocks();
   });
 

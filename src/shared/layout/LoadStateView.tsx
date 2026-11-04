@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -16,6 +16,31 @@ export type LoadState =
   | { status: 'ready' }
   | { status: 'loading' }
   | { status: 'error'; message: string; onRetry: () => void };
+
+/**
+ * 화면에 줄 로딩·오류 상태: 상태·문구가 같으면 같은 객체라 화면(memo)이 다시 그려지지 않는다 (#114·#115 탭 전환 렌더 0).
+ * 다시 시도는 retry 로 한다 (같은 함수를 주어야 한다. React Query 의 refetch 는 같은 함수다)
+ */
+export function useStableLoadState(
+  state: LoadState,
+  retry: () => Promise<unknown>,
+): LoadState {
+  const { status } = state;
+  const message = state.status === 'error' ? state.message : undefined;
+  return useMemo(
+    () =>
+      status === 'error'
+        ? {
+            status,
+            message: message ?? '',
+            onRetry: () => {
+              retry();
+            },
+          }
+        : { status },
+    [status, message, retry],
+  );
+}
 
 export const LOADING_LABEL = '불러오는 중';
 export const RETRY_LABEL = '다시 시도';
