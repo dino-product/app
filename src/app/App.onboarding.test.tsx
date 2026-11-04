@@ -894,6 +894,50 @@ describe('App — 온보딩', () => {
     });
 
     // 다른 기기에서 같은 회사에 먼저 요청했다. 서버가 승인 대기 요청이 있다고 거절한다 (ORGANIZATION-014)
+    // 다른 기기에서 같은 회사에 요청해 이미 승인됐다. 서버가 이미 참여 중이라고 거절한다 (ORGANIZATION-013)
+    it('역할 선택에서 보낸 요청이 이미 참여 중이라 거절되면 안내한 뒤 그 회사의 참여 완료로 가 시작할 수 있다', async () => {
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await findCompany('123456');
+      await screen.findByRole('header', { name: '역할을 선택해주세요' });
+      await app.client.post(PARTICIPATION_REQUESTS_PATH, {
+        companyCode: '123456',
+        desiredType: 'TECHNICIAN',
+        requestChannel: 'QR_CODE',
+      });
+      decide(app);
+
+      await requestAs('기사');
+      expect(
+        await screen.findByRole('header', { name: '이미 참여 중인 회사예요' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(button('확인'));
+
+      expect(
+        await screen.findByRole('header', { name: 'Orbit 참여 승인 완료' }),
+      ).toBeOnTheScreen();
+      await escapeFrom('참여 완료');
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('역할을 선택해주세요')).not.toBeOnTheScreen();
+    });
+
+    // 회사 확인은 이미 참여 중이라고 답했는데 그 승인 요청을 찾을 신청 현황을 받지 못했다
+    it('이미 참여 중인 회사인데 신청 현황을 받지 못하면 회사를 확인하지 못했다가 아니라 이미 참여 중이라고 알린다', async () => {
+      const app = await requestToJoin();
+      decide(app);
+      await escapeFrom('승인 대기');
+      app.server.on('GET', PARTICIPATION_REQUESTS_PATH, networkError());
+
+      await findCompany('123456');
+
+      expect(
+        await screen.findByRole('header', { name: '이미 참여 중인 회사예요' }),
+      ).toBeOnTheScreen();
+      expect(header('회사를 확인하지 못했어요')).toBeNull();
+    });
+
     it('역할 선택에서 보낸 요청이 승인 대기 요청 때문에 거절되면 안내한 뒤 그 요청의 승인 대기로 간다', async () => {
       const app = await launch();
       await login('카카오로 시작하기');
