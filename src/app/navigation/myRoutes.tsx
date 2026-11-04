@@ -193,8 +193,9 @@ const workDetailParams = ({ organizationId, workId }: WorkTarget) => ({
 
 /**
  * 작업 알림을 연다. 수락 대기(배정됨) 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 간다 (홈의 작업 열기와 같은 규칙).
- * 알림에는 작업 상태가 없어 상세를 먼저 받아 고른다. 받은 상세는 캐시(같은 키)에 남아 연 화면이 바로 그린다.
- * 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다.
+ * 알림에는 작업 상태가 없어 상세를 먼저 받아 고른다. 작업 상세는 같은 캐시 키(작업·발주사)라 받은 상세로 바로 그린다
+ * (요청 상세는 발주사 없는 키라 다시 받는다).
+ * 미리 받기는 다시 시도하지 않는다. 받지 못하면(볼 수 없는 작업·네트워크) 작업 상세가 그 상태와 다시 시도를 보인다.
  * 받는 동안 다시 누르면 무시하고, 그사이 다른 화면으로 갔으면 열지 않는다
  */
 function useOpenNotificationWork({
@@ -217,13 +218,14 @@ function useOpenNotificationWork({
       opening.current = true;
       let status: WorkStatusCode | undefined;
       try {
-        const work = await queryClient.fetchQuery(
-          workDetailQuery(
+        const work = await queryClient.fetchQuery({
+          ...workDetailQuery(
             repository,
             Number(target.workId),
             Number(target.organizationId),
           ),
-        );
+          retry: false,
+        });
         status = work.workStatus;
       } catch {
         // 실패 이유는 작업 상세가 보인다

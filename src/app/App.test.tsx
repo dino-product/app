@@ -268,6 +268,76 @@ describe('App', () => {
       expect(header('알림센터')).toBeOnTheScreen();
     });
 
+    // 작업 상세를 미리 받는 동안(어느 화면을 열지 고르는 중)을 시험하려고, 처음 한 번의 상세 조회만 붙잡는다
+    function holdFirstDetail() {
+      const local = testWorkRepository();
+      let release: () => void = () => {};
+      const getWorkDetail = jest.fn(
+        async (...args: Parameters<typeof local.getWorkDetail>) => {
+          if (getWorkDetail.mock.calls.length === 1) {
+            await new Promise<void>(resolve => (release = resolve));
+          }
+          return local.getWorkDetail(...args);
+        },
+      );
+      return {
+        workRepository: { ...local, getWorkDetail },
+        getWorkDetail,
+        release: () => act(() => release()),
+      };
+    }
+
+    // 고르는 동안 누른 다른 알림은 무시한다 (먼저 누른 알림만 연다)
+    it('작업을 받는 동안 다른 작업 알림을 눌러도 먼저 누른 알림만 연다', async () => {
+      const held = holdFirstDetail();
+      await renderSignedInHome({
+        workRepository: held.workRepository,
+        notifications: [
+          workNotification({ id: 1, workId: 104 }),
+          workNotification({
+            id: 2,
+            type: 'WORK_CANCELED',
+            workId: 102,
+            message: '[세탁기 설치] 작업이 취소되었습니다.',
+          }),
+        ],
+      });
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /신규 배정/ }),
+      );
+
+      await userEvent.press(screen.getByRole('button', { name: /작업 취소/ }));
+      expect(held.getWorkDetail).toHaveBeenCalledTimes(1);
+      await held.release();
+
+      expect(
+        await screen.findByRole('button', { name: '수락' }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
+    it('작업을 받는 사이 알림센터를 떠났으면 받은 뒤에도 열지 않는다', async () => {
+      const held = holdFirstDetail();
+      await renderSignedInHome({
+        workRepository: held.workRepository,
+        notifications: [workNotification({ workId: 104 })],
+      });
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /신규 배정/ }),
+      );
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await held.release();
+
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '수락' })).toBeNull();
+      expect(header('작업 상세')).not.toBeOnTheScreen();
+    });
+
     // 다른 기사에게 넘어간 작업(WORK_REASSIGNED_AWAY)은 서버 상세가 SCHEDULE-001(404)이다
     it('다른 기사에게 넘어간 작업 알림을 누르면 작업 상세가 볼 수 없는 작업이라고 알린다', async () => {
       const server = createFakeServer().on(

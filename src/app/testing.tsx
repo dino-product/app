@@ -77,7 +77,7 @@ export const loginResponse = () => ({
  * 회사 참여(#116)도 서버처럼 이어진다(features/my/org/testing). 가입을 마친 계정은 신청 현황에 거절 1·승인 대기 2 가 있고,
  * 새 계정은 비어 있다(requests 로 바꿀 수 있다). 사무실의 결정은 participationOf(app.server).decide 로 정한다.
  * 알림센터·알림 설정(#117)도 서버처럼 이어진다(features/my/notificationTesting). 알림은 notifications 로 바꿀 수 있다.
- * server 를 주면 그 서버에 더한다(계정 경로는 덮어쓴다). 계정 경로의 응답을 바꾸려면 렌더한 뒤 app.server.on 으로 정한다
+ * server 를 주면 그 서버에 더한다(계정·회사 참여·알림 경로는 덮어쓴다). 이 경로들의 응답을 바꾸려면 렌더한 뒤 app.server.on 으로 정한다
  */
 export function accountServer({
   nextStep = 'COMPLETED',

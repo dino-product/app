@@ -24,7 +24,12 @@ import {
 
 const HOUR = 60 * 60_000;
 
-/** 알림센터 예시 (Figma 마이페이지-알림센터). 상대 시간이 Figma 처럼 보이도록 지금을 기준으로 만든다 */
+/**
+ * 알림센터 예시 (Figma 마이페이지-알림센터). 상대 시간이 Figma 처럼 보이도록 지금을 기준으로 만든다.
+ * 작업 알림의 workId(102~107)는 로컬 작업 저장소 시드(features/work/data/localSeed: 101~106)와 일부러 겹친다.
+ * 앱 흐름 테스트에서 알림으로 연 작업 상세가 로컬 저장소의 작업을 그리게 하려는 것이다(102 작업전, 104 수락 대기).
+ * 운영에서는 서버 알림의 workId 를 로컬 시드에서 찾는 한계가 있다(기사 작업 API 가 생기면 HTTP 저장소로 맞는다, #112)
+ */
 export function notificationResponsesMock(now: Date): NotificationResponse[] {
   const hoursAgo = (hours: number) =>
     new Date(now.getTime() - hours * HOUR).toISOString();
