@@ -16,6 +16,17 @@ const layoutTrack = (testID: string) =>
   });
 
 describe('ScheduleScreen 렌더 예산', () => {
+  // FlatList(VirtualizedList)는 셀 배치가 바뀌면 약 50ms 뒤 타이머로 한 번 더 그린다.
+  // CPU 가 바쁘면 시나리오가 그 시간보다 길어져 타이머가 측정 창에 끼어들고 렌더 수가 +1 로 흔들린다 (#125).
+  // 가짜 타이머로 두면 사용자 동작이 일으킨 렌더만 세고, 실행 환경의 속도에 결과가 좌우되지 않는다.
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('마운트 시 추가 렌더와 중복 렌더가 예산 이내다', async () => {
     const result = await measureRenders(
       <ScheduleScreen
