@@ -32,5 +32,17 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <!-- 완료 보고 앨범 선택 (#111). 시스템 Photo Picker 가 없는 Android 11 미만에서 Google Play 서비스가
+           백포트 모듈을 설치하게 알린다. 실행되는 서비스가 아니라 표시용이다 (developer.android.com › Photo picker › Device availability) -->
+      <service
+        android:name="com.google.android.gms.metadata.ModuleDependencies"
+        android:enabled="false"
+        android:exported="false"
+        tools:ignore="MissingClass">
+        <intent-filter>
+          <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+        </intent-filter>
+        <meta-data android:name="photopicker_activity:0:required" android:value="" />
+      </service>
     </application>
 </manifest>

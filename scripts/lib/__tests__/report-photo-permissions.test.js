@@ -76,3 +76,48 @@ describe('Android 카메라 권한 (#111)', () => {
     );
   });
 });
+
+// minSdk 24 라 시스템 Photo Picker 가 없는(Android 11 미만) 기기가 있다. Google Play 서비스가 백포트 모듈을 설치하게 알린다.
+// https://developer.android.com/training/data-storage/shared/photopicker#device-availability
+describe('Android Photo Picker 백포트 (#111)', () => {
+  const service = () =>
+    mustMatchService(
+      /<service\s[^>]*android:name="com\.google\.android\.gms\.metadata\.ModuleDependencies"[^>]*>([\s\S]*?)<\/service>/,
+    );
+
+  function mustMatchService(pattern) {
+    const application = manifest.match(
+      /<application[\s>][\s\S]*<\/application>/,
+    )?.[0];
+    const match = application?.match(pattern);
+    if (!match) {
+      throw new Error(
+        '<application> 안의 ModuleDependencies 서비스를 찾지 못했다',
+      );
+    }
+    return { tag: match[0].match(/<service\s[^>]*>/)[0], body: match[1] };
+  }
+
+  it('앱 안에서 실행되지 않는 표시용 서비스로 둔다', () => {
+    const { tag } = service();
+
+    expect(tag).toMatch(/android:enabled="false"/);
+    expect(tag).toMatch(/android:exported="false"/);
+    // 앱에 없는 클래스라 lint 의 MissingClass 를 끈다. tools 네임스페이스가 매니페스트에 있어야 한다
+    expect(tag).toMatch(/tools:ignore="MissingClass"/);
+    expect(manifest).toMatch(
+      /<manifest\s[^>]*xmlns:tools="http:\/\/schemas\.android\.com\/tools"/,
+    );
+  });
+
+  it('Google Play 서비스에 Photo Picker 모듈이 필요하다고 알린다', () => {
+    const { body } = service();
+
+    expect(body).toMatch(
+      /<action\s+android:name="com\.google\.android\.gms\.metadata\.MODULE_DEPENDENCIES"\s*\/>/,
+    );
+    expect(body).toMatch(
+      /<meta-data\s+android:name="photopicker_activity:0:required"\s+android:value=""\s*\/>/,
+    );
+  });
+});
