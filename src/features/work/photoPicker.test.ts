@@ -7,11 +7,19 @@ import {
   type AlertButton,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import * as cameraPermissionModule from '../../shared/native/NativeCameraPermissionIOS';
 import { pickReportPhotos } from './photoPicker';
+
+// iOS 카메라 권한 앱 모듈. 테스트에는 네이티브 모듈이 없어 목으로 둔다
+jest.mock('../../shared/native/NativeCameraPermissionIOS', () => ({
+  __esModule: true,
+  default: { getStatus: jest.fn(), request: jest.fn() },
+}));
 
 // react-native-image-picker 는 jest/setup.js 에서 목으로 바꿨다. 테스트마다 돌려줄 응답을 정한다
 const camera = jest.mocked(launchCamera);
 const library = jest.mocked(launchImageLibrary);
+const cameraPermission = jest.mocked(cameraPermissionModule.default!);
 // 프리셋의 Linking 목
 const openSettings = jest.mocked(Linking.openSettings);
 
@@ -20,8 +28,12 @@ const PHOTO_OPTIONS = {
   maxWidth: 1920,
   maxHeight: 1920,
   quality: 0.8,
+  // Android 가 HEIC 를 줄이지 않고 JPEG 로만 바꿀 때의 품질
+  conversionQuality: 0.8,
   assetRepresentationMode: 'compatible',
 };
+// 카메라는 쓸어내려 닫히지 않게 전체 화면으로 띄운다
+const CAMERA_OPTIONS = { ...PHOTO_OPTIONS, presentationStyle: 'fullScreen' };
 
 const asset = (uri: string) => ({ uri, type: 'image/jpeg' });
 
@@ -59,12 +71,19 @@ function chooseOnAndroid(label: string) {
 const requestCamera = (result: 'granted' | 'denied' | 'never_ask_again') =>
   jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(result);
 
+beforeEach(() => {
+  // 따로 정하지 않으면 iOS 카메라 권한은 이미 허용된 상태다
+  cameraPermission.getStatus.mockReturnValue('granted');
+});
+
 afterEach(() => {
   jest.restoreAllMocks();
   // 모듈 목은 spy 가 아니라 restoreAllMocks 로 호출 기록이 지워지지 않는다
   camera.mockReset();
   library.mockReset();
   openSettings.mockReset();
+  cameraPermission.getStatus.mockReset();
+  cameraPermission.request.mockReset();
 });
 
 describe('pickReportPhotos 선택지', () => {
@@ -141,18 +160,58 @@ describe('pickReportPhotos 사진 촬영', () => {
 
     await expect(pickReportPhotos(4)).resolves.toEqual(['file:///tmp/a.jpg']);
     expect(camera).toHaveBeenCalledTimes(1);
-    expect(camera.mock.calls[0]?.[0]).toEqual(PHOTO_OPTIONS);
+    expect(camera.mock.calls[0]?.[0]).toEqual(CAMERA_OPTIONS);
     expect(library).not.toHaveBeenCalled();
   });
 
-  it('iOS 는 앱이 권한을 따로 묻지 않는다 (카메라가 열릴 때 시스템이 묻는다)', async () => {
+  // react-native-image-picker 8.3.0 iOS 는 권한을 확인하지 않고 카메라를 띄워 거부 상태를 알려 주지 않는다.
+  // 앱 모듈(NativeCameraPermissionIOS)로 먼저 보고, 정해지지 않았을 때만 시스템 대화상자로 묻는다
+  it.each([
+    { status: 'granted', asked: undefined, opens: true },
+    { status: 'not-determined', asked: true, opens: true },
+    { status: 'not-determined', asked: false, opens: false },
+    { status: 'denied', asked: undefined, opens: false },
+    { status: 'restricted', asked: undefined, opens: false },
+  ])(
+    'iOS 카메라 권한이 $status, 물은 결과 $asked 면 카메라를 여는가: $opens',
+    async ({ status, asked, opens }) => {
+      chooseOnIOS('사진 촬영');
+      const alert = spyAlert();
+      const androidRequest = jest.spyOn(PermissionsAndroid, 'request');
+      cameraPermission.getStatus.mockReturnValue(status);
+      if (asked !== undefined) {
+        cameraPermission.request.mockResolvedValue(asked);
+      }
+      camera.mockResolvedValue({ assets: [asset('file:///tmp/a.jpg')] });
+      openSettings.mockResolvedValue(undefined);
+
+      const result = await pickReportPhotos(6);
+
+      expect(cameraPermission.request).toHaveBeenCalledTimes(
+        asked === undefined ? 0 : 1,
+      );
+      expect(androidRequest).not.toHaveBeenCalled();
+      if (opens) {
+        expect(result).toEqual(['file:///tmp/a.jpg']);
+        expect(camera).toHaveBeenCalledTimes(1);
+        expect(alert).not.toHaveBeenCalled();
+        return;
+      }
+      expect(result).toEqual([]);
+      expect(camera).not.toHaveBeenCalled();
+      expect(alert).toHaveBeenCalledTimes(1);
+      expect(alert.mock.calls[0]?.[0]).toBe('카메라 권한이 필요해요');
+      pressAlertButton(alert, 0, '설정으로 이동');
+      expect(openSettings).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('iOS 권한 모듈이 없는 빌드면 묻지 않고 카메라를 연다 (카메라가 열릴 때 시스템이 묻는다)', async () => {
+    jest.replaceProperty(cameraPermissionModule, 'default', null);
     chooseOnIOS('사진 촬영');
-    const request = requestCamera('granted');
     camera.mockResolvedValue({ assets: [asset('file:///tmp/a.jpg')] });
 
-    await pickReportPhotos(6);
-
-    expect(request).not.toHaveBeenCalled();
+    await expect(pickReportPhotos(6)).resolves.toEqual(['file:///tmp/a.jpg']);
     expect(camera).toHaveBeenCalledTimes(1);
   });
 
@@ -163,6 +222,7 @@ describe('pickReportPhotos 사진 촬영', () => {
 
     await expect(pickReportPhotos(6)).resolves.toEqual(['file:///tmp/a.jpg']);
     expect(request).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
+    expect(cameraPermission.getStatus).not.toHaveBeenCalled();
     expect(request.mock.invocationCallOrder[0]).toBeLessThan(
       camera.mock.invocationCallOrder[0] ?? 0,
     );
@@ -193,18 +253,6 @@ describe('pickReportPhotos 사진 촬영', () => {
     pressAlertButton(alert, 1, '닫기');
 
     expect(openSettings).not.toHaveBeenCalled();
-  });
-
-  it('카메라가 권한 오류를 돌려주면(iOS 에서 거부) 설정으로 가는 안내를 띄운다', async () => {
-    chooseOnIOS('사진 촬영');
-    const alert = spyAlert();
-    camera.mockResolvedValue({ errorCode: 'permission' });
-
-    await expect(pickReportPhotos(6)).resolves.toEqual([]);
-    expect(alert.mock.calls[0]?.[0]).toBe('카메라 권한이 필요해요');
-    expect(alertButtons(alert, 0).map(button => button.text)).toContain(
-      '설정으로 이동',
-    );
   });
 
   it('찍지 않고 닫으면 아무것도 붙이지 않고 안내도 띄우지 않는다', async () => {
@@ -327,7 +375,18 @@ describe('pickReportPhotos 실패', () => {
     expect(alert.mock.calls[0]?.[0]).toBe('사진을 가져오지 못했어요');
   });
 
-  it('권한 요청이 실패해도 안내를 띄우고 카메라를 열지 않는다', async () => {
+  it('iOS 권한 요청이 실패해도 안내를 띄우고 카메라를 열지 않는다', async () => {
+    chooseOnIOS('사진 촬영');
+    const alert = spyAlert();
+    cameraPermission.getStatus.mockReturnValue('not-determined');
+    cameraPermission.request.mockRejectedValue(new Error('native'));
+
+    await expect(pickReportPhotos(6)).resolves.toEqual([]);
+    expect(camera).not.toHaveBeenCalled();
+    expect(alert.mock.calls[0]?.[0]).toBe('사진을 가져오지 못했어요');
+  });
+
+  it('Android 권한 요청이 실패해도 안내를 띄우고 카메라를 열지 않는다', async () => {
     const alert = chooseOnAndroid('사진 촬영');
     jest
       .spyOn(PermissionsAndroid, 'request')

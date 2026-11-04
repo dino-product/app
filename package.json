@@ -70,8 +70,13 @@
   },
   "codegenConfig": {
     "name": "DinoAppSpec",
-    "type": "components",
-    "jsSrcsDir": "src/shared/native"
+    "type": "all",
+    "jsSrcsDir": "src/shared/native",
+    "ios": {
+      "modulesProvider": {
+        "CameraPermissionIOS": "RCTCameraPermission"
+      }
+    }
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

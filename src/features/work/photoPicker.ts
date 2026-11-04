@@ -8,22 +8,32 @@ import {
 import {
   launchCamera,
   launchImageLibrary,
+  type CameraOptions,
   type ErrorCode,
   type ImagePickerResponse,
   type OptionsCommon,
 } from 'react-native-image-picker';
+import CameraPermissionIOS from '../../shared/native/NativeCameraPermissionIOS';
 
 // 완료 보고 사진을 카메라로 찍거나 앨범에서 고른다 (#111). 고른 사진의 로컬 URI 를 고른 순서대로 돌려준다.
 // 고르지 않았거나 실패하면 빈 배열이다. 실패·권한 안내는 여기서 띄우므로 부르는 쪽은 보고를 그대로 두면 된다.
 // 선택지·안내 문구는 기획 확인 전 기본안이다 (Figma 에 없는 시스템 UI)
 
-// 긴 변 1920px 이하, 품질 0.8 JPEG. 'compatible' 은 iOS 앨범의 HEIC 를 JPEG 로 받는다 (Android 는 이 값이면 HEIC 를 JPEG 로 바꾼다)
-const PHOTO_OPTIONS: OptionsCommon = {
+// 긴 변 1920px 이하, 품질 0.8 JPEG. 'compatible' 은 iOS 앨범의 HEIC 를 JPEG 로 받는다 (Android 는 이 값이면 HEIC 를 JPEG 로 바꾼다).
+// conversionQuality 는 Android 가 HEIC 를 줄이지 않고 JPEG 로만 바꿀 때의 품질이다. 라이브러리 Options.java 가 읽지만 TS 타입에는 없다
+const PHOTO_OPTIONS: OptionsCommon & { conversionQuality: number } = {
   mediaType: 'photo',
   maxWidth: 1920,
   maxHeight: 1920,
   quality: 0.8,
+  conversionQuality: 0.8,
   assetRepresentationMode: 'compatible',
+};
+
+// 카메라를 쓸어내려 닫으면 찍던 사진이 사라지므로 전체 화면으로 띄운다 (iOS 기본은 pageSheet)
+const CAMERA_OPTIONS: CameraOptions = {
+  ...PHOTO_OPTIONS,
+  presentationStyle: 'fullScreen',
 };
 
 type Source = 'camera' | 'library';
@@ -79,24 +89,27 @@ async function takePhoto(): Promise<string[]> {
     showCameraPermissionGuide();
     return [];
   }
-  const response = await launchCamera(PHOTO_OPTIONS);
-  if (response.errorCode === 'permission') {
-    showCameraPermissionGuide();
-    return [];
-  }
-  return toUris(response, 1);
+  return toUris(await launchCamera(CAMERA_OPTIONS), 1);
 }
 
-// iOS 는 카메라가 열릴 때 시스템이 묻는다 (NSCameraUsageDescription).
-// Android 는 매니페스트에 CAMERA 를 선언해 두어 허용받기 전에는 라이브러리가 카메라 앱을 열지 않는다
+// Android 는 매니페스트에 CAMERA 를 선언해 두어 허용받기 전에는 라이브러리가 카메라 앱을 열지 않는다.
+// iOS 는 라이브러리(8.3.0)가 권한을 확인하지 않고 카메라를 띄워 거부 상태를 알 수 없으므로 앱 모듈로 먼저 본다.
+// 정해지지 않았으면 시스템 대화상자로 묻는다 (NSCameraUsageDescription). 모듈이 없는 빌드면 카메라가 열릴 때 시스템에 맡긴다
 async function hasCameraPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS === 'android') {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  if (!CameraPermissionIOS) {
     return true;
   }
-  const result = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.CAMERA,
-  );
-  return result === PermissionsAndroid.RESULTS.GRANTED;
+  const status = CameraPermissionIOS.getStatus();
+  if (status === 'not-determined') {
+    return CameraPermissionIOS.request();
+  }
+  return status !== 'denied' && status !== 'restricted';
 }
 
 // 앨범은 iOS PHPicker · Android Photo Picker 라 저장소 권한이 필요 없다
@@ -121,7 +134,7 @@ function toUris(response: ImagePickerResponse, limit: number): string[] {
     .slice(0, limit);
 }
 
-// 거부했거나 '다시 묻지 않음' 이면 앱이 다시 물을 수 없어 설정으로 보낸다
+// 거부했거나 '다시 묻지 않음'(iOS 는 거부·제한)이면 앱이 다시 물을 수 없어 설정으로 보낸다
 function showCameraPermissionGuide() {
   Alert.alert(
     '카메라 권한이 필요해요',
