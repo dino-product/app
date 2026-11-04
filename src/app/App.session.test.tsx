@@ -266,6 +266,56 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
     expect(readSignedInStep()).toBeNull();
   });
 
+  it('확인 응답 모양이 다르면(앱이 모르는 새 가입 단계 등) 로그아웃하지 않고 마지막으로 확인한 화면에 머문다', async () => {
+    const alert = spyAlert();
+    saveSignedInStep('COMPLETED');
+    const app = await renderApp({
+      server: accountServer().on(
+        'GET',
+        PROFILE_PATH,
+        ok({ ...accountProfile('COMPLETED'), nextStep: 'PHONE_VERIFY' }),
+      ),
+      session: signedInSession(),
+    });
+
+    await waitFor(() =>
+      expect(app.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
+    );
+    expect(header('내 작업')).toBeOnTheScreen();
+    expect(alert).not.toHaveBeenCalled();
+    expect(readSignedInStep()).toBe('COMPLETED');
+    expect(app.tokenStore.current).not.toBeNull();
+    expect(app.server.callsTo('POST', LOGOUT_PATH)).toHaveLength(0);
+  });
+
+  it('계정 확인 실패로 세션을 지우는 동안 사용자가 직접 로그아웃했으면 다시 로그인해 달라고 알리지 않는다', async () => {
+    const alert = spyAlert();
+    saveSignedInStep('COMPLETED');
+    const api = createTestApi({
+      server: accountServer().on('GET', PROFILE_PATH, fail(404, 'PROFILE-002')),
+      session: signedInSession(),
+    });
+    // Keychain 에서 지우는 데 시간이 걸린다
+    let releaseClear: () => void = () => {};
+    const clearing = new Promise<void>(resolve => {
+      releaseClear = resolve;
+    });
+    const clear = api.tokenStore.clear;
+    api.tokenStore.clear = () => clearing.then(clear);
+
+    await render(<App api={api} />);
+    await waitFor(() =>
+      expect(api.server.callsTo('GET', PROFILE_PATH)).toHaveLength(1),
+    );
+    await logout();
+    await act(async () => releaseClear());
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
   it('Keychain 을 잠시 읽지 못하면 로그아웃하지 않고 마지막으로 확인한 화면에 머문다', async () => {
     saveSignedInStep('COMPLETED');
     const api = createTestApi({

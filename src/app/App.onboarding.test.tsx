@@ -25,7 +25,6 @@ import {
 import { escapeFrom } from '../../jest/voiceOver';
 import type { NextStep } from '../features/onboarding/profileApi';
 import { fail, networkError, ok } from '../shared/testing/fakeServer';
-import { SDK_RETURN_GRACE_MS } from './AuthProvider';
 import {
   accountProfile,
   accountServer,
@@ -542,47 +541,74 @@ describe('App — 온보딩', () => {
           });
       });
 
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      // 카카오톡으로 넘어갔다가(백그라운드) 돌아온다. Android 는 카카오톡·카카오계정(Custom Tabs) 모두 이렇게 돌아온다
       async function leaveForKakaoTalkAndComeBack() {
-        await login('카카오로 시작하기');
+        await fireEvent.press(button('카카오로 시작하기'));
         await waitFor(() => expect(loginWithKakao).toHaveBeenCalledTimes(1));
         await changeAppState('inactive');
         await changeAppState('background');
         await changeAppState('active');
       }
 
-      it('돌아온 뒤 잠시(2초) 지나도 SDK 가 끝나지 않으면 그 시도를 그만두어 버튼이 다시 동작하고, 늦게 온 SDK 결과는 버린다', async () => {
+      // 돌아온 뒤에도 SDK 는 받은 코드를 토큰으로 바꾸는 네트워크 교환을 마쳐야 끝난다
+      it('돌아온 지 3초 뒤에 SDK 가 끝나도(약한 신호의 토큰 교환) 시도를 살려 두어 그대로 로그인한다', async () => {
         const alert = spyAlert();
         const app = await launch();
-        const finishLate = hangKakao();
+        const finish = hangKakao();
+        jest.useFakeTimers();
 
         await leaveForKakaoTalkAndComeBack();
-        await new Promise<void>(resolve =>
-          setTimeout(resolve, SDK_RETURN_GRACE_MS + 100),
-        );
-        await login('카카오로 시작하기');
+        await act(() => jest.advanceTimersByTimeAsync(3000));
+        await finish();
 
         expect(
           await screen.findByRole('header', { name: '프로필 등록' }),
         ).toBeOnTheScreen();
-        await finishLate();
         expect(
           app.server.callsTo('POST', '/api/v1/auth/kakao/login'),
         ).toHaveLength(1);
-        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(2);
         expect(alert).not.toHaveBeenCalled();
       });
 
-      it('돌아와서 바로 다시 누르면 끝나지 않은 앞 시도를 버리고 새로 로그인한다', async () => {
+      it('카카오톡 오류 뒤 라이브러리가 띄운 카카오계정 로그인 창에서 한참 뒤에 마쳐도 그대로 로그인한다', async () => {
         const app = await launch();
-        const finishLate = hangKakao();
+        const finish = hangKakao();
+        jest.useFakeTimers();
 
         await leaveForKakaoTalkAndComeBack();
-        await login('카카오로 시작하기');
+        // 카카오계정 로그인 창(앱 안 시트)이 뜨고, 사용자가 문자 인증을 보러 다른 앱에 다녀온다
+        await changeAppState('inactive');
+        await changeAppState('active');
+        await changeAppState('background');
+        await changeAppState('active');
+        await act(() => jest.advanceTimersByTimeAsync(60_000));
+        await finish();
+
+        expect(
+          await screen.findByRole('header', { name: '프로필 등록' }),
+        ).toBeOnTheScreen();
+        expect(
+          app.server.callsTo('POST', '/api/v1/auth/kakao/login'),
+        ).toHaveLength(1);
+      });
+
+      it('돌아온 뒤 다시 누르면 끝나지 않은 앞 시도를 버리고 새로 하며, 앞 시도가 늦게 끝나도 무시한다', async () => {
+        const app = await launch();
+        const finishLate = hangKakao();
+        jest.useFakeTimers();
+
+        await leaveForKakaoTalkAndComeBack();
+        await fireEvent.press(button('카카오로 시작하기'));
 
         expect(
           await screen.findByRole('header', { name: '프로필 등록' }),
         ).toBeOnTheScreen();
         await finishLate();
+        expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(2);
         expect(
           app.server.callsTo('POST', '/api/v1/auth/kakao/login'),
         ).toHaveLength(1);
@@ -592,11 +618,11 @@ describe('App — 온보딩', () => {
         const app = await launch();
         hangKakao();
 
-        await login('카카오로 시작하기');
+        await fireEvent.press(button('카카오로 시작하기'));
         await waitFor(() => expect(loginWithKakao).toHaveBeenCalledTimes(1));
         await changeAppState('inactive');
         await changeAppState('active');
-        await login('카카오로 시작하기');
+        await fireEvent.press(button('카카오로 시작하기'));
 
         expect(app.server.callsTo('POST', KAKAO_NONCE_PATH)).toHaveLength(1);
         expect(loginWithKakao).toHaveBeenCalledTimes(1);

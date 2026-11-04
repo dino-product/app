@@ -65,14 +65,11 @@ const initialState = (): AuthState => {
 /** 로그인 버튼 결과. busy: 앞 로그인이 아직 진행 중이라 무시했다 */
 export type LoginOutcome = 'signedIn' | 'cancelled' | 'failed' | 'busy';
 
-/** 카카오톡에서 돌아온 뒤 SDK 가 끝을 알리기를 기다리는 시간. 카카오톡이 로그인을 마치고 돌려준 주소를 SDK 가 처리할 만큼 둔다 */
-export const SDK_RETURN_GRACE_MS = 2000;
-
 type LoginAttempt = {
   controller: AbortController;
   /** SDK 로그인 화면(카카오톡·카카오계정·Apple)을 기다리는 중 */
   inSdk: boolean;
-  /** SDK 를 기다리는 동안 앱이 백그라운드에 갔다가(카카오톡) 돌아왔다 */
+  /** SDK 를 기다리는 동안 앱이 백그라운드에 갔다가(카카오톡·Android 로그인 창) 돌아왔다. 이때부터 다시 누를 수 있다 */
   returned: boolean;
 };
 
@@ -126,11 +123,15 @@ type Auth = {
 
 const AuthContext = createContext<Auth | null>(null);
 
-// 서버에 닿지 못했거나 서버가 잠시 답하지 못했다 → 지금 화면에 머문다
-const isTransient = (error: unknown) =>
+// 서버가 이 세션·계정을 코드로 거절했다(PROFILE-002 등 4xx) → 세션을 지운다.
+// 그 밖(서버에 닿지 못함·5xx·앱이 모르는 응답 모양 — 새 가입 단계 값 등)은 일시 오류로 보고 지금 화면에 머문다
+const isRejectedByServer = (error: unknown) =>
   isApiError(error) &&
-  (error.kind !== 'http' ||
-    (error.status !== undefined && error.status >= 500));
+  error.kind === 'http' &&
+  error.code !== undefined &&
+  error.status !== undefined &&
+  error.status >= 400 &&
+  error.status < 500;
 
 function phaseOf(state: AuthState): AuthPhase {
   if (state.status === 'signedOut') {
@@ -246,11 +247,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (
           stale() ||
           isApiError(error, ApiErrorCode.refreshRejected) ||
-          isTransient(error)
+          !isRejectedByServer(error)
         ) {
           return;
         }
         await logOut(api);
+        // 세션을 지우는 동안 사용자가 직접 로그아웃했으면 그쪽이 맞다 (다시 로그인해 달라고 알리지 않는다)
+        if (stale()) {
+          return;
+        }
         resetToSignedOut();
         Alert.alert(
           '다시 로그인해 주세요',
@@ -321,12 +326,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 진행 중인 로그인 시도. 겹치지 않게 하나만 둔다
   const attempt = useRef<LoginAttempt | null>(null);
 
-  // 카카오톡으로 넘어갔다가(백그라운드) 돌아왔는데 SDK 가 잠시 안에 끝을 알리지 않으면 그 시도를 그만둔다.
-  // iOS 카카오 SDK 는 카카오톡에서 로그인을 마치지 않고 돌아오면 콜백을 부르지 않아 그대로 두면 버튼이 앱을 다시 켤 때까지 잠긴다.
-  // 앱 안에 뜨는 카카오계정·Apple 로그인 창은 백그라운드로 가지 않아 그만두지 않는다
+  // SDK 를 기다리는 중 백그라운드에 갔다가(카카오톡, Android 는 카카오계정 창도) 돌아오면 버튼 잠금만 푼다.
+  // iOS 카카오 SDK 는 카카오톡에서 로그인을 마치지 않고 돌아오면 끝을 알리지 않아 그대로 두면 앱을 다시 켤 때까지 잠긴다.
+  // 시도는 살려 둔다: 돌아온 뒤에도 SDK 는 받은 코드를 토큰으로 바꾸는 네트워크 교환(약한 신호면 오래 걸린다)이나
+  // 카카오톡 오류 뒤 띄운 카카오계정 창을 마쳐야 끝나므로, 나중에 성공하면 그대로 로그인한다. 그 사이 다시 누르면 앞 시도를 버린다(logIn)
   useEffect(() => {
     let wentBackground = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const subscription = AppState.addEventListener('change', status => {
       if (status === 'background') {
         wentBackground = true;
@@ -337,28 +342,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       wentBackground = false;
       const current = attempt.current;
-      if (!current?.inSdk) {
-        return;
+      if (current?.inSdk) {
+        current.returned = true;
       }
-      current.returned = true;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (current.inSdk) {
-          current.controller.abort();
-        }
-      }, SDK_RETURN_GRACE_MS);
     });
-    return () => {
-      subscription.remove();
-      clearTimeout(timer);
-    };
+    return () => subscription.remove();
   }, []);
 
   const logIn = useCallback(
     async (method: LoginMethod): Promise<LoginOutcome> => {
       const previous = attempt.current;
       if (previous) {
-        // 카카오톡에서 돌아왔는데 끝나지 않은 앞 시도는 버리고 새로 한다. 그 밖에는 겹치지 않게 무시한다
+        // 앱으로 돌아왔는데 SDK 가 끝나지 않은 앞 시도는 버리고 새로 한다(늦게 온 결과는 버린다). 그 밖에는 겹치지 않게 무시한다
         if (!(previous.inSdk && previous.returned)) {
           return 'busy';
         }
@@ -395,10 +390,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [api, applyUserProfile],
   );
 
-  // 세션을 떼어 기기에서 먼저 지우고 바로 로그인 화면으로 간다. 서버 로그아웃은 떼어 둔 토큰으로 뒤에서 보낸다 (logOut)
+  // 세션을 떼어 기기에서 먼저 지우고 바로 로그인 화면으로 간다. 서버 로그아웃은 떼어 둔 토큰으로 뒤에서 보낸다 (logOut).
+  // 시작할 때 세대를 올려, 그 사이 끝난 뒤의 결과(켤 때 확인 등)가 반영되거나 따로 알리지 않게 한다
   const signingOut = useRef<Promise<void> | null>(null);
   const signOut = useCallback(() => {
     signingOut.current ??= (async () => {
+      epoch.current += 1;
       forgetSignedInStep();
       await logOut(api);
       resetToSignedOut();
