@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { measureRenders } from 'reassure';
 import { saveSignedInStep } from '../features/onboarding/login';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
-import { makeLocalSeed } from '../features/work/data/localSeed';
+import {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} from '../features/work/data/localSeedTesting';
 import {
   myScheduleQuery,
   workDetailQuery,
@@ -19,6 +22,7 @@ import {
   accountServer,
   APP_TEST_NOW,
   fixAppTestClock,
+  markSampleDraftsCleared,
   signedInSession,
 } from './testing';
 
@@ -38,11 +42,14 @@ type Device = {
 };
 let device: Device;
 
-// 새 기기를 만들고 홈·작업 상세가 처음 그릴 값을 캐시에 넣는다
+// 새 기기를 만들고 홈·작업 상세가 처음 그릴 값을 캐시에 넣는다.
+// 이 빌드로 켠 적이 있는 기기라 미리 남긴 보고 초안은 켤 때 지우지 않는다 (#136)
 async function prepareDevice(signedIn: boolean) {
+  markSampleDraftsCleared();
   const now = new Date(APP_TEST_NOW);
   const workRepository = createLocalWorkRepository({
     seed: makeLocalSeed(now),
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => now,
   });
   // 진행할 작업을 시작해 둔다: 작업 상세는 작업중일 때 완료 보고 영역을 그린다 (이어 쓰는 보고로 다시 여는 경우를 잰다)

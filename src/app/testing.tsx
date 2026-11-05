@@ -10,9 +10,13 @@ import {
 import { saveSignedInStep } from '../features/onboarding/login';
 import type { NextStep } from '../features/onboarding/profileApi';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
-import { makeLocalSeed } from '../features/work/data/localSeed';
+import {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} from '../features/work/data/localSeedTesting';
 import type { WorkRepository } from '../features/work/data/types';
 import type { Session } from '../shared/api';
+import { appStorage } from '../shared/storage/appStorage';
 import {
   createFakeServer,
   noContent,
@@ -22,6 +26,7 @@ import {
 import { createTestApi } from '../shared/testing/renderWithApi';
 import { testSession } from '../shared/testing/session';
 import App from './App';
+import { SAMPLE_DRAFTS_CLEARED_KEY } from './sampleDrafts';
 
 // 앱 전체 테스트 도구 (#113). 로그인 상태는 가짜 서버와 기기에 남은 값(Keychain 세션, MMKV 가입 단계 표식)으로 만든다. 사용법:
 //   await renderSignedInApp()                          가입을 마친 계정으로 로그인해 둔 앱 (메인)
@@ -153,16 +158,24 @@ type AppOptions = {
   /** 앱을 켤 때 Keychain 에 남아 있는 세션. 없으면 로그아웃 상태 */
   session?: Session | null;
   now?: () => number;
-  /** 작업 저장소 (서버의 작업 상태). 없으면 지금 기준 처음 데이터의 로컬 저장소 */
+  /** 작업 저장소 (서버의 작업 상태). 없으면 지금 기준 테스트 시드의 로컬 저장소 */
   workRepository?: WorkRepository;
 };
 
-/** 지금 기준 처음 데이터의 로컬 작업 저장소 */
+/** 지금 기준 테스트 시드(features/work/data/localSeedTesting)의 로컬 작업 저장소. 운영 저장소는 빈 채로 시작한다 (#136) */
 export const testWorkRepository = () =>
   createLocalWorkRepository({
     seed: makeLocalSeed(new Date()),
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => new Date(),
   });
+
+/**
+ * 이 빌드로 켠 적이 있는 기기로 둔다: 예시가 있던 빌드의 초안 정리(app/sampleDrafts, #136)를 마쳐, 테스트가 미리 남긴 초안을 지우지 않는다.
+ * 정리 자체는 App.emptyWork.test 가 본다
+ */
+export const markSampleDraftsCleared = () =>
+  appStorage.set(SAMPLE_DRAFTS_CLEARED_KEY, true);
 
 export async function renderApp({
   server = accountServer(),
@@ -170,6 +183,7 @@ export async function renderApp({
   now,
   workRepository = testWorkRepository(),
 }: AppOptions = {}) {
+  markSampleDraftsCleared();
   const api = createTestApi({ server, session, now });
   const view = await render(<App api={{ ...api, workRepository }} />);
   return { ...view, ...api, workRepository };

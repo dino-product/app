@@ -2,7 +2,6 @@ import { ApiError } from '../../../shared/api';
 import { PHOTO_LIMIT } from '../model';
 import { toWorkDetail } from './convert';
 import { WorkErrorCode } from './errors';
-import { LOCAL_ORGANIZATION_NAME } from './localSeed';
 import type {
   AssignmentResponse,
   CompletionReportResponse,
@@ -129,10 +128,13 @@ const blankToNull = (value: string | null) =>
 
 export function createLocalWorkRepository({
   seed,
+  organizationName = null,
   now = () => new Date(),
 }: {
-  /** 처음 데이터. 서버 작업 상세 응답 모양 (localSeed.ts) */
+  /** 처음 데이터. 서버 작업 상세 응답 모양. 운영은 빈 목록이고 테스트가 시드(localSeedTesting.ts)를 넣는다 */
   seed: readonly WorkDetailResponse[];
+  /** 목록 행의 업체명. 작업 상세 응답에 없어 따로 받는다. 없으면 HTTP 처럼 null */
+  organizationName?: string | null;
   now?: () => Date;
 }): WorkRepository {
   let works: WorkDetailResponse[] = copy([...seed]);
@@ -251,7 +253,7 @@ export function createLocalWorkRepository({
               customerAddressDetail: work.customer?.addressDetail ?? null,
               delayed: isDelayed(work),
               customerName: work.customer?.name ?? null,
-              organizationName: LOCAL_ORGANIZATION_NAME,
+              organizationName,
             }),
           ),
       };
@@ -356,7 +358,7 @@ export function createLocalWorkRepository({
             customerName: work.customer?.name ?? null,
             customerAddress: work.customer?.address ?? null,
             customerAddressDetail: work.customer?.addressDetail ?? null,
-            organizationName: LOCAL_ORGANIZATION_NAME,
+            organizationName,
           };
         }),
         statistics: {

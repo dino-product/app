@@ -1,6 +1,6 @@
 import { isApiError } from '../../../shared/api';
 import { createLocalWorkRepository } from './LocalWorkRepository';
-import { LOCAL_ORGANIZATION_NAME, makeLocalSeed } from './localSeed';
+import { LOCAL_ORGANIZATION_NAME, makeLocalSeed } from './localSeedTesting';
 import { workDetailResponse } from './testing';
 import type {
   AssignmentResponse,
@@ -50,6 +50,7 @@ function setup(seed: WorkDetailResponse[], now = at('2026-10-21T00:00:00Z')) {
   const clock = { now };
   const repository = createLocalWorkRepository({
     seed,
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => clock.now,
   });
   return { repository, clock };
@@ -113,6 +114,26 @@ describe('LocalWorkRepository 내 일정', () => {
       customerName: '이정호',
       organizationName: LOCAL_ORGANIZATION_NAME,
     });
+  });
+
+  // 발주사 이름은 작업 상세 응답에 없어 만들 때 받는다. 받지 않으면(운영) 지어내지 않고 HTTP 처럼 null 이다 (#136)
+  it('만들 때 업체명을 받지 않으면 내 일정·이력 행의 업체명은 null 이다', async () => {
+    const repository = createLocalWorkRepository({
+      seed: [
+        work(1, 'ACCEPTED'),
+        work(2, 'COMPLETED', { completedAt: '2026-10-21T01:50:00Z' }),
+      ],
+      now: () => at(START),
+    });
+
+    const schedule = await repository.getMySchedule(week);
+    const history = await repository.getWorkHistory(week);
+
+    expect(schedule.works.map(item => item.organizationName)).toEqual([
+      null,
+      null,
+    ]);
+    expect(history.works.map(item => item.organizationName)).toEqual([null]);
   });
 
   it('조회 시각에 예정 종료가 지났는데 끝나지 않았으면 지연이다', async () => {

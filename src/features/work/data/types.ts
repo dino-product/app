@@ -142,7 +142,7 @@ export type Period = { from: Instant; to: Instant };
 /**
  * 내 일정의 작업 하나 (GetMyScheduleUseCase → MyScheduleInfo.ScheduledWork).
  * customerName·organizationName 은 목록 행에 보이는 값인데 백엔드 레코드에 없다 (#112 G2).
- * HTTP 저장소는 채울 수 없어 null 을 주고 화면은 '-' 로 보인다. 로컬 저장소만 채운다
+ * HTTP 저장소는 채울 수 없어 null 을 주고 화면은 '-' 로 보인다. 로컬 저장소는 작업의 고객과 만들 때 받은 업체명(없으면 null)으로 채운다
  */
 export type ScheduledWork = {
   workId: number;

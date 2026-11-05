@@ -29,6 +29,7 @@ import {
   toSubmitCommand,
 } from '../../features/work/data/convert';
 import {
+  isMissingWork,
   isUnavailableWork,
   MissingAssignmentError,
   workErrorMessage,
@@ -187,10 +188,18 @@ function useRouteWorkDetail(
     subscribed: useIsFocused(),
     onlyErrors,
   });
+  const status = invalid ? UNAVAILABLE : detailStatusOf(detail);
   return {
     workId: invalid ? null : workId,
     detail,
-    status: invalid ? UNAVAILABLE : detailStatusOf(detail),
+    status,
+    /** 상세 없이 볼 수 없는 작업으로 끝났다 */
+    unavailable: detail.data === undefined && status.status === 'unavailable',
+    /**
+     * 그중 작업이 확실히 없다: 작업 id 가 아니거나(옛 복원 상태 등) 없는 작업(404 SCHEDULE-001)이다. 이때만 기기에 남은 초안을 지운다 (#136).
+     * 소속 문제(403·기사 소속 없음)나 경로의 발주사만 잘못된 경우는 잠시일 수 있어 아니다
+     */
+    missing: workId === null || (detail.isError && isMissingWork(detail.error)),
   };
 }
 
@@ -285,9 +294,10 @@ export function WorkDetailRoute({
   route,
 }: HomeScreenProps<'WorkDetail'>) {
   const draftId = route.params.id;
-  const { workId, detail, status } = useRouteWorkDetail(draftId, {
-    organization: route.params.organizationId,
-  });
+  const { workId, detail, status, unavailable, missing } = useRouteWorkDetail(
+    draftId,
+    { organization: route.params.organizationId },
+  );
   const submitReport = useSubmitCompletionReport().mutateAsync;
   const startWork = useStartWork().mutateAsync;
   const titleRef = useFocusTitleOnOpen(navigation);
@@ -296,6 +306,14 @@ export function WorkDetailRoute({
   // 남긴 초안은 입력이 있는 보고뿐이라(saveReportDraft) 이어 쓰면 처음부터 작성 중이다.
   // 화면이 알려 줄 때 바꾸면 열자마자 다시 그리게 된다
   const [hasUnsavedReport, setHasUnsavedReport] = useState(draft !== undefined);
+  // 볼 수 없는 작업이면 지금은 이어 쓸 수 없어 나갈 때 묻지 않는다 (#136). 작업이 확실히 없으면(작업 id 가 아님·404,
+  // 예시 작업을 가리키던 옛 복원 상태 등) 남은 초안도 지운다. 소속 문제는 잠시일 수 있어 초안은 남긴다
+  const gone = unavailable && missing;
+  useEffect(() => {
+    if (gone) {
+      clearReportDraft(draftId);
+    }
+  }, [gone, draftId]);
 
   // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 기기에 남긴 초안도 지운다.
   // 막았던 동작을 다시 보낸다. 한 번 확인을 거친 동작이라 이 화면에서 다시 막히지 않는다
@@ -307,7 +325,7 @@ export function WorkDetailRoute({
   // 작성 중인 보고가 있으면 화면을 스택에서 빼는 모든 동작에서 묻는다.
   // 포커스만 잃는 탭 이동은 화면을 빼지 않아(입력이 남음) 묻지 않는다.
   // iOS 스와이프는 끝까지 밀면 화면이 닫혔다가 다시 밀려 들어오며 묻는다
-  usePreventRemove(hasUnsavedReport, ({ data }) =>
+  usePreventRemove(hasUnsavedReport && !unavailable, ({ data }) =>
     confirmDiscardReport(() => discardReportAndLeave(data.action)),
   );
 
@@ -536,24 +554,30 @@ export function RejectReasonRoute({
   const rejectWork = useRejectWork().mutateAsync;
   // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(제출·취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
   // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다.
-  // 볼 수 없는 요청이면 아래 effect 가 닫으므로 그보다 먼저 듣는다 (effect 는 선언 순서대로 돈다)
+  // 볼 수 없는 요청이면 아래 effect 가 닫으므로 그보다 먼저 듣는다 (effect 는 선언 순서대로 돈다).
+  // 그렇게 닫을 때 요청이 확실히 없지 않으면(소속 문제) 잠시일 수 있어 고르던 사유를 남긴다 (#136, 작업 상세의 보고 초안과 같다)
+  const keepDraftOnLeave = useRef(false);
   useEffect(
     () =>
-      navigation.addListener('beforeRemove', () => clearRejectDraft(requestId)),
+      navigation.addListener('beforeRemove', () => {
+        if (!keepDraftOnLeave.current) {
+          clearRejectDraft(requestId);
+        }
+      }),
     [navigation, requestId],
   );
   // 이미 처리됐거나(거절함) 볼 수 없는 요청이면 빈 화면 대신 이전 화면으로 돌아간다
   // 거절 사유는 상세 값을 그리지 않는다. 볼 수 없는 요청인지만 보므로 오류가 바뀔 때만 다시 그린다
-  const { workId, detail, status } = useRouteWorkDetail(requestId, {
-    onlyErrors: true,
-  });
-  const unavailable =
-    detail.data === undefined && status.status === 'unavailable';
+  const { workId, detail, unavailable, missing } = useRouteWorkDetail(
+    requestId,
+    { onlyErrors: true },
+  );
   useEffect(() => {
     if (unavailable) {
+      keepDraftOnLeave.current = !missing;
       leaveRootScreen(navigation);
     }
-  }, [unavailable, navigation]);
+  }, [unavailable, missing, navigation]);
   const titleRef = useFocusTitleOnOpen(navigation);
   // 앱이 종료되기 전에 고르던 사유가 있으면 이어 고른다 (#34)
   const [draft] = useState(() => loadRejectDraft(requestId));

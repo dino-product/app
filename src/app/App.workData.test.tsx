@@ -10,7 +10,10 @@ import {
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
-import { makeLocalSeed } from '../features/work/data/localSeed';
+import {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} from '../features/work/data/localSeedTesting';
 import { ApiError, ApiErrorMessage } from '../shared/api';
 import {
   APP_TEST_NOW,
@@ -34,6 +37,7 @@ const scheduleError = (status: number, code: string) =>
 function setup() {
   const repository = createLocalWorkRepository({
     seed: makeLocalSeed(new Date(APP_TEST_NOW)),
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => new Date(),
   });
   const render = () => renderSignedInApp({ workRepository: repository });

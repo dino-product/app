@@ -8,10 +8,10 @@ import {
 import { NoTechnicianOrganizationError } from './errors';
 import { createHttpWorkRepository } from './HttpWorkRepository';
 import { createLocalWorkRepository } from './LocalWorkRepository';
-import { makeLocalSeed } from './localSeed';
 import type { WorkRepository } from './types';
 
 // 작업 저장소를 고르는 한 곳. 백엔드 작업 API(내 일정·수락·거절·시작·완료 보고·이력, #112 G1·G2)가 생길 때까지 로컬이다.
+// 로컬 저장소는 예시(더미) 작업 없이 빈 채로 시작해 작업 화면은 빈 상태다 (#136). 예시 작업은 테스트가 넣는다 (localSeedTesting).
 // 목록과 상세의 작업 id 가 맞아야 해 두 저장소를 섞어 쓰지 않는다 (HTTP 로 바꾸면 작업 상세만 실제 서버로 열린다)
 
 export type WorkRepositorySource = 'local' | 'http';
@@ -27,7 +27,7 @@ export function createWorkRepository(
   }: { api: ApiClient; queryClient: QueryClient; now?: () => Date },
 ): WorkRepository {
   if (source === 'local') {
-    return createLocalWorkRepository({ seed: makeLocalSeed(now()), now });
+    return createLocalWorkRepository({ seed: [], now });
   }
   return createHttpWorkRepository({
     api,
