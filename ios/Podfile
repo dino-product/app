@@ -40,5 +40,16 @@ target 'DinoApp' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 27 의 iOS SDK 는 배포 타깃 15.0 미만을 받지 않는다. 일부 pod 는 podspec 의 낮은 값(9.0~13.0)을
+    # 그대로 들고 와 그 타깃(리소스 번들 포함)에서 빌드가 깨지므로, 앱 최소 버전보다 낮은 것만 그 값으로 올린다
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        current = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if current && Gem::Version.new(current) < Gem::Version.new(min_ios_version_supported)
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = min_ios_version_supported
+        end
+      end
+    end
   end
 end
