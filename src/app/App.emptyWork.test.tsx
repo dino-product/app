@@ -23,16 +23,21 @@ import {
 // WorkRepositoryProvider 가 운영과 같이 config 의 저장소(WORK_REPOSITORY_SOURCE)를 만든다
 fixAppTestClock();
 
-/** 로그인해 둔 기기에서 운영과 같은 작업 저장소로 앱을 켠다 */
+/**
+ * 로그인해 둔 기기에서 운영과 같은 작업 저장소로 앱을 켠다.
+ * 기기에는 이 빌드로 켠 표식이 없다: 예시가 있던 빌드에서 올린 기기의 첫 실행이다 (app/sampleDrafts)
+ */
 async function launch() {
   saveSignedInStep('COMPLETED');
   const api = createTestApi({
     server: accountServer(),
     session: signedInSession(),
   });
-  await render(<App api={api} />);
-  return api;
+  return render(<App api={api} />);
 }
+
+const draftKeys = () =>
+  appStorage.getAllKeys().filter(key => key.includes('Draft'));
 
 const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
@@ -225,6 +230,28 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
       expect(header('작업 이력')).toBeOnTheScreen();
     });
+  });
+
+  // 예시가 있던 빌드(TestFlight 0.0 (3))를 쓴 기기에는 예시 작업 id 를 가리키는 초안이 남아 있다.
+  // 그 화면을 열지 않아도 켤 때 지운다. 기사 작업 API(#112) 뒤 같은 id 의 실제 작업 보고 칸에 채워지지 않게 한다
+  it('예시가 있던 빌드가 남긴 초안은 켤 때 한 번 지우고, 다시 켠 뒤에는 새로 남긴 초안을 지우지 않는다', async () => {
+    saveReportDraft('103', { ...emptyReport, memo: '배관 교체' });
+    writeJson('schedule.rejectDraft.105', {
+      selected: 'schedule',
+      otherText: '',
+    });
+
+    const first = await launch();
+    expect(await screen.findByText('이번 주 일정이 없어요')).toBeOnTheScreen();
+    expect(draftKeys()).toEqual([]);
+
+    // 이 빌드에서 남긴 초안
+    saveReportDraft('7', { ...emptyReport, memo: '수전 교체' });
+    await first.unmount();
+    await launch();
+
+    expect(await screen.findByText('이번 주 일정이 없어요')).toBeOnTheScreen();
+    expect(draftKeys()).toEqual(['work.reportDraft.7']);
   });
 
   // 알림·마이(프로필·소속)는 실제 API 응답이라 예시 작업을 지워도 그대로 서버 값을 보인다

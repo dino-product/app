@@ -26,8 +26,24 @@ const TEST_ONLY = [
 ];
 const isTestOnly = file => TEST_ONLY.some(pattern => pattern.test(file));
 
-// 전에 운영 작업 저장소를 채우던 예시의 발주사·기사 이름 (지금은 테스트 시드에만 있다)
-const SAMPLE_NAMES = ['한빛 설비', '김현수'];
+// 전에 운영 작업 저장소를 채우던 예시의 발주사·기사·고객 이름 (지금은 테스트 시드에만 있다).
+// 작업 이름은 흔한 문구라(예: CTA 주석의 "에어컨 필터 교체 수락") 보지 않는다
+const {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} = require('../../../src/features/work/data/localSeedTesting');
+
+const SAMPLE_NAMES = [
+  ...new Set(
+    [
+      LOCAL_ORGANIZATION_NAME,
+      ...makeLocalSeed(new Date()).flatMap(work => [
+        work.schedule?.technician?.name,
+        work.customer?.name,
+      ]),
+    ].filter(Boolean),
+  ),
+];
 
 const isFile = file => fs.existsSync(file) && fs.statSync(file).isFile();
 
@@ -38,7 +54,21 @@ function parserPlugins(file) {
   return file.endsWith('.ts') ? ['typescript'] : ['jsx'];
 }
 
-// 모듈이 가져오는 경로: import·export … from, require(), import()
+// require()·import() 의 경로. 문자열이나 식 없는 템플릿 리터럴만 따라갈 수 있고, 그 밖의 동적 경로는 검사가 빠뜨리므로 실패한다
+function staticPath(file, argument) {
+  if (argument?.type === 'StringLiteral') {
+    return argument.value;
+  }
+  if (
+    argument?.type === 'TemplateLiteral' &&
+    argument.expressions.length === 0
+  ) {
+    return argument.quasis[0].value.cooked;
+  }
+  throw new Error(`${file}: 따라갈 수 없는 가져오기 (${argument?.type})`);
+}
+
+// 모듈이 가져오는 경로: import(type 포함)·export … from, require(), import(), import x = require()
 function specifiersOf(file, code) {
   const ast = parseSync(code, {
     filename: file,
@@ -67,11 +97,16 @@ function specifiersOf(file, code) {
     if (
       node.type === 'CallExpression' &&
       (node.callee.type === 'Import' ||
-        (node.callee.type === 'Identifier' &&
-          node.callee.name === 'require')) &&
-      node.arguments[0]?.type === 'StringLiteral'
+        (node.callee.type === 'Identifier' && node.callee.name === 'require'))
     ) {
-      found.push(node.arguments[0].value);
+      found.push(staticPath(file, node.arguments[0]));
+    }
+    // 파서 설정에 따라 import() 가 따로 된 노드로 온다
+    if (node.type === 'ImportExpression') {
+      found.push(staticPath(file, node.source));
+    }
+    if (node.type === 'TSExternalModuleReference') {
+      found.push(node.expression.value);
     }
     Object.keys(node).forEach(key => {
       if (key !== 'loc' && key !== 'start' && key !== 'end') {
@@ -128,6 +163,41 @@ function productionModules() {
 
 const modules = productionModules();
 
+describe('가져오는 경로 찾기 (검사가 빠뜨리지 않게)', () => {
+  it('import·export from·require()·import()·템플릿 리터럴·import = require·import type 을 모두 찾는다', () => {
+    const code = [
+      "import a from './a';",
+      "export * from './b';",
+      "export { c } from './c';",
+      "import type { D } from './d';",
+      "const e = require('./e');",
+      "import('./f');",
+      'require(`./g`);',
+      "import h = require('./h');",
+    ].join('\n');
+
+    expect(specifiersOf('sample.ts', code)).toEqual([
+      './a',
+      './b',
+      './c',
+      './d',
+      './e',
+      './f',
+      './g',
+      './h',
+    ]);
+  });
+
+  it.each([
+    ['require(name)', 'require(name);'],
+    ['import(`./${name}`)', 'import(`./${name}`);'],
+  ])('따라갈 수 없는 동적 경로(%s)면 실패한다', (_, code) => {
+    expect(() => specifiersOf('sample.ts', code)).toThrow(
+      '따라갈 수 없는 가져오기',
+    );
+  });
+});
+
 describe('운영 코드의 예시 데이터 (#136)', () => {
   it('진입점에서 앱과 작업 저장소까지 따라간다 (검사가 비어 통과하지 않게)', () => {
     expect(modules).toEqual(
@@ -147,7 +217,11 @@ describe('운영 코드의 예시 데이터 (#136)', () => {
     expect(modules.filter(file => /localSeed/.test(file))).toEqual([]);
   });
 
-  it('예시의 발주사·기사 이름이 운영 코드에 없다', () => {
+  it('예시의 발주사·기사·고객 이름이 운영 코드에 없다', () => {
+    // 이슈에서 화면에 보였던 이름이 시드에서 뽑혔는지 (검사가 비어 통과하지 않게)
+    expect(SAMPLE_NAMES).toEqual(
+      expect.arrayContaining(['한빛 설비', '김현수']),
+    );
     const found = modules
       .filter(file => CODE.test(file))
       .flatMap(file => {

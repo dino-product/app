@@ -9,6 +9,11 @@ import {
   pickOnePhotoFromLibrary,
   resetPhotoLibrary,
 } from '../../jest/photoPicker';
+import { NoTechnicianOrganizationError } from '../features/work/data/errors';
+import { emptyReport } from '../features/work/model';
+import { saveReportDraft } from '../features/work/reportDraft';
+import { ApiError, ApiErrorMessage } from '../shared/api';
+import { LOADING_LABEL } from '../shared/layout/LoadStateView';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
 import { ok } from '../shared/testing/fakeServer';
 import {
@@ -527,6 +532,182 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
 
     expect(await screen.findByText('볼 수 없는 작업이에요')).toBeOnTheScreen();
   });
+
+  // #136 남은 초안은 작업이 확실히 없을 때만 지운다: 작업 id 가 아니거나 없는 작업(404 SCHEDULE-001, 로컬 저장소도 같은 오류).
+  // 불러오는 중·불러오지 못함(네트워크·5xx)은 이어 쓸 수 있어 그대로 묻고, 소속 문제(403 SCHEDULE-004·기사 소속 없음)와
+  // 경로의 발주사만 잘못된 경우는 볼 수 없는 작업이라 묻지 않되 잠시일 수 있어 초안은 남긴다
+  describe('복원한 작업 상세의 작성 중 보고 초안 (#136)', () => {
+    const REPORT_KEY = 'work.reportDraft.101';
+    const httpError = (status: number, code?: string) =>
+      new ApiError({ kind: 'http', status, code, message: '서버 문구' });
+
+    function restoreReport(params: { id: string; organizationId?: string }) {
+      seedNavigation(homeStackAt(params));
+      saveReportDraft(params.id, { ...emptyReport, memo: '배관 교체' });
+    }
+
+    async function expectAsksOnLeave(alert: ReturnType<typeof spyAlert>) {
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(alert).toHaveBeenCalledWith(
+        '작성 중인 완료 보고가 있어요',
+        expect.any(String),
+        expect.any(Array),
+        expect.anything(),
+      );
+      expect(header('작업 상세')).toBeOnTheScreen();
+    }
+
+    async function expectLeavesWithoutAsking(
+      alert: ReturnType<typeof spyAlert>,
+    ) {
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      expect(alert).not.toHaveBeenCalled();
+      expect(header('내 작업')).toBeOnTheScreen();
+    }
+
+    it.each([
+      [
+        '네트워크 오류',
+        new ApiError({ kind: 'network', message: ApiErrorMessage.network }),
+      ],
+      ['5xx', httpError(503)],
+    ])(
+      '상세를 불러오지 못하면(%s) 초안을 남기고 나갈 때 묻는다',
+      async (_, error) => {
+        const alert = spyAlert();
+        jest.spyOn(workRepository, 'getWorkDetail').mockRejectedValue(error);
+        restoreReport({ id: '101' });
+
+        await launch();
+
+        expect(
+          await screen.findByRole('button', { name: '다시 시도' }),
+        ).toBeOnTheScreen();
+        expect(appStorage.contains(REPORT_KEY)).toBe(true);
+        await expectAsksOnLeave(alert);
+        expect(appStorage.contains(REPORT_KEY)).toBe(true);
+      },
+    );
+
+    it('상세를 불러오는 중이면 초안을 남기고 나갈 때 묻는다', async () => {
+      const alert = spyAlert();
+      jest
+        .spyOn(workRepository, 'getWorkDetail')
+        .mockReturnValue(new Promise(() => {}));
+      restoreReport({ id: '101' });
+
+      await launch();
+
+      expect(screen.getByLabelText(LOADING_LABEL)).toBeOnTheScreen();
+      expect(appStorage.contains(REPORT_KEY)).toBe(true);
+      await expectAsksOnLeave(alert);
+    });
+
+    it.each([
+      ['403 SCHEDULE-004', httpError(403, 'SCHEDULE-004')],
+      ['기사 소속 없음', new NoTechnicianOrganizationError()],
+    ])(
+      '소속 문제로 볼 수 없으면(%s) 초안은 남기고 나갈 때 묻지 않는다',
+      async (_, error) => {
+        const alert = spyAlert();
+        jest.spyOn(workRepository, 'getWorkDetail').mockRejectedValue(error);
+        restoreReport({ id: '101' });
+
+        await launch();
+
+        expect(
+          await screen.findByText('볼 수 없는 작업이에요'),
+        ).toBeOnTheScreen();
+        await expectLeavesWithoutAsking(alert);
+        expect(appStorage.contains(REPORT_KEY)).toBe(true);
+      },
+    );
+
+    it('경로의 발주사만 잘못됐으면 초안은 남기고 나갈 때 묻지 않는다', async () => {
+      const alert = spyAlert();
+      restoreReport({ id: '101', organizationId: 'org-7' });
+
+      await launch();
+
+      expect(
+        await screen.findByText('볼 수 없는 작업이에요'),
+      ).toBeOnTheScreen();
+      await expectLeavesWithoutAsking(alert);
+      expect(appStorage.contains(REPORT_KEY)).toBe(true);
+    });
+
+    it.each([
+      ['없는 작업(404 SCHEDULE-001)', '101', httpError(404, 'SCHEDULE-001')],
+      ['로컬 저장소에 없는 작업', '999', undefined],
+      ['작업 id 가 아님', 'work-boiler', undefined],
+    ])('%s 이면 초안을 지우고 나갈 때 묻지 않는다', async (_, id, error) => {
+      const alert = spyAlert();
+      if (error) {
+        jest.spyOn(workRepository, 'getWorkDetail').mockRejectedValue(error);
+      }
+      restoreReport({ id });
+
+      await launch();
+
+      expect(
+        await screen.findByText('볼 수 없는 작업이에요'),
+      ).toBeOnTheScreen();
+      expect(appStorage.contains(`work.reportDraft.${id}`)).toBe(false);
+      await expectLeavesWithoutAsking(alert);
+    });
+  });
+
+  // 거절 사유도 같다. 볼 수 없는 요청이면 이전 화면으로 돌아가고, 고르던 사유는 요청이 확실히 없을 때만 지운다
+  it.each([
+    [
+      '403 SCHEDULE-004 — 사유를 남긴다',
+      new ApiError({
+        kind: 'http',
+        status: 403,
+        code: 'SCHEDULE-004',
+        message: '서버 문구',
+      }),
+      true,
+    ],
+    [
+      '기사 소속 없음 — 사유를 남긴다',
+      new NoTechnicianOrganizationError(),
+      true,
+    ],
+    [
+      '없는 요청(404 SCHEDULE-001) — 사유도 지운다',
+      new ApiError({
+        kind: 'http',
+        status: 404,
+        code: 'SCHEDULE-001',
+        message: '서버 문구',
+      }),
+      false,
+    ],
+  ])(
+    '복원한 거절 사유의 요청을 볼 수 없으면 이전 화면으로 돌아간다: %s',
+    async (_, error, kept) => {
+      jest.spyOn(workRepository, 'getWorkDetail').mockRejectedValue(error);
+      seedNavigation({
+        index: 1,
+        routes: [
+          { name: 'Main' },
+          { name: 'RejectReason', params: { id: '104' } },
+        ],
+      });
+      writeJson('schedule.rejectDraft.104', {
+        selected: 'schedule',
+        otherText: '',
+      });
+
+      await launch();
+
+      expect(
+        await screen.findByRole('header', { name: '내 작업' }),
+      ).toBeOnTheScreen();
+      expect(appStorage.contains('schedule.rejectDraft.104')).toBe(kept);
+    },
+  );
 
   // 검증표가 없으면 작업 상세가 route.params.id 를 읽다 죽는다. React Navigation 은 모르는 화면만 빼 주고 파라미터는 보지 않는다
   it('저장한 화면 구조가 지금 앱과 맞지 않으면(앱 업데이트로 파라미터가 바뀜 등) 첫 화면으로 시작한다', async () => {

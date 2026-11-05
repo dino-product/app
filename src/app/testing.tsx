@@ -16,6 +16,7 @@ import {
 } from '../features/work/data/localSeedTesting';
 import type { WorkRepository } from '../features/work/data/types';
 import type { Session } from '../shared/api';
+import { appStorage } from '../shared/storage/appStorage';
 import {
   createFakeServer,
   noContent,
@@ -25,6 +26,7 @@ import {
 import { createTestApi } from '../shared/testing/renderWithApi';
 import { testSession } from '../shared/testing/session';
 import App from './App';
+import { SAMPLE_DRAFTS_CLEARED_KEY } from './sampleDrafts';
 
 // 앱 전체 테스트 도구 (#113). 로그인 상태는 가짜 서버와 기기에 남은 값(Keychain 세션, MMKV 가입 단계 표식)으로 만든다. 사용법:
 //   await renderSignedInApp()                          가입을 마친 계정으로 로그인해 둔 앱 (메인)
@@ -168,12 +170,20 @@ export const testWorkRepository = () =>
     now: () => new Date(),
   });
 
+/**
+ * 이 빌드로 켠 적이 있는 기기로 둔다: 예시가 있던 빌드의 초안 정리(app/sampleDrafts, #136)를 마쳐, 테스트가 미리 남긴 초안을 지우지 않는다.
+ * 정리 자체는 App.emptyWork.test 가 본다
+ */
+export const markSampleDraftsCleared = () =>
+  appStorage.set(SAMPLE_DRAFTS_CLEARED_KEY, true);
+
 export async function renderApp({
   server = accountServer(),
   session = null,
   now,
   workRepository = testWorkRepository(),
 }: AppOptions = {}) {
+  markSampleDraftsCleared();
   const api = createTestApi({ server, session, now });
   const view = await render(<App api={{ ...api, workRepository }} />);
   return { ...view, ...api, workRepository };

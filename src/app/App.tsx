@@ -4,6 +4,7 @@ import {
   type Theme,
 } from '@react-navigation/native';
 import type { QueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { WorkRepository } from '../features/work/data/types';
@@ -15,6 +16,7 @@ import { AuthProvider } from './AuthProvider';
 import { useNavigationPersistence } from './navigation/persistence';
 import { RootNavigator } from './navigation/RootNavigator';
 import { PushNotifications } from './PushNotifications';
+import { clearSampleDraftsOnce } from './sampleDrafts';
 
 // 전환 중 화면 뒤가 기본 테마의 회색으로 비치지 않게 흰 배경을 쓴다
 const navigationTheme: Theme = {
@@ -41,6 +43,8 @@ export default function App({
   };
 }) {
   useFrameMonitor();
+  // 예시 작업이 있던 빌드가 남긴 초안은 화면이 읽기 전에 한 번 지운다 (#136). 동기 저장소라 첫 화면을 기다리게 하지 않는다
+  useState(clearSampleDraftsOnce);
   // 앱이 백그라운드에서 종료돼도 보던 화면으로 다시 연다 (#34)
   const persistence = useNavigationPersistence();
 

@@ -1,5 +1,6 @@
 import { ApiError, ApiErrorMessage } from '../../../shared/api';
 import {
+  isMissingWork,
   isUnavailableWork,
   MissingAssignmentError,
   NoTechnicianOrganizationError,
@@ -27,6 +28,23 @@ describe('isUnavailableWork', () => {
     ['다른 오류', new Error('x')],
   ])('%s 는 다시 시도할 오류다', (_, error) => {
     expect(isUnavailableWork(error)).toBe(false);
+  });
+});
+
+// #136 남은 초안을 지워도 되는지: 작업이 없다고 답한 것만. 소속 문제는 잠시일 수 있다
+describe('isMissingWork', () => {
+  it('SCHEDULE-001(404, 작업 없음) 은 없는 작업이다', () => {
+    expect(isMissingWork(scheduleError(404, 'SCHEDULE-001'))).toBe(true);
+  });
+
+  it.each([
+    ['SCHEDULE-004(403, 조직 구성원 아님)', scheduleError(403, 'SCHEDULE-004')],
+    ['기사 발주사가 없음', new NoTechnicianOrganizationError()],
+    ['지금 배정이 없음', new MissingAssignmentError()],
+    ['서버 오류', scheduleError(500, 'COMMON-500')],
+    ['네트워크', new ApiError({ kind: 'network', message: 'x' })],
+  ])('%s 는 없는 작업이 아니다', (_, error) => {
+    expect(isMissingWork(error)).toBe(false);
   });
 });
 

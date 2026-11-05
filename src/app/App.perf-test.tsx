@@ -22,6 +22,7 @@ import {
   accountServer,
   APP_TEST_NOW,
   fixAppTestClock,
+  markSampleDraftsCleared,
   signedInSession,
 } from './testing';
 
@@ -41,8 +42,10 @@ type Device = {
 };
 let device: Device;
 
-// 새 기기를 만들고 홈·작업 상세가 처음 그릴 값을 캐시에 넣는다
+// 새 기기를 만들고 홈·작업 상세가 처음 그릴 값을 캐시에 넣는다.
+// 이 빌드로 켠 적이 있는 기기라 미리 남긴 보고 초안은 켤 때 지우지 않는다 (#136)
 async function prepareDevice(signedIn: boolean) {
+  markSampleDraftsCleared();
   const now = new Date(APP_TEST_NOW);
   const workRepository = createLocalWorkRepository({
     seed: makeLocalSeed(now),

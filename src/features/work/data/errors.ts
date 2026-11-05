@@ -58,6 +58,14 @@ export function isUnavailableWork(error: unknown): boolean {
   );
 }
 
+/**
+ * 작업이 없다고 답했다 (404 SCHEDULE-001, 로컬 저장소도 같은 오류). 볼 수 없는 작업 가운데 이것만 기기에 남은 초안을 지운다 (#136).
+ * 소속 문제(403 SCHEDULE-004·기사 소속 없음)는 소속이 잠시 비활성일 수 있어 지우지 않는다
+ */
+export function isMissingWork(error: unknown): boolean {
+  return isApiError(error, WorkErrorCode.notFound);
+}
+
 /** 서버의 작업이 화면과 달라졌다. 화면의 조회를 새로 받는다 */
 export function shouldRefetchAfter(error: unknown): boolean {
   return (
