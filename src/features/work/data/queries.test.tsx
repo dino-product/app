@@ -17,6 +17,12 @@ import {
 } from './queries';
 import { createWorkTestApi, workDetailResponse } from './testing';
 import type { MySchedule, WorkRepository } from './types';
+import {
+  monthPeriod,
+  pendingPeriods,
+  pickCurrentWork,
+  weekPeriod,
+} from './views';
 
 const period = { from: '2026-10-18T15:00:00Z', to: '2026-10-25T15:00:00Z' };
 // 픽스처 작업(2026-10-21 09:00~11:00)이 아직 지연되지 않은 시각
@@ -379,7 +385,8 @@ describe('createWorkRepository', () => {
     expect(isUnavailableWork(error)).toBe(true);
   });
 
-  it("'local' 은 지금 시각 기준 처음 데이터로 시작한다 (소속 없이)", async () => {
+  // #136 예시(더미) 작업으로 채우지 않는다. 기사 작업 API(#112)가 생길 때까지 작업 화면은 빈 상태다
+  it("'local' 은 예시 작업 없이 빈 저장소로 시작한다: 일정·응답 필요 요청·이력·진행할 작업이 없다 (소속 없이)", async () => {
     const api = createTestApi();
     const opened = new Date(2026, 9, 21, 14, 0);
     const repository = createWorkRepository('local', {
@@ -387,13 +394,33 @@ describe('createWorkRepository', () => {
       queryClient: api.queryClient,
       now: () => opened,
     });
+    // 예시가 있던 구간: 이번 주, 앞뒤 달, 응답 필요 요청을 찾는 구간
+    const months = [7, 8, 9, 10].map(month => ({ year: 2026, month }));
+    const schedulePeriods = [
+      weekPeriod(opened),
+      ...months.map(monthPeriod),
+      ...pendingPeriods(opened),
+    ];
 
-    const { works } = await repository.getMySchedule({
-      from: new Date(2026, 9, 21).toISOString(),
-      to: new Date(2026, 9, 22).toISOString(),
-    });
+    const schedules = await Promise.all(
+      schedulePeriods.map(range => repository.getMySchedule(range)),
+    );
+    const histories = await Promise.all(
+      months.map(month => repository.getWorkHistory(monthPeriod(month))),
+    );
 
-    expect(works.map(work => work.name)).toContain('보일러 점검');
+    schedules.forEach(schedule => expect(schedule.works).toEqual([]));
+    expect(pickCurrentWork(schedules[0].works, opened)).toBeUndefined();
+    histories.forEach(history =>
+      expect(history).toEqual({
+        works: [],
+        statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
+        totalCompleted: 0,
+      }),
+    );
+    // 전에 예시로 있던 작업 id(진행할 작업 101)도 볼 수 없는 작업이다
+    const error = await repository.getWorkDetail(101).catch(e => e);
+    expect(isUnavailableWork(error)).toBe(true);
     expect(api.server.calls).toHaveLength(0);
   });
 });

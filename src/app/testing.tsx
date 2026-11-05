@@ -10,7 +10,10 @@ import {
 import { saveSignedInStep } from '../features/onboarding/login';
 import type { NextStep } from '../features/onboarding/profileApi';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
-import { makeLocalSeed } from '../features/work/data/localSeed';
+import {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} from '../features/work/data/localSeedTesting';
 import type { WorkRepository } from '../features/work/data/types';
 import type { Session } from '../shared/api';
 import {
@@ -153,14 +156,15 @@ type AppOptions = {
   /** 앱을 켤 때 Keychain 에 남아 있는 세션. 없으면 로그아웃 상태 */
   session?: Session | null;
   now?: () => number;
-  /** 작업 저장소 (서버의 작업 상태). 없으면 지금 기준 처음 데이터의 로컬 저장소 */
+  /** 작업 저장소 (서버의 작업 상태). 없으면 지금 기준 테스트 시드의 로컬 저장소 */
   workRepository?: WorkRepository;
 };
 
-/** 지금 기준 처음 데이터의 로컬 작업 저장소 */
+/** 지금 기준 테스트 시드(features/work/data/localSeedTesting)의 로컬 작업 저장소. 운영 저장소는 빈 채로 시작한다 (#136) */
 export const testWorkRepository = () =>
   createLocalWorkRepository({
     seed: makeLocalSeed(new Date()),
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => new Date(),
   });
 

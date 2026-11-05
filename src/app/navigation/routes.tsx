@@ -296,6 +296,15 @@ export function WorkDetailRoute({
   // 남긴 초안은 입력이 있는 보고뿐이라(saveReportDraft) 이어 쓰면 처음부터 작성 중이다.
   // 화면이 알려 줄 때 바꾸면 열자마자 다시 그리게 된다
   const [hasUnsavedReport, setHasUnsavedReport] = useState(draft !== undefined);
+  // 볼 수 없는 작업(없어졌거나 예시 작업을 가리키던 옛 복원 상태, #136)에 남은 초안은 이어 쓸 곳이 없다.
+  // 기기에서 지우고 나갈 때 묻지 않는다 (거절 사유의 볼 수 없는 요청과 같다)
+  const unavailable =
+    detail.data === undefined && status.status === 'unavailable';
+  useEffect(() => {
+    if (unavailable) {
+      clearReportDraft(draftId);
+    }
+  }, [unavailable, draftId]);
 
   // '나가기' 로 작성 중인 보고를 버리기로 확정한 지점. 기기에 남긴 초안도 지운다.
   // 막았던 동작을 다시 보낸다. 한 번 확인을 거친 동작이라 이 화면에서 다시 막히지 않는다
@@ -307,7 +316,7 @@ export function WorkDetailRoute({
   // 작성 중인 보고가 있으면 화면을 스택에서 빼는 모든 동작에서 묻는다.
   // 포커스만 잃는 탭 이동은 화면을 빼지 않아(입력이 남음) 묻지 않는다.
   // iOS 스와이프는 끝까지 밀면 화면이 닫혔다가 다시 밀려 들어오며 묻는다
-  usePreventRemove(hasUnsavedReport, ({ data }) =>
+  usePreventRemove(hasUnsavedReport && !unavailable, ({ data }) =>
     confirmDiscardReport(() => discardReportAndLeave(data.action)),
   );
 

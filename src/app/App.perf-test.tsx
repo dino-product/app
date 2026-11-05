@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { measureRenders } from 'reassure';
 import { saveSignedInStep } from '../features/onboarding/login';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
-import { makeLocalSeed } from '../features/work/data/localSeed';
+import {
+  LOCAL_ORGANIZATION_NAME,
+  makeLocalSeed,
+} from '../features/work/data/localSeedTesting';
 import {
   myScheduleQuery,
   workDetailQuery,
@@ -43,6 +46,7 @@ async function prepareDevice(signedIn: boolean) {
   const now = new Date(APP_TEST_NOW);
   const workRepository = createLocalWorkRepository({
     seed: makeLocalSeed(now),
+    organizationName: LOCAL_ORGANIZATION_NAME,
     now: () => now,
   });
   // 진행할 작업을 시작해 둔다: 작업 상세는 작업중일 때 완료 보고 영역을 그린다 (이어 쓰는 보고로 다시 여는 경우를 잰다)
