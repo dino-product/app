@@ -221,6 +221,7 @@ async function openStartedWork() {
   await screen.findByRole('button', { name: '작업 전 사진 추가' });
 }
 
+// 결제 방식은 고르지 않은 채 시작한다 (#150)
 async function fillReport() {
   await userEvent.press(
     screen.getByRole('button', { name: '작업 전 사진 추가' }),
@@ -229,6 +230,8 @@ async function fillReport() {
     screen.getByRole('button', { name: '작업 후 사진 추가' }),
   );
   await userEvent.type(screen.getByLabelText('수행 메모 입력'), '교체');
+  await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 }
 
 describe('App — 기사 작업 API (#155)', () => {
@@ -244,6 +247,8 @@ describe('App — 기사 작업 API (#155)', () => {
       const server = await launch();
 
       expect(await findCurrentWork()).toBeOnTheScreen();
+      // 홈은 블록 보기(오늘)로 연다 (#147). 이번 주 일정 전체는 목록 보기다
+      await userEvent.press(screen.getByRole('button', { name: '목록 보기' }));
       expect(
         screen.getByRole('button', {
           name: /^보일러 점검, .*오르빗 설비 홍길동/,
@@ -498,8 +503,9 @@ describe('App — 기사 작업 API (#155)', () => {
     it('홈·내 일정·응답 필요는 오류가 아니라 빈 상태다', async () => {
       await launchWithoutTechnician();
 
+      // 홈은 블록 보기(오늘)로 연다 (#147)
       expect(
-        await screen.findByText('이번 주 일정이 없어요'),
+        await screen.findByText('이 날은 일정이 없어요'),
       ).toBeOnTheScreen();
       expect(
         screen.getByText('현재 진행 중인 작업이 없습니다'),
@@ -518,7 +524,7 @@ describe('App — 기사 작업 API (#155)', () => {
 
     it('작업 이력은 빈 상태이고 누적 완료는 알 수 없음(-)이다', async () => {
       await launchWithoutTechnician();
-      await screen.findByText('이번 주 일정이 없어요');
+      await screen.findByText('이 날은 일정이 없어요');
 
       await userEvent.press(tab('작업 이력'));
 
