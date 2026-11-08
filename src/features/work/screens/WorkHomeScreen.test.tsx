@@ -9,11 +9,13 @@ import {
 import { StyleSheet } from 'react-native';
 import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { appStorage } from '../../../shared/storage/appStorage';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import type { ScheduleItem } from '../model';
+import { HOME_VIEW_KEY, loadHomeView, saveHomeView } from '../homeView';
 import { WorkHomeScreen, type WorkHomeScreenProps } from './WorkHomeScreen';
 
 const renderHome = (overrides: Partial<WorkHomeScreenProps> = {}) =>
@@ -32,6 +34,9 @@ const renderHome = (overrides: Partial<WorkHomeScreenProps> = {}) =>
   );
 
 describe('WorkHomeScreen', () => {
+  // 이 묶음은 목록 보기 화면을 본다. 기본은 블록 보기라(#147) 목록 보기를 골라 둔 기기로 연다
+  beforeEach(() => saveHomeView('list'));
+
   // #96: Figma 메인화면에는 늘 종이 있고, 알림센터로 가는 버튼이다
   it('종은 알림센터 버튼이고 누르면 알림센터를 연다', async () => {
     const onOpenNotifications = jest.fn();
@@ -181,6 +186,9 @@ describe('WorkHomeScreen', () => {
 });
 
 describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)', () => {
+  // 목록 보기 프레임(3255:17530) 값을 본다. 기본은 블록 보기라(#147) 목록 보기를 골라 둔 기기로 연다
+  beforeEach(() => saveHomeView('list'));
+
   // #95: 하단 흐림을 빼면서 남던 아래 여백(83)도 정리한다. 화면은 탭 바 위에서 끝나 마지막 카드가 가려지지 않는다
   it('본문은 좌우 24 여백이고, 목록 끝은 아래 24 여백 뒤에서 끝난다', async () => {
     await renderHome();
@@ -283,10 +291,9 @@ describe('WorkHomeScreen 블록 보기', () => {
     item('b', '2026-09-19', '세탁기 설치'),
     item('c', '2026-09-19', '보일러 점검'),
   ];
-  const renderBlock = async (overrides: Partial<WorkHomeScreenProps> = {}) => {
-    await renderHome({ schedule, ...overrides });
-    await userEvent.press(toggle('블록 보기'));
-  };
+  // 저장한 보기가 없으면 블록 보기로 연다 (#147)
+  const renderBlock = (overrides: Partial<WorkHomeScreenProps> = {}) =>
+    renderHome({ schedule, ...overrides });
 
   const toggle = (name: '목록 보기' | '블록 보기') =>
     screen.getByRole('button', { name });
@@ -299,21 +306,30 @@ describe('WorkHomeScreen 블록 보기', () => {
       .map(card => card.props.accessibilityLabel.split(',')[0]);
 
   describe('보기 전환', () => {
-    it('처음은 목록 보기다. 목록 아이콘이 선택, 블록 아이콘이 비선택이고 날짜 칸이 없다', async () => {
-      await renderHome();
-
-      expect(toggle('목록 보기')).toBeSelected();
-      expect(toggle('블록 보기')).not.toBeSelected();
-      expect(days()).toHaveLength(0);
-    });
-
-    it('블록 아이콘을 누르면 블록 보기가 되고, 목록 아이콘을 누르면 되돌아간다', async () => {
+    // #147: 블록 보기가 기본이다
+    it('처음 설치(저장한 보기 없음)면 블록 보기다. 블록 아이콘이 선택, 목록 아이콘이 비선택이고 날짜 칸이 있다', async () => {
       await renderHome({ schedule });
 
-      await userEvent.press(toggle('블록 보기'));
       expect(toggle('블록 보기')).toBeSelected();
       expect(toggle('목록 보기')).not.toBeSelected();
       expect(days()).toHaveLength(7);
+      expect(cardTitles()).toEqual(['세탁기 설치', '보일러 점검']);
+    });
+
+    // Figma 메인화면 (목록 보기 3278:23342 등 · 블록 보기 3463:17530): 목록 아이콘이 왼쪽, 블록 아이콘이 오른쪽이다
+    it('전환 버튼은 목록 보기, 블록 보기 순서로 놓인다', async () => {
+      await renderHome();
+
+      expect(toggle('목록 보기').parent).toBe(toggle('블록 보기').parent);
+      expect(
+        toggle('목록 보기')
+          .parent?.children.filter(child => typeof child !== 'string')
+          .map(child => child.props.accessibilityLabel),
+      ).toEqual(['목록 보기', '블록 보기']);
+    });
+
+    it('목록 아이콘을 누르면 목록 보기가 되고, 블록 아이콘을 누르면 되돌아간다', async () => {
+      await renderHome({ schedule });
 
       await userEvent.press(toggle('목록 보기'));
       expect(toggle('목록 보기')).toBeSelected();
@@ -324,22 +340,69 @@ describe('WorkHomeScreen 블록 보기', () => {
         '세탁기 설치',
         '보일러 점검',
       ]);
+
+      await userEvent.press(toggle('블록 보기'));
+      expect(toggle('블록 보기')).toBeSelected();
+      expect(toggle('목록 보기')).not.toBeSelected();
+      expect(days()).toHaveLength(7);
+      expect(cardTitles()).toEqual(['세탁기 설치', '보일러 점검']);
+    });
+
+    // #147: 기사마다 선호가 달라 마지막으로 고른 보기를 기기에 남긴다
+    it.each([
+      ['목록 보기', 'list'],
+      ['블록 보기', 'block'],
+    ] as const)('저장한 보기가 %s 면 그 보기로 연다', async (name, saved) => {
+      saveHomeView(saved);
+      await renderHome({ schedule });
+
+      expect(toggle(name)).toBeSelected();
+      expect(days()).toHaveLength(saved === 'block' ? 7 : 0);
+    });
+
+    // 다시 열 때 읽는 것은 위 '저장한 보기가 … 면 그 보기로 연다', 앱을 끄고 다시 켜는 흐름은 App.restore.test 가 본다
+    it('고른 보기를 기기에 저장한다', async () => {
+      await renderHome({ schedule });
+
+      await userEvent.press(toggle('목록 보기'));
+      expect(loadHomeView()).toBe('list');
+
+      await userEvent.press(toggle('블록 보기'));
+      expect(loadHomeView()).toBe('block');
+    });
+
+    it('이미 고른 보기를 다시 누르면 기기에 다시 쓰지 않는다', async () => {
+      await renderHome({ schedule });
+      const write = jest.spyOn(appStorage, 'set');
+
+      await userEvent.press(toggle('블록 보기'));
+
+      expect(write).not.toHaveBeenCalled();
+      write.mockRestore();
+    });
+
+    it('저장한 값이 깨졌으면 블록 보기로 연다', async () => {
+      appStorage.set(HOME_VIEW_KEY, 'grid');
+      await renderHome({ schedule });
+
+      expect(toggle('블록 보기')).toBeSelected();
+      expect(days()).toHaveLength(7);
     });
 
     // Figma: 선택은 Primary 채움에 흰 아이콘, 비선택은 Gray100 채움에 Gray700 아이콘 (26, 모서리 6)
     it('선택한 보기 아이콘은 검정 채움, 다른 아이콘은 회색 채움이다', async () => {
       await renderHome();
 
-      expect(iconSvgIn(toggle('목록 보기')).props.xml).toBe(
-        iconSvgs['list-active'].xml,
-      );
-      expect(iconSvgIn(toggle('블록 보기')).props.xml).toBe(iconSvgs.grid.xml);
-
-      await userEvent.press(toggle('블록 보기'));
       expect(iconSvgIn(toggle('목록 보기')).props.xml).toBe(iconSvgs.list.xml);
       expect(iconSvgIn(toggle('블록 보기')).props.xml).toBe(
         iconSvgs['grid-active'].xml,
       );
+
+      await userEvent.press(toggle('목록 보기'));
+      expect(iconSvgIn(toggle('목록 보기')).props.xml).toBe(
+        iconSvgs['list-active'].xml,
+      );
+      expect(iconSvgIn(toggle('블록 보기')).props.xml).toBe(iconSvgs.grid.xml);
     });
 
     // 글자 크기 설정을 크게 해도 보기 전환 버튼이 화면 밖으로 밀리지 않도록 '일정'·주 표시 묶음이 줄어들고 줄바꿈된다
@@ -543,6 +606,8 @@ describe('WorkHomeScreen — 불러오기', () => {
     expect(
       screen.queryByText('현재 진행 중인 작업이 없습니다'),
     ).not.toBeOnTheScreen();
+    // 기본인 블록 보기의 빈 상태 문구와 목록 보기의 빈 상태 문구 둘 다 없다
+    expect(screen.queryByText('이 날은 일정이 없어요')).not.toBeOnTheScreen();
     expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
   });
 
@@ -609,7 +674,7 @@ describe('WorkHomeScreen — 날짜가 바뀌면', () => {
     const { rerender } = await render(
       <WorkHomeScreen {...props} today={new Date(2026, 8, 19)} />,
     );
-    await userEvent.press(screen.getByRole('button', { name: '블록 보기' }));
+    expect(screen.getByRole('button', { name: '블록 보기' })).toBeSelected();
 
     await rerender(<WorkHomeScreen {...props} today={new Date(2026, 8, 20)} />);
 

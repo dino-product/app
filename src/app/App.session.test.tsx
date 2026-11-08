@@ -20,6 +20,7 @@ import {
 } from '../features/onboarding/login';
 import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
+import { loadHomeView } from '../features/work/homeView';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { createTestApi } from '../shared/testing/renderWithApi';
 import { appStorage, readJson } from '../shared/storage/appStorage';
@@ -28,6 +29,7 @@ import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   accountProfile,
   accountServer,
+  findHomeLoaded,
   fixAppTestClock,
   LOGOUT_PATH,
   PROFILE_PATH,
@@ -641,6 +643,20 @@ describe('App — 로그아웃 (#113)', () => {
     expect(app.queryClient.getQueryData(['notifications'])).toBeUndefined();
     expect(readSignedInStep()).toBeNull();
     expect(draftKeys()).toEqual([]);
+  });
+
+  // #147: 홈 일정 보기(목록·블록)는 계정 데이터가 아니라 이 기기의 화면 설정이라 남긴다
+  it('홈에서 고른 일정 보기는 로그아웃해도 기기에 남는다', async () => {
+    await renderSignedInApp();
+    await findHomeLoaded();
+    await userEvent.press(screen.getByRole('button', { name: '목록 보기' }));
+
+    await logout();
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(loadHomeView()).toBe('list');
   });
 
   it('로그아웃 API 가 실패해도 기기 세션을 지우고 로그인 화면으로 간다', async () => {

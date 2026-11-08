@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import {
   expectIconButtonTouchTarget,
@@ -8,6 +8,7 @@ import {
   stylePt,
   type HostElement,
 } from '../../../shared/testing/touchTarget';
+import { saveHomeView } from '../homeView';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import { WorkHomeScreen } from './WorkHomeScreen';
 
@@ -34,10 +35,17 @@ describe('WorkHomeScreen 터치 영역', () => {
     expectIconButtonTouchTarget(button('알림센터'));
   });
 
-  // #94: 26 아이콘 두 개가 4 간격으로 붙어 있어, 서로 쪽으로는 간격의 반만, 바깥쪽으로 나머지를 넓힌다
-  it.each(['목록 보기', '블록 보기'])(
-    '%s 버튼은 26 아이콘 그대로 최소 터치 영역으로 넓힌다',
-    async name => {
+  // #94: 26 아이콘 두 개가 4 간격으로 붙어 있어, 서로 쪽으로는 간격의 반만, 바깥쪽으로 나머지를 넓힌다.
+  // #147: 기본(블록 보기)으로 열든 목록 보기를 골라 둔 기기로 열든 같다
+  it.each([
+    ['목록 보기', 'list'],
+    ['목록 보기', 'block'],
+    ['블록 보기', 'list'],
+    ['블록 보기', 'block'],
+  ] as const)(
+    '%s 버튼은 26 아이콘 그대로 최소 터치 영역으로 넓힌다 (%s 보기로 열었을 때)',
+    async (name, view) => {
+      saveHomeView(view);
       await renderHome();
 
       expectIconButtonTouchTarget(button(name));
@@ -74,9 +82,9 @@ describe('WorkHomeScreen 터치 영역', () => {
     // 칸 사이 간격보다 넓히면 옆 칸과 겹치고 겹친 곳은 옆 칸이 먼저 받는다 (ScheduleScreen 의 달력 칸과 같은 결정)
     const itOnIOS = Platform.OS === 'ios' ? it : it.skip;
 
+    // 저장한 보기가 없으면 블록 보기로 연다 (#147)
     const firstDay = async () => {
       await renderHome();
-      await userEvent.press(button('블록 보기'));
       return button('9월 15일 화요일');
     };
 
