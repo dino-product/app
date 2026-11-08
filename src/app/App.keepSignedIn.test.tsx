@@ -43,8 +43,8 @@ import {
 // 로그인 유지 (#138): 한 번 로그인한 기기는 앱을 완전히 종료했다 다시 켜도, 오래 두었다 켜도 로그인한 채로 있다.
 // 다른 앱 테스트(App.session)는 메모리 세션 저장소를 쓰지만, 여기서는 운영과 같은 Keychain 저장소(createKeychainTokenStore)로 켠다.
 // 켤 때마다 세션 관리자·서버 상태 캐시는 새로 만들고, 기기에 남는 것(Keychain 목·MMKV 목)만 이어져 콜드 스타트와 같다.
-// 가짜 서버는 백엔드 develop 의 기기 세션(HM-337 RefreshSession)처럼 재발급마다 refresh 를 회전하고,
-// 옛 refresh·30일 넘게 쓰지 않은 refresh·폐기된 세션은 401 AUTH-009 로 거절한다
+// 가짜 서버는 백엔드 develop 의 기기 세션(HM-337 RefreshSession)처럼 재발급마다 refresh 를 회전하고, 회전 뒤 30초 안에
+// 직전 refresh 가 다시 오면 같은 새 토큰을 다시 준다. 유예가 지난 옛 refresh·30일 넘게 쓰지 않은 refresh·폐기된 세션은 401 AUTH-009 로 거절한다
 fixAppTestClock();
 // 로그인 → 종료 → 다시 켜기를 여러 번 지나가 커버리지·병렬 실행에서 기본 5초를 넘을 수 있다 (App.onboarding.test 와 같다)
 jest.setTimeout(20_000);
@@ -61,6 +61,8 @@ const DAY_MS = 24 * HOUR_MS;
 /** 백엔드 기본값: access 1시간(AUTH_ACCESS_TOKEN_TTL PT1H), refresh 미사용 수명 30일(AUTH_REFRESH_TOKEN_IDLE_LIFETIME P30D) */
 const ACCESS_TTL_MS = HOUR_MS;
 const REFRESH_IDLE_MS = 30 * DAY_MS;
+/** 회전 뒤 직전 refresh 를 다시 받아 주는 시간 (RefreshSession.REPLAY_GRACE) */
+const REPLAY_GRACE_MS = 30 * SECOND_MS;
 
 // 백엔드가 주는 모양의 토큰. refresh 는 '<세션 식별자 UUID 36자>.<비밀값 base64url 43자>' (RefreshTokenValue)
 const DEVICE_SESSION_ID = '7f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b';
@@ -81,21 +83,34 @@ const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
  * 로그인·가입 단계·마이·로그아웃·탈퇴 경로는 accountServer 가 준다
  */
 function deviceSessionServer({ nextStep }: { nextStep?: NextStep } = {}) {
+  const tokensOf = (n: number) => ({
+    accessToken: accessToken(n),
+    accessTokenExpiresAt: instantAfter(ACCESS_TTL_MS),
+    refreshToken: refreshToken(n),
+    refreshTokenExpiresAt: instantAfter(REFRESH_IDLE_MS),
+  });
   let issued = 0;
-  // 지금 쓸 수 있는 refresh 와 그 만료 시각. 로그아웃·탈퇴·폐기로 세션이 없으면 null
-  let current: { token: string; expiresAt: number } | null = null;
-  const issue = () => {
+  // 기기 세션: 지금 refresh 와 그 만료 시각, 마지막으로 준 토큰, 회전 직전 refresh 와 회전 시각(유예).
+  // 로그아웃·탈퇴·폐기로 세션이 없으면 null
+  let current: {
+    token: string;
+    expiresAt: number;
+    tokens: ReturnType<typeof tokensOf>;
+    previous?: { token: string; rotatedAt: number };
+  } | null = null;
+  const issue = (rotatedFrom?: string) => {
     issued += 1;
+    const tokens = tokensOf(issued);
     current = {
-      token: refreshToken(issued),
+      token: tokens.refreshToken,
       expiresAt: Date.now() + REFRESH_IDLE_MS,
+      tokens,
+      previous:
+        rotatedFrom === undefined
+          ? undefined
+          : { token: rotatedFrom, rotatedAt: Date.now() },
     };
-    return {
-      accessToken: accessToken(issued),
-      accessTokenExpiresAt: instantAfter(ACCESS_TTL_MS),
-      refreshToken: current.token,
-      refreshTokenExpiresAt: instantAfter(REFRESH_IDLE_MS),
-    };
+    return tokens;
   };
   const server = accountServer({ nextStep })
     .on('POST', KAKAO_LOGIN_PATH, () =>
@@ -104,18 +119,26 @@ function deviceSessionServer({ nextStep }: { nextStep?: NextStep } = {}) {
     // RefreshedTokensResponse 는 accountId·registered 없이 토큰 네 값만 준다
     .on('POST', REFRESH_PATH, call => {
       const presented = (call.body as { refreshToken?: unknown }).refreshToken;
-      if (
-        current === null ||
-        presented !== current.token ||
-        Date.now() >= current.expiresAt
-      ) {
-        current = null;
-        return fail(401, 'AUTH-009', {
-          message:
-            '로그인 유지 정보가 유효하지 않거나 만료되었습니다. 다시 로그인해 주세요.',
-        });
+      if (current !== null && Date.now() < current.expiresAt) {
+        // ROTATED: 지금 refresh 면 다음 토큰으로 회전한다
+        if (presented === current.token) {
+          return ok(issue(current.token));
+        }
+        // REPLAYED: 회전 뒤 30초 안에 직전 refresh 가 다시 오면(동시 요청·응답 유실) 이미 준 새 토큰을 다시 준다
+        if (
+          current.previous !== undefined &&
+          presented === current.previous.token &&
+          Date.now() < current.previous.rotatedAt + REPLAY_GRACE_MS
+        ) {
+          return ok(current.tokens);
+        }
       }
-      return ok(issue());
+      // EXPIRED·REUSED(유예가 지난 옛 refresh)·없는 세션: 세션을 지우고 거절한다
+      current = null;
+      return fail(401, 'AUTH-009', {
+        message:
+          '로그인 유지 정보가 유효하지 않거나 만료되었습니다. 다시 로그인해 주세요.',
+      });
     })
     .on('POST', LOGOUT_PATH, () => {
       current = null;
@@ -130,8 +153,9 @@ function deviceSessionServer({ nextStep }: { nextStep?: NextStep } = {}) {
   };
 }
 
-// 기기의 네트워크. 끊기면 요청이 서버에 닿지 못하고 fetch 가 실패한다
-const network = { online: true, failed: 0 };
+// 기기의 네트워크. 끊기면 요청이 서버에 닿지 못하고 fetch 가 실패한다.
+// lostResponses 만큼은 요청이 서버에 닿아 처리된 뒤 응답을 잃는다 (약한 신호 등)
+const network = { online: true, failed: 0, lostResponses: 0 };
 
 /**
  * 앱을 켠다. 운영과 같은 Keychain 세션 저장소로, 세션 관리자·서버 상태 캐시는 새로 만든다
@@ -142,12 +166,17 @@ async function coldStart(server: FakeServer) {
   const client = createApiClient({
     baseUrl: server.baseUrl,
     tokenStore: createKeychainTokenStore(),
-    fetch: (input, init) => {
+    fetch: async (input, init) => {
       if (!network.online) {
         network.failed += 1;
-        return Promise.reject(new TypeError('Network request failed'));
+        throw new TypeError('Network request failed');
       }
-      return server.fetch(input, init);
+      const response = await server.fetch(input, init);
+      if (network.lostResponses > 0) {
+        network.lostResponses -= 1;
+        throw new TypeError('Network request failed');
+      }
+      return response;
     },
   });
   const view = await render(
@@ -201,6 +230,7 @@ const pressAlertButton = async (
 beforeEach(() => {
   network.online = true;
   network.failed = 0;
+  network.lostResponses = 0;
 });
 
 afterEach(() => {
@@ -423,7 +453,70 @@ describe('App — 로그인 유지 (#138)', () => {
       expect(await keychainSession()).toEqual(sessionOf(2));
       expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
     });
+
+    it('서버는 회전했는데 재발급 응답을 잃으면 1초 뒤 같은 refresh 로 다시 받아(유예 30초) 그 새 토큰을 저장하고, 다음 실행도 이어 간다', async () => {
+      const alert = spyAlert();
+      const { server } = deviceSessionServer();
+      await signInOnce(server);
+      elapse(2 * HOUR_MS);
+      network.lostResponses = 1;
+
+      const app = await coldStart(server);
+
+      await waitFor(
+        () => expect(server.callsTo('GET', PROFILE_PATH)).toHaveLength(2),
+        { timeout: 5000 },
+      );
+      expect(
+        server.callsTo('POST', REFRESH_PATH).map(call => call.body),
+      ).toEqual([
+        { refreshToken: refreshToken(1) },
+        { refreshToken: refreshToken(1) },
+      ]);
+      expect(await keychainSession()).toEqual(sessionOf(2));
+
+      // 옛 refresh 를 남겨 두었다면 유예가 지난 다음 실행에서 재사용으로 거절된다
+      await app.unmount();
+      elapse(2 * HOUR_MS);
+      await coldStart(server);
+
+      await waitFor(() =>
+        expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(3),
+      );
+      expect(server.callsTo('POST', REFRESH_PATH)[2].body).toEqual({
+        refreshToken: refreshToken(2),
+      });
+      await waitFor(async () =>
+        expect(await keychainSession()).toEqual(sessionOf(3)),
+      );
+      expect(header(HOME_TITLE)).toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
+    });
   });
+
+  it.each([
+    ['켤 때 재발급이 5xx 면', 2 * HOUR_MS, REFRESH_PATH, 'POST'] as const,
+    ['켤 때 계정 확인이 5xx 면', 0, PROFILE_PATH, 'GET'] as const,
+  ])(
+    '%s 서버에 닿지 못한 것으로 보고 로그아웃하지 않고 메인에 머문다',
+    async (_, closedFor, path, method) => {
+      const alert = spyAlert();
+      const { server } = deviceSessionServer();
+      await signInOnce(server);
+      elapse(closedFor);
+      server.on(method, path, fail(500, 'COMMON-500'));
+
+      await coldStart(server);
+
+      await waitFor(() => expect(server.callsTo(method, path)).not.toEqual([]));
+      await act(async () => {});
+      expect(header(HOME_TITLE)).toBeOnTheScreen();
+      expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
+      expect(alert).not.toHaveBeenCalled();
+      expect(readSignedInStep()).toBe('COMPLETED');
+      expect(await keychainSession()).toEqual(sessionOf(1));
+    },
+  );
 
   it('네트워크가 없으면 켤 때 로그아웃하지 않고 메인에 머물며, 연결된 뒤 지금 화면에서 다시 시도하면 재발급해 이어 간다', async () => {
     const alert = spyAlert();
@@ -451,8 +544,12 @@ describe('App — 로그인 유지 (#138)', () => {
     expect(header(LOGIN_TITLE)).not.toBeOnTheScreen();
 
     network.online = true;
-    for (const retry of screen.getAllByRole('button', { name: '다시 시도' })) {
+    // 영역(프로필·소속 등)마다 다시 시도한다. 받아 오면 그 영역의 버튼이 사라지므로 누를 때마다 다시 찾는다
+    const retryButtons = () =>
+      screen.queryAllByRole('button', { name: '다시 시도' });
+    for (let retry = retryButtons()[0]; retry; retry = retryButtons()[0]) {
       await userEvent.press(retry);
+      await waitFor(() => expect(retryButtons()).not.toContain(retry));
     }
 
     expect(
