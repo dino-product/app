@@ -12,7 +12,7 @@ import {
   StatusChip,
   Text,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import {
   completedWorkA11yLabel,
   formatWorkTime,

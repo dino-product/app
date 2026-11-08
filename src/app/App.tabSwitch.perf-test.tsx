@@ -1,7 +1,7 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ComponentType, ReactNode } from 'react';
 import { swipeFrom } from '../../jest/responder';
-import { SWITCH_DISTANCE } from '../shared/gestures/tabSwipe';
+import { SWITCH_DISTANCE } from '../shared/gesture/tabSwipe';
 import { fixAppTestClock, renderSignedInHome } from './testing';
 
 // 탭 전환 렌더 예산 (#114·#115 리뷰). 탭 첫 화면(내 작업·내 일정·작업 이력·마이페이지)은 포커스를 잃으면 조회 구독을 멈추고(useIsFocused)

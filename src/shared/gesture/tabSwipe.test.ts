@@ -1,6 +1,5 @@
 import {
   COMPONENT_SLACK,
-  DIRECTION_LOCK,
   EDGE_BAND,
   SWITCH_DISTANCE,
   decideTabSwipe,
@@ -8,6 +7,7 @@ import {
   startOwner,
   swipeDirection,
 } from './tabSwipe';
+import { AXIS_DECISION_DISTANCE, decidePanAxis } from './panAxis';
 
 const WINDOW_WIDTH = 390;
 // 화면 가운데 놓인 카드 (좌우 여백 80, 가장자리 띠 밖)
@@ -117,14 +117,15 @@ describe('decideTabSwipe — 손바닥 오작동 방지', () => {
   it('방향을 정할 만큼 움직이기 전에는 기다린다', () => {
     expect(decideTabSwipe({ dx: 0, dy: 0, touches: 1 })).toBe('wait');
     expect(
-      decideTabSwipe({ dx: -(DIRECTION_LOCK - 1), dy: 0, touches: 1 }),
+      // 방향은 공용 규칙(decidePanAxis)대로 10pt 를 넘어야 정한다
+      decideTabSwipe({ dx: -AXIS_DECISION_DISTANCE, dy: 0, touches: 1 }),
     ).toBe('wait');
   });
 
   it('가로로 정해졌지만 임계값에 못 미치면 따라가기만 한다 (아직 바꾸지 않는다)', () => {
-    expect(decideTabSwipe({ dx: -DIRECTION_LOCK, dy: 0, touches: 1 })).toBe(
-      'track',
-    );
+    expect(
+      decideTabSwipe({ dx: -(AXIS_DECISION_DISTANCE + 1), dy: 0, touches: 1 }),
+    ).toBe('track');
     expect(
       decideTabSwipe({ dx: -(SWITCH_DISTANCE - 1), dy: 0, touches: 1 }),
     ).toBe('track');
@@ -151,22 +152,45 @@ describe('decideTabSwipe — 손바닥 오작동 방지', () => {
   });
 
   it('세로로 먼저 움직이면 이번 제스처는 탭 전환이 아니다', () => {
-    expect(decideTabSwipe({ dx: 0, dy: DIRECTION_LOCK, touches: 1 })).toBe(
-      'ignore',
-    );
-    expect(decideTabSwipe({ dx: 4, dy: -DIRECTION_LOCK, touches: 1 })).toBe(
-      'ignore',
-    );
+    expect(
+      decideTabSwipe({ dx: 0, dy: AXIS_DECISION_DISTANCE + 1, touches: 1 }),
+    ).toBe('ignore');
+    expect(
+      decideTabSwipe({ dx: 4, dy: -(AXIS_DECISION_DISTANCE + 1), touches: 1 }),
+    ).toBe('ignore');
   });
 
   it('방향을 정하기 전의 작은 흔들림은 기다린다', () => {
-    expect(decideTabSwipe({ dx: 2, dy: DIRECTION_LOCK - 1, touches: 1 })).toBe(
-      'wait',
-    );
+    expect(
+      decideTabSwipe({ dx: 2, dy: AXIS_DECISION_DISTANCE, touches: 1 }),
+    ).toBe('wait');
   });
 
   it('두 손가락 이상이면 무시한다', () => {
     expect(decideTabSwipe({ dx: -200, dy: 0, touches: 2 })).toBe('ignore');
+  });
+});
+
+describe('decideTabSwipe — 방향 판정은 공용 규칙(decidePanAxis)과 같다', () => {
+  it('공용 규칙이 가로로 정한 손길(30° 안쪽)만 탭 전환 후보다', () => {
+    // 같은 이동을 두 규칙에 넣는다. 탭 밀기는 공용 규칙을 수평 30° 로 좁혀 쓴다
+    const moves = [
+      { dx: 11, dy: 0 },
+      { dx: 20, dy: 11 },
+      { dx: 20, dy: 12 },
+      { dx: 5, dy: 11 },
+      { dx: -70, dy: 39 },
+      { dx: -70, dy: 41 },
+    ];
+    for (const { dx, dy } of moves) {
+      const axis = decidePanAxis(dx, dy, { horizontalMaxAngle: 30 });
+      const decision = decideTabSwipe({ dx, dy, touches: 1 });
+      expect([dx, dy, decision === 'ignore']).toEqual([
+        dx,
+        dy,
+        axis === 'vertical',
+      ]);
+    }
   });
 });
 

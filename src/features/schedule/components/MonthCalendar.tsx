@@ -12,7 +12,7 @@ import {
   Text,
   touchSlop,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import {
   addMonths,

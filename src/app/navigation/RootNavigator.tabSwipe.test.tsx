@@ -12,7 +12,7 @@ import {
   EDGE_BAND,
   SWITCH_DISTANCE,
   type Rect,
-} from '../../shared/gestures/tabSwipe';
+} from '../../shared/gesture/tabSwipe';
 import {
   CURRENT_WORK_TITLE,
   fixAppTestClock,

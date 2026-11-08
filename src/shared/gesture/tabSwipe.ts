@@ -11,8 +11,11 @@
 // - 한 손가락으로, 가로로 SWITCH_DISTANCE 이상, 수평에서 MAX_SWIPE_ANGLE 안쪽으로 움직였을 때만. 그 전에는 아무 일도 없다
 // - 방향이 가로로 정해지면(track) 응답자는 먼저 잡는다. Android 세로 리스트는 세로로 터치 슬롭(약 8dp)만 움직여도 가로 성분과
 //   상관없이 터치를 가져가므로, 임계값까지 기다리면 엄지로 호를 그리며 민 손길을 놓친다. 탭은 여전히 임계값에서 바꾼다
-// - 방향이 정해질 만큼(DIRECTION_LOCK) 움직였는데 가로가 확실히 크지 않으면(세로 우세·세로 먼저) 그 제스처는 끝까지 탭 전환이 아니다
+// - 방향은 리스트 안 가로 밀기 공용 규칙(panAxis.ts, #144)으로 정한다. 10pt 를 넘게 움직였을 때 가로가 확실히 크지 않으면
+//   (수평 30° 밖: 세로 우세·세로 먼저) 그 제스처는 끝까지 탭 전환이 아니다. 달력 넘김(45°)보다 좁혀 손바닥 비빔을 거른다
 // - 두 손가락 이상이 닿으면 그 제스처는 무시한다
+
+import { decidePanAxis } from './panAxis';
 
 export type GestureOwner = 'tab' | 'component';
 /** next: 오른쪽 탭으로 (손가락을 왼쪽으로 민다), prev: 왼쪽 탭으로 */
@@ -47,11 +50,8 @@ export const COMPONENT_SLACK = 12;
  * 띠 폭과 따로 실기기 체감으로 조정한다
  */
 export const SWITCH_DISTANCE = 58;
-/** 이만큼 움직이면 방향을 정한다 (pt). 날짜 탭과 밀기를 가르는 기존 기준(useHorizontalSwipe)과 같다 */
-export const DIRECTION_LOCK = 10;
 /** 수평에서 이 각도(°) 안쪽이어야 가로가 세로보다 확실히 큰 것으로 본다 */
 const MAX_SWIPE_ANGLE = 30;
-const MIN_HORIZONTAL_RATIO = 1 / Math.tan((MAX_SWIPE_ANGLE * Math.PI) / 180);
 
 /**
  * 터치를 시작한 자리로 이번 밀기의 주인을 정한다.
@@ -92,16 +92,15 @@ export function decideTabSwipe({
   if (touches > 1) {
     return 'ignore';
   }
-  const horizontal = Math.abs(dx);
-  const vertical = Math.abs(dy);
-  const clearlyHorizontal = horizontal >= vertical * MIN_HORIZONTAL_RATIO;
-  if (Math.max(horizontal, vertical) < DIRECTION_LOCK) {
+  // 시작점에서 지금까지의 이동으로 매번 본다. 한 번 세로로 기울면(ignore) 부르는 쪽이 그 제스처를 끝낸다
+  const axis = decidePanAxis(dx, dy, { horizontalMaxAngle: MAX_SWIPE_ANGLE });
+  if (axis === null) {
     return 'wait';
   }
-  if (!clearlyHorizontal) {
+  if (axis === 'vertical') {
     return 'ignore';
   }
-  return horizontal >= SWITCH_DISTANCE ? 'switch' : 'track';
+  return Math.abs(dx) >= SWITCH_DISTANCE ? 'switch' : 'track';
 }
 
 /** 손가락을 왼쪽으로 밀면(dx < 0) 오른쪽 탭으로 간다 */

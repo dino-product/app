@@ -14,7 +14,7 @@ import {
   Text,
   workStatusLabels,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 
 // 내 일정 목록의 행 (확정 일정) 과 카드 (응답 필요). Figma 2714:12918, 2367:12834

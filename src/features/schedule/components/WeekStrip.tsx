@@ -7,7 +7,7 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 import { colors, Text } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, dayColor, weekA11yLabel } from './calendarDay';

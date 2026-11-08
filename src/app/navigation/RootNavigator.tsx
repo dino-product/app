@@ -22,8 +22,8 @@ import { useReduceMotionEnabled } from '../../shared/accessibility/useReduceMoti
 import {
   neighborIndex,
   type SwipeDirection,
-} from '../../shared/gestures/tabSwipe';
-import { TabSwipeArea } from '../../shared/gestures/TabSwipeArea';
+} from '../../shared/gesture/tabSwipe';
+import { TabSwipeArea } from '../../shared/gesture/TabSwipeArea';
 import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {

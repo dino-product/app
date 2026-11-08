@@ -18,7 +18,7 @@ import {
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';

@@ -7,7 +7,7 @@ import {
   Text,
   type DropShadow,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import type { CurrentWork } from '../model';
 
 // 작업이 있을 때와 없을 때 같은 Figma 프레임의 드롭 섀도

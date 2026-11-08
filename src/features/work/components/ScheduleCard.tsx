@@ -12,7 +12,7 @@ import {
   Text,
   workStatusLabels,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import type { ScheduleItem } from '../model';
 
 // 메인화면 주간 일정 카드. 칩은 제목·시간 묶음 오른쪽 위에 붙는다
