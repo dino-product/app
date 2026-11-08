@@ -15,6 +15,7 @@ import {
   Text,
   workStatusLabels,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 
 // 내 일정 목록의 카드: 확정 일정 (Figma 3754:6312) 과 응답 필요 (3754:6846).
@@ -76,6 +77,8 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   /** 리스트가 주는 바깥 여백 */
   style?: StyleProp<ViewStyle>;
 }) {
+  // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (#140). 카드끼리 12 떨어져 있어 위·아래 변에도 여유를 둔다
+  const tabSwipe = useTabSwipeRegion();
   const label = `${item.title}, ${workStatusLabels[item.status]}, ${
     item.timeRange
   } ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`;
@@ -94,6 +97,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onPress(item.id)}
+      onTouchStart={tabSwipe.onTouchStart}
       style={state => [confirmedCardStyle(state), style]}
     >
       {content}
@@ -118,8 +122,10 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   /** 이 요청의 수락을 보내는 동안 거절·수락을 잠근다 */
   disabled?: boolean;
 }) {
+  // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (#140)
+  const tabSwipe = useTabSwipeRegion();
   return (
-    <View style={styles.pendingCard}>
+    <View style={styles.pendingCard} onTouchStart={tabSwipe.onTouchStart}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${item.title} 상세, ${item.timeRange} ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`}

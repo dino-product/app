@@ -8,12 +8,12 @@ import type {
 // RNTL fireEvent 는 터치 시작을 거절하는 응답자(움직인 뒤에야 응답자가 되는 PanResponder)의
 // 이벤트를 막으므로, 화면 요소의 props 에서 핸들러를 꺼내 직접 부른다.
 
-type Point = { x: number; y: number };
+export type Point = { x: number; y: number };
 
 const FRAME_MS = 16;
 
 /** 손가락 fingers 개가 prev 에서 current 로 함께 움직인 이벤트. otherTouches 는 화면 다른 곳에 닿아 있는 손가락 */
-function touchEvent(
+export function touchEvent(
   prev: Point,
   current: Point,
   step: number,
