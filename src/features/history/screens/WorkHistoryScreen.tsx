@@ -187,10 +187,14 @@ function WorkHistoryScreenView({
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
   // 목록 영역(리스트에서 보이는 머리를 뺀 아래쪽) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
   // 머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다. 세로 우세면 리스트가 스크롤한다
+  const barRef = useRef<ViewInstance>(null);
   const headerRef = useRef<ViewInstance>(null);
   const listRegion = useTabSwipeRegion({
     measure: target =>
-      rowsArea(measureElement(target), measureElement(headerRef.current)),
+      rowsArea(measureElement(target), [
+        measureElement(barRef.current),
+        measureElement(headerRef.current),
+      ]),
   });
   const monthSwipe = useSwipeSwitch({
     canSwipe: listRegion.ownsGesture,
@@ -229,7 +233,11 @@ function WorkHistoryScreenView({
 
   // 화살표가 위아래로 넓힌 터치 영역이 리스트 밖으로 나가지 않도록 월 선택도 리스트 머리에 둔다
   const header = (
-    <View ref={headerRef} style={styles.header}>
+    <View
+      ref={headerRef}
+      testID="work-history-list-header"
+      style={styles.header}
+    >
       <MonthSwitcher
         title={formatMonthTitle(viewMonth.year, viewMonth.month)}
         canGoNext={canGoNext}
@@ -253,7 +261,12 @@ function WorkHistoryScreenView({
       {/* 탭 첫 화면 공통 상단 바 (#103). Figma 작업이력 (기본) 2751:6982 에는 종이 없다 */}
       <AutoHideHeaderLayout
         autoHide={autoHide}
-        header={<TabHeader title="작업 이력" />}
+        header={
+          // 겹쳐 그린 상단 바의 자리를 재려고 감싼다. 빈 곳 터치는 그대로 아래 리스트로 통과한다
+          <View ref={barRef} testID="work-history-bar" style={styles.bar}>
+            <TabHeader title="작업 이력" />
+          </View>
+        }
         style={styles.headerBar}
       >
         <View
@@ -331,6 +344,7 @@ const styles = StyleSheet.create({
   // 상단 바는 리스트 위에 겹쳐 그려 내용이 그 아래로 지나간다. 화면 배경으로 가린다 (#148)
   headerBar: { backgroundColor: colors.white[100] },
   list: { flex: 1 },
+  bar: { pointerEvents: 'box-none' },
   header: {
     gap: 24,
     paddingTop: 14,

@@ -79,6 +79,20 @@ const swipeRows = (
   element: HostElement = rows()[0],
 ) => swipeFrom(element, { from: { x: 200, y: 500 }, ...options });
 
+/** 목록 영역을 밀어 달을 옮기는 뷰 (리스트를 감싼다) */
+function monthSwipeArea(): HostElement {
+  for (
+    let node: HostElement | null = screen.getByTestId('work-history-list');
+    node;
+    node = node.parent
+  ) {
+    if (node.props.onTouchStartCapture && node.props.onMoveShouldSetResponder) {
+      return node;
+    }
+  }
+  throw new Error('목록 영역을 찾지 못했다');
+}
+
 /** 요소를 품은 목록 칸이 옮겨진 거리. 리스트에 닿기 전까지 transform 을 찾는다 */
 function shiftOf(element: HostElement) {
   for (let node: HostElement | null = element; node; node = node.parent) {
@@ -307,7 +321,9 @@ describe('WorkHistoryScreen — 좌우로 밀어 월 이동 (#153)', () => {
   it('세로 우세로 움직이면(목록 스크롤) 달은 그대로다', async () => {
     await renderHistory();
 
-    await swipeRows({ dx: FAR, dy: 160 });
+    // 목록 영역(월 넘김)이 응답자를 잡지 않아 리스트가 그대로 스크롤한다
+    const monthArea = monthSwipeArea();
+    expect(await swipeRows({ dx: FAR, dy: 160 })).not.toBe(monthArea.props);
     await swipeRows({
       path: [
         { x: 0, y: 0 },
@@ -320,12 +336,24 @@ describe('WorkHistoryScreen — 좌우로 밀어 월 이동 (#153)', () => {
   });
 
   it('짧게 밀거나 두 손가락이면 아무 일도 없다', async () => {
-    await renderHistory();
+    const onOpenWork = jest.fn();
+    await renderHistory({ onOpenWork });
 
     await swipeRows({ dx: SWITCH_DISTANCE - 10 });
+    // 가로로 정해진 짧은 밀기는 목록이 응답자를 잡아 행 누르기가 되지 않는다
+    expect(onOpenWork).not.toHaveBeenCalled();
     await swipeRows({ dx: FAR, fingers: 2 });
 
     expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+  });
+
+  it('그 달을 불러오는 중에도 목록 자리를 밀어 옮긴다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ load: { status: 'loading' }, onMonthChange });
+
+    await swipeRows({ dx: FAR }, screen.getByTestId('work-history-list'));
+
+    expect(onMonthChange).toHaveBeenCalledWith({ year: 2026, month: 7 });
   });
 
   it('밀면 행이 눌리지 않고, 행을 누르면 지금처럼 그 작업 상세를 연다', async () => {

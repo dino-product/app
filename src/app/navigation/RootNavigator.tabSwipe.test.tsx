@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { holdNativeAnimations } from '../../../jest/nativeAnimation';
 import { swipeFrom } from '../../../jest/responder';
+import * as tabSwipeArea from '../../shared/gesture/TabSwipeArea';
 import {
   COMPONENT_SLACK,
   EDGE_BAND,
@@ -185,6 +186,61 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
       from: { x: windowWidth() / 2, y: 450 },
       dx: FAR,
     });
+    expectSelected('history');
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+  });
+
+  it('작업 이력 목록 영역은 보이는 상단 바·머리(월 선택·요약 카드)를 뺀 아래쪽이다 — 머리에서 밀면 탭, 그 아래 행에서 밀면 달 (#153)', async () => {
+    // 화면 위 자리: 리스트 50~650 위에 상단 바(50~100)가 겹치고, 그 아래 머리(100~320), 그 아래 행
+    const list = { x: 0, y: 50, width: windowWidth(), height: 600 };
+    const covers: Record<string, Rect> = {
+      'work-history-bar': { x: 0, y: 50, width: windowWidth(), height: 50 },
+      'work-history-list-header': {
+        x: 0,
+        y: 100,
+        width: windowWidth(),
+        height: 220,
+      },
+    };
+    // 테스트 렌더러에는 화면 위 사각형이 없다. 목록 영역을 잴 때 쓰는 공용 함수가 덮개(testID)의 자리를 돌려주게 한다
+    const measure = tabSwipeArea.measureElement;
+    jest
+      .spyOn(tabSwipeArea, 'measureElement')
+      .mockImplementation(
+        target =>
+          covers[
+            (target as { props?: { testID?: string } } | null)?.props?.testID ??
+              ''
+          ] ?? measure(target),
+      );
+    await renderSignedInHome();
+    const openHistory = async () => {
+      await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
+      await screen.findAllByRole('button', { name: /, 완료, / });
+    };
+    const swipeHistory = (element: HostElement, y: number) =>
+      swipeOn(element, list, { from: { x: windowWidth() / 2, y }, dx: FAR });
+
+    // 머리(요약 카드)에서 시작: 목록 영역 밖이라 탭이 바뀐다
+    await openHistory();
+    await swipeHistory(screen.getByLabelText(/^누적 완료/), 200);
+    expectSelected('schedule');
+
+    // 머리가 스크롤로 다 올라가도, 보이는 상단 바의 빈 곳을 지나 리스트에 닿은 터치는 목록 영역 밖이다
+    await openHistory();
+    // 앞에서 민 것으로 달이 바뀌지 않았다
+    expect(screen.getByText('2026년 10월')).toBeOnTheScreen();
+    covers['work-history-list-header'] = {
+      ...covers['work-history-list-header'],
+      y: -300,
+    };
+    await swipeHistory(screen.getByTestId('work-history-list'), 80);
+    expectSelected('schedule');
+
+    // 머리 아래 행 안쪽에서 시작: 달을 옮긴다
+    await openHistory();
+    const [row] = screen.getAllByRole('button', { name: /, 완료, / });
+    await swipeHistory(row, 450);
     expectSelected('history');
     expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
   });

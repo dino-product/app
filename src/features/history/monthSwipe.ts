@@ -1,22 +1,29 @@
 import type { Rect, SwipeDirection } from '../../shared/gesture/tabSwipe';
 
 // 작업 이력 목록을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·같은 영역 규칙(useTabSwipeRegion)을 쓴다.
-// 월 넘김 판정 영역은 '목록 영역' — 리스트에서 화면에 보이는 머리(월 선택·요약 카드)를 뺀 아래쪽이다. 영역 규칙이 그 가장자리에서
-// 조금(COMPONENT_SLACK) 안쪽부터만 월 넘김으로 보고, 가장자리 여유·화면 가장자리 띠·머리·배경에서 시작한 밀기는 탭 전환에 맡긴다.
+// 월 넘김 판정 영역은 '목록 영역' — 리스트에서 그 위를 덮은 것(겹쳐 그린 상단 바 #148, 리스트 머리인 월 선택·요약 카드)이
+// 화면에 보이는 만큼을 뺀 아래쪽이다. 영역 규칙이 그 가장자리에서 조금(COMPONENT_SLACK) 안쪽부터만 월 넘김으로 보고,
+// 가장자리 여유·화면 가장자리 띠·머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다.
+// 상단 바는 빈 곳의 터치를 아래 리스트로 통과시키므로(box-none) 보이는 동안은 그 자리도 빼야 한다.
 
 /**
- * 월 넘김 판정 영역 (화면 좌표). list 는 리스트(스크롤 뷰) 사각형, header 는 리스트 머리 사각형이다.
- * 머리는 리스트와 함께 스크롤되므로 화면에 보이는 만큼만 뺀다. 머리를 잴 수 없으면 리스트 전체, 리스트를 잴 수 없으면 null
+ * 월 넘김 판정 영역 (화면 좌표). list 는 리스트(스크롤 뷰) 사각형, covers 는 리스트 위쪽을 덮는 것들(상단 바·리스트 머리)이다.
+ * 덮는 것들은 스크롤·자동 숨김으로 위로 올라가므로 아래 끝이 가장 낮은 것까지 뺀다. 잴 수 없는 것은 빼지 않고,
+ * 리스트를 잴 수 없으면 null
  */
-export function rowsArea(list: Rect | null, header: Rect | null): Rect | null {
+export function rowsArea(
+  list: Rect | null,
+  covers: readonly (Rect | null)[],
+): Rect | null {
   if (list === null) {
     return null;
   }
-  if (header === null) {
-    return list;
-  }
-  const top = Math.max(list.y, header.y + header.height);
   const bottom = list.y + list.height;
+  const top = covers.reduce(
+    (lowest, cover) =>
+      cover === null ? lowest : Math.max(lowest, cover.y + cover.height),
+    list.y,
+  );
   return {
     x: list.x,
     y: Math.min(top, bottom),
