@@ -371,6 +371,16 @@ describe('WorkHomeScreen 블록 보기', () => {
       expect(loadHomeView()).toBe('block');
     });
 
+    it('이미 고른 보기를 다시 누르면 기기에 다시 쓰지 않는다', async () => {
+      await renderHome({ schedule });
+      const write = jest.spyOn(appStorage, 'set');
+
+      await userEvent.press(toggle('블록 보기'));
+
+      expect(write).not.toHaveBeenCalled();
+      write.mockRestore();
+    });
+
     it('저장한 값이 깨졌으면 블록 보기로 연다', async () => {
       appStorage.set(HOME_VIEW_KEY, 'grid');
       await renderHome({ schedule });
@@ -596,6 +606,8 @@ describe('WorkHomeScreen — 불러오기', () => {
     expect(
       screen.queryByText('현재 진행 중인 작업이 없습니다'),
     ).not.toBeOnTheScreen();
+    // 기본인 블록 보기의 빈 상태 문구와 목록 보기의 빈 상태 문구 둘 다 없다
+    expect(screen.queryByText('이 날은 일정이 없어요')).not.toBeOnTheScreen();
     expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
   });
 
