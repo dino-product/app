@@ -19,16 +19,27 @@ export const WorkErrorCode = {
   tooEarlyToStart: 'SCHEDULE-017',
   /** 409 예정 종료가 지남 */
   startTimePassed: 'SCHEDULE-018',
+  /** 409 같은 작업을 동시에 바꾼 다른 요청과 저장이 겹침. 서버가 한 번 다시 처리하고도 겹쳤다 (HM-371) → 다시 조회 뒤 재시도 */
+  workChanged: 'SCHEDULE-016',
+  /** 400 업로드를 마치지 않았거나 쓸 수 없는 사진 (올린 지 1일이 지나 저장소가 지운 사진 포함) → 사진을 새로 올린다 */
+  photoNotUploaded: 'SCHEDULE-022',
 } as const;
 
-/** 백엔드에 아직 HTTP 가 없는 기능 (#112 G1·G2). 경로를 지어내지 않고 이 오류를 던진다 */
-export class UnsupportedWorkOperationError extends Error {
-  readonly operation: string;
+/**
+ * 완료 보고 사진을 올리지 못함. unreadable: 기기 파일을 읽지 못함(OS 가 임시 파일을 지움 등),
+ * failed: 저장소 PUT 이 거부·네트워크 오류·제한 시간 초과. 업로드 주소 발급 실패는 서버 오류(ApiError) 그대로다
+ */
+export class PhotoUploadError extends Error {
+  readonly reason: 'unreadable' | 'failed';
 
-  constructor(operation: string) {
-    super(`아직 지원하지 않는 작업 기능: ${operation}`);
-    this.name = 'UnsupportedWorkOperationError';
-    this.operation = operation;
+  constructor(reason: 'unreadable' | 'failed') {
+    super(
+      reason === 'unreadable'
+        ? '완료 보고 사진 파일을 읽지 못했다'
+        : '완료 보고 사진을 저장소에 올리지 못했다',
+    );
+    this.name = 'PhotoUploadError';
+    this.reason = reason;
   }
 }
 
@@ -66,11 +77,12 @@ export function isMissingWork(error: unknown): boolean {
   return isApiError(error, WorkErrorCode.notFound);
 }
 
-/** 서버의 작업이 화면과 달라졌다. 화면의 조회를 새로 받는다 */
+/** 서버의 작업이 화면과 달라졌다(배정·상태가 바뀜, 동시 변경과 겹침). 화면의 조회를 새로 받는다 */
 export function shouldRefetchAfter(error: unknown): boolean {
   return (
     isApiError(error, WorkErrorCode.assignmentChanged) ||
-    isApiError(error, WorkErrorCode.invalidState)
+    isApiError(error, WorkErrorCode.invalidState) ||
+    isApiError(error, WorkErrorCode.workChanged)
   );
 }
 
@@ -83,6 +95,14 @@ const messages: Partial<Record<string, string>> = {
     '예정 종료 시각이 지나 시작할 수 없어요. 사무실에 일정 변경을 요청해 주세요.',
   [WorkErrorCode.assignmentChanged]: `배정이 바뀌었어요. ${REFRESHED}`,
   [WorkErrorCode.invalidState]: `작업 상태가 바뀌어 처리하지 못했어요. ${REFRESHED}`,
+  [WorkErrorCode.workChanged]: `같은 작업이 동시에 바뀌어 처리하지 못했어요. ${REFRESHED}`,
+  [WorkErrorCode.photoNotUploaded]:
+    '올린 사진을 쓸 수 없어 다시 올려야 해요. 다시 제출해 주세요.',
+};
+
+const photoUploadMessages: Record<PhotoUploadError['reason'], string> = {
+  unreadable: '사진 파일을 읽지 못했어요. 그 사진을 지우고 다시 추가해 주세요.',
+  failed: '사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.',
 };
 
 /** 기사 명령 (상태가 맞지 않음 문구를 명령마다 다르게 쓴다) */
@@ -97,7 +117,6 @@ const invalidStateMessages: Record<WorkCommand, string> = {
 };
 
 export const UNAVAILABLE_WORK_MESSAGE = '볼 수 없는 작업이에요.';
-const UNSUPPORTED_MESSAGE = '아직 지원하지 않는 기능이에요.';
 const UNKNOWN_MESSAGE = '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
 /** 사용자에게 보일 문구. 상황별 코드는 정한 문구, 그 밖의 서버·네트워크 오류는 ApiError 문구. command 는 변경 실패일 때 */
@@ -108,8 +127,8 @@ export function workErrorMessage(
   if (isUnavailableWork(error)) {
     return UNAVAILABLE_WORK_MESSAGE;
   }
-  if (error instanceof UnsupportedWorkOperationError) {
-    return UNSUPPORTED_MESSAGE;
+  if (error instanceof PhotoUploadError) {
+    return photoUploadMessages[error.reason];
   }
   if (command && isApiError(error, WorkErrorCode.invalidState)) {
     return invalidStateMessages[command];
