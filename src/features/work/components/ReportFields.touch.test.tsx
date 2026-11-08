@@ -38,7 +38,8 @@ describe(`완료 보고 한 줄 입력 (${Platform.OS})`, () => {
 
       const input = screen.getByLabelText(label);
       const box = input.parent as HostElement;
-      expect(input).toHaveStyle({ alignSelf: 'stretch' });
+      // 가로 여백은 칸(20)이 준다. 입력에 가로 여백을 두지 않으면 Android 는 EditText 테마 여백을 넣어 글자가 안쪽으로 밀린다
+      expect(input).toHaveStyle({ alignSelf: 'stretch', paddingHorizontal: 0 });
       expectMinTouchTarget(input, {
         height: stylePt(box, 'minHeight') - 2 * stylePt(box, 'borderWidth'),
       });

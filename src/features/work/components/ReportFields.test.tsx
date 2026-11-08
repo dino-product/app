@@ -38,12 +38,14 @@ const fontOf = (variant: TypographyVariant) => {
   return { fontFamily, fontSize, letterSpacing };
 };
 
-// 흰 배경, Gray200 테두리, 모서리 12 (수행 메모 TextArea 와 같은 모양)
+// 흰 배경, Gray200 테두리, 모서리 12 (수행 메모 TextArea 와 같은 모양).
+// 글자는 테두리 안 20 에서 시작한다 (Figma 3235:16434 / 16442 / 16448, #151)
 const fieldBox = {
   backgroundColor: colors.white[100],
   borderWidth: 1,
   borderColor: colors.gray[200],
   borderRadius: 12,
+  paddingHorizontal: 20,
 };
 
 describe('AmountInput', () => {

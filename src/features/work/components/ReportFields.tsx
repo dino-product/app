@@ -191,8 +191,14 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[200],
     backgroundColor: colors.white[100],
   },
-  // 칸 높이를 채워 칸 어디를 눌러도 입력이 포커스되고, 글자는 그 세로 가운데에 온다
-  boxInput: { flex: 1, alignSelf: 'stretch', color: colors.gray[900] },
+  // 칸 높이를 채워 칸 어디를 눌러도 입력이 포커스되고, 글자는 그 세로 가운데에 온다.
+  // 가로 여백은 칸이 준다. 입력에 0 을 두지 않으면 Android 는 EditText 테마 여백을 넣어 글자가 안쪽으로 밀린다
+  boxInput: {
+    flex: 1,
+    alignSelf: 'stretch',
+    paddingHorizontal: 0,
+    color: colors.gray[900],
+  },
   // Figma 사용 부품 (3235:16434): 여백 세로 16 + 한 줄 21 + 테두리 = 55
   lineBox: { minHeight: 55 },
   lineText: singleLineInputText('Caption/M/Regular'),
