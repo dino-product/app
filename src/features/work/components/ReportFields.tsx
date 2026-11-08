@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { colors, Icon, Text, typography } from '../../../shared/design-system';
+import {
+  colors,
+  Icon,
+  singleLineInputText,
+  Text,
+} from '../../../shared/design-system';
 import {
   formatAmount,
   paymentMethodLabels,
@@ -9,6 +14,7 @@ import {
 
 // 완료 보고 입력 필드 (결제 금액, 결제 방식, 사용 부품 같은 한 줄 입력). 여러 줄 메모는 디자인 시스템 TextArea 를 쓴다.
 // 세 칸 모두 수행 메모 TextArea 와 같은 테두리 모양이다. 지금은 완료 보고에서만 써서 기능 폴더에 둔다.
+// 한 줄 입력은 칸 높이를 채우고 값·플레이스홀더를 그 세로 가운데에 둔다 (#151, singleLineInputText).
 // readOnly 는 제출을 마친 보고다. 값은 그대로 보이고 고칠 수 없다.
 
 export function FieldLabel({ children }: { children: string }) {
@@ -34,7 +40,7 @@ export function LineInput({
   readOnly?: boolean;
 }) {
   return (
-    <View style={styles.box}>
+    <View style={[styles.box, styles.lineBox]}>
       <TextInput
         accessibilityLabel={label}
         editable={!readOnly}
@@ -42,7 +48,7 @@ export function LineInput({
         placeholderTextColor={colors.gray[400]}
         value={value}
         onChangeText={onChangeText}
-        style={[styles.boxInput, typography['Caption/M/Regular']]}
+        style={[styles.boxInput, styles.lineText]}
       />
     </View>
   );
@@ -84,7 +90,7 @@ export function AmountInput({
   readOnly?: boolean;
 }) {
   return (
-    <View style={styles.box}>
+    <View style={[styles.box, styles.amountBox]}>
       <TextInput
         accessibilityLabel="결제 금액 입력"
         editable={!readOnly}
@@ -93,9 +99,9 @@ export function AmountInput({
         placeholderTextColor={colors.gray[400]}
         value={formatAmount(value)}
         onChangeText={text => onChange(nextAmount(value, text))}
-        style={[styles.boxInput, typography['Body/XS/Regular']]}
+        style={[styles.boxInput, styles.amountText]}
       />
-      <Text variant="Body/XS/Regular" color={colors.gray[500]}>
+      <Text variant="Body/XS/Medium" color={colors.gray[500]}>
         원
       </Text>
     </View>
@@ -173,18 +179,32 @@ export function PaymentMethodSelect({
 }
 
 const styles = StyleSheet.create({
+  // Figma 세 칸 모두 글자가 테두리 안 20 에서 시작한다 (3235:16434 / 16442 / 16448)
   box: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 52,
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.gray[200],
     backgroundColor: colors.white[100],
   },
-  boxInput: { flex: 1, color: colors.gray[900] },
+  // 칸 높이를 채워 칸 어디를 눌러도 입력이 포커스되고, 글자는 그 세로 가운데에 온다.
+  // 가로 여백은 칸이 준다. 입력에 0 을 두지 않으면 Android 는 EditText 테마 여백을 넣어 글자가 안쪽으로 밀린다
+  boxInput: {
+    flex: 1,
+    alignSelf: 'stretch',
+    paddingHorizontal: 0,
+    color: colors.gray[900],
+  },
+  // Figma 사용 부품 (3235:16434): 여백 세로 16 + 한 줄 21 + 테두리 = 55
+  lineBox: { minHeight: 55 },
+  lineText: singleLineInputText('Caption/M/Regular'),
+  // Figma 결제 금액 (3235:16442): 여백 세로 16 + 한 줄 22 + 테두리 = 56
+  amountBox: { minHeight: 56 },
+  amountText: singleLineInputText('Body/XS/Medium'),
   // Text 는 글자색을 color prop 으로 정한다. 스타일에 색을 넣으면 prop 을 덮어쓴다
   grow: { flex: 1 },
   select: { gap: 8 },
