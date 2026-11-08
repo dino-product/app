@@ -29,6 +29,7 @@ import { LoadStateView } from '../../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestSheet } from '../components/CancelRequestSheet';
+import { JoinRequestsSkeleton } from '../components/JoinRequestsSkeleton';
 import {
   formatRequestDate,
   participationTypeLabels,
@@ -211,6 +212,7 @@ export function JoinRequestsScreen({
                     }
                   : { status: 'loading' }
               }
+              skeleton={<JoinRequestsSkeleton />}
             />
           ) : (
             <EmptyRequests titleRef={listTitleRef} onJoin={onJoin} />

@@ -26,6 +26,7 @@ import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { addMonths, formatMonthTitle } from '../../schedule/model';
+import { WorkRowsSkeleton } from '../../work/components/WorkSkeletons';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { MonthSwitcher } from '../components/MonthSwitcher';
 import { SummaryCard } from '../components/SummaryCard';
@@ -128,6 +129,7 @@ function WorkHistoryScreenView({
     [autoHide.height],
   );
 
+  const loading = load.status === 'loading';
   // 화살표가 위아래로 넓힌 터치 영역이 리스트 밖으로 나가지 않도록 월 선택도 리스트 머리에 둔다
   const header = (
     <View style={styles.header}>
@@ -143,8 +145,13 @@ function WorkHistoryScreenView({
           label="이번 달 완료"
           count={load.status === 'ready' ? monthWorks.length : null}
           emphasis
+          loading={loading}
         />
-        <SummaryCard label="누적 완료" count={totalCompleted} />
+        <SummaryCard
+          label="누적 완료"
+          count={totalCompleted}
+          loading={loading && totalCompleted === null}
+        />
       </View>
     </View>
   );
@@ -169,7 +176,7 @@ function WorkHistoryScreenView({
             load.status === 'ready' ? (
               EmptyMonth
             ) : (
-              <LoadStateView state={load} />
+              <LoadStateView state={load} skeleton={rowsSkeleton} />
             )
           }
           refreshing={refreshing}
@@ -184,6 +191,8 @@ function WorkHistoryScreenView({
 }
 
 const keyExtractor = (item: CompletedWork) => item.id;
+
+const rowsSkeleton = <WorkRowsSkeleton />;
 
 // Figma 에 없어 메인화면 일정(무)과 같은 모양으로 둔다 (기본안). 아이콘은 화살표 없는 채운 시계를 회색으로 칠한 것 (탭 아이콘과는 따로 둔다)
 function EmptyMonth() {

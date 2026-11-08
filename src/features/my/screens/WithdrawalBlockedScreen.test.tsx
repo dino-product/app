@@ -18,6 +18,7 @@ import {
   renderWithApi,
 } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import type { WithdrawalBlock, WithdrawalEligibility } from '../model';
 import { MY_ELIGIBILITY_PATH, seedMyCache } from '../profileTesting';
 import { withdrawalEligibilityQueryKey } from '../withdrawalApi';
@@ -149,7 +150,7 @@ describe('WithdrawalBlockedScreen', () => {
         { loaded: false },
       );
 
-      expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+      expectOnlySkeletons('withdrawal-blocks-skeleton');
       expect(cards()).toHaveLength(0);
       expect(screen.queryByText(NO_REASON)).toBeNull();
     });

@@ -40,6 +40,7 @@ import {
 } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import { WeekDays } from '../components/WeekDays';
+import { WorkHomeSkeleton } from '../components/WorkSkeletons';
 import { loadHomeView, saveHomeView, type ScheduleView } from '../homeView';
 import { mondayWeek, type CurrentWork, type ScheduleItem } from '../model';
 
@@ -217,7 +218,7 @@ function WorkHomeScreenView({
             onLayout={autoHide.show}
             style={{ paddingTop: autoHide.height }}
           >
-            <LoadStateView state={load} />
+            <LoadStateView state={load} skeleton={homeSkeleton} />
           </View>
         ) : (
           <Animated.FlatList
@@ -362,6 +363,7 @@ const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
 });
 
+const homeSkeleton = <WorkHomeSkeleton />;
 const emptyWeek = (
   <EmptySchedule title="이번 주 일정이 없어요" style={styles.emptyWeek} />
 );

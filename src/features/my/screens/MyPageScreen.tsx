@@ -25,6 +25,10 @@ import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
+import {
+  MembershipsSkeleton,
+  ProfileCardSkeleton,
+} from '../components/MySkeletons';
 import type { MembershipResponse } from '../memberships';
 import {
   formatJoinDate,
@@ -105,7 +109,11 @@ function MyPageScreenView({
             <ProfileCard profile={profile.data} onPress={onEditProfile} />
           ) : (
             <View style={[styles.card, styles.loadCard]}>
-              <LoadStateView state={profile} style={styles.cardLoad} />
+              <LoadStateView
+                state={profile}
+                style={styles.cardLoad}
+                skeleton={<ProfileCardSkeleton />}
+              />
             </View>
           )}
 
@@ -159,7 +167,11 @@ function MyPageScreenView({
             </View>
             <View style={[styles.card, styles.membershipCard]}>
               {memberships.status !== 'ready' ? (
-                <LoadStateView state={memberships} style={styles.cardLoad} />
+                <LoadStateView
+                  state={memberships}
+                  style={styles.cardLoad}
+                  skeleton={<MembershipsSkeleton />}
+                />
               ) : memberships.data.length === 0 ? (
                 <Text
                   variant="Caption/M/Medium"

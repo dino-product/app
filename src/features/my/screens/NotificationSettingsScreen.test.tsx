@@ -16,6 +16,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { testSession } from '../../../shared/testing/session';
 import type { NotificationSettings } from '../model';
 import { NOTIFICATION_SETTINGS_PATH } from '../notificationApi';
@@ -101,7 +102,7 @@ describe('NotificationSettingsScreen', () => {
       ),
     });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('notification-settings-skeleton');
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
   });
 
