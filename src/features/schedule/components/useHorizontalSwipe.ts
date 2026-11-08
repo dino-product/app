@@ -7,10 +7,12 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
+import { decidePanAxis, type PanAxis } from '../../../shared/gesture/panAxis';
 
 // 달력을 좌우로 밀어 넘긴다. 새 의존성 없이 PanResponder 로 받고, 끄는 동안 트랙이 손가락을 따라 움직인다.
-// 한 손가락이 가로로 CLAIM_DISTANCE 를 넘고 세로보다 많이 움직여야 응답자가 되므로,
-// 날짜 탭은 안쪽 Pressable 이 받는다. 리스트 머리에 둔 달력은 만지는 동안 리스트 스크롤을 막는다(useTouchScrollLock).
+// 손길마다 처음 움직인 방향을 decidePanAxis 로 한 번 정하고(10pt·45도), 한 손가락이 가로로 정해졌을 때만 응답자가 된다.
+// 그래서 날짜 탭은 안쪽 Pressable 이 받고, 세로로 정해진 손길은 끝까지 리스트 스크롤 몫이다 (#144).
+// 리스트 머리에 둔 달력은 같은 규칙으로 리스트 스크롤을 막는다(useTouchScrollLock).
 // 밀던 중에는 리스트가 응답자를 달라고 해도(iOS) 넘겨 주지 않고, 응답자가 되면 네이티브 부모의 가로채기도 막는다
 // (Android, PanResponder 기본값). 시스템이 끊으면(전화·시스템 제스처 등) 넘기지 않고 제자리로 돌아간다.
 // 스택 안쪽 화면에 두면 iOS 26 화면 전체 뒤로 가기와 오른쪽 밀기가 겹친다 (지금은 탭 첫 화면에만 있다).
@@ -23,8 +25,6 @@ import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 // translateX 는 처음부터 네이티브 값이라 끄는 동안의 setValue 는 다시 그리지 않고 UI 스레드로만 간다.
 // 손을 뗀 뒤와 버튼 넘김은 네이티브 드라이버로 돈다.
 
-/** 이만큼 가로로 움직이면 날짜 탭이 아니라 밀기로 본다 (pt) */
-const CLAIM_DISTANCE = 10;
 /** 밀기로 본 지점에서 이만큼 더 밀고 놓으면 넘긴다 (pt) */
 const SWIPE_DISTANCE = 40;
 /** 덜 밀었어도 같은 방향으로 이만큼 빠르게 튕기면 넘긴다 (pt/ms) */
@@ -80,6 +80,8 @@ export function useHorizontalSwipe(callbacks: {
     let width = 0;
     let sliding: Slide | null = null;
     let dragFrom = 0;
+    // 이번 손길의 방향. 처음 정한 뒤로는 바꾸지 않는다
+    let axis: PanAxis | null = null;
 
     const restAt = (target: number) => -target * width;
     // 앞뒤 한 페이지까지만 그려 두므로 그 너머로는 끌지 않는다 (큰 화면에서는 창보다 길게 끌 수 있다)
@@ -158,10 +160,17 @@ export function useHorizontalSwipe(callbacks: {
     };
 
     const responder = PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) =>
-        numberActiveTouches === 1 &&
-        Math.abs(dx) > CLAIM_DISTANCE &&
-        Math.abs(dx) > Math.abs(dy),
+      // 응답자가 되지는 않고 손길이 새로 시작될 때 방향을 비운다. PanResponder 도 이때 dx·dy 를 0 으로 되돌린다
+      onStartShouldSetPanResponderCapture: ({ nativeEvent }) => {
+        if (nativeEvent.touches.length === 1) {
+          axis = null;
+        }
+        return false;
+      },
+      onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
+        axis ??= decidePanAxis(dx, dy);
+        return numberActiveTouches === 1 && axis === 'horizontal';
+      },
       onPanResponderGrant: () => {
         const wasSliding = sliding !== null;
         dragFrom = takeOver();

@@ -113,6 +113,38 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onPrev).not.toHaveBeenCalled();
   });
 
+  // 처음 움직인 방향(decidePanAxis)으로 정하고 그 손길이 끝날 때까지 바꾸지 않는다 (#144).
+  // 세로로 스크롤하던 손가락이 옆으로 흘러도 달을 넘기지 않는다
+  it('처음에 세로로 움직였으면 이어서 가로로 많이 밀어도 응답자가 되지 않는다', async () => {
+    const { result, finish, offsets, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      path: [
+        { x: 0, y: 0 },
+        { x: 0, y: 6 },
+        { x: 0, y: 12 },
+        { x: -40, y: 12 },
+        { x: -80, y: 12 },
+      ],
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(offsets).toEqual([]);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('세로로 정한 손길이 끝나면 다음 손길은 처음부터 다시 정한다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    await drag(result.current.panHandlers, { dx: 0, dy: 40 });
+    const { granted } = await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+
+    expect(granted).toBe(true);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it('조금만 천천히 밀었다 놓으면 넘기지 않고 제자리로 돌아간다', async () => {
     const { result, finish, lastSlide, onPrev, onNext } = await setup();
 
