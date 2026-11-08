@@ -86,6 +86,43 @@ const submittedWork: WorkDetail = {
 };
 
 describe('WorkDetailScreen', () => {
+  // #142: 작업 요청 사진(현장 사진)은 작업 상태와 관계없이 모든 작업 상세에 보인다.
+  // 홈(작업 수행)·알림·작업 이력 상세가 이 화면을 쓴다
+  describe('현장 사진 섹션', () => {
+    const cases: [string, WorkDetail][] = [
+      ['응답 필요', { ...workDetail, workStatus: 'PENDING_ACCEPT' }],
+      ['작업전', { ...workDetail, workStatus: 'ACCEPTED' }],
+      ['작업중', workDetail],
+      ['취소', { ...workDetail, workStatus: 'CANCELED' }],
+      ['제출 완료(작업 이력)', submittedWork],
+    ];
+
+    it.each(cases)(
+      '%s 작업도 "현장 사진" 섹션에 요청 사진을 보여준다',
+      async (_, work) => {
+        await renderDetail({ work });
+
+        expect(
+          screen.getByRole('header', { name: '현장 사진' }),
+        ).toBeOnTheScreen();
+        expect(
+          within(screen.getByTestId('site-photo-card')).getAllByTestId(
+            'photo-thumb',
+          ),
+        ).toHaveLength(workDetail.requestImages.length);
+      },
+    );
+
+    it('요청 사진이 없는 작업도 섹션이 빈 상태로 남는다', async () => {
+      await renderDetail({ work: { ...workDetail, requestImages: [] } });
+
+      expect(
+        screen.getByRole('header', { name: '현장 사진' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('등록된 현장 사진이 없습니다')).toBeOnTheScreen();
+    });
+  });
+
   it('작업명·상태·작업번호와 일정·고객 정보를 보여준다', async () => {
     await renderDetail();
 

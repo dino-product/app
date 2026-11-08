@@ -28,13 +28,16 @@ const historyXml = async (active: boolean) => {
 };
 
 describe('mainTabs — 작업 이력', () => {
-  it('선택되면 화살표가 있는 채운 시계(tab-history-active)를 그린다', async () => {
+  it('선택되면 Figma App Icon · Time History · Active(tab-history-active)를 Primary 로 그린다', async () => {
     const { xml, color } = await historyXml(true);
     expect(xml).toBe(iconSvgs['tab-history-active'].xml);
+    expect(xml).toContain('d="M6.78608 10.5365'); // 속도선 채운 시계
     expect(color).toBe(colors.primary);
   });
 
-  it('선택되지 않으면 테두리 화살표 시계(tab-history)를 그린다', async () => {
-    expect((await historyXml(false)).xml).toBe(iconSvgs['tab-history'].xml);
+  it('선택되지 않으면 Figma App Icon · Time History · Default(tab-history)를 그린다', async () => {
+    const { xml } = await historyXml(false);
+    expect(xml).toBe(iconSvgs['tab-history'].xml);
+    expect(xml).toContain('d="M15.5832 19.6389'); // 속도선 테두리 시계
   });
 });
