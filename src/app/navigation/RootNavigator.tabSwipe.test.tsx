@@ -159,17 +159,24 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     expectSelected('home');
   });
 
-  it('작업 이력의 화면을 꽉 채운 행은 화면 가장자리 띠에서 시작하면 탭이 바뀌고, 안쪽에서는 바뀌지 않는다', async () => {
+  it('작업 이력 목록은 화면 가장자리 띠·목록 가장자리 여유에서 시작하면 탭이 바뀌고, 안쪽에서 밀면 달을 옮긴다 (#153)', async () => {
     await renderSignedInHome();
     const openHistory = async () => {
       await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
       const [row] = await screen.findAllByRole('button', { name: /, 완료, / });
       return row;
     };
-    const rect = { x: 0, y: 400, width: windowWidth(), height: 110 };
+    // 목록 영역 (상단 바·월 선택·요약 카드 아래)
+    const rect = { x: 0, y: 300, width: windowWidth(), height: 400 };
 
     await swipeOn(await openHistory(), rect, {
       from: { x: EDGE_BAND - 8, y: 450 },
+      dx: FAR,
+    });
+    expectSelected('schedule');
+
+    await swipeOn(await openHistory(), rect, {
+      from: { x: windowWidth() / 2, y: rect.y + COMPONENT_SLACK - 4 },
       dx: FAR,
     });
     expectSelected('schedule');
@@ -179,6 +186,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
       dx: FAR,
     });
     expectSelected('history');
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
   });
 
   it('내 일정 주간 줄은 안쪽에서는 주를 넘기고, 화면 가장자리 띠에서는 탭이 먼저 바뀐다', async () => {

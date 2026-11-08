@@ -1,5 +1,9 @@
 import type { BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
-import { Easing } from 'react-native';
+import {
+  ENTER_MS,
+  ENTER_OFFSET,
+  enterEasing,
+} from '../../shared/gesture/enterTransition';
 
 type TransitionSpec = NonNullable<BottomTabNavigationOptions['transitionSpec']>;
 type SceneStyleInterpolator = NonNullable<
@@ -13,14 +17,14 @@ type SceneStyleInterpolator = NonNullable<
 // 투명도는 건드리지 않는다. 새 화면(포커스한 탭)이 위에 그려지고, 덜 들어온 틈은 반대쪽으로 같은 만큼 비켜나는 앞 화면이 덮는다.
 // 그래서 깜빡임·흰 화면·투명도 0 인 프레임이 없다.
 
-/** 새 화면이 들어오기 시작하는 거리 (pt) */
-export const TAB_ENTER_OFFSET = 24;
+/** 새 화면이 들어오기 시작하는 거리 (pt). 작업 이력 달 넘김(#153)과 같은 결이다 */
+export const TAB_ENTER_OFFSET = ENTER_OFFSET;
 /** 들어오는 시간 (ms) */
-export const TAB_ENTER_MS = 150;
+export const TAB_ENTER_MS = ENTER_MS;
 
 const enterSpec: TransitionSpec = {
   animation: 'timing',
-  config: { duration: TAB_ENTER_MS, easing: Easing.out(Easing.cubic) },
+  config: { duration: TAB_ENTER_MS, easing: enterEasing },
 };
 // 동작 줄이기: 옮기지 않고 바로 바꾼다. 전환 설정 자체는 남겨 둔다 (bottom-tabs 는 전환 설정이 있고 없음에 따라
 // 탭 화면 컨테이너 종류를 바꾸므로, 설정을 켜고 끌 때마다 탭 화면이 모두 다시 마운트된다)

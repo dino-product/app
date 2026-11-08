@@ -1,22 +1,40 @@
 import {
+  createContext,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useEffectEvent,
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
+  type ReactNode,
   type Ref,
 } from 'react';
 import {
   AccessibilityInfo,
+  Animated,
   FlatList,
   StyleSheet,
   View,
   type FlatListInstance,
+  type FlatListProps,
+  type ViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import { colors, Icon, Text } from '../../../shared/design-system';
+import {
+  ENTER_MS,
+  ENTER_OFFSET,
+  enterEasing,
+} from '../../../shared/gesture/enterTransition';
+import {
+  measureElement,
+  useTabSwipeRegion,
+} from '../../../shared/gesture/TabSwipeArea';
+import { useSwipeSwitch } from '../../../shared/gesture/useSwipeSwitch';
 import {
   LoadStateView,
   type LoadState,
@@ -27,6 +45,7 @@ import { addMonths, formatMonthTitle } from '../../schedule/model';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { MonthSwitcher } from '../components/MonthSwitcher';
 import { SummaryCard } from '../components/SummaryCard';
+import { monthStep, rowsArea } from '../monthSwipe';
 import {
   completedInMonth,
   isBeforeMonth,
@@ -56,6 +75,45 @@ export type WorkHistoryScreenProps = {
 };
 
 const READY: LoadState = { status: 'ready' };
+
+// 달을 옮길 때 목록(행·빈 상태·불러오기)이 들어오는 거리 (#153). 머리(월 선택·요약 카드)는 옮기지 않는다
+const MonthShiftContext = createContext<Animated.Value | null>(null);
+
+function useMonthShiftStyle() {
+  const shift = useContext(MonthShiftContext);
+  return useMemo(
+    () => (shift ? { transform: [{ translateX: shift }] } : null),
+    [shift],
+  );
+}
+
+type CellProps = ComponentProps<
+  NonNullable<FlatListProps<CompletedWork>['CellRendererComponent']>
+>;
+
+// 목록 칸. 기본 칸(View)과 같은 props 를 받아 달을 옮길 때만 옮긴다
+function MonthShiftCell({
+  style,
+  onLayout,
+  onFocusCapture,
+  children,
+}: CellProps) {
+  const shiftStyle = useMonthShiftStyle();
+  return (
+    <Animated.View
+      style={[style, shiftStyle]}
+      onLayout={onLayout}
+      onFocusCapture={onFocusCapture}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+function MonthShiftEmpty({ children }: { children: ReactNode }) {
+  const shiftStyle = useMonthShiftStyle();
+  return <Animated.View style={shiftStyle}>{children}</Animated.View>;
+}
 
 function WorkHistoryScreenView({
   today,
@@ -94,12 +152,54 @@ function WorkHistoryScreenView({
   useEffect(() => {
     followToday(today);
   }, [today]);
+  // 달을 옮기면 다음 달은 오른쪽(+x)에서, 이전 달은 왼쪽(-x)에서 찰나에 들어온다 (탭 전환과 같은 결, 투명도는 그대로).
+  // 달마다 새 값을 만들어 새 목록이 첫 프레임부터 그 자리에서 그려지고, 네이티브 드라이버로 0 까지 간다. 동작 줄이기면 옮기지 않는다
+  const reduceMotion = useReduceMotion();
+  const [monthShift, setMonthShift] = useState<Animated.Value | null>(null);
+  useEffect(() => {
+    if (monthShift === null) {
+      return;
+    }
+    const enter = Animated.timing(monthShift, {
+      toValue: 0,
+      duration: ENTER_MS,
+      easing: enterEasing,
+      useNativeDriver: true,
+    });
+    enter.start();
+    return () => enter.stop();
+  }, [monthShift]);
   const moveMonth = (delta: number) => {
     const next = addMonths(viewMonth.year, viewMonth.month, delta);
     setViewMonth(next);
+    setMonthShift(
+      reduceMotion.current
+        ? null
+        : // 처음부터 네이티브 값으로 만든다. 시작할 때 네이티브로 바뀌며 목록 칸을 한 번 더 그리지 않게 한다
+          new Animated.Value(delta * ENTER_OFFSET, { useNativeDriver: true }),
+    );
     onMonthChange?.(next);
     announceMonth.current = true;
   };
+  const canGoNext = isBeforeMonth(viewMonth, monthOf(today));
+
+  // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
+  // 목록 영역(리스트에서 보이는 머리를 뺀 아래쪽) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
+  // 머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다. 세로 우세면 리스트가 스크롤한다
+  const headerRef = useRef<ViewInstance>(null);
+  const listRegion = useTabSwipeRegion({
+    measure: target =>
+      rowsArea(measureElement(target), measureElement(headerRef.current)),
+  });
+  const monthSwipe = useSwipeSwitch({
+    canSwipe: listRegion.ownsGesture,
+    onSwipe: direction => {
+      const step = monthStep(direction, canGoNext);
+      if (step !== null) {
+        moveMonth(step);
+      }
+    },
+  });
   useEffect(() => {
     if (!announceMonth.current || load.status !== 'ready') {
       return;
@@ -121,10 +221,10 @@ function WorkHistoryScreenView({
 
   // 화살표가 위아래로 넓힌 터치 영역이 리스트 밖으로 나가지 않도록 월 선택도 리스트 머리에 둔다
   const header = (
-    <View style={styles.header}>
+    <View ref={headerRef} style={styles.header}>
       <MonthSwitcher
         title={formatMonthTitle(viewMonth.year, viewMonth.month)}
-        canGoNext={isBeforeMonth(viewMonth, monthOf(today))}
+        canGoNext={canGoNext}
         onPrev={() => moveMonth(-1)}
         onNext={() => moveMonth(1)}
       />
@@ -144,21 +244,37 @@ function WorkHistoryScreenView({
     <SafeAreaView edges={['top']} style={styles.screen}>
       {/* 탭 첫 화면 공통 상단 바 (#103). Figma 작업이력 (기본) 2751:6982 에는 종이 없다 */}
       <TabHeader title="작업 이력" />
-      <FlatList
-        ref={listRef}
-        testID="work-history-list"
-        data={monthWorks}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          load.status === 'ready' ? EmptyMonth : <LoadStateView state={load} />
-        }
-        refreshing={refreshing}
-        onRefresh={onRefresh}
+      <View
         style={styles.list}
-        contentContainerStyle={readableColumn}
-      />
+        onTouchStartCapture={monthSwipe.onTouchStartCapture}
+        onTouchStart={listRegion.onTouchStart}
+        {...monthSwipe.panHandlers}
+      >
+        <MonthShiftContext.Provider value={monthShift}>
+          <FlatList
+            ref={listRef}
+            testID="work-history-list"
+            data={monthWorks}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            CellRendererComponent={MonthShiftCell}
+            ListHeaderComponent={header}
+            ListEmptyComponent={
+              <MonthShiftEmpty>
+                {load.status === 'ready' ? (
+                  <EmptyMonth />
+                ) : (
+                  <LoadStateView state={load} />
+                )}
+              </MonthShiftEmpty>
+            }
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            style={styles.list}
+            contentContainerStyle={readableColumn}
+          />
+        </MonthShiftContext.Provider>
+      </View>
     </SafeAreaView>
   );
 }
