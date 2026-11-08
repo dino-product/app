@@ -81,7 +81,7 @@ import {
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
 import { useToday } from '../../shared/time/useToday';
-import { callPhone, openDirections } from '../externalLinks';
+import { callPhone, openDirections, openMap } from '../externalLinks';
 import type {
   HistoryScreenProps,
   HomeScreenProps,
@@ -387,6 +387,7 @@ export function WorkDetailRoute({
       }}
       onCall={callPhone}
       onNavigate={openDirections}
+      onOpenMap={openMap}
       onPickPhoto={pickReportPhotos}
     />
   );
@@ -540,6 +541,7 @@ export function RequestDetailRoute({
       }
       onCall={callPhone}
       onNavigate={openDirections}
+      onOpenMap={openMap}
     />
   );
 }
@@ -693,6 +695,7 @@ export function CompletedWorkDetailRoute({
       onBack={leave}
       onCall={callPhone}
       onNavigate={openDirections}
+      onOpenMap={openMap}
       // 제출을 마친 읽기 전용 보고라 제출·사진 추가·결과 모달은 일어나지 않는다
       onDone={leave}
       onSubmitReport={rejectReadOnlySubmit}

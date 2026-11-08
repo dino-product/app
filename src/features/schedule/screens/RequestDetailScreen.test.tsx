@@ -26,9 +26,34 @@ describe('RequestDetailScreen', () => {
         onReject={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
         {...overrides}
       />,
     );
+
+  // #67: 응답 필요 상세도 작업 위치 카드(WorkInfoSections)에 같은 카카오맵을 그린다 (Figma 3463:16686)
+  it('작업 위치에 서버 좌표의 지도가 보이고, 누르면 지도 열기·길찾기는 주소·좌표를 넘긴다', async () => {
+    const onOpenMap = jest.fn();
+    const onNavigate = jest.fn();
+    await renderRequest({ onOpenMap, onNavigate });
+
+    expect(
+      screen.getByTestId('work-location-native-map', {
+        includeHiddenElements: true,
+      }).props,
+    ).toMatchObject(workDetail.location!);
+    await userEvent.press(
+      screen.getByRole('imagebutton', { name: '작업 위치 지도' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '길찾기' }));
+
+    const place = {
+      address: workDetail.address,
+      location: workDetail.location,
+    };
+    expect(onOpenMap).toHaveBeenCalledWith(place);
+    expect(onNavigate).toHaveBeenCalledWith(place);
+  });
 
   // #32: 햅틱은 결과다. 수락이 서버에서 성공한 뒤에만 울린다
   it('수락이 성공하면 성공 햅틱을, 거절 화면으로 갈 때는 울리지 않는다', async () => {
@@ -84,6 +109,7 @@ describe('RequestDetailScreen', () => {
         onReject={onReject}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
       />,
     );
 
@@ -111,6 +137,7 @@ describe('RequestDetailScreen', () => {
         onReject={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
       />,
     );
 

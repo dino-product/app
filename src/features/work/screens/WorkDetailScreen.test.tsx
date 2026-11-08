@@ -34,6 +34,7 @@ const renderDetail = (
       onDone={jest.fn()}
       onCall={jest.fn()}
       onNavigate={jest.fn()}
+      onOpenMap={jest.fn()}
       onPickPhoto={jest.fn(async () => ['mock://photo'])}
       {...overrides}
     />,
@@ -145,7 +146,25 @@ describe('WorkDetailScreen', () => {
 
     expect(onBack).toHaveBeenCalled();
     expect(onCall).toHaveBeenCalledWith('010-1234-5678');
-    expect(onNavigate).toHaveBeenCalledWith(workDetail.address);
+    expect(onNavigate).toHaveBeenCalledWith({
+      address: workDetail.address,
+      location: workDetail.location,
+    });
+  });
+
+  // #67: 작업 위치 카드의 카카오맵을 누르면 그 위치를 카카오맵에서 연다
+  it('작업 위치 지도를 누르면 주소·좌표로 지도 열기를 부른다', async () => {
+    const onOpenMap = jest.fn();
+    await renderDetail({ onOpenMap });
+
+    await userEvent.press(
+      screen.getByRole('imagebutton', { name: '작업 위치 지도' }),
+    );
+
+    expect(onOpenMap).toHaveBeenCalledWith({
+      address: workDetail.address,
+      location: workDetail.location,
+    });
   });
 
   it('필수 항목을 채우기 전에는 완료보고 제출이 비활성이다', async () => {
@@ -462,6 +481,7 @@ describe('WorkDetailScreen', () => {
         onDone: jest.fn(),
         onCall: jest.fn(),
         onNavigate: jest.fn(),
+        onOpenMap: jest.fn(),
         onPickPhoto: jest.fn(async () => []),
         onUnsavedReportChange,
       };
@@ -867,6 +887,7 @@ describe('WorkDetailScreen', () => {
           onDone={jest.fn()}
           onCall={jest.fn()}
           onNavigate={jest.fn()}
+          onOpenMap={jest.fn()}
           onPickPhoto={jest.fn(async () => [])}
         />,
       );

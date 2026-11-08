@@ -10,6 +10,10 @@ import {
 import { formatPrice, type WorkDetail } from '../model';
 import { InfoCard, InfoField, Section, SectionBand } from './InfoCard';
 import { SitePhotosSection } from './SitePhotosSection';
+import { WorkLocationMap } from './WorkLocationMap';
+
+/** 작업 현장: 주소와 서버가 그 주소에서 구한 좌표 (없으면 null) */
+export type WorkPlace = Pick<WorkDetail, 'address' | 'location'>;
 
 // 작업 상세의 정보 영역 (요약, 일정 및 담당, 고객, 위치, 작업 내용, 현장 사진).
 // 모든 작업 상세가 함께 쓴다: 작업 수행 상세(완료 보고 포함, 홈·알림), 작업 이력 상세, 내 일정의 응답 필요 상세.
@@ -17,11 +21,16 @@ export function WorkInfoSections({
   work,
   onCall,
   onNavigate,
+  onOpenMap,
 }: {
   work: WorkDetail;
   onCall: (phone: string) => void;
-  onNavigate: (address: string) => void;
+  /** 길찾기 */
+  onNavigate: (place: WorkPlace) => void;
+  /** 작업 위치 지도를 누르면 그 위치를 지도 앱에서 연다 */
+  onOpenMap: (place: WorkPlace) => void;
 }) {
+  const place: WorkPlace = { address: work.address, location: work.location };
   return (
     <>
       <View style={styles.summary}>
@@ -96,19 +105,35 @@ export function WorkInfoSections({
         </InfoCard>
       </Section>
 
+      {/* Figma 작업 위치 (작업 상세 3235:16275, 응답 필요 상세 3463:16686): 카드 안 주소·지도, 아래 길찾기 */}
       <Section title="작업 위치">
         <InfoCard>
           <InfoField label="주소" value={work.address} />
-          {/* 지도 SDK 연동 전까지 자리만 둔다 */}
-          <View style={styles.map} />
+          <WorkLocationMap
+            // 다른 현장이면 지도를 새로 불러온다 (불러오기·실패 상태를 처음부터)
+            key={
+              work.location
+                ? `${work.location.latitude},${work.location.longitude}`
+                : 'none'
+            }
+            location={work.location}
+            onPress={() => onOpenMap(place)}
+          />
         </InfoCard>
         <CTA
-          size="M"
           variant="primary"
-          icon={<Icon name="navigation" size={20} color={colors.white[100]} />}
+          icon={
+            // Figma 길찾기 아이콘은 12×12 다. 아이콘 SVG(24 상자 가운데 12)를 그대로 그리고 자리만 12 로 잡는다
+            <Icon
+              name="navigation"
+              size={NAVIGATE_ICON_FRAME}
+              color={colors.white[100]}
+              style={styles.navigateIcon}
+              testID="navigate-icon"
+            />
+          }
           label="길찾기"
-          onPress={() => onNavigate(work.address)}
-          style={styles.navigate}
+          onPress={() => onNavigate(place)}
         />
       </Section>
 
@@ -133,6 +158,9 @@ export function WorkInfoSections({
 }
 
 const CALL_SIZE = 40;
+// 길찾기 아이콘: SVG 상자 24 의 가운데 12 가 화살표다 (Figma Polygon 12×12)
+const NAVIGATE_ICON_FRAME = 24;
+const NAVIGATE_ICON_SIZE = 12;
 // 전화 버튼 40×40 을 최소 터치 영역으로 보완한다
 const CALL_HIT_SLOP = touchSlop(CALL_SIZE);
 
@@ -158,8 +186,14 @@ const styles = StyleSheet.create({
     borderRadius: CALL_SIZE / 2,
     backgroundColor: colors.gray[50],
   },
-  map: { height: 160, borderRadius: 12, backgroundColor: colors.background[1] },
-  navigate: { minHeight: 48 },
+  // 자리는 Figma 아이콘 크기 12 로 잡고, 24 SVG 를 그 가운데에 둔다 (둘레 6 은 투명이라 밖으로 넘쳐도 보이지 않는다)
+  navigateIcon: {
+    width: NAVIGATE_ICON_SIZE,
+    height: NAVIGATE_ICON_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   divider: { height: 1, backgroundColor: colors.gray[100] },
   priceRow: {
     flexDirection: 'row',

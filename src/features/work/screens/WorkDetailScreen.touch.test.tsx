@@ -20,6 +20,7 @@ describe('WorkDetailScreen 터치 영역', () => {
         onDone={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
         onPickPhoto={jest.fn(async () => ['mock://photo'])}
       />,
     );
@@ -38,6 +39,7 @@ describe('WorkDetailScreen 터치 영역', () => {
         onDone={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
         onPickPhoto={jest.fn(async () => [])}
         onStartWork={jest.fn()}
       />,

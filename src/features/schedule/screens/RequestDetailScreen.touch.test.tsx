@@ -13,6 +13,7 @@ describe('RequestDetailScreen 터치 영역', () => {
         onReject={jest.fn()}
         onCall={jest.fn()}
         onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
       />,
     );
 

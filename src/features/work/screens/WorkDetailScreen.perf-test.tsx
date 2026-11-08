@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import { measureRenders } from 'reassure';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
@@ -14,6 +14,7 @@ const detail = (
     onDone={() => {}}
     onCall={() => {}}
     onNavigate={() => {}}
+    onOpenMap={() => {}}
     onPickPhoto={async () => []}
   />
 );
@@ -40,6 +41,27 @@ describe('WorkDetailScreen 렌더 예산', () => {
 
     // 마운트 1 + 열림 1 + 닫힘 1. 크기를 알리거나 같은 키보드가 다시 와도 렌더하지 않는다
     expect(Math.max(...result.counts)).toBe(3);
+    expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
+      perfBudget.render.maxInitialUpdateCount,
+    );
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
+  }, 30_000);
+
+  // #67: 작업 위치 지도. 불러오기 상태는 지도 컴포넌트 안에만 있어, 다 불러오면 지도 자리만 한 번 다시 그린다
+  it('작업 위치 지도는 마운트에 갱신을 더하지 않고, 다 불러오면 한 번만 다시 그린다', async () => {
+    const result = await measureRenders(detail, {
+      scenario: async () => {
+        const map = screen.getByTestId('work-location-native-map', {
+          includeHiddenElements: true,
+        });
+        await act(() => map.props.onMapReady({ nativeEvent: {} }));
+      },
+    });
+
+    // 마운트 1 + 지도 준비 1 (회색 자리 → 지도)
+    expect(Math.max(...result.counts)).toBe(2);
     expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
       perfBudget.render.maxInitialUpdateCount,
     );

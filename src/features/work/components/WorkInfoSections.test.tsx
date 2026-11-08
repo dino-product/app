@@ -1,14 +1,29 @@
-import { render, screen, within } from '@testing-library/react-native';
+import {
+  render,
+  screen,
+  userEvent,
+  within,
+} from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { workDetail } from '../mockData';
 import type { WorkDetail } from '../model';
 import { WorkInfoSections } from './WorkInfoSections';
 
-const renderSections = (work: WorkDetail = workDetail) =>
+const renderSections = (
+  work: WorkDetail = workDetail,
+  handlers: { onNavigate?: jest.Mock; onOpenMap?: jest.Mock } = {},
+) =>
   render(
-    <WorkInfoSections work={work} onCall={jest.fn()} onNavigate={jest.fn()} />,
+    <WorkInfoSections
+      work={work}
+      onCall={jest.fn()}
+      onNavigate={handlers.onNavigate ?? jest.fn()}
+      onOpenMap={handlers.onOpenMap ?? jest.fn()}
+    />,
   );
+
+const place = { address: workDetail.address, location: workDetail.location };
 
 describe('WorkInfoSections', () => {
   it('작업 내용 카드는 회색 채움이고 테두리가 없다', async () => {
@@ -74,5 +89,76 @@ describe('WorkInfoSections', () => {
 
     expect(screen.getByRole('header', { name: '현장 사진' })).toBeOnTheScreen();
     expect(screen.getByText('등록된 현장 사진이 없습니다')).toBeOnTheScreen();
+  });
+
+  // #67: 작업 수행 상세(Figma 3235:16278)·응답 필요 상세(3463:16686)의 작업 위치 카드
+  describe('작업 위치', () => {
+    // '주소' 줄은 작업 위치 카드와 현장 사진 카드(#142)에 있다. 작업 위치가 먼저다
+    const locationCard = () =>
+      screen.getAllByText('주소')[0].parent!.parent as ReturnType<
+        typeof screen.getByText
+      >;
+
+    it('카드 안 주소 아래에 서버 좌표의 카카오맵을 그린다', async () => {
+      await renderSections();
+
+      const map = within(locationCard()).getByTestId(
+        'work-location-native-map',
+        { includeHiddenElements: true },
+      );
+      expect(map.props).toMatchObject({
+        latitude: workDetail.location!.latitude,
+        longitude: workDetail.location!.longitude,
+      });
+    });
+
+    it('좌표가 없으면 지도 대신 회색 자리를 둔다', async () => {
+      await renderSections({ ...workDetail, location: null });
+
+      expect(
+        within(locationCard()).getByTestId('work-location-map-placeholder', {
+          includeHiddenElements: true,
+        }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByRole('imagebutton')).toBeNull();
+    });
+
+    it('지도를 누르면 그 주소·좌표로 카카오맵 열기를 부른다', async () => {
+      const onOpenMap = jest.fn();
+      await renderSections(workDetail, { onOpenMap });
+
+      await userEvent.press(
+        screen.getByRole('imagebutton', { name: '작업 위치 지도' }),
+      );
+
+      expect(onOpenMap).toHaveBeenCalledWith(place);
+    });
+
+    it('길찾기를 누르면 주소와 좌표를 넘긴다 (좌표가 없으면 null)', async () => {
+      const onNavigate = jest.fn();
+      await renderSections({ ...workDetail, location: null }, { onNavigate });
+
+      await userEvent.press(screen.getByRole('button', { name: '길찾기' }));
+
+      expect(onNavigate).toHaveBeenCalledWith({ ...place, location: null });
+    });
+
+    // Figma Button 3235:16291: 채움 Primary, 높이 56, 모서리 12, 좌우 16·위아래 10, 간격 12, 아이콘 12
+    it('길찾기 버튼은 Figma 대로 높이 56 이고 아이콘은 12 다', async () => {
+      await renderSections();
+
+      const button = screen.getByRole('button', { name: '길찾기' });
+      expect(button).toHaveStyle({
+        minHeight: 56,
+        borderRadius: 12,
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: colors.primary,
+      });
+      expect(
+        screen.getByTestId('navigate-icon', { includeHiddenElements: true }),
+      ).toHaveStyle({ width: 12, height: 12 });
+    });
   });
 });
