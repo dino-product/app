@@ -643,6 +643,8 @@ describe('App', () => {
 
     it('이번 주 일정의 수락 대기 작업은 수락·거절하는 요청 상세(탭 바 없음)로 연다', async () => {
       await renderSignedInHome();
+      // 홈은 오늘만 보이는 블록 보기로 열어(#147) 이번 주 전체가 보이는 목록 보기로 바꾼다
+      await userEvent.press(screen.getByRole('button', { name: '목록 보기' }));
 
       await userEvent.press(
         screen.getByRole('button', { name: /^도어록 교체, 배정됨,/ }),

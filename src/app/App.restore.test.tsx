@@ -181,6 +181,36 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     expect(tab('홈')).toBeSelected();
   });
 
+  // #147: 홈 일정 보기는 블록 보기가 기본이고, 마지막으로 고른 보기로 다시 연다
+  describe('홈 일정 보기 (#147)', () => {
+    const viewToggle = (name: '목록 보기' | '블록 보기') =>
+      screen.getByRole('button', { name });
+
+    it('처음 실행이면 블록 보기다', async () => {
+      await launch();
+      await findHomeLoaded();
+
+      expect(viewToggle('블록 보기')).toBeSelected();
+      expect(viewToggle('목록 보기')).not.toBeSelected();
+    });
+
+    it.each(['목록 보기', '블록 보기'] as const)(
+      '%s 를 고르고 종료했다 다시 열면 그 보기로 연다',
+      async name => {
+        const kill = await launch();
+        await findHomeLoaded();
+        // 블록 보기는 기본이라 목록 보기를 거쳐 다시 고른다
+        await userEvent.press(viewToggle('목록 보기'));
+        await userEvent.press(viewToggle(name));
+
+        await relaunch(kill);
+        await findHomeLoaded();
+
+        expect(viewToggle(name)).toBeSelected();
+      },
+    );
+  });
+
   describe('작업 상세에서 완료 보고를 작성하던 중', () => {
     it('다시 열면 같은 작업 상세가 열리고 사진·메모·결제 정보가 남아 있다', async () => {
       const kill = await launch();
