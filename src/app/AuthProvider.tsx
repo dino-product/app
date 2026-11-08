@@ -221,7 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   // 로그아웃 상태로 돌린다. 앞 계정의 표식·프로필·서버 상태 캐시·작업 저장소·보던 화면·작성 중이던 초안을 지운다 (로그아웃·탈퇴·만료).
-  // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유나 이 기기에 든 작업 상태(로컬 저장소, #114)가 남지 않게 한다
+  // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유나 작업 저장소가 든 상태(올려 두고 제출하지 않은 사진 식별자, #155)가 남지 않게 한다
   const resetToSignedOut = useCallback(() => {
     epoch.current += 1;
     forgetSignedInStep();

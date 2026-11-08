@@ -5,7 +5,6 @@ import {
   homeWeekLabel,
   monthPeriod,
   pendingOf,
-  pendingPeriods,
   pickCurrentWork,
   toCompletedWork,
   toCurrentWork,
@@ -45,20 +44,6 @@ describe('조회 구간', () => {
       from: new Date(2026, 11, 1).toISOString(),
       to: new Date(2027, 0, 1).toISOString(),
     });
-  });
-
-  // 응답 필요만 주는 API 가 없어 내 일정으로 찾는다. 시작 시각이 지난 수락 대기 요청도 보이게 앞뒤로 찾는다
-  it('pendingPeriods: 30일 전부터 오늘까지, 오늘부터 30일 뒤까지 (구간마다 서버 최대 31일 안)', () => {
-    expect(pendingPeriods(new Date(2026, 9, 21, 9))).toEqual([
-      {
-        from: new Date(2026, 8, 21).toISOString(),
-        to: new Date(2026, 9, 21).toISOString(),
-      },
-      {
-        from: new Date(2026, 9, 21).toISOString(),
-        to: new Date(2026, 10, 20).toISOString(),
-      },
-    ]);
   });
 
   it('homeWeekLabel: 월~일 (예: 10. 19. – 10. 25.)', () => {

@@ -14,7 +14,12 @@ import {
 } from '../../../shared/layout/LoadStateView';
 import { shouldRefetchAfter, workErrorMessage } from './errors';
 import { workKeys } from './keys';
-import type { MySchedule, Period, WorkRepository } from './types';
+import type {
+  MySchedule,
+  Period,
+  ScheduledWork,
+  WorkRepository,
+} from './types';
 import { useWorkRepository } from './WorkRepositoryProvider';
 
 // 화면이 작업 저장소를 쓰는 React Query 훅. 사용법:
@@ -27,6 +32,12 @@ export const myScheduleQuery = (repository: WorkRepository, period: Period) =>
   queryOptions({
     queryKey: workKeys.schedule(period),
     queryFn: ({ signal }) => repository.getMySchedule(period, { signal }),
+  });
+
+export const pendingWorksQuery = (repository: WorkRepository) =>
+  queryOptions({
+    queryKey: workKeys.pending,
+    queryFn: ({ signal }) => repository.getPendingWorks({ signal }),
   });
 
 export const workDetailQuery = (
@@ -109,6 +120,23 @@ export function useMySchedules(
     })),
   );
   return { works, load: useStableLoadState(state, refetch), refetch };
+}
+
+const NO_WORKS: ScheduledWork[] = [];
+
+/** 응답 필요(수락 대기 전부)와 불러오기 상태. 받기 전에는 빈 목록이다 */
+export function usePendingWorks({
+  subscribed,
+}: Omit<WorkQueryOptions, 'enabled'> = {}) {
+  const query = useQuery({
+    ...pendingWorksQuery(useWorkRepository()),
+    subscribed,
+  });
+  return {
+    works: query.data?.works ?? NO_WORKS,
+    load: useLoadState(query),
+    refetch: query.refetch,
+  };
 }
 
 export function useWorkDetail(

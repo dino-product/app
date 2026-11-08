@@ -4,8 +4,8 @@ import {
   isUnavailableWork,
   MissingAssignmentError,
   NoTechnicianOrganizationError,
+  PhotoUploadError,
   shouldRefetchAfter,
-  UnsupportedWorkOperationError,
   workErrorMessage,
 } from './errors';
 
@@ -66,6 +66,16 @@ describe('workErrorMessage', () => {
       'SCHEDULE-002',
       '작업 상태가 바뀌어 처리하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
     ],
+    // 같은 작업을 동시에 바꾼 다른 요청과 겹침 (HM-371). 서버가 한 번 다시 처리하고도 겹쳤다
+    [
+      'SCHEDULE-016',
+      '같은 작업이 동시에 바뀌어 처리하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
+    ],
+    // 올려 둔 사진을 쓸 수 없음. 저장소가 다음 제출 때 사진을 새로 올린다
+    [
+      'SCHEDULE-022',
+      '올린 사진을 쓸 수 없어 다시 올려야 해요. 다시 제출해 주세요.',
+    ],
     ['SCHEDULE-001', '볼 수 없는 작업이에요.'],
     ['SCHEDULE-004', '볼 수 없는 작업이에요.'],
   ])('%s 는 그 상황 문구다', (code, message) => {
@@ -103,10 +113,16 @@ describe('workErrorMessage', () => {
     );
   });
 
-  it('아직 지원하지 않는 기능과 알 수 없는 오류', () => {
-    expect(
-      workErrorMessage(new UnsupportedWorkOperationError('getMySchedule')),
-    ).toBe('아직 지원하지 않는 기능이에요.');
+  it('완료 보고 사진을 읽거나 올리지 못했으면 그 문구다', () => {
+    expect(workErrorMessage(new PhotoUploadError('unreadable'), 'submit')).toBe(
+      '사진 파일을 읽지 못했어요. 그 사진을 지우고 다시 추가해 주세요.',
+    );
+    expect(workErrorMessage(new PhotoUploadError('failed'), 'submit')).toBe(
+      '사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.',
+    );
+  });
+
+  it('알 수 없는 오류', () => {
     expect(workErrorMessage(new Error('boom'))).toBe(
       '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
     );
@@ -114,9 +130,10 @@ describe('workErrorMessage', () => {
 });
 
 describe('shouldRefetchAfter', () => {
-  it('배정이 바뀌었거나(-010) 상태가 맞지 않으면(-002) 최신 정보를 다시 받는다', () => {
+  it('배정이 바뀌었거나(-010) 상태가 맞지 않거나(-002) 동시 변경과 겹치면(-016) 최신 정보를 다시 받는다', () => {
     expect(shouldRefetchAfter(scheduleError(409, 'SCHEDULE-010'))).toBe(true);
     expect(shouldRefetchAfter(scheduleError(409, 'SCHEDULE-002'))).toBe(true);
+    expect(shouldRefetchAfter(scheduleError(409, 'SCHEDULE-016'))).toBe(true);
   });
 
   it('그 밖의 실패는 화면을 그대로 둔다', () => {
