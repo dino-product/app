@@ -204,8 +204,15 @@ describe('운영 코드의 예시 데이터 (#136)', () => {
       expect.arrayContaining([
         'src/app/App.tsx',
         'src/features/work/data/config.ts',
-        'src/features/work/data/LocalWorkRepository.ts',
+        'src/features/work/data/HttpWorkRepository.ts',
       ]),
+    );
+  });
+
+  // #155 운영 작업 저장소는 기사 작업 API 다. 로컬 저장소는 테스트·픽스처가 주입할 때만 쓴다
+  it('로컬 작업 저장소(LocalWorkRepository)를 가져오지 않는다', () => {
+    expect(modules.filter(file => /LocalWorkRepository/.test(file))).toEqual(
+      [],
     );
   });
 

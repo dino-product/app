@@ -25,7 +25,10 @@ import { participationRequestsKey } from '../features/my/org/participationQuerie
 import { REJECT_REASON } from '../features/my/org/testing';
 import { readPushDeviceId, readPushDeviceOwner } from '../features/push/push';
 import { createWorkRepository } from '../features/work/data/config';
-import { workDetailResponse } from '../features/work/data/testing';
+import {
+  workApiRoutes,
+  workDetailResponse,
+} from '../features/work/data/testing';
 import { appStorage } from '../shared/storage/appStorage';
 import { createTestApi } from '../shared/testing/renderWithApi';
 import {
@@ -82,10 +85,10 @@ async function registered(app: {
   await waitFor(() => expect(readPushDeviceId()).toBe(7));
 }
 
-// 실서버 작업 저장소(#114)로 켠 앱. 작업 상세는 소속 목록의 활성 기사 계약(발주사 7)으로 부른다
+// 실서버 작업 저장소(#114·#155)로 켠 앱. 작업 API 는 소속 목록의 활성 기사 계약(발주사 7)으로 부른다 (홈의 내 일정은 빈 목록)
 const workPath = (workId: number) => `/api/v1/organizations/7/works/${workId}`;
 const httpServer = () =>
-  accountServer({ server: pushServer() }).on(
+  workApiRoutes(accountServer({ server: pushServer() }), 7).on(
     'GET',
     '/api/v1/memberships',
     ok({
@@ -114,7 +117,7 @@ const httpServer = () =>
 async function renderHttpApp(server: ReturnType<typeof createFakeServer>) {
   saveSignedInStep('COMPLETED');
   const api = createTestApi({ server, session: signedInSession() });
-  const workRepository = createWorkRepository('http', {
+  const workRepository = createWorkRepository({
     api: api.client,
     queryClient: api.queryClient,
   });

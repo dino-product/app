@@ -131,7 +131,7 @@ describe('App — 작업 데이터 (#114)', () => {
 
     it('당겨서 새로고침하면 응답 필요를 다시 불러온다', async () => {
       const { repository, render } = setup();
-      const read = jest.spyOn(repository, 'getMySchedule');
+      const read = jest.spyOn(repository, 'getPendingWorks');
       await openPending(render);
       read.mockClear();
 

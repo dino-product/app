@@ -1,12 +1,23 @@
 import { emptyReport, type WorkReport } from '../model';
 import {
   toActualPaymentMethod,
+  toAssignmentNumberRequest,
+  toMySchedule,
+  toPendingWorks,
   toRejectionReason,
+  toRejectWorkRequest,
   toSubmitCommand,
+  toSubmitReportRequest,
   toWorkDetail,
+  toWorkHistory,
   workStatusChip,
 } from './convert';
-import type { WorkDetailResponse } from './types';
+import type {
+  AssignedWorkResponse,
+  ScheduledWorkResponse,
+  WorkDetailResponse,
+  WorkHistoryResponse,
+} from './types';
 
 // 서버는 UTC 로 주고 화면은 기기 현지 시각이다. 테스트는 서울 시간대(UTC+9)로 돈다 (jest/globalSetup.js)
 
@@ -393,5 +404,283 @@ describe('toSubmitCommand', () => {
     expect(
       toSubmitCommand(10, 2, { ...report, amount: '', paymentMethod: null }),
     ).toMatchObject({ actualFee: null, actualPaymentMethod: null });
+  });
+});
+
+// 기사 작업 API (#155). 필드·enum 은 백엔드 웹 DTO(MyScheduleResponse·WorkHistoryResponse·*Request) 그대로다
+
+// MyScheduleResponse.ScheduledWork 예시 (10/21 09:00~11:00 KST, 작업전)
+const scheduled = (
+  overrides: Partial<ScheduledWorkResponse> = {},
+): ScheduledWorkResponse => ({
+  workId: 10,
+  name: '보일러 점검',
+  status: 'ACCEPTED',
+  assignmentNumber: 1,
+  startTime: '2026-10-21T00:00:00Z',
+  endTime: '2026-10-21T02:00:00Z',
+  customerName: '홍길동',
+  customerAddress: '서울시 중구 세종대로 110',
+  customerAddressDetail: '3층',
+  customerLocation: { latitude: 37.566535, longitude: 126.977969 },
+  delayed: false,
+  ...overrides,
+});
+
+describe('toMySchedule', () => {
+  // 10/20 00:00 ~ 10/27 00:00 KST
+  const week = { from: '2026-10-19T15:00:00Z', to: '2026-10-26T15:00:00Z' };
+
+  it('내 일정 행을 포트의 행으로 바꾸고 발주사 이름을 붙인다 (고객 이름은 서버 값)', () => {
+    expect(
+      toMySchedule(
+        { works: [scheduled()] },
+        { works: [] },
+        week,
+        '오르빗 설비',
+      ),
+    ).toEqual({
+      works: [
+        {
+          workId: 10,
+          name: '보일러 점검',
+          status: 'ACCEPTED',
+          assignmentNumber: 1,
+          startTime: '2026-10-21T00:00:00Z',
+          endTime: '2026-10-21T02:00:00Z',
+          customerAddress: '서울시 중구 세종대로 110',
+          customerAddressDetail: '3층',
+          delayed: false,
+          customerName: '홍길동',
+          organizationName: '오르빗 설비',
+        },
+      ],
+    });
+  });
+
+  it('비어 있는 고객 값·발주사 이름은 null 로 둔다', () => {
+    const [work] = toMySchedule(
+      {
+        works: [
+          scheduled({
+            customerName: null,
+            customerAddress: null,
+            customerAddressDetail: null,
+            customerLocation: null,
+          }),
+        ],
+      },
+      { works: [] },
+      week,
+      null,
+    ).works;
+
+    expect(work).toMatchObject({
+      customerName: null,
+      customerAddress: null,
+      customerAddressDetail: null,
+      organizationName: null,
+    });
+  });
+
+  // 백엔드 내 일정은 배정됨(수락 대기)을 빼고, 응답 필요가 날짜와 관계없이 따로 준다
+  it('응답 필요 가운데 구간과 겹치는 것만 더해 시작 시각·작업 id 순으로 합친다', () => {
+    const pending = (workId: number, startTime: string, endTime: string) =>
+      scheduled({ workId, status: 'PENDING_ACCEPT', startTime, endTime });
+
+    const { works } = toMySchedule(
+      {
+        works: [
+          scheduled({ workId: 30, startTime: '2026-10-22T00:00:00Z' }),
+          scheduled({ workId: 12, startTime: '2026-10-22T00:00:00Z' }),
+        ],
+      },
+      {
+        works: [
+          // 구간 앞에서 끝남 [from 과 같은 끝은 겹치지 않는다]
+          pending(1, '2026-10-19T13:00:00Z', '2026-10-19T15:00:00Z'),
+          // 구간 앞에서 시작해 구간 안에서 끝남
+          pending(2, '2026-10-19T14:00:00Z', '2026-10-19T16:00:00Z'),
+          pending(11, '2026-10-22T00:00:00Z', '2026-10-22T01:00:00Z'),
+          // 구간 끝에서 시작 (to 는 제외)
+          pending(3, '2026-10-26T15:00:00Z', '2026-10-26T16:00:00Z'),
+        ],
+      },
+      week,
+      '오르빗 설비',
+    );
+
+    expect(works.map(work => [work.workId, work.status])).toEqual([
+      [2, 'PENDING_ACCEPT'],
+      [11, 'PENDING_ACCEPT'],
+      [12, 'ACCEPTED'],
+      [30, 'ACCEPTED'],
+    ]);
+  });
+
+  // 두 조회 사이에 수락하면 같은 작업이 양쪽에 올 수 있다
+  it('두 응답에 같은 작업이 있으면 확정 일정 쪽 하나만 둔다', () => {
+    const { works } = toMySchedule(
+      { works: [scheduled({ status: 'ACCEPTED' })] },
+      { works: [scheduled({ status: 'PENDING_ACCEPT' })] },
+      week,
+      null,
+    );
+
+    expect(works).toHaveLength(1);
+    expect(works[0].status).toBe('ACCEPTED');
+  });
+});
+
+describe('toPendingWorks', () => {
+  it('응답 필요 행을 서버 순서(시작 시각 순) 그대로 옮기고 발주사 이름을 붙인다 (날짜로 거르지 않는다)', () => {
+    const { works } = toPendingWorks(
+      {
+        works: [
+          scheduled({ workId: 2, status: 'PENDING_ACCEPT' }),
+          scheduled({
+            workId: 1,
+            status: 'PENDING_ACCEPT',
+            startTime: '2027-03-01T00:00:00Z',
+            endTime: '2027-03-01T01:00:00Z',
+          }),
+        ],
+      },
+      '오르빗 설비',
+    );
+
+    expect(works.map(work => [work.workId, work.organizationName])).toEqual([
+      [2, '오르빗 설비'],
+      [1, '오르빗 설비'],
+    ]);
+  });
+});
+
+// WorkHistoryResponse.AssignedWork 예시 (완료)
+const assignedWork = (
+  overrides: Partial<AssignedWorkResponse> = {},
+): AssignedWorkResponse => ({
+  workId: 10,
+  name: '보일러 점검',
+  status: 'COMPLETED',
+  current: true,
+  assignmentNumber: 1,
+  startTime: '2026-10-21T00:00:00Z',
+  endTime: '2026-10-21T02:00:00Z',
+  result: 'ACCEPTED',
+  endReason: null,
+  workType: { id: 3, name: '점검', color: '#7C5CFF' },
+  startedAt: '2026-10-21T00:05:00Z',
+  completedAt: '2026-10-21T01:50:00Z',
+  ...overrides,
+});
+
+describe('toWorkHistory', () => {
+  const history = (
+    overrides: Partial<WorkHistoryResponse> = {},
+  ): WorkHistoryResponse => ({
+    technicianId: 3,
+    works: [
+      assignedWork(),
+      assignedWork({ workId: 9, endReason: 'RESCHEDULED' }),
+    ],
+    statistics: { assigned: 2, completed: 2, rejected: 0, cancelled: 0 },
+    totalCompleted: 42,
+    ...overrides,
+  });
+
+  it('이력 행·구간 통계·누적 완료를 옮기고 발주사 이름을 붙인다 (고객 값은 서버에 없어 null)', () => {
+    expect(toWorkHistory(history(), '오르빗 설비')).toEqual({
+      works: [
+        {
+          workId: 10,
+          name: '보일러 점검',
+          status: 'COMPLETED',
+          current: true,
+          assignmentNumber: 1,
+          startTime: '2026-10-21T00:00:00Z',
+          endTime: '2026-10-21T02:00:00Z',
+          result: 'ACCEPTED',
+          endReason: null,
+          customerName: null,
+          customerAddress: null,
+          customerAddressDetail: null,
+          organizationName: '오르빗 설비',
+        },
+        expect.objectContaining({ workId: 9, endReason: 'RESCHEDULED' }),
+      ],
+      statistics: { assigned: 2, completed: 2, rejected: 0, cancelled: 0 },
+      totalCompleted: 42,
+    });
+  });
+
+  it('완료한 작업이 없으면 빈 목록, 누적 완료 0 이다', () => {
+    expect(
+      toWorkHistory(
+        history({
+          works: [],
+          statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
+          totalCompleted: 0,
+        }),
+        null,
+      ),
+    ).toEqual({
+      works: [],
+      statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
+      totalCompleted: 0,
+    });
+  });
+});
+
+describe('기사 명령 요청 본문', () => {
+  it('수락·시작은 배정 순번만 보낸다 (AssignmentNumberRequest)', () => {
+    expect(
+      toAssignmentNumberRequest({ workId: 10, assignmentNumber: 2 }),
+    ).toEqual({ assignmentNumber: 2 });
+  });
+
+  it('거절은 순번·사유·메모를 보낸다 (RejectWorkRequest)', () => {
+    expect(
+      toRejectWorkRequest({
+        workId: 10,
+        assignmentNumber: 2,
+        reason: 'OTHER',
+        note: '차량 고장',
+      }),
+    ).toEqual({ assignmentNumber: 2, reason: 'OTHER', note: '차량 고장' });
+    expect(
+      toRejectWorkRequest({
+        workId: 10,
+        assignmentNumber: 2,
+        reason: 'LOCATION_TOO_FAR',
+        note: null,
+      }),
+    ).toEqual({ assignmentNumber: 2, reason: 'LOCATION_TOO_FAR', note: null });
+  });
+
+  it('완료 보고는 올린 사진의 파일 식별자를 순서대로 담는다 (SubmitCompletionReportRequest)', () => {
+    expect(
+      toSubmitReportRequest(
+        {
+          workId: 10,
+          assignmentNumber: 2,
+          beforePhotos: ['file://b1.jpg'],
+          afterPhotos: ['file://a1.jpg', 'file://a2.jpg'],
+          usedParts: null,
+          workNote: '배관 교체 완료',
+          actualFee: 75000,
+          actualPaymentMethod: 'CREDIT_CARD',
+        },
+        { beforePhotoIds: ['b-1'], afterPhotoIds: ['a-1', 'a-2'] },
+      ),
+    ).toEqual({
+      assignmentNumber: 2,
+      beforePhotoIds: ['b-1'],
+      afterPhotoIds: ['a-1', 'a-2'],
+      usedParts: null,
+      workNote: '배관 교체 완료',
+      actualFee: 75000,
+      actualPaymentMethod: 'CREDIT_CARD',
+    });
   });
 });

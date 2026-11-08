@@ -15,6 +15,8 @@ import {
 // #67 작업 위치 지도: 작업 상세의 서버 좌표로 카카오맵을 그리고, 누르면 카카오맵(앱 → 없으면 웹)을 연다.
 // 로컬 저장소는 좌표를 구하지 않으므로 상세에 서버 좌표(LocationResponse)를 얹은 저장소를 쓴다
 fixAppTestClock();
+// 앱 전체를 켜고 작업 상세까지 들어가므로 첫 케이스가 무겁다 (App.my·App.onboarding 과 같은 값)
+jest.setTimeout(20_000);
 
 const site = { latitude: 37.556151, longitude: 126.922803 };
 

@@ -11,14 +11,28 @@ import {
   type WorkReport,
 } from '../model';
 import type {
+  AcceptWorkCommand,
   ActualPaymentMethod,
+  AssignedWorkResponse,
+  AssignmentNumberRequest,
   CompletionReportResponse,
+  HistoryWork,
   Instant,
   LocationResponse,
+  MySchedule,
+  MyScheduleResponse,
+  Period,
   PlannedPaymentMethod,
   RejectionReason,
+  RejectWorkCommand,
+  RejectWorkRequest,
+  ScheduledWork,
+  ScheduledWorkResponse,
   SubmitCompletionReportCommand,
+  SubmitCompletionReportRequest,
   WorkDetailResponse,
+  WorkHistory,
+  WorkHistoryResponse,
   WorkStatusCode,
 } from './types';
 
@@ -170,8 +184,8 @@ function toSubmission(
 }
 
 /**
- * 작업 상세 응답 → 화면 모델. 백엔드에 작업 메모가 없어 메모는 비어 있다.
- * 사진 url 은 그대로 둔다: 가짜 주소(fake-photo://, #112 G4)는 썸네일이 회색 자리로 그린다
+ * 작업 상세 응답 → 화면 모델. 백엔드에 작업 메모가 없어 메모는 비어 있다 (#112 G16).
+ * 사진 url 은 그대로 둔다: 서버가 서명한 내려받기 주소라 10분 뒤 만료되고, 상세를 다시 받으면 새 주소가 온다
  */
 export function toWorkDetail(response: WorkDetailResponse): WorkDetail {
   const { customer, payment, schedule, assignments } = response;
@@ -219,7 +233,7 @@ export function toWorkDetail(response: WorkDetailResponse): WorkDetail {
 
 const blankToNull = (value: string) => value.trim() || null;
 
-/** 완료 보고 입력 → 제출 Command. 사진은 지금은 기기 URI 를 식별자로 보낸다 (업로드 API 없음, #112 G3) */
+/** 완료 보고 입력 → 제출 Command. 사진은 기기 URI 그대로 두고, HTTP 저장소가 올린 뒤 파일 식별자로 바꿔 보낸다 */
 export function toSubmitCommand(
   workId: number,
   assignmentNumber: number,
@@ -237,5 +251,132 @@ export function toSubmitCommand(
       report.paymentMethod === null
         ? null
         : toActualPaymentMethod(report.paymentMethod),
+  };
+}
+
+const time = (instant: Instant) => Date.parse(instant);
+
+// 반열림 구간 [from, to) 와 일정 [start, end) 가 겹치는지 (백엔드 내 일정 조회와 같은 기준)
+const overlaps = (work: ScheduledWorkResponse, { from, to }: Period) =>
+  time(work.startTime) < time(to) && time(work.endTime) > time(from);
+
+const byStart = (a: ScheduledWorkResponse, b: ScheduledWorkResponse) =>
+  time(a.startTime) - time(b.startTime) || a.workId - b.workId;
+
+function toScheduledWork(
+  work: ScheduledWorkResponse,
+  organizationName: string | null,
+): ScheduledWork {
+  return {
+    workId: work.workId,
+    name: work.name,
+    status: work.status,
+    assignmentNumber: work.assignmentNumber,
+    startTime: work.startTime,
+    endTime: work.endTime,
+    customerAddress: work.customerAddress,
+    customerAddressDetail: work.customerAddressDetail,
+    delayed: work.delayed,
+    customerName: work.customerName,
+    organizationName,
+  };
+}
+
+/**
+ * 내 일정(구간의 확정 일정) + 응답 필요(날짜와 관계없는 수락 대기) → 포트의 내 일정.
+ * 백엔드 내 일정은 수락 대기를 빼므로 응답 필요 가운데 구간과 겹치는 것만 더해 시작 시각·작업 id 순으로 합친다.
+ * 두 조회 사이에 수락해 같은 작업이 양쪽에 오면 확정 일정 쪽을 둔다. 발주사 이름은 경로의 발주사(소속 목록) 이름이다
+ */
+export function toMySchedule(
+  confirmed: MyScheduleResponse,
+  pending: MyScheduleResponse,
+  range: Period,
+  organizationName: string | null,
+): MySchedule {
+  const confirmedIds = new Set(confirmed.works.map(work => work.workId));
+  const works = [
+    ...confirmed.works,
+    ...pending.works.filter(
+      work => !confirmedIds.has(work.workId) && overlaps(work, range),
+    ),
+  ].sort(byStart);
+  return {
+    works: works.map(work => toScheduledWork(work, organizationName)),
+  };
+}
+
+/** 응답 필요(my-schedule/pending) → 포트의 목록. 서버가 날짜와 관계없이 시작 시각·작업 id 순으로 준 그대로다 */
+export function toPendingWorks(
+  pending: MyScheduleResponse,
+  organizationName: string | null,
+): MySchedule {
+  return {
+    works: pending.works.map(work => toScheduledWork(work, organizationName)),
+  };
+}
+
+function toHistoryWork(
+  work: AssignedWorkResponse,
+  organizationName: string | null,
+): HistoryWork {
+  return {
+    workId: work.workId,
+    name: work.name,
+    status: work.status,
+    current: work.current,
+    assignmentNumber: work.assignmentNumber,
+    startTime: work.startTime,
+    endTime: work.endTime,
+    result: work.result,
+    endReason: work.endReason,
+    // 이력 행에는 고객 정보가 없다 (#112 G14)
+    customerName: null,
+    customerAddress: null,
+    customerAddressDetail: null,
+    organizationName,
+  };
+}
+
+/** 작업 이력 응답 → 포트의 작업 이력. 순서(최근 먼저)·통계·누적 완료는 서버 그대로다 */
+export function toWorkHistory(
+  response: WorkHistoryResponse,
+  organizationName: string | null,
+): WorkHistory {
+  return {
+    works: response.works.map(work => toHistoryWork(work, organizationName)),
+    statistics: { ...response.statistics },
+    totalCompleted: response.totalCompleted,
+  };
+}
+
+/** 수락·시작 요청 본문. 화면에서 본 배정 순번만 보낸다 */
+export const toAssignmentNumberRequest = ({
+  assignmentNumber,
+}: AcceptWorkCommand): AssignmentNumberRequest => ({ assignmentNumber });
+
+/** 거절 요청 본문 */
+export const toRejectWorkRequest = ({
+  assignmentNumber,
+  reason,
+  note,
+}: RejectWorkCommand): RejectWorkRequest => ({
+  assignmentNumber,
+  reason,
+  note,
+});
+
+/** 완료 보고 제출 본문. 사진은 기기 URI 를 올리고 받은 파일 식별자다 (보고의 순서 그대로) */
+export function toSubmitReportRequest(
+  command: SubmitCompletionReportCommand,
+  photoIds: { beforePhotoIds: string[]; afterPhotoIds: string[] },
+): SubmitCompletionReportRequest {
+  return {
+    assignmentNumber: command.assignmentNumber,
+    beforePhotoIds: photoIds.beforePhotoIds,
+    afterPhotoIds: photoIds.afterPhotoIds,
+    usedParts: command.usedParts,
+    workNote: command.workNote,
+    actualFee: command.actualFee,
+    actualPaymentMethod: command.actualPaymentMethod,
   };
 }

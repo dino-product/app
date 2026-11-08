@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useApiClient } from '../../../shared/api';
-import { createWorkRepository, WORK_REPOSITORY_SOURCE } from './config';
+import { createWorkRepository } from './config';
 import type { WorkRepository } from './types';
 
 // 고른 작업 저장소를 앱에 준다 (ApiProvider 안). 화면은 data/queries.ts 의 훅을 쓴다.
@@ -14,16 +14,14 @@ export function WorkRepositoryProvider({
   repository,
   children,
 }: {
-  /** 테스트가 가짜 저장소를 준다. 없으면 config 의 저장소 */
+  /** 테스트가 가짜 저장소를 준다. 없으면 config 의 운영 저장소(기사 작업 API) */
   repository?: WorkRepository;
   children?: ReactNode;
 }) {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const [selected] = useState(
-    () =>
-      repository ??
-      createWorkRepository(WORK_REPOSITORY_SOURCE, { api, queryClient }),
+    () => repository ?? createWorkRepository({ api, queryClient }),
   );
 
   return (
