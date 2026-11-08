@@ -8,6 +8,7 @@ import {
 import { saveReportDraft } from '../features/work/reportDraft';
 import { emptyReport } from '../features/work/model';
 import { appStorage, writeJson } from '../shared/storage/appStorage';
+import { fail } from '../shared/testing/fakeServer';
 import { createTestApi } from '../shared/testing/renderWithApi';
 import App from './App';
 import { NAVIGATION_STATE_KEY } from './navigation/persistence';
@@ -18,21 +19,29 @@ import {
   signedInSession,
 } from './testing';
 
-// #136 운영 작업 저장소에는 예시(더미) 작업이 없다. 기사 작업 API(#112)가 생길 때까지 작업 화면은 빈 상태다.
+// #136 운영 작업 저장소에는 예시(더미) 작업이 없다. 운영 저장소는 기사 작업 API(#155)라 서버가 준 작업만 보인다.
 // 다른 앱 흐름 테스트는 테스트 시드(localSeedTesting)를 넣은 저장소를 주입하지만, 여기서는 주입하지 않아
-// WorkRepositoryProvider 가 운영과 같이 config 의 저장소(WORK_REPOSITORY_SOURCE)를 만든다
+// WorkRepositoryProvider 가 운영과 같이 config 의 저장소를 만든다. 서버는 작업이 하나도 없는 기사로 답한다
 fixAppTestClock();
 
+// 예전 예시 작업 id (진행할 작업 101, 응답 필요 요청 104, 완료 이력 1). 서버에는 없는 작업이다
+const SAMPLE_WORK_IDS = [1, 101, 104];
+
 /**
- * 로그인해 둔 기기에서 운영과 같은 작업 저장소로 앱을 켠다.
+ * 로그인해 둔 기기에서 운영과 같은 작업 저장소로 앱을 켠다. 기사 발주사(1)의 내 일정·응답 필요·이력은 빈 목록이다.
  * 기기에는 이 빌드로 켠 표식이 없다: 예시가 있던 빌드에서 올린 기기의 첫 실행이다 (app/sampleDrafts)
  */
 async function launch() {
   saveSignedInStep('COMPLETED');
-  const api = createTestApi({
-    server: accountServer(),
-    session: signedInSession(),
-  });
+  const server = accountServer();
+  for (const workId of SAMPLE_WORK_IDS) {
+    server.on(
+      'GET',
+      `/api/v1/organizations/1/works/${workId}`,
+      fail(404, 'SCHEDULE-001', { message: '작업을 찾을 수 없습니다.' }),
+    );
+  }
+  const api = createTestApi({ server, session: signedInSession() });
   return render(<App api={api} />);
 }
 
@@ -144,7 +153,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
   });
 
   describe('없는 작업 id', () => {
-    // 서버 알림의 작업은 아직 로컬 작업 저장소에 없다 (#112). 미리 받기가 실패해 작업 상세가 상태를 보인다
+    // 서버가 볼 수 없는 작업이라고 답한다(404 SCHEDULE-001). 미리 받기가 실패해 작업 상세가 상태를 보인다
     it('알림센터에서 작업 알림을 누르면 작업 상세가 "볼 수 없는 작업이에요" 를 보이고 돌아갈 수 있다', async () => {
       await launch();
       await userEvent.press(
@@ -233,7 +242,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
   });
 
   // 예시가 있던 빌드(TestFlight 0.0 (3))를 쓴 기기에는 예시 작업 id 를 가리키는 초안이 남아 있다.
-  // 그 화면을 열지 않아도 켤 때 지운다. 기사 작업 API(#112) 뒤 같은 id 의 실제 작업 보고 칸에 채워지지 않게 한다
+  // 그 화면을 열지 않아도 켤 때 지운다. 같은 id 의 실제 서버 작업(#155) 보고 칸에 채워지지 않게 한다
   it('예시가 있던 빌드가 남긴 초안은 켤 때 한 번 지우고, 다시 켠 뒤에는 새로 남긴 초안을 지우지 않는다', async () => {
     saveReportDraft('103', { ...emptyReport, memo: '배관 교체' });
     writeJson('schedule.rejectDraft.105', {

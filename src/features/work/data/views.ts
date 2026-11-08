@@ -53,7 +53,8 @@ export function monthPeriod({ year, month }: YearMonth): Period {
 
 /**
  * 응답 필요 요청을 찾는 구간: 30일 전부터 오늘, 오늘부터 30일 뒤 (서버 구간 한도가 31일이라 둘로 나눈다).
- * 응답 필요만 따로 주는 API 가 없어 내 일정으로 찾는다. 시작 시각이 지난 수락 대기 요청도 보이게 앞도 찾는다
+ * 응답 필요도 내 일정 구간으로 찾는다(HTTP 저장소는 응답 필요 API 의 수락 대기 가운데 구간과 겹치는 것을 더해 준다).
+ * 시작 시각이 지난 수락 대기 요청도 보이게 앞도 찾는다
  */
 export function pendingPeriods(today: Date): Period[] {
   const day = (offset: number) =>

@@ -15,8 +15,8 @@ import type {
   WorkStatusCode,
 } from './types';
 
-// 백엔드 공백 어댑터 (#112 G1·G2). 내 일정·수락·거절·시작·완료 보고·이력 HTTP 가 없는 동안 이 기기 메모리에서
-// 백엔드 도메인 규칙(api-spec.md §2.4·§4, schedule 유스케이스)대로 작업 상태를 바꾼다. 오류는 서버와 같은 code 의 ApiError 다.
+// 테스트·픽스처용 작업 저장소. 운영은 기사 작업 API(HttpWorkRepository, #155)이고, 이 저장소는 앱 흐름·화면 테스트가 주입한다.
+// 이 기기 메모리에서 백엔드 도메인 규칙(api-spec.md §2.4·§4, schedule 유스케이스)대로 작업 상태를 바꾼다. 오류는 서버와 같은 code 의 ApiError 다.
 // 작업은 서버 작업 상세 응답 모양으로 들고, 상세는 HTTP 저장소와 같은 변환(toWorkDetail)을 거친다
 
 const MINUTE = 60 * 1000;
