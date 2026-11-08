@@ -59,18 +59,33 @@ describe('Icon', () => {
     });
   });
 
-  it('선택된 작업 이력 탭은 화살표가 있는 채운 시계(history-clock)이고 기본색은 탭의 Primary 다', () => {
+  // Figma App Icon · Time History (2824:10297 Active / 2824:10301 Default). 시계가 오른쪽으로 넘쳐 내보낸 SVG 가 25×24 다 (#82)
+  it('선택된 작업 이력 탭은 App Icon · Time History · Active(속도선 채운 시계)이고 색을 바꿀 수 있으며 기본색은 Primary 다', () => {
     const active = iconSvgs['tab-history-active'];
-    expect(active).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
-    expect(active.xml).toContain('M5 2.667V6.167H8.5'); // 도는 화살표
-    expect(active.xml).toContain('M2.736 10.863A9.333 9.333 0 1 0 6.781 4.262');
-    expect(active.xml).toContain('M10.343 5.027A7.167 7.167 0 1 1 5.842 8.333'); // 시계판·바늘
+    expect(active).toMatchObject({
+      tint: true,
+      size: 25,
+      height: 24,
+      color: '#1C1B2A',
+    });
+    expect(active.xml).toContain('d="M6.78608 10.5365L6.26806 10.4458H1.54111');
+    expect(active.xml).not.toContain('M5 2.667V6.167H8.5'); // 옛 history-clock(#86)의 화살표
   });
 
-  it('작업 이력 빈 상태 시계(history-empty)는 화살표 없는 채운 시계를 유지한다', () => {
+  it('선택되지 않은 작업 이력 탭은 App Icon · Time History · Default(속도선 테두리 시계, Gray500 선)다', () => {
+    const inactive = iconSvgs['tab-history'];
+    expect(inactive).toMatchObject({ tint: false, size: 25, height: 24 });
+    expect(inactive.xml).toContain(
+      'd="M1.22217 5.88892H6.11106M1.22217 12H7.94439M1.22217 18.1111H6.11106"',
+    ); // 속도선
+    expect(inactive.xml).toContain('d="M15.5832 19.6389C19.8021 19.6389'); // 시계판
+    expect(inactive.xml).toContain('stroke="#9B9B9B"');
+  });
+
+  it('작업 이력 빈 상태 시계(history-empty)는 탭 아이콘과 따로 둔 속도선 없는 채운 시계다', () => {
     const empty = iconSvgs['history-empty'];
     expect(empty).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
-    expect(empty.xml).not.toContain('M5 2.667V6.167H8.5');
+    expect(empty.xml).not.toBe(iconSvgs['tab-history-active'].xml);
     expect(empty.xml).toContain('M12.25 2.03125C15.0928 2.03125'); // 원본 윤곽
   });
 
