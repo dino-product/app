@@ -10,7 +10,9 @@ import {
   StyleSheet,
   TextInput,
   View,
+  type KeyboardEvent,
   type LayoutChangeEvent,
+  type ScrollEvent,
   type ScrollViewInstance,
   type TextInputInstance,
   type TextInstance,
@@ -27,6 +29,8 @@ import {
 } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
+import { offsetToRevealAboveKeyboard } from '../../../shared/keyboard/revealAboveKeyboard';
+import { offsetAfterShrink } from '../../../shared/layout/offsetAfterShrink';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import {
@@ -42,6 +46,11 @@ import {
 const OTHER_TEXT_ERROR = '기타 사유를 입력해 주세요.';
 // 기타 직접 입력 섹션을 펼치고 접는 시간
 const EXPAND_MS = 220;
+// 키보드가 올라오면 입력란 아래 끝과 키보드 사이에 이만큼 남긴다.
+// 키보드가 뜬 Figma 프레임이 없어 섹션 아래 내용 여백(styles.content 의 paddingBottom)과 같게 둔다
+const KEYBOARD_GAP = 24;
+// 스크롤 위치는 소수점으로 오므로 이만큼 차이는 같은 위치로 본다
+const SCROLL_TOLERANCE = 1;
 
 export function RejectReasonScreen({
   onBack,
@@ -79,6 +88,9 @@ export function RejectReasonScreen({
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollMetrics = useScrollMetrics();
+  // 다 접혔지만 스크롤이 줄어들 끝까지 오기를 기다리는 중이다. 오면 섹션을 내린다
+  const unmountWhenScrolledIn = useRef(false);
   const otherInputRef = useRef<TextInputInstance>(null);
   const expanded = selected === 'other';
 
@@ -89,6 +101,46 @@ export function RejectReasonScreen({
     notifyDraft({ selected, otherText });
   }, [selected, otherText]);
 
+  // 섹션은 스크롤 내용의 맨 끝이라, 내리면 내용이 줄어 끝 근처의 스크롤이 한 번에 당겨진다(뚝 끊김, #152).
+  // 접히는 동안 줄어들 끝까지 스크롤로 따라간다. 높이는 네이티브 드라이버로 바꿀 수 없어 스크롤이 내용을 끌어내린다.
+  // Android 는 키보드가 내려간 뒤 스크롤 영역이 다시 커지므로 키보드가 없을 때의 높이로 계산한다
+  const followCollapse = (instant: boolean) => {
+    const { offset, contentHeight, fullHeight } = scrollMetrics.current;
+    const to = offsetAfterShrink({
+      scrollOffset: offset,
+      contentHeight,
+      viewportHeight: fullHeight,
+      shrinkBy: reveal.sectionHeight(),
+    });
+    if (to < offset) {
+      scrollRef.current?.scrollTo({ y: to, animated: !instant });
+    }
+  };
+
+  // 다 접힌 섹션을 내려도 스크롤이 당겨지지 않는 위치면 내리고, 아니면 스크롤이 올 때까지 남겨 둔다
+  const unmountOtherIfScrolledIn = () => {
+    const { offset, contentHeight, height } = scrollMetrics.current;
+    const pulledBy =
+      offset -
+      offsetAfterShrink({
+        scrollOffset: offset,
+        contentHeight,
+        viewportHeight: height,
+        shrinkBy: reveal.sectionHeight(),
+      });
+    unmountWhenScrolledIn.current = pulledBy > SCROLL_TOLERANCE;
+    if (!unmountWhenScrolledIn.current) {
+      setOtherMounted(false);
+    }
+  };
+
+  const onScroll = (event: ScrollEvent) => {
+    scrollMetrics.onScroll(event);
+    if (unmountWhenScrolledIn.current) {
+      unmountOtherIfScrolledIn();
+    }
+  };
+
   const animateOther = (expand: boolean) => {
     // 동작 줄이기면 바로 끝 값으로 그리고, 끝났다는 알림만 다음 프레임에 받는다
     const instant = reduceMotion.current;
@@ -96,6 +148,10 @@ export function RejectReasonScreen({
       reveal.progress.setValue(expand ? 1 : 0);
     }
     setOtherMounted(true);
+    unmountWhenScrolledIn.current = false;
+    if (!expand) {
+      followCollapse(instant);
+    }
     Animated.timing(reveal.progress, {
       toValue: expand ? 1 : 0,
       duration: instant ? 0 : EXPAND_MS,
@@ -107,7 +163,7 @@ export function RejectReasonScreen({
         return;
       }
       if (!expand) {
-        setOtherMounted(false);
+        unmountOtherIfScrolledIn();
         return;
       }
       // 펼치는 중에는 입력란이 투명하고 잘려 있어 스크린리더가 건너뛸 수 있으므로 다 펼친 뒤에 옮긴다
@@ -146,13 +202,46 @@ export function RejectReasonScreen({
     setOtherTextError(false);
   };
 
-  // Android ScrollView 는 줄어들 때 보이던 입력칸만 따라가고, 펼치며 바로 포커스를 받은 입력란은
-  // 아직 레이아웃 전이라 스크롤하지 않는다. 처음부터 화면 아래에 있으면 키보드 뒤에 남으므로 섹션이 있는 끝까지 내린다.
-  // iOS 는 automaticallyAdjustKeyboardInsets 가 포커스된 입력칸을 키보드 위로 올린다
-  const revealOtherInput =
-    Platform.OS === 'android'
-      ? () => scrollRef.current?.scrollToEnd()
-      : undefined;
+  // 키보드가 올라오면 입력란 아래 끝까지 키보드 위로 스크롤한다 (#152). 여러 줄 입력칸은 네이티브가 커서 줄만
+  // 올려 아래쪽이 가리고, Android ScrollView 는 줄어들 때 이미 보이던 입력칸만 따라간다.
+  // 위치는 레이아웃 값으로 잰다(펼치는 중의 transform 은 잘라 내는 View 와 내용이 서로 상쇄한다)
+  const revealOtherInput = useEffectEvent((event: KeyboardEvent) => {
+    const input = otherInputRef.current;
+    const scroll = scrollRef.current;
+    const content = scroll?.getInnerViewRef();
+    if (!input?.isFocused() || !scroll || !content) {
+      return;
+    }
+    scroll.measureInWindow((_x, viewportTop, _width, viewportHeight) =>
+      input.measureLayout(content, (_left, top, _inputWidth, height) => {
+        const { offset } = scrollMetrics.current;
+        const to = offsetToRevealAboveKeyboard({
+          scrollOffset: offset,
+          viewportTop,
+          viewportHeight,
+          keyboardTop: event.endCoordinates.screenY,
+          targetTop: top,
+          targetBottom: top + height,
+          gap: KEYBOARD_GAP,
+        });
+        if (to !== offset) {
+          scroll.scrollTo({ y: to, animated: !reduceMotion.current });
+        }
+      }),
+    );
+  });
+  // 기타를 펼친 동안만 듣는다. iOS 는 키보드와 함께 움직이게 올라오기 시작할 때, Android 는 다 올라온 뒤에 알린다.
+  // 키보드 높이가 바뀌어도(이모지 패널 등) 다시 온다
+  useEffect(() => {
+    if (!expanded) {
+      return;
+    }
+    const subscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      revealOtherInput,
+    );
+    return () => subscription.remove();
+  }, [expanded]);
 
   const send = async (rejection: Rejection) => {
     if (submittingRef.current) {
@@ -218,7 +307,11 @@ export function RejectReasonScreen({
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
           keyboardShouldPersistTaps="handled"
+          // iOS 는 키보드가 가린 만큼 아래 인셋을 넣어 입력란을 키보드 위까지 스크롤할 수 있게 한다
           automaticallyAdjustKeyboardInsets
+          onScroll={onScroll}
+          onLayout={scrollMetrics.onLayout}
+          onContentSizeChange={scrollMetrics.onContentSizeChange}
           contentContainerStyle={[readableColumn, styles.content]}
         >
           <View style={styles.intro}>
@@ -285,7 +378,6 @@ export function RejectReasonScreen({
                     autoFocus={focusOnOpen}
                     value={otherText}
                     onChangeText={changeOtherText}
-                    onFocus={revealOtherInput}
                     error={otherTextError}
                   />
                 </Animated.View>
@@ -319,14 +411,12 @@ function OtherReason({
   autoFocus,
   value,
   onChangeText,
-  onFocus,
   error,
 }: {
   inputRef: Ref<TextInputInstance>;
   autoFocus: boolean;
   value: string;
   onChangeText: (text: string) => void;
-  onFocus?: () => void;
   error: boolean;
 }) {
   return (
@@ -343,7 +433,6 @@ function OtherReason({
         placeholderTextColor={colors.gray[600]}
         value={value}
         onChangeText={onChangeText}
-        onFocus={onFocus}
         style={[styles.input, error && styles.inputError]}
       />
       {error && (
@@ -363,15 +452,21 @@ function OtherReason({
 // 섹션을 위에서부터 드러낸다 (progress 0 → 1). 네이티브 드라이버는 높이를 바꾸지 못하므로
 // 잘라 내는 View 는 내용 높이만큼 위로, 내용은 같은 만큼 아래로 옮겨 내용은 제자리에 두고 보이는 영역만 자라게 한다.
 // 섹션이 스크롤 내용의 맨 끝이라 레이아웃 높이는 한 번에 바뀌어도 밀려나는 내용이 없다.
+// 다만 끝 근처까지 스크롤해 두었으면 내릴 때 스크롤 끝이 당겨지므로 화면이 스크롤로 따라간다 (followCollapse).
 // 높이도 Animated.Value 로 두어 재도 다시 그리지 않는다. 펼친 채로 열면 1 에서 시작한다
 function useReveal(initiallyExpanded: boolean) {
   const [reveal] = useState(() => {
     const progress = new Animated.Value(initiallyExpanded ? 1 : 0);
     const height = new Animated.Value(0);
+    let sectionHeight = 0;
     return {
       progress,
-      onContentLayout: (event: LayoutChangeEvent) =>
-        height.setValue(event.nativeEvent.layout.height),
+      /** 다 펼쳤을 때 섹션 높이 (위 간격 포함). 내리면 스크롤 내용이 이만큼 준다 */
+      sectionHeight: () => sectionHeight,
+      onContentLayout: (event: LayoutChangeEvent) => {
+        sectionHeight = event.nativeEvent.layout.height;
+        height.setValue(sectionHeight);
+      },
       clipStyle: {
         transform: [
           { translateY: Animated.multiply(Animated.add(progress, -1), height) },
@@ -393,6 +488,31 @@ function useReveal(initiallyExpanded: boolean) {
   // 화면을 닫으면 도는 애니메이션을 멈춘다 (완료 콜백은 finished: false 라 아무것도 하지 않는다)
   useEffect(() => () => reveal.progress.stopAnimation(), [reveal]);
   return reveal;
+}
+
+// 스크롤 위치·크기. 네이티브가 이벤트로 알린 값을 ref 에만 두어 다시 그리지 않는다
+function useScrollMetrics() {
+  const [metrics] = useState(() => {
+    const current = { offset: 0, height: 0, fullHeight: 0, contentHeight: 0 };
+    return {
+      current,
+      onScroll: (event: ScrollEvent) => {
+        current.offset = event.nativeEvent.contentOffset.y;
+      },
+      onLayout: (event: LayoutChangeEvent) => {
+        current.height = event.nativeEvent.layout.height;
+        // Android 는 키보드가 떠 있는 동안 KeyboardAvoidingArea 가 스크롤 영역을 줄인다.
+        // 키보드가 없을 때의 높이를 따로 둔다. iOS 는 키보드로 스크롤 영역이 줄지 않는다
+        if (Platform.OS === 'ios' || !Keyboard.isVisible()) {
+          current.fullHeight = current.height;
+        }
+      },
+      onContentSizeChange: (_width: number, height: number) => {
+        current.contentHeight = height;
+      },
+    };
+  });
+  return metrics;
 }
 
 // 아래 버튼 밑 32 는 홈 인디케이터 자리다. 안전 영역이 더 크면 그만큼, 없는 기기도 32 를 둔다 (styles.screen)

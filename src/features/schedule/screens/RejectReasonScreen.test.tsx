@@ -16,7 +16,11 @@ import {
   StyleSheet,
   TextInput,
 } from 'react-native';
-import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
+import {
+  hideKeyboard,
+  showKeyboard,
+  willShowKeyboard,
+} from '../../../../jest/keyboard';
 import { colors, typography } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { RejectReasonScreen } from './RejectReasonScreen';
@@ -65,6 +69,67 @@ const otherInputNode = expect.objectContaining({
   }),
 });
 
+// 스크롤 위치·크기는 네이티브가 이벤트로 알린다. 테스트는 잰 것처럼 이벤트를 보낸다
+const scrollView = () => screen.getByTestId('reject-reason-scroll');
+const layoutScroll = async ({
+  height,
+  contentHeight,
+}: {
+  height: number;
+  contentHeight?: number;
+}) => {
+  await fireEvent(scrollView(), 'layout', {
+    nativeEvent: { layout: { x: 0, y: 0, width: 360, height } },
+  });
+  if (contentHeight !== undefined) {
+    await fireEvent(scrollView(), 'contentSizeChange', 360, contentHeight);
+  }
+};
+const scrollToY = (y: number) =>
+  fireEvent.scroll(scrollView(), {
+    nativeEvent: { contentOffset: { x: 0, y } },
+  });
+const layoutOtherSection = (height: number) =>
+  fireEvent(
+    screen.getByTestId('reject-other-content', { includeHiddenElements: true }),
+    'layout',
+    { nativeEvent: { layout: { x: 0, y: 0, width: 312, height } } },
+  );
+// 테스트 환경의 네이티브 메서드 목(measure·scrollTo 등)은 모든 컴포넌트가 같이 쓰는 jest.fn 이라
+// spyOn 이 같은 목을 돌려주고 restoreAllMocks 로도 돌아가지 않는다. 구현을 넣은 테스트 뒤에 비운다
+const resetNativeMethodMocks = () => {
+  jest.mocked(ScrollView.prototype.scrollTo).mockReset();
+  jest.mocked(ScrollView.prototype.measureInWindow).mockReset();
+  jest.mocked(ScrollView.prototype.getInnerViewRef).mockReset();
+  jest.mocked(TextInput.prototype.measureLayout).mockReset();
+  jest.mocked(TextInput.prototype.isFocused).mockReset();
+};
+// 스크롤 영역이 화면 위 80 에서 높이 620 이고, 펼친 입력란(높이 136)이 내용 맨 위에서 554 에 있는 기기로 친다.
+// 키보드 윗변이 500 이면 스크롤 영역 위 420 만 보인다.
+// 입력란 아래 끝(690)과 여백 24 가 키보드 위에 오려면 690 + 24 − 420 = 294 까지 내린다
+const REVEALED_OFFSET = 294;
+const placeFocusedOtherInput = () => {
+  const scrollContent = { scrollContent: true };
+  jest
+    .mocked(ScrollView.prototype.getInnerViewRef)
+    .mockReturnValue(scrollContent as never);
+  jest
+    .mocked(ScrollView.prototype.measureInWindow)
+    .mockImplementation(((
+      callback: (x: number, y: number, width: number, height: number) => void,
+    ) => callback(0, 80, 360, 620)) as never);
+  jest.mocked(TextInput.prototype.measureLayout).mockImplementation(((
+    relativeTo: unknown,
+    onSuccess: (x: number, y: number, width: number, height: number) => void,
+  ) => {
+    // 내용(스크롤 안쪽 View) 기준 위치만 돌려준다
+    if (relativeTo === scrollContent) {
+      onSuccess(24, 554, 312, 136);
+    }
+  }) as never);
+  jest.mocked(TextInput.prototype.isFocused).mockReturnValue(true);
+};
+
 describe('RejectReasonScreen', () => {
   beforeEach(() => {
     runningAnimations = [];
@@ -79,6 +144,7 @@ describe('RejectReasonScreen', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    resetNativeMethodMocks();
   });
 
   it('처음에는 제목과 선택지 다섯 개만 보이고, 직접 입력란은 없다', async () => {
@@ -249,6 +315,98 @@ describe('RejectReasonScreen', () => {
     });
     // 위로 옮긴 잘라 내는 영역이 선택지를 덮어도 터치는 선택지로 간다
     expect(clip).toHaveProp('pointerEvents', 'box-none');
+  });
+
+  // #152: 섹션은 스크롤 내용의 맨 끝이다. 접힌 뒤 내리면 내용이 줄어 스크롤 끝이 한 번에 당겨지므로(뚝 끊김),
+  // 접히는 동안 줄어들 끝까지 스크롤로 따라가고, 그 위치에 닿은 뒤에 내린다.
+  // 스크롤 영역 600, 내용 900, 섹션 190 이면 접힌 뒤 끝은 900 − 190 − 600 = 110 이다
+  describe('접히며 스크롤 끝 따라가기', () => {
+    const scrollTo = () => jest.mocked(ScrollView.prototype.scrollTo);
+    // Keyboard 모듈은 마지막 키보드 상태를 들고 있어 다음 테스트로 넘어가지 않게 내린다
+    afterEach(() => hideKeyboard());
+    const expandAt = async (offset: number) => {
+      await layoutScroll({ height: 600, contentHeight: 900 });
+      await userEvent.press(otherOption());
+      await layoutOtherSection(190);
+      await finishAnimations();
+      await scrollToY(offset);
+    };
+
+    it('스크롤 끝 가까이에서 기타를 풀면, 접히는 동안 줄어들 끝까지 부드럽게 스크롤한다', async () => {
+      const timing = jest.spyOn(Animated, 'timing');
+      await renderReject();
+      await expandAt(300);
+
+      await userEvent.press(otherOption());
+
+      expect(timing).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ toValue: 0, useNativeDriver: true }),
+      );
+      expect(scrollTo()).toHaveBeenCalledTimes(1);
+      expect(scrollTo()).toHaveBeenCalledWith({ y: 110, animated: true });
+    });
+
+    it('줄어들 끝까지 스크롤이 오기 전에는 다 접혀도 섹션을 남겨 스크롤이 당겨지지 않게 하고, 닿으면 내린다', async () => {
+      await renderReject();
+      await expandAt(300);
+
+      await userEvent.press(option('일정이 맞지 않습니다'));
+      await finishAnimations();
+      expect(otherInputEvenHidden()).toBeOnTheScreen();
+
+      await scrollToY(200);
+      expect(otherInputEvenHidden()).toBeOnTheScreen();
+
+      await scrollToY(110);
+      expect(otherInputEvenHidden()).toBeNull();
+    });
+
+    it('줄어든 뒤에도 스크롤 끝 안쪽이면 스크롤하지 않고, 다 접히면 바로 내린다', async () => {
+      await renderReject();
+      await expandAt(80);
+
+      await userEvent.press(otherOption());
+      await finishAnimations();
+
+      expect(scrollTo()).not.toHaveBeenCalled();
+      expect(otherInputEvenHidden()).toBeNull();
+    });
+
+    it('접혀 내리기를 기다리는 중에 다시 기타를 고르면, 스크롤이 끝에 닿아도 섹션을 내리지 않는다', async () => {
+      await renderReject();
+      await expandAt(300);
+
+      await userEvent.press(otherOption());
+      await finishAnimations();
+      await userEvent.press(otherOption());
+      await finishAnimations();
+      await scrollToY(110);
+
+      expect(otherInput()).toBeOnTheScreen();
+      expect(otherOption()).toBeExpanded();
+    });
+
+    // Android 는 키보드가 가린 만큼 스크롤 영역을 줄여 두었다가(KeyboardAvoidingArea) 키보드가 다 내려간 뒤 되돌린다.
+    // 줄어든 영역으로 끝을 계산하면, 영역이 다시 커질 때 스크롤 끝이 한 번 더 당겨진다
+    it('Android 는 키보드가 내려가 스크롤 영역이 다시 커질 것까지 계산해 스크롤한다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await renderReject();
+      // 키보드가 없을 때 스크롤 영역 594, 펼친 내용 698(섹션 192)
+      await layoutScroll({ height: 594, contentHeight: 698 });
+      await userEvent.press(otherOption());
+      await layoutOtherSection(192);
+      await finishAnimations();
+      // 키보드가 떠 영역이 364 로 줄고, 입력란이 키보드 위에 오도록 310 까지 내려가 있다
+      await showKeyboard(452);
+      await layoutScroll({ height: 364 });
+      await scrollToY(310);
+
+      await userEvent.press(otherOption());
+
+      // 줄어든 영역(364)으로 계산하면 698 − 192 − 364 = 142 지만, 다시 커질 영역(594)으로는 0 이다
+      expect(scrollTo()).toHaveBeenCalledWith({ y: 0, animated: true });
+    });
   });
 
   it('기타에서 다른 선택지로 바꾸면 키보드를 내리며 접고, 다시 기타를 고르면 쓰던 내용이 남아 있다', async () => {
@@ -763,6 +921,40 @@ describe('RejectReasonScreen', () => {
       await finishAnimations();
       expect(otherInputEvenHidden()).toBeNull();
     });
+
+    it('켜져 있으면 접을 때 줄어들 스크롤 끝으로 애니메이션 없이 옮기고, 다 접히면 바로 내린다', async () => {
+      await reduceMotion();
+      await layoutScroll({ height: 600, contentHeight: 900 });
+      await userEvent.press(otherOption());
+      await layoutOtherSection(190);
+      await finishAnimations();
+      await scrollToY(300);
+
+      await userEvent.press(otherOption());
+
+      expect(ScrollView.prototype.scrollTo).toHaveBeenCalledWith({
+        y: 110,
+        animated: false,
+      });
+      // 바로 옮긴 위치를 네이티브가 알린 뒤 다음 프레임에 끝났다는 알림이 온다
+      await scrollToY(110);
+      await finishAnimations();
+      expect(otherInputEvenHidden()).toBeNull();
+    });
+
+    it('켜져 있으면 키보드가 올라올 때 입력란이 보이는 위치로 애니메이션 없이 옮긴다', async () => {
+      placeFocusedOtherInput();
+      await reduceMotion();
+
+      await userEvent.press(otherOption());
+      await willShowKeyboard(500);
+
+      expect(ScrollView.prototype.scrollTo).toHaveBeenCalledWith({
+        y: REVEALED_OFFSET,
+        animated: false,
+      });
+      await hideKeyboard();
+    });
   });
 
   describe('키보드', () => {
@@ -823,33 +1015,100 @@ describe('RejectReasonScreen', () => {
       expect(body).toHaveStyle({ paddingBottom: 0 });
     });
 
-    // Android ScrollView 는 크기가 줄 때 보이던 입력칸만 따라간다. 펼친 입력란이 처음부터
-    // 화면 아래에 있으면 키보드 뒤에 남으므로, 포커스를 받으면 맨 끝(섹션)까지 내린다
-    it('Android 는 펼친 입력란이 포커스를 받으면 끝까지 스크롤한다', async () => {
-      const scrollToEnd = jest
-        .spyOn(ScrollView.prototype, 'scrollToEnd')
-        .mockClear();
-      await renderOn('android');
-
-      await userEvent.press(otherOption());
-      await fireEvent(otherInput()!, 'focus');
-
-      expect(scrollToEnd).toHaveBeenCalledTimes(1);
-    });
-
-    it('iOS 는 키보드가 떠도 스크롤 영역을 줄이지 않고, 포커스된 입력칸 스크롤은 automaticallyAdjustKeyboardInsets 에 맡긴다', async () => {
-      const scrollToEnd = jest
-        .spyOn(ScrollView.prototype, 'scrollToEnd')
-        .mockClear();
+    it('iOS 는 키보드가 떠도 스크롤 영역을 줄이지 않는다 (아래 인셋은 automaticallyAdjustKeyboardInsets 가 넣는다)', async () => {
       await renderOn('ios');
       const body = await layoutBody();
 
       await userEvent.press(otherOption());
-      await fireEvent(otherInput()!, 'focus');
       await showKeyboard(500);
 
       expect(body).toHaveStyle({ paddingBottom: 0 });
-      expect(scrollToEnd).not.toHaveBeenCalled();
+    });
+
+    // #152: 여러 줄 입력칸은 네이티브가 커서 줄만 키보드 위로 올려, 입력란 아래쪽이 키보드에 가린다.
+    // 키보드 윗변까지 계산해 입력란 아래 끝(+여백 24)까지 키보드 위에 오도록 직접 스크롤한다
+    describe('기타 입력란을 키보드 위로 드러내기', () => {
+      const scrollTo = () => jest.mocked(ScrollView.prototype.scrollTo);
+
+      it('iOS 는 기타를 고르고 키보드가 올라오기 시작할 때, 입력란 아래 끝까지 키보드 위로 부드럽게 스크롤한다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await willShowKeyboard(500);
+
+        expect(scrollTo()).toHaveBeenCalledTimes(1);
+        expect(scrollTo()).toHaveBeenCalledWith({
+          y: REVEALED_OFFSET,
+          animated: true,
+        });
+      });
+
+      // Android 는 keyboardWillShow 가 없고, 키보드가 다 올라온 뒤에 알린다
+      it('Android 는 기타를 고르고 키보드가 다 올라오면, 입력란 아래 끝까지 키보드 위로 부드럽게 스크롤한다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('android');
+
+        await userEvent.press(otherOption());
+        await showKeyboard(500);
+
+        expect(scrollTo()).toHaveBeenCalledTimes(1);
+        expect(scrollTo()).toHaveBeenCalledWith({
+          y: REVEALED_OFFSET,
+          animated: true,
+        });
+      });
+
+      it('키보드 높이가 바뀌어 다시 알리면(이모지 패널 등) 바뀐 윗변으로 다시 계산한다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await willShowKeyboard(500);
+        await scrollToY(REVEALED_OFFSET);
+        await willShowKeyboard(450);
+
+        expect(scrollTo()).toHaveBeenLastCalledWith({
+          y: REVEALED_OFFSET + 50,
+          animated: true,
+        });
+      });
+
+      it('입력란 아래 끝까지 이미 키보드 위에 보이면 스크롤하지 않는다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await scrollToY(REVEALED_OFFSET + 10);
+        await willShowKeyboard(500);
+
+        expect(scrollTo()).not.toHaveBeenCalled();
+      });
+
+      it('기타 입력란에 포커스가 없으면 키보드가 떠도 스크롤하지 않는다', async () => {
+        placeFocusedOtherInput();
+        jest.mocked(TextInput.prototype.isFocused).mockReturnValue(false);
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await willShowKeyboard(500);
+
+        expect(scrollTo()).not.toHaveBeenCalled();
+      });
+
+      it('기타를 고르기 전이나 접은 뒤에는 키보드를 듣지 않는다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('ios');
+
+        await willShowKeyboard(500);
+        await userEvent.press(otherOption());
+        await finishAnimations();
+        await userEvent.press(otherOption());
+        await finishAnimations();
+        await willShowKeyboard(500);
+
+        expect(scrollTo()).not.toHaveBeenCalled();
+      });
     });
   });
 });
