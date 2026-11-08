@@ -11,6 +11,7 @@ import {
   Animated,
   NativeModules,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
 import { colors } from '../../../shared/design-system';
@@ -745,20 +746,47 @@ describe('WorkDetailScreen', () => {
       });
 
       it('나타날 때는 아래에서 올라와 위로 살짝 넘쳤다가 제자리로 오고, 올라오는 동안 누를 수 있다', async () => {
-        const onPress = jest.spyOn(Animated, 'timing');
+        const timing = jest.spyOn(Animated, 'timing');
         await renderDetail();
         await layout();
         await scrollTo(1000);
         await finishAnimations();
-        onPress.mockClear();
+        timing.mockClear();
 
         await scrollTo(0);
 
-        expect(targets(onPress)).toEqual([-ANCHOR_OVERSHOOT, 0]);
+        expect(targets(timing)).toEqual([-ANCHOR_OVERSHOOT, 0]);
         expect(
           screen.getByRole('button', { name: '완료 보고 작성하기' }),
         ).toBeOnTheScreen();
         expect(anchorWrapper().props.pointerEvents).toBe('box-none');
+      });
+
+      // 테스트 환경의 scrollTo 는 모든 스크롤 뷰가 같이 쓰는 jest.fn 이다 (RejectReasonScreen.test 와 같다)
+      const scrollToReport = () =>
+        jest.mocked(ScrollView.prototype.scrollTo).mockClear();
+
+      it('보이는 동안 누르면 완료 보고 영역으로 스크롤한다', async () => {
+        await renderDetail();
+        await layout();
+        const scroll = scrollToReport();
+
+        await userEvent.press(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        );
+
+        expect(scroll).toHaveBeenCalledWith({ y: 1500, animated: true });
+      });
+
+      it('숨는 중에는 눌러도 스크롤하지 않는다', async () => {
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        const scroll = scrollToReport();
+
+        await userEvent.press(anchor()!);
+
+        expect(scroll).not.toHaveBeenCalled();
       });
 
       it('숨는 도중에 다시 보이면 끝까지 숨지 않고 지금 자리에서 올라온다', async () => {

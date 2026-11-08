@@ -3,7 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { colors, CTA, Icon, withOpacity } from '../../../shared/design-system';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import { readableColumn } from '../../../shared/layout/readableColumn';
-import { anchorAnimation } from './reportAnchorMotion';
+import { anchorAnimation, fadeFollowing } from './reportAnchorMotion';
 
 // '완료 보고 작성하기' 떠 있는 버튼(앵커)과 그 뒤 그라데이션 (#95). 보이고 숨을 때 카툰처럼 움직인다 (#149, reportAnchorMotion).
 // 숨는 애니메이션 동안에도 그려야 해서 visible 과 따로 mounted 를 둔다. 숨기 시작하면 바로 누를 수 없고 스크린리더에서도 숨는다.
@@ -25,14 +25,8 @@ export function ReportJumpAnchor({
   const [offset] = useState(
     () => new Animated.Value(visible ? 0 : JUMP_FADE_HEIGHT),
   );
-  // 그라데이션은 같은 값으로 움직이되 제자리보다 위로는 가지 않는다. 렌더마다 새 노드를 만들지 않게 한 번만 만든다
-  const [fadeOffset] = useState(() =>
-    offset.interpolate({
-      inputRange: [0, JUMP_FADE_HEIGHT],
-      outputRange: [0, JUMP_FADE_HEIGHT],
-      extrapolateLeft: 'clamp',
-    }),
-  );
+  // 렌더마다 새 노드를 만들지 않게 한 번만 만든다
+  const [fadeOffset] = useState(() => fadeFollowing(offset, JUMP_FADE_HEIGHT));
   // 마지막으로 다 움직여 멈춘 상태와 지금 움직이는 중인지. 반대로 바뀌면 지금 자리에서 이어 간다
   const settled = useRef(visible);
   const moving = useRef(false);

@@ -1,9 +1,11 @@
+import { render, screen } from '@testing-library/react-native';
 import { Animated } from 'react-native';
 import {
   ANCHOR_ANTICIPATION,
   ANCHOR_OVERSHOOT,
   anchorAnimation,
   anchorKeyframes,
+  fadeFollowing,
 } from './reportAnchorMotion';
 
 const HIDDEN = 218;
@@ -72,5 +74,27 @@ describe('anchorAnimation', () => {
         useNativeDriver: true,
       })),
     );
+  });
+});
+
+// 버튼 뒤 그라데이션은 같은 값으로 함께 움직이되, 넘칠 때 제자리보다 위로 가지 않는다 (아래 끝이 들려 틈이 보이지 않게)
+describe('fadeFollowing', () => {
+  it.each([
+    ['위로 넘친 동안(음수)', -ANCHOR_OVERSHOOT, 0],
+    ['제자리', 0, 0],
+    ['내려가는 중', 100, 100],
+    ['다 숨은 자리', HIDDEN, HIDDEN],
+  ])('%s 에는 %d → %d 로 따라간다', async (_, value, expected) => {
+    const offset = new Animated.Value(value);
+    await render(
+      <Animated.View
+        testID="fade"
+        style={{ transform: [{ translateY: fadeFollowing(offset, HIDDEN) }] }}
+      />,
+    );
+
+    expect(screen.getByTestId('fade')).toHaveStyle({
+      transform: [{ translateY: expected }],
+    });
   });
 });

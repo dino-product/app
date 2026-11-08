@@ -10,6 +10,12 @@ import { Animated, Easing, type EasingFunction } from 'react-native';
 export const ANCHOR_OVERSHOOT = 12;
 /** 사라지기 전에 위로 뜨는 거리 */
 export const ANCHOR_ANTICIPATION = 8;
+/** 나타날 때 넘친 자리까지 올라오는 시간 / 제자리로 내려앉는 시간 (ms) */
+const ANCHOR_RISE_MS = 260;
+const ANCHOR_SETTLE_MS = 180;
+/** 사라질 때 위로 뜨는 시간 / 아래로 빠지는 시간 (ms) */
+const ANCHOR_LIFT_MS = 120;
+const ANCHOR_DROP_MS = 240;
 
 export type AnchorKeyframe = {
   toValue: number;
@@ -30,15 +36,19 @@ export function anchorKeyframes(
     return [
       {
         toValue: -ANCHOR_OVERSHOOT,
-        duration: 260,
+        duration: ANCHOR_RISE_MS,
         easing: Easing.out(Easing.cubic),
       },
-      { toValue: 0, duration: 180, easing: Easing.inOut(Easing.quad) },
+      {
+        toValue: 0,
+        duration: ANCHOR_SETTLE_MS,
+        easing: Easing.inOut(Easing.quad),
+      },
     ];
   }
   const drop: AnchorKeyframe = {
     toValue: hiddenOffset,
-    duration: 240,
+    duration: ANCHOR_DROP_MS,
     easing: Easing.in(Easing.cubic),
   };
   return interrupted
@@ -46,7 +56,7 @@ export function anchorKeyframes(
     : [
         {
           toValue: -ANCHOR_ANTICIPATION,
-          duration: 120,
+          duration: ANCHOR_LIFT_MS,
           easing: Easing.out(Easing.quad),
         },
         drop,
@@ -65,4 +75,19 @@ export function anchorAnimation(
       Animated.timing(offset, { ...frame, useNativeDriver: true }),
     ),
   );
+}
+
+/**
+ * 버튼 뒤 그라데이션이 따라갈 값. 같은 값으로 함께 내려가고 올라오되 제자리보다 위로는 가지 않는다
+ * (넘칠 때 그라데이션 아래 끝이 들려 틈이 보이지 않게). 네이티브 드라이버로 함께 돈다
+ */
+export function fadeFollowing(
+  offset: Animated.Value,
+  hiddenOffset: number,
+): Animated.AnimatedInterpolation<number> {
+  return offset.interpolate({
+    inputRange: [0, hiddenOffset],
+    outputRange: [0, hiddenOffset],
+    extrapolateLeft: 'clamp',
+  });
 }
