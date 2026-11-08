@@ -10,19 +10,21 @@ import {
 } from 'react';
 import {
   AccessibilityInfo,
-  FlatList,
+  Animated,
   StyleSheet,
   View,
   type FlatListInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Icon, Text } from '../../../shared/design-system';
+import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import {
   LoadStateView,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
+import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { addMonths, formatMonthTitle } from '../../schedule/model';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { MonthSwitcher } from '../components/MonthSwitcher';
@@ -119,6 +121,13 @@ function WorkHistoryScreenView({
     [onOpenWork],
   );
 
+  // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
+  const autoHide = useAutoHideHeader();
+  const contentStyle = useMemo(
+    () => [readableColumn, { paddingTop: autoHide.height }],
+    [autoHide.height],
+  );
+
   // 화살표가 위아래로 넓힌 터치 영역이 리스트 밖으로 나가지 않도록 월 선택도 리스트 머리에 둔다
   const header = (
     <View style={styles.header}>
@@ -142,22 +151,33 @@ function WorkHistoryScreenView({
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       {/* 탭 첫 화면 공통 상단 바 (#103). Figma 작업이력 (기본) 2751:6982 에는 종이 없다 */}
-      <TabHeader title="작업 이력" />
-      <FlatList
-        ref={listRef}
-        testID="work-history-list"
-        data={monthWorks}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          load.status === 'ready' ? EmptyMonth : <LoadStateView state={load} />
-        }
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        style={styles.list}
-        contentContainerStyle={readableColumn}
-      />
+      <AutoHideHeaderLayout
+        autoHide={autoHide}
+        header={<TabHeader title="작업 이력" />}
+        style={styles.headerBar}
+      >
+        <Animated.FlatList
+          ref={listRef}
+          testID="work-history-list"
+          {...autoHide.scrollProps}
+          data={monthWorks}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          ListHeaderComponent={header}
+          ListEmptyComponent={
+            load.status === 'ready' ? (
+              EmptyMonth
+            ) : (
+              <LoadStateView state={load} />
+            )
+          }
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          progressViewOffset={autoHide.height}
+          style={styles.list}
+          contentContainerStyle={contentStyle}
+        />
+      </AutoHideHeaderLayout>
     </SafeAreaView>
   );
 }
@@ -196,6 +216,8 @@ function EmptyMonth() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
+  // 상단 바는 리스트 위에 겹쳐 그려 내용이 그 아래로 지나간다. 화면 배경으로 가린다 (#148)
+  headerBar: { backgroundColor: colors.white[100] },
   list: { flex: 1 },
   header: {
     gap: 24,

@@ -9,7 +9,7 @@ import {
   type Ref,
 } from 'react';
 import {
-  FlatList,
+  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -21,15 +21,18 @@ import {
   Icon,
   ICON_HIT_SLOP,
   Text,
+  UNDERLINE_TABS_HEIGHT,
   UnderlineTabs,
 } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
+import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import {
   LoadStateView,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
-import { TabHeader } from '../../../shared/layout/TabHeader';
+import { TAB_HEADER_HEIGHT, TabHeader } from '../../../shared/layout/TabHeader';
+import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
@@ -181,6 +184,14 @@ function ScheduleScreenView({
   );
   const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
 
+  // 아래로 스크롤하면 제목 줄이 숨고 하위 탭은 화면 맨 위에 남는다. 위로 스크롤하면 다시 보인다 (#148).
+  // 하위 탭을 바꾸면 새 리스트가 그려지며(맨 위) 다시 보인다
+  const autoHide = useAutoHideHeader(HEADER_ESTIMATE);
+  const contentStyle = useMemo(
+    () => [readableColumn, { paddingTop: autoHide.height }],
+    [autoHide.height],
+  );
+
   // 달력을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99)
   const scrollLock = useTouchScrollLock();
   const calendarTouch = scrollLock.areaTouchHandlers;
@@ -293,71 +304,80 @@ function ScheduleScreenView({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 머리말 그림자가 아래 리스트 위로 드리우도록 앞에 그린다 */}
-      <View style={styles.header}>
-        <View style={readableColumn}>
-          {/* 탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(2714:12918)에는 종이 없다 */}
-          <TabHeader title="내 일정" style={styles.titleBar} />
-          <UnderlineTabs
-            items={[
-              {
-                key: 'confirmed',
-                label: '확정 일정',
-                count: daySchedules.length,
-              },
-              { key: 'pending', label: '응답 필요', count: pending.length },
-            ]}
-            selectedKey={tab}
-            onChange={setTab}
+      {/* 머리말은 리스트 위에 겹쳐 그리고 그림자가 리스트 위로 드리운다.
+          탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(2714:12918)에는 종이 없다 */}
+      <AutoHideHeaderLayout
+        autoHide={autoHide}
+        header={<TabHeader title="내 일정" style={styles.titleBar} />}
+        sticky={
+          <View style={readableColumn}>
+            <UnderlineTabs
+              items={[
+                {
+                  key: 'confirmed',
+                  label: '확정 일정',
+                  count: daySchedules.length,
+                },
+                { key: 'pending', label: '응답 필요', count: pending.length },
+              ]}
+              selectedKey={tab}
+              onChange={setTab}
+            />
+          </View>
+        }
+        style={styles.header}
+      >
+        {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
+        {tab === 'confirmed' ? (
+          <Animated.FlatList
+            ref={listRef}
+            testID="schedule-confirmed-list"
+            {...autoHide.scrollProps}
+            // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
+            directionalLockEnabled
+            // 달력에 손가락이 닿아 있는 동안은 세로로도 움직이지 않는다 (#99)
+            scrollEnabled={!scrollLock.locked}
+            onTouchStartCapture={scrollLock.onListTouchStartCapture}
+            data={daySchedules}
+            keyExtractor={keyExtractor}
+            renderItem={renderConfirmed}
+            ListHeaderComponent={dateHeader}
+            ListEmptyComponent={
+              confirmedLoad.status === 'ready' ? (
+                <Empty text="예정된 일정이 없습니다" />
+              ) : (
+                <LoadStateView state={confirmedLoad} />
+              )
+            }
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            progressViewOffset={autoHide.height}
+            style={styles.list}
+            contentContainerStyle={contentStyle}
           />
-        </View>
-      </View>
-      {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
-      {tab === 'confirmed' ? (
-        <FlatList
-          ref={listRef}
-          testID="schedule-confirmed-list"
-          // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
-          directionalLockEnabled
-          // 달력에 손가락이 닿아 있는 동안은 세로로도 움직이지 않는다 (#99)
-          scrollEnabled={!scrollLock.locked}
-          onTouchStartCapture={scrollLock.onListTouchStartCapture}
-          data={daySchedules}
-          keyExtractor={keyExtractor}
-          renderItem={renderConfirmed}
-          ListHeaderComponent={dateHeader}
-          ListEmptyComponent={
-            confirmedLoad.status === 'ready' ? (
-              <Empty text="예정된 일정이 없습니다" />
-            ) : (
-              <LoadStateView state={confirmedLoad} />
-            )
-          }
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          style={styles.list}
-          contentContainerStyle={readableColumn}
-        />
-      ) : (
-        <FlatList
-          ref={listRef}
-          testID="schedule-pending-list"
-          data={pending}
-          keyExtractor={keyExtractor}
-          renderItem={renderPending}
-          ListEmptyComponent={
-            pendingLoad.status === 'ready' ? (
-              <Empty text="응답할 요청이 없습니다" />
-            ) : (
-              <LoadStateView state={pendingLoad} />
-            )
-          }
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          style={styles.list}
-          contentContainerStyle={readableColumn}
-        />
-      )}
+        ) : (
+          <Animated.FlatList
+            ref={listRef}
+            testID="schedule-pending-list"
+            {...autoHide.scrollProps}
+            data={pending}
+            keyExtractor={keyExtractor}
+            renderItem={renderPending}
+            ListEmptyComponent={
+              pendingLoad.status === 'ready' ? (
+                <Empty text="응답할 요청이 없습니다" />
+              ) : (
+                <LoadStateView state={pendingLoad} />
+              )
+            }
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            progressViewOffset={autoHide.height}
+            style={styles.list}
+            contentContainerStyle={contentStyle}
+          />
+        )}
+      </AutoHideHeaderLayout>
     </SafeAreaView>
   );
 }
@@ -376,19 +396,26 @@ function Empty({ text }: { text: string }) {
   );
 }
 
+// 제목 줄 아래 여백. 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
+const TITLE_BAR_PADDING_BOTTOM = 16;
+// 기본 글자 크기에서 숨는 제목 줄과 머리 전체(제목 줄 + 하위 탭)의 높이. 그린 뒤 잰 높이로 고친다
+const HEADER_ESTIMATE = {
+  collapsible: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM,
+  total: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM + UNDERLINE_TABS_HEIGHT,
+};
+
 // Figma: 날짜 줄·달력·구분선은 화면 가장자리에서 24, 주간 줄은 10 안쪽이다
 const DATE_INSET = 24;
 const WEEK_INSET = 10;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
+  // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). 내용이 아래로 지나가므로 화면 배경으로 가린다
   header: {
-    zIndex: 1,
     backgroundColor: colors.white[100],
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
   },
-  // 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
-  titleBar: { paddingBottom: 16 },
+  titleBar: { paddingBottom: TITLE_BAR_PADDING_BOTTOM },
   list: { flex: 1 },
   dateArea: {
     paddingTop: 24,

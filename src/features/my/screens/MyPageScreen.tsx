@@ -1,7 +1,7 @@
-import { Fragment, memo, type Ref } from 'react';
+import { Fragment, memo, useMemo, type Ref } from 'react';
 import {
+  Animated,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
   type PressableStateCallbackType,
@@ -18,10 +18,12 @@ import {
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
+import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
+import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import type { MembershipResponse } from '../memberships';
 import {
   formatJoinDate,
@@ -66,112 +68,138 @@ function MyPageScreenView({
   onOpenAccount,
   scrollRef,
 }: MyPageScreenProps) {
+  // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
+  const autoHide = useAutoHideHeader();
+  const contentStyle = useMemo(
+    () => [
+      readableColumn,
+      styles.content,
+      { paddingTop: autoHide.height + CONTENT_TOP },
+    ],
+    [autoHide.height],
+  );
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <TabHeader title="마이페이지" onOpenNotifications={onOpenNotifications} />
-      {/* 소속 발주사는 한 사람이 몇 곳뿐이라 카드 하나 안에 다 그린다 (가상화할 만큼 길지 않다) */}
-      <ScrollView
-        {...noOverscroll}
-        ref={scrollRef}
-        contentContainerStyle={[readableColumn, styles.content]}
+      <AutoHideHeaderLayout
+        autoHide={autoHide}
+        header={
+          <TabHeader
+            title="마이페이지"
+            onOpenNotifications={onOpenNotifications}
+          />
+        }
+        style={styles.headerBar}
       >
-        {profile.status === 'ready' ? (
-          <ProfileCard profile={profile.data} onPress={onEditProfile} />
-        ) : (
-          <View style={[styles.card, styles.loadCard]}>
-            <LoadStateView state={profile} style={styles.cardLoad} />
-          </View>
-        )}
+        {/* 소속 발주사는 한 사람이 몇 곳뿐이라 카드 하나 안에 다 그린다 (가상화할 만큼 길지 않다) */}
+        <Animated.ScrollView
+          {...noOverscroll}
+          ref={scrollRef}
+          testID="my-page-scroll"
+          {...autoHide.scrollProps}
+          contentContainerStyle={contentStyle}
+        >
+          {profile.status === 'ready' ? (
+            <ProfileCard profile={profile.data} onPress={onEditProfile} />
+          ) : (
+            <View style={[styles.card, styles.loadCard]}>
+              <LoadStateView state={profile} style={styles.cardLoad} />
+            </View>
+          )}
 
-        <View style={styles.section}>
-          <View style={styles.sectionRow}>
-            <Text accessibilityRole="header" variant="Body/S/SemiBold">
-              소속 발주사
-            </Text>
-            <View style={styles.sectionActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  pendingRequestCount > 0
-                    ? `신청 현황, ${pendingRequestCount}건`
-                    : '신청 현황'
-                }
-                hitSlop={ACTION_HIT_SLOP}
-                onPress={onOpenRequestStatus}
-                style={styles.requestStatus}
-              >
-                <Text variant="Caption/M/Medium" color={REQUEST_STATUS_COLOR}>
-                  신청 현황
+          <View style={styles.section}>
+            <View style={styles.sectionRow}>
+              <Text accessibilityRole="header" variant="Body/S/SemiBold">
+                소속 발주사
+              </Text>
+              <View style={styles.sectionActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    pendingRequestCount > 0
+                      ? `신청 현황, ${pendingRequestCount}건`
+                      : '신청 현황'
+                  }
+                  hitSlop={ACTION_HIT_SLOP}
+                  onPress={onOpenRequestStatus}
+                  style={styles.requestStatus}
+                >
+                  <Text variant="Caption/M/Medium" color={REQUEST_STATUS_COLOR}>
+                    신청 현황
+                  </Text>
+                  {pendingRequestCount > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText} color={colors.white[100]}>
+                        {pendingRequestCount}
+                      </Text>
+                    </View>
+                  )}
+                  <Icon
+                    name="chevron-right-line"
+                    size={16}
+                    color={colors.gray[500]}
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={ACTION_HIT_SLOP}
+                  onPress={onJoinOrganization}
+                  style={({ pressed }) => [
+                    styles.joinButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text variant="Caption/S/Medium" color={colors.white[100]}>
+                    조직 참여
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={[styles.card, styles.membershipCard]}>
+              {memberships.status !== 'ready' ? (
+                <LoadStateView state={memberships} style={styles.cardLoad} />
+              ) : memberships.data.length === 0 ? (
+                <Text
+                  variant="Caption/M/Medium"
+                  color={colors.gray[600]}
+                  style={styles.membershipEmpty}
+                >
+                  아직 소속된 발주사가 없어요
                 </Text>
-                {pendingRequestCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText} color={colors.white[100]}>
-                      {pendingRequestCount}
-                    </Text>
-                  </View>
-                )}
-                <Icon
-                  name="chevron-right-line"
-                  size={16}
-                  color={colors.gray[500]}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={ACTION_HIT_SLOP}
-                onPress={onJoinOrganization}
-                style={({ pressed }) => [
-                  styles.joinButton,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text variant="Caption/S/Medium" color={colors.white[100]}>
-                  조직 참여
-                </Text>
-              </Pressable>
+              ) : (
+                memberships.data.map((membership, index) => (
+                  <Fragment key={membership.organizationId}>
+                    {index > 0 && <View style={styles.divider} />}
+                    <MembershipRow membership={membership} />
+                  </Fragment>
+                ))
+              )}
             </View>
           </View>
-          <View style={[styles.card, styles.membershipCard]}>
-            {memberships.status !== 'ready' ? (
-              <LoadStateView state={memberships} style={styles.cardLoad} />
-            ) : memberships.data.length === 0 ? (
-              <Text
-                variant="Caption/M/Medium"
-                color={colors.gray[600]}
-                style={styles.membershipEmpty}
-              >
-                아직 소속된 발주사가 없어요
-              </Text>
-            ) : (
-              memberships.data.map((membership, index) => (
-                <Fragment key={membership.organizationId}>
-                  {index > 0 && <View style={styles.divider} />}
-                  <MembershipRow membership={membership} />
-                </Fragment>
-              ))
-            )}
-          </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text accessibilityRole="header" variant="Body/S/SemiBold">
-            설정 및 정보
-          </Text>
-          <View style={[styles.card, styles.settingsCard]}>
-            <SettingRow
-              icon="bell"
-              label="알림 설정"
-              onPress={onOpenNotificationSettings}
-            />
-            <SettingRow
-              icon="document"
-              label="약관 및 앱 정보"
-              onPress={onOpenTerms}
-            />
-            <SettingRow icon="user" label="계정 관리" onPress={onOpenAccount} />
+          <View style={styles.section}>
+            <Text accessibilityRole="header" variant="Body/S/SemiBold">
+              설정 및 정보
+            </Text>
+            <View style={[styles.card, styles.settingsCard]}>
+              <SettingRow
+                icon="bell"
+                label="알림 설정"
+                onPress={onOpenNotificationSettings}
+              />
+              <SettingRow
+                icon="document"
+                label="약관 및 앱 정보"
+                onPress={onOpenTerms}
+              />
+              <SettingRow
+                icon="user"
+                label="계정 관리"
+                onPress={onOpenAccount}
+              />
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </Animated.ScrollView>
+      </AutoHideHeaderLayout>
     </SafeAreaView>
   );
 }
@@ -317,6 +345,8 @@ const settingRowStyle = ({ pressed }: PressableStateCallbackType) => [
 const CHEVRON_COLOR = '#A1A1AA';
 const REQUEST_STATUS_COLOR = '#6B6E76';
 
+/** 프로필 카드는 상단 바 아래 20 에서 시작한다 */
+const CONTENT_TOP = 20;
 /** '신청 현황'·'조직 참여' 줄의 높이 (조직 참여 버튼) */
 const ACTION_HEIGHT = 30;
 const ACTION_HIT_SLOP = {
@@ -338,11 +368,12 @@ const SETTING_ROW_HIT_SLOP = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
-  // 프로필 카드는 지금처럼 제목 줄 아래 20 에서 시작한다. 제목 줄은 스크롤 밖 상단 바다 (#103)
+  // 상단 바는 스크롤 뷰 위에 겹쳐 그려 내용이 그 아래로 지나간다. 화면 배경으로 가린다 (#148)
+  headerBar: { backgroundColor: colors.background[3] },
+  // 내용 위 여백은 상단 바 높이 + CONTENT_TOP 이다. 제목 줄은 스크롤 밖 상단 바다 (#103)
   content: {
     gap: 24,
     paddingHorizontal: 24,
-    paddingTop: 20,
     paddingBottom: 24,
   },
   card: {
