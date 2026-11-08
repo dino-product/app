@@ -24,6 +24,9 @@ export type ScheduleItem = {
   address: string;
 };
 
+/** WGS84 위도·경도 */
+export type GeoPoint = { latitude: number; longitude: number };
+
 export type WorkDetail = {
   id: string;
   title: string;
@@ -39,6 +42,8 @@ export type WorkDetail = {
   workType: string;
   customer: { name: string; phone: string };
   address: string;
+  /** 현장 좌표 (서버가 주소에서 구한 값). 없으면 null 이고 지도 자리는 회색으로 둔다 */
+  location: GeoPoint | null;
   memo: string;
   /** 정해지지 않았으면 null */
   price: number | null;

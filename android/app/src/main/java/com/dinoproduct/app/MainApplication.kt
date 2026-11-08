@@ -3,6 +3,7 @@ package com.dinoproduct.app
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import com.dinoproduct.app.gestureexclusion.GestureExclusionPackage
+import com.dinoproduct.app.kakaomap.KakaoMapPackage
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -19,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
           add(GestureExclusionPackage())
+          add(KakaoMapPackage())
         },
     )
   }

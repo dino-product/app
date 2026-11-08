@@ -68,6 +68,9 @@ export type TechnicianResponse = {
 
 export type PhotoResponse = { photoId: string; url: string };
 
+/** 현장 좌표 (WGS84, 소수점 6자리). 서버가 현장 기본주소에서 구한 길찾기용 값이다 (LocationResponse) */
+export type LocationResponse = { latitude: number; longitude: number };
+
 export type ScheduleResponse = {
   technician: TechnicianResponse | null;
   startTime: Instant;
@@ -114,6 +117,8 @@ export type WorkDetailResponse = {
     postalCode: string | null;
     address: string | null;
     addressDetail: string | null;
+    /** 기본주소가 없거나 서버가 좌표를 구하지 못했으면 null. 그때는 주소로 길찾기한다 */
+    location: LocationResponse | null;
   } | null;
   payment: { fee: number | null; method: PlannedPaymentMethod | null } | null;
   schedule: ScheduleResponse | null;

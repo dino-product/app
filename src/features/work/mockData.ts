@@ -38,6 +38,7 @@ export const workDetail: WorkDetail = {
   workType: '도어락',
   customer: { name: '박민지', phone: '010-1234-5678' },
   address: '서울 강남구 역삼동 123-4 101호',
+  location: { latitude: 37.500622, longitude: 127.036456 },
   memo: '현관 도어록 배터리 교체 및 비밀번호 재설정 요청. 주차는 건물 지하 1층 가능.',
   price: 75000,
   paymentMethod: 'card',

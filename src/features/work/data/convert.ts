@@ -4,6 +4,7 @@ import { WEEKDAYS } from '../../schedule/model';
 import {
   emptyReport,
   formatSubmittedAt,
+  type GeoPoint,
   type PaymentMethod,
   type ReportSubmission,
   type WorkDetail,
@@ -13,6 +14,7 @@ import type {
   ActualPaymentMethod,
   CompletionReportResponse,
   Instant,
+  LocationResponse,
   PlannedPaymentMethod,
   RejectionReason,
   SubmitCompletionReportCommand,
@@ -130,6 +132,20 @@ export function joinAddress(
   return [address, detail].filter(Boolean).join(' ') || null;
 }
 
+/** 서버 현장 좌표 → 화면 좌표. 없거나 숫자가 아니면 null (예전 서버는 필드가 없다) */
+function toGeoPoint(
+  location: LocationResponse | null | undefined,
+): GeoPoint | null {
+  if (
+    !location ||
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
+    return null;
+  }
+  return { latitude: location.latitude, longitude: location.longitude };
+}
+
 function toSubmission(
   report: CompletionReportResponse,
   completedAt: Instant | null,
@@ -180,6 +196,7 @@ export function toWorkDetail(response: WorkDetailResponse): WorkDetail {
     address:
       joinAddress(customer?.address ?? null, customer?.addressDetail ?? null) ??
       EMPTY_VALUE,
+    location: toGeoPoint(customer?.location),
     memo: EMPTY_VALUE,
     price: payment?.fee ?? null,
     paymentMethod: payment?.method

@@ -8,3 +8,7 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# 카카오맵 SDK v2 (#67). 코드 줄이기를 켜면 필요하다 (apis.map.kakao.com/android_v2 › 지도 시작하기)
+-keep class com.kakao.vectormap.** { *; }
+-keep interface com.kakao.vectormap.**

@@ -88,6 +88,8 @@ function toResponse({
       postalCode: null,
       address: customer.address,
       addressDetail: customer.detail ?? null,
+      // 로컬 저장소는 좌표를 구하지 않는다 (지도 자리는 회색)
+      location: null,
     },
     payment,
     schedule,
