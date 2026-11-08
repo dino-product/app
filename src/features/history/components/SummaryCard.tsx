@@ -38,7 +38,12 @@ export const SummaryCard = memo(function SummaryCardView({
     >
       {loading ? (
         <Skeleton accessible={false} testID="summary-count-skeleton">
-          <SkeletonLine variant="Body/L/Bold" width={64} />
+          <SkeletonLine
+            variant="Body/L/Bold"
+            width={64}
+            inverse={emphasis}
+            testID="summary-count-line"
+          />
         </Skeleton>
       ) : (
         <Text

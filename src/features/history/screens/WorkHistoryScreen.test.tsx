@@ -385,6 +385,12 @@ describe('WorkHistoryScreen — 불러오기', () => {
       }),
     ).toHaveLength(2);
     expect(screen.queryByText('-')).not.toBeOnTheScreen();
+    // 이번 달 완료(왼쪽)는 Primary 카드라 막대를 흰색 토큰으로 옅게, 누적 완료는 회색이다
+    const [month, total] = screen.getAllByTestId('summary-count-line-bar', {
+      includeHiddenElements: true,
+    });
+    expect(month).toHaveStyle({ backgroundColor: colors.white[9] });
+    expect(total).toHaveStyle({ backgroundColor: colors.gray[100] });
   });
 
   it('달을 바꿔 그 달을 불러오는 동안 누적 완료는 그대로이고 이번 달 완료만 스켈레톤이다', async () => {

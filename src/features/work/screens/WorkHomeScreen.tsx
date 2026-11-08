@@ -190,7 +190,10 @@ function WorkHomeScreenView({
     return (
       <SafeAreaView edges={['top']} style={styles.screen}>
         <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
-        <LoadStateView state={load} skeleton={homeSkeleton} />
+        <LoadStateView
+          state={load}
+          skeleton={<WorkHomeSkeleton block={block} />}
+        />
       </SafeAreaView>
     );
   }
@@ -333,7 +336,6 @@ const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
 });
 
-const homeSkeleton = <WorkHomeSkeleton />;
 const emptyWeek = (
   <EmptySchedule title="이번 주 일정이 없어요" style={styles.emptyWeek} />
 );

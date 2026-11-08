@@ -25,6 +25,8 @@ import { typography, type TypographyVariant } from '../tokens/typography';
 export const SKELETON_LABEL = '불러오는 중';
 
 const BLOCK_COLOR = colors.gray[100];
+// 어두운 배경(Primary 카드) 위에서는 흰색을 옅게 칠한다
+const INVERSE_BLOCK_COLOR = colors.white[9];
 // 한 번 흐려졌다 돌아오는 데 걸리는 시간과 가장 흐린 불투명도
 const PULSE_MS = 1600;
 const DIMMEST = 0.45;
@@ -155,18 +157,26 @@ export function SkeletonBlock({
   width = '100%',
   height,
   radius = 8,
+  inverse = false,
   style,
   testID,
 }: {
   width?: DimensionValue;
   height: number;
   radius?: number;
+  /** 어두운 배경 위 */
+  inverse?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
   return (
     <View
-      style={[styles.block, { width, height, borderRadius: radius }, style]}
+      style={[
+        styles.block,
+        inverse && styles.inverse,
+        { width, height, borderRadius: radius },
+        style,
+      ]}
       testID={testID}
     />
   );
@@ -179,11 +189,14 @@ export function SkeletonBlock({
 export function SkeletonLine({
   variant,
   width = '100%',
+  inverse = false,
   style,
   testID,
 }: {
   variant: TypographyVariant;
   width?: DimensionValue;
+  /** 어두운 배경 위 */
+  inverse?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
@@ -194,7 +207,12 @@ export function SkeletonLine({
       testID={testID}
     >
       <View
-        style={[styles.block, styles.bar, { height: fontSize }]}
+        style={[
+          styles.block,
+          inverse && styles.inverse,
+          styles.bar,
+          { height: fontSize },
+        ]}
         testID={testID && `${testID}-bar`}
       />
     </View>
@@ -203,6 +221,7 @@ export function SkeletonLine({
 
 const styles = StyleSheet.create({
   block: { backgroundColor: BLOCK_COLOR },
+  inverse: { backgroundColor: INVERSE_BLOCK_COLOR },
   line: { justifyContent: 'center' },
   bar: { borderRadius: 4 },
 });
