@@ -288,6 +288,16 @@ export function toMySchedule(
   };
 }
 
+/** 응답 필요(my-schedule/pending) → 포트의 목록. 서버가 날짜와 관계없이 시작 시각·작업 id 순으로 준 그대로다 */
+export function toPendingWorks(
+  pending: MyScheduleResponse,
+  organizationName: string | null,
+): MySchedule {
+  return {
+    works: pending.works.map(work => toScheduledWork(work, organizationName)),
+  };
+}
+
 function toHistoryWork(
   work: AssignedWorkResponse,
   organizationName: string | null,

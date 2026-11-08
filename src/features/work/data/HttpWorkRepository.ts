@@ -2,31 +2,44 @@ import { isApiError, type ApiClient } from '../../../shared/api';
 import {
   toAssignmentNumberRequest,
   toMySchedule,
+  toPendingWorks,
   toRejectWorkRequest,
   toSubmitReportRequest,
   toWorkDetail,
   toWorkHistory,
 } from './convert';
-import { WorkErrorCode } from './errors';
+import { NoTechnicianOrganizationError, WorkErrorCode } from './errors';
 import { createPhotoStorage, type PhotoStorage } from './photoStorage';
 import type {
+  MySchedule,
   MyScheduleResponse,
   PhotoUploadResponse,
   WorkDetailResponse,
+  WorkHistory,
   WorkHistoryResponse,
   WorkRepository,
 } from './types';
 
 // 운영 작업 저장소: 기사 작업 API (Dino develop 79b47ad8, #155). 경로의 발주사는 소속 목록의 활성 기사 소속이다 (config.ts).
 // - 내 일정: my-schedule(구간의 확정 일정)과 my-schedule/pending(날짜와 관계없는 수락 대기)을 함께 불러 합친다
+// - 응답 필요: my-schedule/pending 그대로 (날짜로 거르지 않는다)
 // - 기사 명령: works/{id}/acceptance·rejection·start·completion-report 에 화면에서 본 배정 순번을 보낸다 (204)
 // - 완료 보고 사진: 한 장씩 completion-photo-uploads 로 주소를 받아 저장소에 올리고(photoStorage), 받은 파일 식별자로 제출한다.
 //   올린 사진의 식별자는 제출이 성공할 때까지 기억해, 실패 뒤 다시 낼 때 다시 올리지 않는다 (서버가 쓸 수 없다고 하면 잊는다)
+// - 활성 기사 소속이 없으면(승인 대기 중에 메인에 들어온 새 기사, 비활성 기사) 볼 작업이 없어 목록은 빈 결과다. 상세는 볼 수 없는 작업이다
 
 const organizationPath = (organizationId: number) =>
   `/api/v1/organizations/${organizationId}`;
 const workPath = (organizationId: number, workId: number) =>
   `${organizationPath(organizationId)}/works/${workId}`;
+
+const NO_SCHEDULE: MySchedule = { works: [] };
+// 소속이 없어 서버에 물을 수 없다. 누적 완료는 지난 소속의 기록이 있을 수 있어 0 이 아니라 알 수 없음이다
+const NO_HISTORY: WorkHistory = {
+  works: [],
+  statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
+  totalCompleted: null,
+};
 
 export function createHttpWorkRepository({
   api,
@@ -51,6 +64,18 @@ export function createHttpWorkRepository({
     } catch (error) {
       if (isApiError(error, WorkErrorCode.notMember)) {
         onOrganizationRejected?.();
+      }
+      throw error;
+    }
+  }
+
+  // 목록 조회의 발주사. 활성 기사 소속이 없으면 null (볼 작업이 없다)
+  async function listOrganizationId(): Promise<number | null> {
+    try {
+      return await organizationId();
+    } catch (error) {
+      if (error instanceof NoTechnicianOrganizationError) {
+        return null;
       }
       throw error;
     }
@@ -111,7 +136,10 @@ export function createHttpWorkRepository({
       return toWorkDetail(response);
     },
     async getMySchedule(period, { signal } = {}) {
-      const orgId = await organizationId();
+      const orgId = await listOrganizationId();
+      if (orgId === null) {
+        return NO_SCHEDULE;
+      }
       const path = `${organizationPath(orgId)}/my-schedule`;
       const [confirmed, pending] = await call(() =>
         Promise.all([
@@ -121,8 +149,24 @@ export function createHttpWorkRepository({
       );
       return toMySchedule(confirmed, pending, period, organizationName(orgId));
     },
+    async getPendingWorks({ signal } = {}) {
+      const orgId = await listOrganizationId();
+      if (orgId === null) {
+        return NO_SCHEDULE;
+      }
+      const response = await call(() =>
+        api.get<MyScheduleResponse>(
+          `${organizationPath(orgId)}/my-schedule/pending`,
+          { signal },
+        ),
+      );
+      return toPendingWorks(response, organizationName(orgId));
+    },
     async getWorkHistory(period, { signal } = {}) {
-      const orgId = await organizationId();
+      const orgId = await listOrganizationId();
+      if (orgId === null) {
+        return NO_HISTORY;
+      }
       const response = await call(() =>
         api.get<WorkHistoryResponse>(
           `${organizationPath(orgId)}/work-history`,

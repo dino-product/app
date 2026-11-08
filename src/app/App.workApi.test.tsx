@@ -345,6 +345,37 @@ describe('App — 기사 작업 API (#155)', () => {
       ).toBeEnabled();
     });
 
+    // 백엔드 응답 필요(pending)는 날짜와 관계없이 수락 대기 전부다. 앱이 구간으로 거르지 않는다
+    it('날짜와 관계없이 서버의 수락 대기를 모두 보인다 (석 달 뒤 요청도)', async () => {
+      const server = workServer().on(
+        'GET',
+        `${ORG}/my-schedule/pending`,
+        ok({
+          works: [
+            scheduledWorkResponse({ ...REQUEST, status: 'PENDING_ACCEPT' }),
+            scheduledWorkResponse({
+              workId: 203,
+              name: '보일러 교체',
+              status: 'PENDING_ACCEPT',
+              startTime: '2027-01-20T01:00:00Z',
+              endTime: '2027-01-20T02:00:00Z',
+            }),
+          ],
+        }),
+      );
+      await launch(server);
+      await findCurrentWork();
+
+      await openPending();
+
+      expect(
+        screen.getByRole('button', { name: /보일러 교체.*수락$/ }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByRole('tab', { name: /^응답 필요.*2/ }),
+      ).toBeOnTheScreen();
+    });
+
     it('기타 사유로 거절하면 메모와 함께 서버 사유 코드로 보낸다', async () => {
       const server = await launch();
       await findCurrentWork();
@@ -454,6 +485,48 @@ describe('App — 기사 작업 API (#155)', () => {
         beforePhotoIds: ['file-1'],
         afterPhotoIds: ['file-3'],
       });
+    });
+  });
+
+  // 승인 대기 중에 가입을 마치고 메인에 들어온 새 기사 (onboardingRoutes JoinPending → completeOnboarding)
+  describe('활성 기사 소속이 없는 계정', () => {
+    const launchWithoutTechnician = () =>
+      launch(
+        workServer().on('GET', '/api/v1/memberships', ok({ memberships: [] })),
+      );
+
+    it('홈·내 일정·응답 필요는 오류가 아니라 빈 상태다', async () => {
+      await launchWithoutTechnician();
+
+      expect(
+        await screen.findByText('이번 주 일정이 없어요'),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByText('현재 진행 중인 작업이 없습니다'),
+      ).toBeOnTheScreen();
+
+      await userEvent.press(tab('내 일정'));
+      expect(
+        await screen.findByText('예정된 일정이 없습니다'),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
+      expect(
+        await screen.findByText('응답할 요청이 없습니다'),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('볼 수 없는 작업이에요')).toBeNull();
+    });
+
+    it('작업 이력은 빈 상태이고 누적 완료는 알 수 없음(-)이다', async () => {
+      await launchWithoutTechnician();
+      await screen.findByText('이번 주 일정이 없어요');
+
+      await userEvent.press(tab('작업 이력'));
+
+      expect(
+        await screen.findByText('이 달에 완료한 작업이 없어요'),
+      ).toBeOnTheScreen();
+      expect(screen.getByLabelText('누적 완료, 알 수 없음')).toBeOnTheScreen();
+      expect(screen.queryByText('볼 수 없는 작업이에요')).toBeNull();
     });
   });
 

@@ -76,6 +76,27 @@ async function expectCode(
   expect(error).toMatchObject({ kind: 'http', status });
 }
 
+describe('LocalWorkRepository 응답 필요', () => {
+  it('날짜와 관계없이 수락 대기만 시작 시각 순으로 준다', async () => {
+    const { repository } = setup([
+      work(1, 'PENDING_ACCEPT', {
+        start: '2027-01-20T00:00:00Z',
+        end: '2027-01-20T01:00:00Z',
+      }),
+      work(2, 'ACCEPTED'),
+      work(3, 'PENDING_ACCEPT'),
+      work(4, 'COMPLETED', { completedAt: '2026-10-21T01:50:00Z' }),
+    ]);
+
+    const { works } = await repository.getPendingWorks();
+
+    expect(works.map(item => [item.workId, item.status])).toEqual([
+      [3, 'PENDING_ACCEPT'],
+      [1, 'PENDING_ACCEPT'],
+    ]);
+  });
+});
+
 describe('LocalWorkRepository 내 일정', () => {
   it('구간과 겹치는 본인 작업(수락대기·수락됨·작업중·완료)을 시작 시각 순으로 준다', async () => {
     const { repository } = setup([

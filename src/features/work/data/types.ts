@@ -337,6 +337,8 @@ type DetailOptions = ReadOptions & { organizationId?: number };
 export type WorkRepository = {
   /** 내 일정 (기간) */
   getMySchedule(period: Period, options?: ReadOptions): Promise<MySchedule>;
+  /** 응답 필요: 날짜와 관계없이 지금 본인에게 배정돼 수락·거절을 기다리는 작업(수락 대기) 전부. 시작 시각, 작업 id 순 */
+  getPendingWorks(options?: ReadOptions): Promise<MySchedule>;
   /** 작업 상세를 화면 모델로 */
   getWorkDetail(workId: number, options?: DetailOptions): Promise<WorkDetail>;
   acceptWork(command: AcceptWorkCommand): Promise<void>;

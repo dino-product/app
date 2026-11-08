@@ -110,6 +110,23 @@ describe('createPhotoStorage().upload', () => {
     },
   );
 
+  // 서버는 image/jpeg·png·webp·heic·heif 만 받는다. 일부 Android 는 image/jpg 같은 비표준 값을 준다
+  it.each([
+    ['image/jpg', 'file:///tmp/a.jpg', 'image/jpeg'],
+    ['application/octet-stream', 'file:///tmp/a.png', 'image/png'],
+    ['IMAGE/PNG', 'file:///tmp/a', 'image/png'],
+    ['image/heic', 'file:///tmp/a.jpg', 'image/heic'],
+  ])(
+    '파일 형식 %s 는 서버가 받는 값으로 바꾼다 (%s → %s)',
+    async (blobType, uri, type) => {
+      const { storage, issue } = setup({ blob: fakeBlob(10, blobType) });
+
+      await storage.upload(uri, issue);
+
+      expect(issue).toHaveBeenCalledWith({ contentType: type, sizeBytes: 10 });
+    },
+  );
+
   it('기기 파일을 읽지 못하면(OS 가 임시 파일을 지움) 주소를 받지 않고 읽기 오류다', async () => {
     const { storage, issue, fetch } = setup();
     fetch.mockRejectedValueOnce(new TypeError('Network request failed'));

@@ -51,17 +51,6 @@ export function monthPeriod({ year, month }: YearMonth): Period {
   return period(atMidnight(year, month, 1), atMidnight(year, month + 1, 1));
 }
 
-/**
- * 응답 필요 요청을 찾는 구간: 30일 전부터 오늘, 오늘부터 30일 뒤 (서버 구간 한도가 31일이라 둘로 나눈다).
- * 응답 필요도 내 일정 구간으로 찾는다(HTTP 저장소는 응답 필요 API 의 수락 대기 가운데 구간과 겹치는 것을 더해 준다).
- * 시작 시각이 지난 수락 대기 요청도 보이게 앞도 찾는다
- */
-export function pendingPeriods(today: Date): Period[] {
-  const day = (offset: number) =>
-    atMidnight(today.getFullYear(), today.getMonth(), today.getDate() + offset);
-  return [period(day(-30), day(0)), period(day(0), day(30))];
-}
-
 const shortDate = (date: Date) => `${date.getMonth() + 1}. ${date.getDate()}.`;
 
 /** 내 작업 홈 일정 줄의 주 (예: 9. 14. – 9. 20.) */

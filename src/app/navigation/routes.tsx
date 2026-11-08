@@ -40,6 +40,7 @@ import {
   useAcceptWork,
   useMySchedule,
   useMySchedules,
+  usePendingWorks,
   useRefresh,
   useRejectWork,
   useStartWork,
@@ -55,7 +56,6 @@ import {
   homeWeekLabel,
   monthPeriod,
   pendingOf,
-  pendingPeriods,
   pickCurrentWork,
   toCompletedWork,
   toCurrentWork,
@@ -410,10 +410,8 @@ export function ScheduleRoute({
     subscribed,
     loadBy: 'first',
   });
-  const pendingSchedule = useMySchedules(
-    useMemo(() => pendingPeriods(today), [today]),
-    { subscribed },
-  );
+  // 응답 필요는 날짜와 관계없이 수락 대기 전부다 (#155)
+  const pendingSchedule = usePendingWorks({ subscribed });
   const acceptWork = useAcceptWork().mutateAsync;
 
   const confirmed = useMemo(

@@ -12,6 +12,7 @@ import {
   loadStateOf,
   useAcceptWork,
   useMySchedule,
+  usePendingWorks,
   useRefresh,
   useWorkDetail,
 } from './queries';
@@ -46,6 +47,41 @@ describe('작업 조회 훅', () => {
 
     await waitFor(() => expect(result.current.detail.data?.id).toBe('10'));
     expect(result.current.schedule.data?.works).toHaveLength(1);
+  });
+
+  it('응답 필요는 날짜와 관계없는 수락 대기 목록과 불러오기 상태를 준다', async () => {
+    const api = createWorkTestApi({ seed: [pending()], now });
+
+    const { result } = await renderHook(() => usePendingWorks(), {
+      wrapper: api.wrapper,
+    });
+
+    expect(result.current.load.status).toBe('loading');
+    expect(result.current.works).toEqual([]);
+    await waitFor(() => expect(result.current.load.status).toBe('ready'));
+    expect(result.current.works.map(work => work.workId)).toEqual([10]);
+  });
+
+  it('응답 필요를 불러오지 못하면 오류와 다시 시도를 준다', async () => {
+    const local = createLocalWorkRepository({ seed: [pending()], now });
+    jest
+      .spyOn(local, 'getPendingWorks')
+      .mockRejectedValueOnce(
+        new ApiError({ kind: 'network', message: '네트워크' }),
+      );
+    const api = createWorkTestApi({ repository: local });
+
+    const { result } = await renderHook(() => usePendingWorks(), {
+      wrapper: api.wrapper,
+    });
+
+    await waitFor(() => expect(result.current.load.status).toBe('error'));
+    await act(async () => {
+      if (result.current.load.status === 'error') {
+        result.current.load.onRetry();
+      }
+    });
+    await waitFor(() => expect(result.current.works).toHaveLength(1));
   });
 });
 

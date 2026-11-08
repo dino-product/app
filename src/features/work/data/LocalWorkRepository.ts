@@ -230,6 +230,21 @@ export function createLocalWorkRepository({
 
   const nowInstant = () => now().toISOString();
 
+  const toScheduledWork = (work: WorkDetailResponse): ScheduledWork => ({
+    workId: work.workId,
+    name: work.name,
+    status: work.status,
+    assignmentNumber:
+      work.assignments[work.assignments.length - 1]?.assignmentNumber ?? 0,
+    startTime: work.schedule!.startTime,
+    endTime: work.schedule!.endTime,
+    customerAddress: work.customer?.address ?? null,
+    customerAddressDetail: work.customer?.addressDetail ?? null,
+    delayed: isDelayed(work),
+    customerName: work.customer?.name ?? null,
+    organizationName,
+  });
+
   const repository: WorkRepository = {
     async getMySchedule(period) {
       requirePeriod(period);
@@ -239,23 +254,16 @@ export function createLocalWorkRepository({
             work => scheduled.includes(work.status) && overlaps(work, period),
           )
           .sort(byStart)
-          .map(
-            (work): ScheduledWork => ({
-              workId: work.workId,
-              name: work.name,
-              status: work.status,
-              assignmentNumber:
-                work.assignments[work.assignments.length - 1]
-                  ?.assignmentNumber ?? 0,
-              startTime: work.schedule!.startTime,
-              endTime: work.schedule!.endTime,
-              customerAddress: work.customer?.address ?? null,
-              customerAddressDetail: work.customer?.addressDetail ?? null,
-              delayed: isDelayed(work),
-              customerName: work.customer?.name ?? null,
-              organizationName,
-            }),
-          ),
+          .map(toScheduledWork),
+      };
+    },
+
+    async getPendingWorks() {
+      return {
+        works: works
+          .filter(work => work.status === 'PENDING_ACCEPT')
+          .sort(byStart)
+          .map(toScheduledWork),
       };
     },
 

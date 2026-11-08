@@ -3,6 +3,7 @@ import {
   toActualPaymentMethod,
   toAssignmentNumberRequest,
   toMySchedule,
+  toPendingWorks,
   toRejectionReason,
   toRejectWorkRequest,
   toSubmitCommand,
@@ -486,6 +487,30 @@ describe('toMySchedule', () => {
 
     expect(works).toHaveLength(1);
     expect(works[0].status).toBe('ACCEPTED');
+  });
+});
+
+describe('toPendingWorks', () => {
+  it('응답 필요 행을 서버 순서(시작 시각 순) 그대로 옮기고 발주사 이름을 붙인다 (날짜로 거르지 않는다)', () => {
+    const { works } = toPendingWorks(
+      {
+        works: [
+          scheduled({ workId: 2, status: 'PENDING_ACCEPT' }),
+          scheduled({
+            workId: 1,
+            status: 'PENDING_ACCEPT',
+            startTime: '2027-03-01T00:00:00Z',
+            endTime: '2027-03-01T01:00:00Z',
+          }),
+        ],
+      },
+      '오르빗 설비',
+    );
+
+    expect(works.map(work => [work.workId, work.organizationName])).toEqual([
+      [2, '오르빗 설비'],
+      [1, '오르빗 설비'],
+    ]);
   });
 });
 

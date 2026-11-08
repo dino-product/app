@@ -18,8 +18,8 @@ export type PhotoStorage = {
   ): Promise<string>;
 };
 
-// 파일이 형식을 알려 주지 않을 때 확장자로 정한다. 서버는 JPEG·PNG·WebP·HEIC/HEIF 만 받는다.
-// 촬영·앨범은 JPEG 로 받으므로(photoPicker 'compatible') 확장자가 없으면 JPEG 다
+// 서버는 JPEG·PNG·WebP·HEIC/HEIF 만 받는다(이 값 그대로). 파일이 알려 준 형식이 그중 하나가 아니면
+// (비어 있음, 일부 Android 의 image/jpg 등) 확장자로 정한다. 촬영·앨범은 JPEG 로 받으므로(photoPicker 'compatible') 그래도 모르면 JPEG 다
 const typesByExtension: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -28,10 +28,12 @@ const typesByExtension: Record<string, string> = {
   heic: 'image/heic',
   heif: 'image/heif',
 };
+const ACCEPTED_TYPES = new Set(Object.values(typesByExtension));
 
 function contentTypeOf(uri: string, blob: Blob): string {
-  if (blob.type) {
-    return blob.type;
+  const type = blob.type.toLowerCase();
+  if (ACCEPTED_TYPES.has(type)) {
+    return type;
   }
   const extension = /\.([a-z0-9]+)$/i.exec(uri.split(/[?#]/)[0])?.[1];
   return typesByExtension[extension?.toLowerCase() ?? ''] ?? 'image/jpeg';

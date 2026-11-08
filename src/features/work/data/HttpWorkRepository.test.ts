@@ -15,7 +15,11 @@ import {
   testSession,
 } from '../../../shared/testing/session';
 import { REFRESH_PATH } from '../../../shared/api/session';
-import { isUnavailableWork, PhotoUploadError } from './errors';
+import {
+  isUnavailableWork,
+  NoTechnicianOrganizationError,
+  PhotoUploadError,
+} from './errors';
 import { createHttpWorkRepository } from './HttpWorkRepository';
 import { createPhotoStorage } from './photoStorage';
 import type { PhotoUploadRequest } from './types';
@@ -329,6 +333,59 @@ describe('HttpWorkRepository.getMySchedule', () => {
   });
 });
 
+describe('HttpWorkRepository.getPendingWorks', () => {
+  it('응답 필요(pending)를 날짜와 관계없이 모두 받는다 (31일 넘게 앞인 요청도)', async () => {
+    const { server, repository } = setup(
+      createFakeServer().on(
+        'GET',
+        PENDING_PATH,
+        ok({
+          works: [
+            scheduledWorkResponse({ workId: 11, status: 'PENDING_ACCEPT' }),
+            scheduledWorkResponse({
+              workId: 13,
+              status: 'PENDING_ACCEPT',
+              startTime: '2027-01-20T00:00:00Z',
+              endTime: '2027-01-20T01:00:00Z',
+            }),
+          ],
+        }),
+      ),
+    );
+
+    const { works } = await repository.getPendingWorks();
+
+    expect(works.map(work => work.workId)).toEqual([11, 13]);
+    expect(works[0].organizationName).toBe('오르빗 설비');
+    expect(server.calls.map(call => call.path)).toEqual([PENDING_PATH]);
+  });
+
+  it('화면을 떠나 취소하면 요청을 끊는다', async () => {
+    const { server, repository } = setup(
+      createFakeServer().on('GET', PENDING_PATH, hang()),
+    );
+    const controller = new AbortController();
+
+    const pending = repository.getPendingWorks({ signal: controller.signal });
+    await waitFor(() => expect(server.calls).toHaveLength(1));
+    controller.abort();
+
+    await expect(pending).rejects.toThrow();
+    expect(server.calls[0].signal?.aborted).toBe(true);
+  });
+
+  it('SCHEDULE-004 면 소속을 다시 받게 알리고 그 오류를 던진다', async () => {
+    const { repository, onOrganizationRejected } = setup(
+      createFakeServer().on('GET', PENDING_PATH, fail(403, 'SCHEDULE-004')),
+    );
+
+    const error = await repository.getPendingWorks().catch(e => e);
+
+    expect(isApiError(error, 'SCHEDULE-004')).toBe(true);
+    expect(onOrganizationRejected).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('HttpWorkRepository.getWorkHistory', () => {
   it('구간을 보내(기사 본인이라 technicianId 없이) 이력·구간 통계·누적 완료를 받는다', async () => {
     const { server, repository } = setup(
@@ -370,6 +427,61 @@ describe('HttpWorkRepository.getWorkHistory', () => {
     await expect(repository.getWorkHistory(WEEK)).rejects.toMatchObject({
       status: 502,
     });
+  });
+});
+
+// 승인 대기 중에 메인에 들어온 새 기사, 비활성 기사, 직원 전용 계정 (#155 리뷰)
+describe('HttpWorkRepository — 활성 기사 소속이 없는 계정', () => {
+  function withoutTechnician() {
+    const context = setup();
+    context.organizationId.mockRejectedValue(
+      new NoTechnicianOrganizationError(),
+    );
+    return context;
+  }
+
+  it('내 일정은 서버를 부르지 않고 빈 목록이다 (볼 작업이 없다)', async () => {
+    const { server, repository } = withoutTechnician();
+
+    await expect(repository.getMySchedule(WEEK)).resolves.toEqual({
+      works: [],
+    });
+    expect(server.calls).toHaveLength(0);
+  });
+
+  it('응답 필요는 서버를 부르지 않고 빈 목록이다', async () => {
+    const { server, repository } = withoutTechnician();
+
+    await expect(repository.getPendingWorks()).resolves.toEqual({ works: [] });
+    expect(server.calls).toHaveLength(0);
+  });
+
+  it('작업 이력은 빈 목록·0 통계이고, 누적 완료는 알 수 없다(null)', async () => {
+    const { server, repository } = withoutTechnician();
+
+    await expect(repository.getWorkHistory(WEEK)).resolves.toEqual({
+      works: [],
+      statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
+      totalCompleted: null,
+    });
+    expect(server.calls).toHaveLength(0);
+  });
+
+  it('작업 상세는 그대로 볼 수 없는 작업 오류다', async () => {
+    const { repository } = withoutTechnician();
+
+    const error = await repository.getWorkDetail(10).catch(e => e);
+
+    expect(isUnavailableWork(error)).toBe(true);
+  });
+
+  it('소속을 정하다 다른 이유로 실패하면(소속 목록 조회 실패) 그 오류를 던진다', async () => {
+    const { repository, organizationId } = setup();
+    organizationId.mockRejectedValue(new Error('소속 목록 실패'));
+
+    await expect(repository.getMySchedule(WEEK)).rejects.toThrow(
+      '소속 목록 실패',
+    );
   });
 });
 
