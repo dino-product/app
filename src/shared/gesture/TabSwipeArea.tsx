@@ -88,10 +88,8 @@ export function TabSwipeArea({
   );
 }
 
-/** 이벤트를 단 뷰의 화면 위 사각형. 잴 수 없으면(테스트 렌더러 등) null */
-function regionRect(
-  target: GestureResponderEvent['currentTarget'],
-): Rect | null {
+/** 뷰의 화면 위 사각형 (RN 0.88 DOM API, 동기). 잴 수 없으면(테스트 렌더러·null) null */
+export function measureElement(target: unknown): Rect | null {
   if (typeof target !== 'object' || target === null) {
     return null;
   }
@@ -108,16 +106,22 @@ function regionRect(
  * 터치를 시작한 자리가 컴포넌트 안쪽 깊은 곳이면 탭 전환을 막고, ownsGesture() 가 true 다.
  * 가장자리 여유(COMPONENT_SLACK)·화면 가장자리 띠에서 시작했으면 탭 전환 몫이라 ownsGesture() 가 false 다.
  * 탭 영역(TabSwipeArea) 밖에 두면 양보할 곳이 없어 늘 컴포넌트가 갖는다.
- * stacked 는 위아래로 다른 행과 붙어 있는 행이다 (위·아래 변에 여유를 두지 않는다)
+ * stacked 는 위아래로 다른 행과 붙어 있는 행이다 (위·아래 변에 여유를 두지 않는다).
+ * measure 로 판정 영역을 따로 잴 수 있다 (예: 작업 이력 리스트에서 머리를 뺀 목록 영역, #153)
  */
 export function useTabSwipeRegion({
   stacked = false,
-}: { stacked?: boolean } = {}) {
+  measure = measureElement,
+}: {
+  stacked?: boolean;
+  /** 판정 영역을 재는 법. 기본은 onTouchStart 를 단 뷰(currentTarget) 그대로다 */
+  measure?: (target: GestureResponderEvent['currentTarget']) => Rect | null;
+} = {}) {
   const area = useContext(TabSwipeContext);
   // 핸들러는 한 번만 만들고 최신 값을 읽는다 (바뀌는 주인 상태를 렌더 캐시에 두지 않는다)
-  const latest = useRef({ area, stacked });
+  const latest = useRef({ area, stacked, measure });
   useLayoutEffect(() => {
-    latest.current = { area, stacked };
+    latest.current = { area, stacked, measure };
   });
   const [region] = useState(() => {
     // 처음 닿기 전과 잴 수 없을 때는 컴포넌트 몫이다 (자체 제스처가 그대로 돈다)
@@ -131,7 +135,7 @@ export function useTabSwipeRegion({
         }
         owner = startOwner(
           { x: pageX, y: pageY },
-          regionRect(event.currentTarget),
+          current.measure(event.currentTarget),
           Dimensions.get('window').width,
           { stacked: current.stacked },
         );
