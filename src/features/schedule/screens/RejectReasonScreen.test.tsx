@@ -407,6 +407,22 @@ describe('RejectReasonScreen', () => {
       // 줄어든 영역(364)으로 계산하면 698 − 192 − 364 = 142 지만, 다시 커질 영역(594)으로는 0 이다
       expect(scrollTo()).toHaveBeenCalledWith({ y: 0, animated: true });
     });
+
+    // 키보드가 뜬 채 화면이 열리면 키보드가 없을 때의 높이를 아직 모른다. 그때는 지금 높이로라도 따라간다
+    it('Android 는 키보드가 뜬 채 처음 잰 스크롤 영역이라도 그 높이로 줄어들 끝까지 스크롤한다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await renderReject();
+      await showKeyboard(452);
+      await layoutScroll({ height: 364, contentHeight: 698 });
+      await userEvent.press(otherOption());
+      await layoutOtherSection(192);
+      await finishAnimations();
+      await scrollToY(310);
+
+      await userEvent.press(otherOption());
+
+      expect(scrollTo()).toHaveBeenCalledWith({ y: 142, animated: true });
+    });
   });
 
   it('기타에서 다른 선택지로 바꾸면 키보드를 내리며 접고, 다시 기타를 고르면 쓰던 내용이 남아 있다', async () => {
@@ -1053,6 +1069,67 @@ describe('RejectReasonScreen', () => {
         await showKeyboard(500);
 
         expect(scrollTo()).toHaveBeenCalledTimes(1);
+        expect(scrollTo()).toHaveBeenCalledWith({
+          y: REVEALED_OFFSET,
+          animated: true,
+        });
+      });
+
+      // iOS 의 autoFocus 는 네이티브가 처리하고, JS 의 isFocused 는 포커스 이벤트가 JS 에 와야 바뀐다.
+      // 키보드 이벤트가 먼저 올 수 있으므로 키보드 윗변을 기억해 두었다가 포커스를 받을 때 스크롤한다
+      it('키보드가 포커스 이벤트보다 먼저 와도, 입력란이 포커스를 받으면 그 키보드 윗변으로 스크롤한다', async () => {
+        placeFocusedOtherInput();
+        const isFocused = jest
+          .mocked(TextInput.prototype.isFocused)
+          .mockReturnValue(false);
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await willShowKeyboard(500);
+        expect(scrollTo()).not.toHaveBeenCalled();
+
+        isFocused.mockReturnValue(true);
+        await fireEvent(otherInput()!, 'focus');
+
+        expect(scrollTo()).toHaveBeenCalledTimes(1);
+        expect(scrollTo()).toHaveBeenCalledWith({
+          y: REVEALED_OFFSET,
+          animated: true,
+        });
+      });
+
+      it('키보드가 없으면(하드웨어 키보드 등) 입력란이 포커스를 받아도 스크롤하지 않는다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await fireEvent(otherInput()!, 'focus');
+
+        expect(scrollTo()).not.toHaveBeenCalled();
+      });
+
+      it('키보드가 내려간 뒤에는 포커스를 받아도 지난 키보드 윗변으로 스크롤하지 않는다', async () => {
+        placeFocusedOtherInput();
+        jest.mocked(TextInput.prototype.isFocused).mockReturnValue(false);
+        await renderOn('ios');
+
+        await userEvent.press(otherOption());
+        await willShowKeyboard(500);
+        await hideKeyboard();
+        await fireEvent(otherInput()!, 'focus');
+
+        expect(scrollTo()).not.toHaveBeenCalled();
+      });
+
+      // 접히는 중에 다시 펼치면 키보드가 아직 떠 있을 수 있다
+      it('Android 는 펼칠 때 키보드가 이미 떠 있으면, 입력란이 포커스를 받을 때 그 윗변으로 스크롤한다', async () => {
+        placeFocusedOtherInput();
+        await renderOn('android');
+        await showKeyboard(500);
+
+        await userEvent.press(otherOption());
+        await fireEvent(otherInput()!, 'focus');
+
         expect(scrollTo()).toHaveBeenCalledWith({
           y: REVEALED_OFFSET,
           animated: true,

@@ -204,24 +204,28 @@ export function RejectReasonScreen({
 
   // 키보드가 올라오면 입력란 아래 끝까지 키보드 위로 스크롤한다 (#152). 여러 줄 입력칸은 네이티브가 커서 줄만
   // 올려 아래쪽이 가리고, Android ScrollView 는 줄어들 때 이미 보이던 입력칸만 따라간다.
-  // 위치는 레이아웃 값으로 잰다(펼치는 중의 transform 은 잘라 내는 View 와 내용이 서로 상쇄한다)
-  const revealOtherInput = useEffectEvent((event: KeyboardEvent) => {
+  // 키보드 윗변(화면 기준)과 입력란 포커스가 둘 다 있어야 한다. iOS 의 autoFocus 는 네이티브가 처리해
+  // 포커스 이벤트가 keyboardWillShow 보다 늦게 JS 에 올 수 있으므로, 둘 중 나중에 오는 쪽에서 스크롤한다
+  const keyboardTop = useRef<number | null>(null);
+  const revealOtherInput = () => {
+    const top = keyboardTop.current;
     const input = otherInputRef.current;
     const scroll = scrollRef.current;
     const content = scroll?.getInnerViewRef();
-    if (!input?.isFocused() || !scroll || !content) {
+    if (top === null || !input?.isFocused() || !scroll || !content) {
       return;
     }
+    // 위치는 레이아웃 값으로 잰다(펼치는 중의 transform 은 잘라 내는 View 와 내용이 서로 상쇄한다)
     scroll.measureInWindow((_x, viewportTop, _width, viewportHeight) =>
-      input.measureLayout(content, (_left, top, _inputWidth, height) => {
+      input.measureLayout(content, (_left, inputTop, _inputWidth, height) => {
         const { offset } = scrollMetrics.current;
         const to = offsetToRevealAboveKeyboard({
           scrollOffset: offset,
           viewportTop,
           viewportHeight,
-          keyboardTop: event.endCoordinates.screenY,
-          targetTop: top,
-          targetBottom: top + height,
+          keyboardTop: top,
+          targetTop: inputTop,
+          targetBottom: inputTop + height,
           gap: KEYBOARD_GAP,
         });
         if (to !== offset) {
@@ -229,18 +233,33 @@ export function RejectReasonScreen({
         }
       }),
     );
+  };
+  const onKeyboardShow = useEffectEvent((event: KeyboardEvent) => {
+    keyboardTop.current = event.endCoordinates.screenY;
+    revealOtherInput();
   });
   // 기타를 펼친 동안만 듣는다. iOS 는 키보드와 함께 움직이게 올라오기 시작할 때, Android 는 다 올라온 뒤에 알린다.
-  // 키보드 높이가 바뀌어도(이모지 패널 등) 다시 온다
+  // 키보드 높이가 바뀌어도(이모지 패널 등) 다시 온다. 접히는 중에 다시 펼치면 키보드가 아직 떠 있을 수 있다
   useEffect(() => {
     if (!expanded) {
       return;
     }
-    const subscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      revealOtherInput,
-    );
-    return () => subscription.remove();
+    keyboardTop.current = Keyboard.isVisible()
+      ? Keyboard.metrics()?.screenY ?? null
+      : null;
+    const subscriptions = [
+      Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+        onKeyboardShow,
+      ),
+      Keyboard.addListener('keyboardDidHide', () => {
+        keyboardTop.current = null;
+      }),
+    ];
+    return () => {
+      subscriptions.forEach(subscription => subscription.remove());
+      keyboardTop.current = null;
+    };
   }, [expanded]);
 
   const send = async (rejection: Rejection) => {
@@ -378,6 +397,7 @@ export function RejectReasonScreen({
                     autoFocus={focusOnOpen}
                     value={otherText}
                     onChangeText={changeOtherText}
+                    onFocus={revealOtherInput}
                     error={otherTextError}
                   />
                 </Animated.View>
@@ -411,12 +431,14 @@ function OtherReason({
   autoFocus,
   value,
   onChangeText,
+  onFocus,
   error,
 }: {
   inputRef: Ref<TextInputInstance>;
   autoFocus: boolean;
   value: string;
   onChangeText: (text: string) => void;
+  onFocus: () => void;
   error: boolean;
 }) {
   return (
@@ -433,6 +455,7 @@ function OtherReason({
         placeholderTextColor={colors.gray[600]}
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         style={[styles.input, error && styles.inputError]}
       />
       {error && (
@@ -502,8 +525,13 @@ function useScrollMetrics() {
       onLayout: (event: LayoutChangeEvent) => {
         current.height = event.nativeEvent.layout.height;
         // Android 는 키보드가 떠 있는 동안 KeyboardAvoidingArea 가 스크롤 영역을 줄인다.
-        // 키보드가 없을 때의 높이를 따로 둔다. iOS 는 키보드로 스크롤 영역이 줄지 않는다
-        if (Platform.OS === 'ios' || !Keyboard.isVisible()) {
+        // 키보드가 없을 때의 높이를 따로 둔다. iOS 는 키보드로 스크롤 영역이 줄지 않는다.
+        // 키보드가 뜬 채 처음 재면 아직 모르므로 지금 높이로 둔다
+        if (
+          Platform.OS === 'ios' ||
+          !Keyboard.isVisible() ||
+          current.fullHeight === 0
+        ) {
           current.fullHeight = current.height;
         }
       },
