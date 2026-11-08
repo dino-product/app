@@ -180,6 +180,39 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  // 두 번째 손가락이 밀기 뷰 밖(리스트 행 등)에 닿으면 밀기 뷰는 닿는 순간을 못 보고 손가락 수로만 안다
+  it('한 손가락으로 시작해 방향을 정하기 전에 두 손가락이 되면 그 손길은 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      dx: -80,
+      fingers: step => (step === 0 ? 1 : 2),
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  // 다른 뷰가 응답자인 동안 닿은 손가락은 밀기 뷰가 닿는 순간을 못 볼 수 있다. 지난 손길의 방향으로 넘기지 않는다
+  it('닿는 순간을 못 본 손길은 지난 손길이 가로였어도 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    const { granted } = await drag(
+      {
+        ...result.current.panHandlers,
+        onStartShouldSetResponderCapture: undefined,
+      },
+      { dy: 80 },
+    );
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it('조금만 천천히 밀었다 놓으면 넘기지 않고 제자리로 돌아간다', async () => {
     const { result, finish, lastSlide, onPrev, onNext } = await setup();
 

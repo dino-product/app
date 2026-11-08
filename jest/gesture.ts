@@ -44,7 +44,7 @@ function touchEvent(
         : [],
     },
     touchHistory: {
-      numberActiveTouches: active ? fingers : 0,
+      numberActiveTouches: active ? fingers + otherTouches : 0,
       indexOfSingleActiveTouch: 0,
       mostRecentTimeStamp: timestamp,
       touchBank,

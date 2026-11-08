@@ -335,6 +335,7 @@ describe('useTouchScrollLock — 처음 움직인 방향으로 막기 (펼친 �
     expect(locked()).toBe(false);
   });
 
+  // 방어용 분기: 실제로는 다른 손가락이 닿을 때 onTouchStart·리스트 capture 가 먼저 지켜보기를 멈춘다
   it('지켜보던 손가락이 움직임에 없으면 아직 정하지 않는다', async () => {
     const { locked, start, move } = await setupAxis('ios');
 

@@ -175,6 +175,9 @@ export function useHorizontalSwipe(callbacks: {
         return axis === 'horizontal';
       },
       onPanResponderGrant: () => {
+        // 응답자가 된 뒤로는 다시 묻지 않는다. 다음 손길의 닿는 순간을 못 보더라도(다른 뷰가 응답자일 때) 이 가로 방향을
+        // 이어 쓰지 않게 비운다. 닿는 순간을 보면 그때 다시 정한다
+        axis = 'none';
         const wasSliding = sliding !== null;
         dragFrom = takeOver();
         // 손가락이 잡은 자리에 세운다 (돌던 애니메이션은 finished: false 로 끝난다)
