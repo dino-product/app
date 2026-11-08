@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { colors } from '../../../shared/design-system';
 import { workDetail } from '../mockData';
@@ -11,7 +11,7 @@ const renderSections = (work: WorkDetail = workDetail) =>
   );
 
 describe('WorkInfoSections', () => {
-  it('작업 내용 카드는 작업 요청 이미지 카드처럼 회색 채움이고 테두리가 없다', async () => {
+  it('작업 내용 카드는 회색 채움이고 테두리가 없다', async () => {
     await renderSections();
 
     const card = screen.getByTestId('work-content-card');
@@ -42,30 +42,37 @@ describe('WorkInfoSections', () => {
     expect(screen.queryByText('거절')).not.toBeOnTheScreen();
   });
 
-  // 서버 사진 주소가 아직 가짜(fake-photo://, #112 G4)라 이미지로 열 수 없다
-  it('가짜 사진 주소는 이미지 대신 회색 자리로 그린다', async () => {
-    await renderSections({
-      ...workDetail,
-      requestImages: ['fake-photo://abc123', 'https://cdn.example.com/a.jpg'],
-    });
-
-    expect(screen.getByText('2장')).toBeOnTheScreen();
-    // 그린 Image 는 실제 주소 하나뿐이다
-    const images = JSON.stringify(screen.toJSON()).split('"type":"Image"');
-    expect(images).toHaveLength(2);
-  });
-
-  // #104: 작업 수행 상세의 사진 섹션은 그대로다 (Figma 3235-16226)
-  it('기본은 작업 내용 카드 아래 "작업 요청 이미지 n장" 줄에 88 칸으로 보여준다', async () => {
+  // #142: 작업 요청 사진(sitePhotos)은 모든 작업 상세가 같은 현장 사진 섹션으로 보여준다 (Figma 2714:12566)
+  it('작업 내용 다음에 "현장 사진" 섹션이 있고 요청 사진을 110 칸으로 보여준다', async () => {
     await renderSections();
 
-    expect(screen.getByText('작업 요청 이미지')).toBeOnTheScreen();
-    expect(screen.getByText('2장')).toBeOnTheScreen();
-    expect(screen.getAllByTestId('photo-thumb')[0]).toHaveStyle({
-      width: 88,
-      height: 88,
-      borderRadius: 8,
-    });
-    expect(screen.queryByText('현장 사진')).not.toBeOnTheScreen();
+    // 섹션 제목이 그려진 순서에서 작업 내용 바로 다음이 현장 사진이다
+    const headers = screen.getAllByRole('header');
+    const content = screen.getByRole('header', { name: '작업 내용' });
+    const site = screen.getByRole('header', { name: '현장 사진' });
+    expect(headers.indexOf(content)).toBeGreaterThanOrEqual(0);
+    expect(headers.indexOf(site)).toBe(headers.indexOf(content) + 1);
+
+    const card = screen.getByTestId('site-photo-card');
+    expect(within(card).getByText(workDetail.address)).toBeOnTheScreen();
+    const thumbs = within(card).getAllByTestId('photo-thumb');
+    expect(thumbs).toHaveLength(workDetail.requestImages.length);
+    expect(thumbs[0]).toHaveStyle({ width: 110, height: 110 });
+  });
+
+  it('작업 내용 카드 아래 "작업 요청 이미지 n장" 줄은 따로 그리지 않는다 (같은 사진을 두 번 보이지 않는다)', async () => {
+    await renderSections();
+
+    expect(screen.queryByText('작업 요청 이미지')).not.toBeOnTheScreen();
+    expect(screen.getAllByTestId('photo-thumb')).toHaveLength(
+      workDetail.requestImages.length,
+    );
+  });
+
+  it('요청 사진이 없어도 현장 사진 섹션은 빈 상태로 남는다', async () => {
+    await renderSections({ ...workDetail, requestImages: [] });
+
+    expect(screen.getByRole('header', { name: '현장 사진' })).toBeOnTheScreen();
+    expect(screen.getByText('등록된 현장 사진이 없습니다')).toBeOnTheScreen();
   });
 });
