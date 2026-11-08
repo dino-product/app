@@ -4,6 +4,8 @@ import {
   StyleSheet,
   View,
   type PressableStateCallbackType,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import {
   colors,
@@ -47,9 +49,12 @@ function Meta({
 export const ConfirmedRow = memo(function ConfirmedRowView({
   item,
   onPress,
+  style,
 }: {
   item: ConfirmedSchedule;
   onPress?: (id: string) => void;
+  /** 리스트가 주는 바깥 여백 */
+  style?: StyleProp<ViewStyle>;
 }) {
   const label = `${item.title}, ${workStatusLabels[item.status]}, ${
     item.timeRange
@@ -75,7 +80,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   // 누를 동작이 없으면 버튼이 아니라 한 덩어리 정보로 읽히게 한다
   if (!onPress) {
     return (
-      <View accessible accessibilityLabel={label} style={styles.row}>
+      <View accessible accessibilityLabel={label} style={[styles.row, style]}>
         {content}
       </View>
     );
@@ -85,7 +90,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onPress(item.id)}
-      style={confirmedRowStyle}
+      style={state => [confirmedRowStyle(state), style]}
     >
       {content}
     </Pressable>

@@ -188,7 +188,9 @@ function ScheduleScreenView({
   const monthTouch = scrollLock.axisAreaTouchHandlers;
 
   const renderConfirmed = useCallback(
-    ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
+    ({ item }: { item: ConfirmedSchedule }) => (
+      <ConfirmedRow item={item} style={styles.cardInset} />
+    ),
     [],
   );
   // 수락을 보내는 동안 그 요청의 버튼을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
@@ -240,42 +242,36 @@ function ScheduleScreenView({
             hitSlop={ICON_HIT_SLOP}
             onPress={toggleCalendar}
           >
-            {/* Figma 는 접힘·펼침의 아이콘 모양(좌우 반전)과 색이 다르다 */}
-            {calendarOpen ? (
-              <Icon name="calendar-switch-open" color={colors.gray[800]} />
-            ) : (
-              <Icon name="calendar-switch" color={colors.gray[500]} />
-            )}
+            {/* Figma Web Icon Calender/ Weekly · Monthly: 펼침은 모양이 좌우로 뒤집히고 색은 둘 다 Gray500 */}
+            <Icon
+              name={calendarOpen ? 'calendar-switch-open' : 'calendar-switch'}
+              color={colors.gray[500]}
+            />
           </Pressable>
         </View>
-        {/* Figma 는 주간 줄과 펼친 달력의 여백이 다르고, 구분선은 주간 줄에만 있다 */}
+        {/* Figma 3754:6269·3754:6457: 날짜 줄 아래 16 에 주간 줄 또는 달력 카드 */}
         {calendarOpen ? (
-          <View style={styles.monthArea}>
-            <MonthCalendar
-              year={viewMonth.year}
-              month={viewMonth.month}
-              selected={selected}
-              eventCounts={eventCounts}
-              edgeInset={styles.monthArea.paddingHorizontal}
-              touchHandlers={monthTouch}
-              onSelect={selectDate}
-              onPrev={() => moveMonth(-1)}
-              onNext={() => moveMonth(1)}
-            />
-          </View>
+          <MonthCalendar
+            year={viewMonth.year}
+            month={viewMonth.month}
+            selected={selected}
+            eventCounts={eventCounts}
+            edgeInset={styles.dateArea.paddingHorizontal}
+            touchHandlers={monthTouch}
+            onSelect={selectDate}
+            onPrev={() => moveMonth(-1)}
+            onNext={() => moveMonth(1)}
+          />
         ) : (
-          <View style={styles.weekArea}>
-            <View style={styles.rule} />
-            <WeekStrip
-              days={week}
-              selected={selected}
-              edgeInset={styles.weekArea.paddingHorizontal}
-              touchHandlers={weekTouch}
-              onSelect={selectDate}
-              onPrev={() => moveWeek(-1)}
-              onNext={() => moveWeek(1)}
-            />
-          </View>
+          <WeekStrip
+            days={week}
+            selected={selected}
+            edgeInset={styles.dateArea.paddingHorizontal}
+            touchHandlers={weekTouch}
+            onSelect={selectDate}
+            onPrev={() => moveWeek(-1)}
+            onNext={() => moveWeek(1)}
+          />
         )}
       </View>
     ),
@@ -329,6 +325,7 @@ function ScheduleScreenView({
           keyExtractor={keyExtractor}
           renderItem={renderConfirmed}
           ListHeaderComponent={dateHeader}
+          ItemSeparatorComponent={CardGap}
           ListEmptyComponent={
             confirmedLoad.status === 'ready' ? (
               <Empty text="예정된 일정이 없습니다" />
@@ -339,7 +336,7 @@ function ScheduleScreenView({
           refreshing={refreshing}
           onRefresh={onRefresh}
           style={styles.list}
-          contentContainerStyle={readableColumn}
+          contentContainerStyle={[readableColumn, styles.confirmedContent]}
         />
       ) : (
         <FlatList
@@ -348,6 +345,7 @@ function ScheduleScreenView({
           data={pending}
           keyExtractor={keyExtractor}
           renderItem={renderPending}
+          ItemSeparatorComponent={CardGap}
           ListEmptyComponent={
             pendingLoad.status === 'ready' ? (
               <Empty text="응답할 요청이 없습니다" />
@@ -358,7 +356,7 @@ function ScheduleScreenView({
           refreshing={refreshing}
           onRefresh={onRefresh}
           style={styles.list}
-          contentContainerStyle={readableColumn}
+          contentContainerStyle={[readableColumn, styles.pendingContent]}
         />
       )}
     </SafeAreaView>
@@ -366,6 +364,11 @@ function ScheduleScreenView({
 }
 
 const keyExtractor = (item: { id: string }) => item.id;
+
+// Figma: 일정 카드 사이 12
+function CardGap() {
+  return <View testID="schedule-card-gap" style={styles.cardGap} />;
+}
 
 function Empty({ text }: { text: string }) {
   return (
@@ -379,9 +382,8 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-// Figma: 날짜 줄·달력·구분선은 화면 가장자리에서 24, 주간 줄은 10 안쪽이다
-const DATE_INSET = 24;
-const WEEK_INSET = 10;
+// Figma: 날짜 블록·카드는 화면 가장자리에서 24 안쪽이다
+const LIST_INSET = 24;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
@@ -392,34 +394,29 @@ const styles = StyleSheet.create({
   },
   // 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
   titleBar: { paddingBottom: 16 },
-  list: { flex: 1 },
-  dateArea: {
+  // 머리말 아래는 회색 바탕에 흰 카드가 놓인다 (Figma Background/3)
+  list: { flex: 1, backgroundColor: colors.background[3] },
+  // 날짜 블록은 화면 폭을 차지하고(넓힌 터치 영역·가장자리 밀기 제외 영역이 그 안에 든다) 안쪽 여백으로 24 를 들인다
+  confirmedContent: { paddingBottom: 24 },
+  cardInset: { marginHorizontal: LIST_INSET },
+  pendingContent: {
     paddingTop: 24,
-    borderBottomWidth: 12,
-    borderBottomColor: colors.background[3],
+    paddingHorizontal: LIST_INSET,
+    paddingBottom: 24,
+  },
+  // 머리말 아래 24 에 날짜 줄, 그 아래 16 에 주간 줄·달력, 카드 목록까지 24
+  dateArea: {
+    gap: 16,
+    paddingTop: 24,
+    paddingBottom: 24,
+    paddingHorizontal: LIST_INSET,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: DATE_INSET,
   },
-  weekArea: {
-    gap: 20,
-    paddingHorizontal: WEEK_INSET,
-    paddingTop: 20,
-    paddingBottom: 20,
-  },
-  monthArea: {
-    paddingHorizontal: DATE_INSET,
-    paddingTop: 24,
-    paddingBottom: 24,
-  },
-  rule: {
-    height: 1,
-    marginHorizontal: DATE_INSET - WEEK_INSET,
-    backgroundColor: colors.gray[100],
-  },
+  cardGap: { height: 12 },
   empty: { textAlign: 'center', paddingVertical: 40 },
 });
 

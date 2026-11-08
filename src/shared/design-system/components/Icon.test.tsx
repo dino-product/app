@@ -30,17 +30,17 @@ describe('Icon', () => {
   });
 
   it('세로가 다른 아이콘은 Figma 비율대로 높이를 잡는다', async () => {
-    await render(<Icon name="calendar-switch" testID="icon" />);
+    await render(<Icon name="apple" testID="icon" />);
     expect(screen.getByTestId('icon', hidden)).toHaveStyle({
-      width: 24,
-      height: 28,
+      width: 20,
+      height: 23,
     });
-    expect(svgOf('icon').props).toMatchObject({ width: 24, height: 28 });
+    expect(svgOf('icon').props).toMatchObject({ width: 20, height: 23 });
 
-    await render(<Icon name="calendar-switch" size={12} testID="icon-12" />);
-    expect(screen.getByTestId('icon-12', hidden)).toHaveStyle({
-      width: 12,
-      height: 14,
+    await render(<Icon name="apple" size={10} testID="icon-10" />);
+    expect(screen.getByTestId('icon-10', hidden)).toHaveStyle({
+      width: 10,
+      height: 11.5,
     });
   });
 
