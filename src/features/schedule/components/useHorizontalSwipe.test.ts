@@ -310,6 +310,24 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  it('이번 밀기를 가지지 않으면(탭 전환 몫, #140) 가로로 밀어도 응답자가 되지 않는다', async () => {
+    const { result, rerender, finish, onPrev, onNext } = await setup();
+    const ownsGesture = jest.fn(() => false);
+    await rerender({ onPrev, onNext, ownsGesture });
+
+    const yielded = await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    expect(yielded.granted).toBe(false);
+    expect(ownsGesture).toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+
+    ownsGesture.mockReturnValue(true);
+    const owned = await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    expect(owned.granted).toBe(true);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it('콜백이 바뀌면 다음 넘김부터 새 콜백을 부른다', async () => {
     const { result, rerender, finish, onPrev, onNext } = await setup();
     const nextNext = jest.fn();
