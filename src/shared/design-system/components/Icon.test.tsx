@@ -59,7 +59,7 @@ describe('Icon', () => {
     });
   });
 
-  // Figma App Icon · Time History (2824:10297 Active / 2824:10301 Default). 시계가 오른쪽으로 넘쳐 내보낸 SVG 가 25×24 다 (#82)
+  // Figma App Icon · Time History (2824:10297 Active / 2824:10301 Default). 그림이 24 프레임 밖으로 조금 넘쳐 내보낸 SVG 가 25×24 다 (#82)
   it('선택된 작업 이력 탭은 App Icon · Time History · Active(속도선 채운 시계)이고 색을 바꿀 수 있으며 기본색은 Primary 다', () => {
     const active = iconSvgs['tab-history-active'];
     expect(active).toMatchObject({

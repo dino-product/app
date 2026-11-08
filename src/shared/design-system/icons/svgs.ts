@@ -234,7 +234,8 @@ export const iconSvgs = {
     size: 24,
     color: '#1C1B2A',
   },
-  // Figma App Icon · Time History (Default 2824:10301 / Active 2824:10297, #82). 시계가 프레임 오른쪽으로 넘쳐 내보낸 SVG 가 25×24 다
+  // Figma App Icon · Time History (Default 2824:10301 / Active 2824:10297, #82). 그림이 24 프레임 밖으로 조금 넘쳐
+  // (활성은 왼쪽 속도선 0.14, 비활성은 양옆 선 두께 0.22) Figma 내보내기 경계가 정수로 올라 25×24 다
   'tab-history': {
     tint: false,
     xml: '<svg width="25" height="24" viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.22217 5.88892H6.11106M1.22217 12H7.94439M1.22217 18.1111H6.11106" stroke="#9B9B9B" stroke-width="2.44444" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5832 19.6389C19.8021 19.6389 23.2221 16.2188 23.2221 12C23.2221 7.78113 19.8021 4.36108 15.5832 4.36108C11.3644 4.36108 7.94434 7.78113 7.94434 12C7.94434 16.2188 11.3644 19.6389 15.5832 19.6389Z" stroke="#9B9B9B" stroke-width="2.44444" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5833 8.02783V12.0001L18.6388 14.3223" stroke="#9B9B9B" stroke-width="2.44444" stroke-linecap="round" stroke-linejoin="round"/></svg>',
