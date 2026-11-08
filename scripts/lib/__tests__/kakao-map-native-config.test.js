@@ -96,7 +96,11 @@ describe('Android 지도 네이티브 뷰 연결 (#67)', () => {
     const manager = code(read(MANAGER));
 
     expect(container).toMatch(
-      /override fun onHostResume\(\) \{\s*mapView\?\.resume\(\)\s*\}/,
+      /override fun onHostResume\(\) \{\s*resumeMap\(\)\s*\}/,
+    );
+    // 생명주기 구독이 RESUMED 면 onHostResume 을 한 번 더 부르므로, 이미 resume 했으면 다시 부르지 않는다
+    expect(container).toMatch(
+      /private fun resumeMap\(\) \{\s*mapView\?\.let \{ if \(!it\.isResumed\) it\.resume\(\) \}\s*\}/,
     );
     expect(container).toMatch(
       /override fun onHostPause\(\) \{\s*mapView\?\.pause\(\)\s*\}/,
@@ -108,6 +112,30 @@ describe('Android 지도 네이티브 뷰 연결 (#67)', () => {
     expect(container).toMatch(/fun destroy\(\)[\s\S]*?\.finish\(\)/);
     expect(manager).toMatch(
       /override fun onDropViewInstance\(view: KakaoMapContainer\) \{\s*view\.destroy\(\)/,
+    );
+  });
+
+  // KakaoMapReadyCallback 은 Java 클래스라 getZoomLevel() 이 콜백 안에서 zoomLevel 프로퍼티로 보인다.
+  // 바깥 필드를 이름만으로 읽으면 콜백 자신의 getter 를 다시 불러 StackOverflowError 로 앱이 꺼진다 (리뷰 #165)
+  it('지도 준비 콜백 안에서는 바깥 좌표·줌을 this@KakaoMapContainer 로 읽는다', () => {
+    const callback = mustMatch(
+      code(read(CONTAINER)),
+      /object : KakaoMapReadyCallback\(\) \{([\s\S]*?)override fun onMapReady/,
+      '지도 준비 콜백',
+    )[1];
+    const bare = callback.match(
+      /(?<!this@KakaoMapContainer\.)\b(zoomLevel|latitude|longitude)\b/g,
+    );
+
+    expect(bare).toBeNull();
+    expect(callback).toContain('this@KakaoMapContainer.zoomLevel');
+    expect(callback).toContain('this@KakaoMapContainer.latitude');
+  });
+
+  // 네이티브 라이브러리는 armeabi-v7a·arm64-v8a 뿐이다. 지도를 만들지 못하는 기기에서도 화면이 깨지지 않고 회색 자리로 둔다
+  it('지도 뷰를 만들거나 시작하다 실패하면 앱을 죽이지 않고 오류로 알린다', () => {
+    expect(code(read(CONTAINER))).toMatch(
+      /try \{[\s\S]*?MapView\(context\)[\s\S]*?\} catch \(error: Throwable\) \{[\s\S]*?emitError\(NO_SDK_ERROR\)/,
     );
   });
 

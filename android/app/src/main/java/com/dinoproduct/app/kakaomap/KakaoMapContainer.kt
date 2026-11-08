@@ -97,7 +97,10 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
     invalidate()
   }
 
-  /** 한 번의 props 갱신이 끝났다. 처음이면 지도를 시작하고, 이미 그렸으면 가운데·마커만 옮긴다 */
+  /**
+   * 한 번의 props 갱신이 끝났다. 처음이면 지도를 시작하고, 이미 그렸으면 가운데·마커만 옮긴다.
+   * (JS 는 좌표가 바뀌면 key 로 새 뷰를 만들지만, 같은 뷰에 새 좌표가 와도 맞게 둔다)
+   */
   fun commitProps() {
     if (destroyed || latitude.isNaN() || longitude.isNaN()) {
       return
@@ -117,32 +120,52 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
       emitError(NO_SDK_ERROR)
       return
     }
-    val view = MapView(context)
-    addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    val view =
+        try {
+          MapView(context).also {
+            addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            it.start(lifeCycleCallback, readyCallback)
+          }
+        } catch (error: Throwable) {
+          // 지도 엔진을 만들지 못하는 기기(네이티브 라이브러리가 없는 ABI 등). 화면은 회색 자리로 둔다
+          removeAllViews()
+          emitError(NO_SDK_ERROR)
+          return
+        }
     mapView = view
-    view.start(
-        object : MapLifeCycleCallback() {
-          override fun onMapDestroy() = Unit
-
-          // 인증(키·키 해시·패키지 미등록)·네트워크·엔진 오류. 다시 시도하지 않고 회색 자리로 둔다
-          override fun onMapError(error: Exception) {
-            val code = (error as? MapAuthException)?.getErrorCode() ?: UNKNOWN_ERROR
-            post { emitError(code) }
-          }
-        },
-        object : KakaoMapReadyCallback() {
-          override fun getPosition(): LatLng = LatLng.from(latitude, longitude)
-
-          override fun getZoomLevel(): Int = zoomLevel
-
-          override fun onMapReady(map: KakaoMap) {
-            post { onReady(map) }
-          }
-        })
     // 이미 화면이 보이는 중이면 Activity onResume 이 다시 오지 않으므로 바로 resume 한다
     if (reactContext.lifecycleState == LifecycleState.RESUMED) {
-      view.resume()
+      resumeMap()
     }
+  }
+
+  // 인증(키·키 해시·패키지 미등록)·네트워크·엔진 오류. 다시 시도하지 않고 회색 자리로 둔다
+  private val lifeCycleCallback =
+      object : MapLifeCycleCallback() {
+        override fun onMapDestroy() = Unit
+
+        override fun onMapError(error: Exception) {
+          val code = (error as? MapAuthException)?.getErrorCode() ?: UNKNOWN_ERROR
+          post { emitError(code) }
+        }
+      }
+
+  // KakaoMapReadyCallback 은 Java 클래스라 그 안에서 zoomLevel 은 콜백 자신의 getZoomLevel() 로 풀린다.
+  // 바깥 필드는 반드시 this@KakaoMapContainer 로 읽는다 (아니면 자기 자신을 불러 StackOverflowError)
+  private val readyCallback =
+      object : KakaoMapReadyCallback() {
+        override fun getPosition(): LatLng =
+            LatLng.from(this@KakaoMapContainer.latitude, this@KakaoMapContainer.longitude)
+
+        override fun getZoomLevel(): Int = this@KakaoMapContainer.zoomLevel
+
+        override fun onMapReady(map: KakaoMap) {
+          post { onReady(map) }
+        }
+      }
+
+  private fun resumeMap() {
+    mapView?.let { if (!it.isResumed) it.resume() }
   }
 
   private fun onReady(map: KakaoMap) {
@@ -217,7 +240,7 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
   }
 
   override fun onHostResume() {
-    mapView?.resume()
+    resumeMap()
   }
 
   override fun onHostPause() {
