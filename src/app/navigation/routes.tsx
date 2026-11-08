@@ -330,7 +330,7 @@ export function WorkDetailRoute({
   );
 
   const work = detail.data;
-  // 결제 금액·방식은 작업의 계획값으로 미리 채운다. 계획값이 그대로면 잃을 입력이 아니다
+  // 결제 금액은 작업의 계획값으로 미리 채운다(결제 방식은 고르지 않은 채, #150). 계획값이 그대로면 잃을 입력이 아니다
   const plannedReport = useMemo(
     () => (work ? reportFromPlan(work) : undefined),
     [work],

@@ -61,7 +61,7 @@ async function relaunch(kill: () => Promise<void>) {
 
 const openWorkDetail = openStartedWorkDetail;
 
-// 결제 금액·방식은 계획값(75,000원·현장 카드)으로 미리 채워져 있어 다른 값으로 바꾼다
+// 결제 금액은 계획값(75,000원)으로 미리 채워져 있어 다른 값으로 바꾸고, 결제 방식은 고른다 (#150 계획값으로 채우지 않는다)
 async function writeReport() {
   await openWorkDetail();
   await userEvent.press(
@@ -181,6 +181,36 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     expect(tab('홈')).toBeSelected();
   });
 
+  // #147: 홈 일정 보기는 블록 보기가 기본이고, 마지막으로 고른 보기로 다시 연다
+  describe('홈 일정 보기 (#147)', () => {
+    const viewToggle = (name: '목록 보기' | '블록 보기') =>
+      screen.getByRole('button', { name });
+
+    it('처음 실행이면 블록 보기다', async () => {
+      await launch();
+      await findHomeLoaded();
+
+      expect(viewToggle('블록 보기')).toBeSelected();
+      expect(viewToggle('목록 보기')).not.toBeSelected();
+    });
+
+    it.each(['목록 보기', '블록 보기'] as const)(
+      '%s 를 고르고 종료했다 다시 열면 그 보기로 연다',
+      async name => {
+        const kill = await launch();
+        await findHomeLoaded();
+        // 블록 보기는 기본이라 목록 보기를 거쳐 다시 고른다
+        await userEvent.press(viewToggle('목록 보기'));
+        await userEvent.press(viewToggle(name));
+
+        await relaunch(kill);
+        await findHomeLoaded();
+
+        expect(viewToggle(name)).toBeSelected();
+      },
+    );
+  });
+
   describe('작업 상세에서 완료 보고를 작성하던 중', () => {
     it('다시 열면 같은 작업 상세가 열리고 사진·메모·결제 정보가 남아 있다', async () => {
       const kill = await launch();
@@ -203,6 +233,26 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       expect(
         screen.getByRole('button', { name: '작업 전 사진 추가' }),
       ).toHaveAccessibilityValue({ text: '1/6' });
+    });
+
+    // #150 결제 방식을 고르지 않은 초안을 다시 열어도 계획값(현장 카드)으로 채우지 않는다
+    it('결제 방식을 고르지 않은 채 쓰던 보고는 다시 열어도 결제 방식이 비어 있다', async () => {
+      const kill = await launch();
+      await openWorkDetail();
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+
+      await relaunch(kill);
+      await findWorkDetailLoaded();
+
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배관 교체',
+      );
+      expect(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      ).not.toHaveAccessibilityValue({ text: '현장 카드' });
     });
 
     it('이어 쓰는 보고도 나갈 때 묻고, 화면 스택도 남아 뒤로 가면 메인화면이다', async () => {

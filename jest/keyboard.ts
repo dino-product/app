@@ -26,6 +26,25 @@ export function showKeyboard(screenY: number) {
   });
 }
 
+/**
+ * iOS 네이티브(RCTKeyboardObserver)가 키보드가 올라오기 시작할 때 보내는 이벤트를 흉내 낸다.
+ * 키보드 윗변이 screenY 까지 올라온다. Android 에는 없는 이벤트다
+ */
+export function willShowKeyboard(screenY: number) {
+  return act(() => {
+    DeviceEventEmitter.emit('keyboardWillShow', {
+      duration: 250,
+      easing: 'keyboard',
+      endCoordinates: {
+        screenX: 0,
+        screenY,
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT - screenY,
+      },
+    });
+  });
+}
+
 export function hideKeyboard() {
   return act(() => {
     DeviceEventEmitter.emit('keyboardDidHide', {

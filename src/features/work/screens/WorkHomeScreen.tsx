@@ -38,6 +38,7 @@ import {
 } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import { WeekDays } from '../components/WeekDays';
+import { loadHomeView, saveHomeView, type ScheduleView } from '../homeView';
 import { mondayWeek, type CurrentWork, type ScheduleItem } from '../model';
 
 // Figma 작업 수행 › 메인화면 - 시작 가능 (작업 시작 / 작업 수행중, 블록 보기 3463:17452), 진행(무), 일정(무)
@@ -66,9 +67,6 @@ export type WorkHomeScreenProps = {
 
 const READY: LoadState = { status: 'ready' };
 
-/** 일정 보기: 이번 주 목록 / 날짜 칸으로 고른 날 (블록) */
-type ScheduleView = 'list' | 'block';
-
 function WorkHomeScreenView({
   currentWork,
   schedule,
@@ -83,7 +81,15 @@ function WorkHomeScreenView({
   refreshing = false,
   onRefresh,
 }: WorkHomeScreenProps) {
-  const [view, setView] = useState<ScheduleView>('list');
+  // 처음 설치면 블록 보기, 아니면 마지막으로 고른 보기로 연다 (#147). MMKV 는 동기라 첫 렌더에 바로 읽는다
+  const [view, setView] = useState<ScheduleView>(loadHomeView);
+  const changeView = (next: ScheduleView) => {
+    if (next === view) {
+      return;
+    }
+    setView(next);
+    saveHomeView(next);
+  };
   // 시작을 보내는 동안 "작업 시작" 을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
   const [starting, setStarting] = useState(false);
   const startingRef = useRef(false);
@@ -157,7 +163,7 @@ function WorkHomeScreenView({
               accessibilityLabel="목록 보기"
               accessibilityState={{ selected: !block }}
               hitSlop={LIST_HIT_SLOP}
-              onPress={() => setView('list')}
+              onPress={() => changeView('list')}
             >
               <Icon name={block ? 'list' : 'list-active'} size={TOGGLE_SIZE} />
             </Pressable>
@@ -166,7 +172,7 @@ function WorkHomeScreenView({
               accessibilityLabel="블록 보기"
               accessibilityState={{ selected: block }}
               hitSlop={BLOCK_HIT_SLOP}
-              onPress={() => setView('block')}
+              onPress={() => changeView('block')}
             >
               <Icon name={block ? 'grid-active' : 'grid'} size={TOGGLE_SIZE} />
             </Pressable>

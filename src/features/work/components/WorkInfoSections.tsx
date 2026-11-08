@@ -9,21 +9,18 @@ import {
 } from '../../../shared/design-system';
 import { formatPrice, type WorkDetail } from '../model';
 import { InfoCard, InfoField, Section, SectionBand } from './InfoCard';
-import { PhotoThumb } from './PhotoThumb';
+import { SitePhotosSection } from './SitePhotosSection';
 
-// 작업 상세의 정보 영역 (요약, 일정 및 담당, 고객, 위치, 작업 내용).
-// 작업 수행 상세(완료 보고 포함)와 스케줄의 응답 필요 상세가 함께 쓴다.
+// 작업 상세의 정보 영역 (요약, 일정 및 담당, 고객, 위치, 작업 내용, 현장 사진).
+// 모든 작업 상세가 함께 쓴다: 작업 수행 상세(완료 보고 포함, 홈·알림), 작업 이력 상세, 내 일정의 응답 필요 상세.
 export function WorkInfoSections({
   work,
   onCall,
   onNavigate,
-  showRequestImages = true,
 }: {
   work: WorkDetail;
   onCall: (phone: string) => void;
   onNavigate: (address: string) => void;
-  /** false 면 카드 아래 "작업 요청 이미지" 줄을 그리지 않는다 (응답 필요 상세는 현장 사진 섹션을 따로 둔다) */
-  showRequestImages?: boolean;
 }) {
   return (
     <>
@@ -116,7 +113,7 @@ export function WorkInfoSections({
       </Section>
 
       <Section title="작업 내용">
-        {/* Figma 는 아래 작업 요청 이미지 카드처럼 회색 채움이다 */}
+        {/* Figma 작업 수행 상세(3235:16226)의 작업 내용 카드는 회색 채움이다 */}
         <InfoCard filled testID="work-content-card">
           <InfoField label="작업 메모" value={work.memo} />
           <View style={styles.divider} />
@@ -127,24 +124,10 @@ export function WorkInfoSections({
             <Text variant="Body/M/SemiBold">{formatPrice(work.price)}</Text>
           </View>
         </InfoCard>
-        {showRequestImages && (
-          <View style={styles.requestImages}>
-            <View style={styles.priceRow}>
-              <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-                작업 요청 이미지
-              </Text>
-              <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-                {`${work.requestImages.length}장`}
-              </Text>
-            </View>
-            <View style={styles.thumbs}>
-              {work.requestImages.map(uri => (
-                <PhotoThumb key={uri} uri={uri} />
-              ))}
-            </View>
-          </View>
-        )}
       </Section>
+
+      {/* 작업 요청 사진은 작업 상태와 관계없이 모든 작업 상세의 이 자리에 같은 섹션으로 보인다 (#142) */}
+      <SitePhotosSection address={work.address} photos={work.requestImages} />
     </>
   );
 }
@@ -183,11 +166,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  requestImages: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: colors.gray[50],
-  },
-  thumbs: { flexDirection: 'row', gap: 10 },
 });
