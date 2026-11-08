@@ -301,7 +301,7 @@ function ScheduleScreenView({
       {/* 머리말 그림자가 아래 리스트 위로 드리우도록 앞에 그린다 */}
       <View style={styles.header}>
         <View style={readableColumn}>
-          {/* 탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(2714:12918)에는 종이 없다 */}
+          {/* 탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(3754:6269)에는 종이 없다 */}
           <TabHeader title="내 일정" style={styles.titleBar} />
           <UnderlineTabs
             items={[

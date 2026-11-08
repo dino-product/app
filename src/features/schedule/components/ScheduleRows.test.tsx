@@ -119,14 +119,14 @@ describe.each([
 });
 
 describe('ConfirmedRow', () => {
-  // Figma 3754:6312: 흰 카드, 모서리 16, 사방 20, 줄 사이 6, 아래만 Gray50 선
+  // Figma 3754:6312: 흰 카드(Gray0), 모서리 16, 사방 20, 줄 사이 6, 아래만 Gray50 선
   it('흰 카드에 모서리 16, 사방 20, 줄 사이 6, 아래 Gray50 선이다', async () => {
     await render(
       <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
     );
 
     expect(screen.getByLabelText(/^세탁기 설치, /)).toHaveStyle({
-      backgroundColor: colors.white[100],
+      backgroundColor: colors.gray[0],
       borderRadius: 16,
       padding: 20,
       gap: 6,
@@ -199,7 +199,7 @@ describe('PendingRequestCard', () => {
     }).parent as HostElement;
     const card = body.parent as HostElement;
     expect(card).toHaveStyle({
-      backgroundColor: colors.white[100],
+      backgroundColor: colors.gray[0],
       borderRadius: 16,
       overflow: 'hidden',
       borderBottomWidth: 1,

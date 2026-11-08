@@ -145,12 +145,13 @@ export function WeekStrip({
 }
 
 const DAY_GAP = 6;
-// 칸 폭(375 에서 45.6)을 뒤 칸 쪽 칸 사이 간격만큼 넓혀 최소 터치 영역을 채운다 (360dp 에서도 43.4 + 6).
-// 간격까지만 넓혀 옆 칸과 겹치지 않는다. 마지막 칸이 넓힌 영역은 넘김 창의 좌우 여백이 덮는다
+// 칸을 뒤 칸 쪽 칸 사이 간격만큼 넓힌다. 간격까지만 넓혀 옆 칸과 겹치지 않고, 마지막 칸이 넓힌 영역은 넘김 창의 좌우 여백이 덮는다.
+// 부모가 좌우 24 안쪽(Figma 3754:6303)이라 칸 폭이 375 에서 41.6, 360dp 에서 39.4 다. +6 이면 iOS 44 는 채우고
+// Android 48 은 못 채운다 (393 에서는 50.1). 칸이 붙어 있어 더 넓힐 수 없다 — 디자인 결정 대기 #172
 const DAY_HIT_SLOP = { right: DAY_GAP };
 
 const styles = StyleSheet.create({
-  // Figma 칸 48.14 는 393 화면에서 (373 - 간격 6×6) / 7 이다. 화면 폭에 맞춰 7칸이 나눠 갖는다
+  // Figma 칸 44.14 는 393 화면에서 (345 - 간격 6×6) / 7 이다. 화면 폭에 맞춰 7칸이 나눠 갖는다
   row: { flexDirection: 'row', gap: DAY_GAP },
   // Figma 3754:6303: 회색 바탕 위 흰 칸 (Calendar Contents View=Week, Unselected)
   day: {

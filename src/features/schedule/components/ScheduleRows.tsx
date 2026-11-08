@@ -167,12 +167,12 @@ const pendingBodyStyle = ({ pressed }: PressableStateCallbackType) => [
   pressed && styles.pressed,
 ];
 
-// Figma 카드 아래 테두리 Gray50 1 (위·옆은 없다)
+// Figma 카드 fill Gray0, 아래 테두리 Gray50 1 (위·옆은 없다)
 const cardSurface = {
   borderRadius: 16,
   borderBottomWidth: 1,
   borderBottomColor: colors.gray[50],
-  backgroundColor: colors.white[100],
+  backgroundColor: colors.gray[0],
 } as const;
 const CARD_PADDING = 20;
 

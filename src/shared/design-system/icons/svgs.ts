@@ -116,7 +116,6 @@ export const iconSvgs = {
     size: 24,
     color: '#767676',
   },
-  // 날짜 줄의 달력 전환. Figma 에서 주간 줄(접힘)과 달력 펼침의 모양이 좌우로 뒤집혀 있고 색도 다르다
   // 내 일정 날짜 줄의 주간↔달력 전환. Figma DesignSystem › Web Icon Calender/ Weekly(3754:7231) · Monthly(3754:14017).
   // 내보낸 SVG 의 겉 clip-path 는 그림 밖이라 뺐다
   'calendar-switch': {

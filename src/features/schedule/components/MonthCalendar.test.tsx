@@ -217,7 +217,7 @@ describe('MonthCalendar 넘김', () => {
 const dotsOf = (name: string) =>
   within(screen.getByRole('button', { name })).queryAllByTestId('event-dot');
 
-// Figma 내 일정 › 달력 펼침 (2714:13093) 의 Calendar Contents 칸
+// Figma 내 일정 › 달력 펼침 (3754:6457·3754:6618) 의 Calendar Contents 칸
 describe('MonthCalendar 표시', () => {
   // 2026년 12월: 11월 29일(일) ~ 1월 2일(토) 5주
   const renderDecember = (
