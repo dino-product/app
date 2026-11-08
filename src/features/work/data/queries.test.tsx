@@ -12,17 +12,18 @@ import {
   loadStateOf,
   useAcceptWork,
   useMySchedule,
+  usePendingWorks,
   useRefresh,
   useWorkDetail,
 } from './queries';
-import { createWorkTestApi, workDetailResponse } from './testing';
-import type { MySchedule, WorkRepository } from './types';
 import {
-  monthPeriod,
-  pendingPeriods,
-  pickCurrentWork,
-  weekPeriod,
-} from './views';
+  assignedWorkResponse,
+  createWorkTestApi,
+  scheduledWorkResponse,
+  workDetailResponse,
+  workHistoryResponse,
+} from './testing';
+import type { MySchedule, WorkRepository } from './types';
 
 const period = { from: '2026-10-18T15:00:00Z', to: '2026-10-25T15:00:00Z' };
 // 픽스처 작업(2026-10-21 09:00~11:00)이 아직 지연되지 않은 시각
@@ -46,6 +47,41 @@ describe('작업 조회 훅', () => {
 
     await waitFor(() => expect(result.current.detail.data?.id).toBe('10'));
     expect(result.current.schedule.data?.works).toHaveLength(1);
+  });
+
+  it('응답 필요는 날짜와 관계없는 수락 대기 목록과 불러오기 상태를 준다', async () => {
+    const api = createWorkTestApi({ seed: [pending()], now });
+
+    const { result } = await renderHook(() => usePendingWorks(), {
+      wrapper: api.wrapper,
+    });
+
+    expect(result.current.load.status).toBe('loading');
+    expect(result.current.works).toEqual([]);
+    await waitFor(() => expect(result.current.load.status).toBe('ready'));
+    expect(result.current.works.map(work => work.workId)).toEqual([10]);
+  });
+
+  it('응답 필요를 불러오지 못하면 오류와 다시 시도를 준다', async () => {
+    const local = createLocalWorkRepository({ seed: [pending()], now });
+    jest
+      .spyOn(local, 'getPendingWorks')
+      .mockRejectedValueOnce(
+        new ApiError({ kind: 'network', message: '네트워크' }),
+      );
+    const api = createWorkTestApi({ repository: local });
+
+    const { result } = await renderHook(() => usePendingWorks(), {
+      wrapper: api.wrapper,
+    });
+
+    await waitFor(() => expect(result.current.load.status).toBe('error'));
+    await act(async () => {
+      if (result.current.load.status === 'error') {
+        result.current.load.onRetry();
+      }
+    });
+    await waitFor(() => expect(result.current.works).toHaveLength(1));
   });
 });
 
@@ -142,7 +178,7 @@ describe('작업 변경 훅', () => {
     );
   });
 
-  it.each(['SCHEDULE-010', 'SCHEDULE-002'])(
+  it.each(['SCHEDULE-010', 'SCHEDULE-002', 'SCHEDULE-016'])(
     '%s 로 실패하면 서버의 최신 작업을 다시 받는다',
     async code => {
       const { api, local } = setup({
@@ -250,7 +286,7 @@ describe('WorkRepositoryProvider', () => {
 });
 
 describe('createWorkRepository', () => {
-  it("'http' 는 소속 목록의 활성 기사 발주사로 작업 상세를 부른다 (소속은 캐시를 같이 쓴다)", async () => {
+  it('소속 목록의 활성 기사 발주사로 작업 상세를 부른다 (소속은 캐시를 같이 쓴다)', async () => {
     const api = createTestApi({
       session: testSession(),
       server: createFakeServer()
@@ -274,7 +310,7 @@ describe('createWorkRepository', () => {
           ok(workDetailResponse()),
         ),
     });
-    const repository = createWorkRepository('http', {
+    const repository = createWorkRepository({
       api: api.client,
       queryClient: api.queryClient,
     });
@@ -286,7 +322,7 @@ describe('createWorkRepository', () => {
     expect(api.server.callsTo('GET', MEMBERSHIPS_PATH)).toHaveLength(1);
   });
 
-  it("'http' 는 SCHEDULE-004 가 오면 소속을 다시 받는다 (소속이 바뀌었을 수 있다)", async () => {
+  it('SCHEDULE-004 가 오면 소속을 다시 받는다 (소속이 바뀌었을 수 있다)', async () => {
     const technician = (organizationId: number) => ({
       organizationId,
       organizationName: '오르빗 설비',
@@ -313,7 +349,7 @@ describe('createWorkRepository', () => {
           ok(workDetailResponse()),
         ),
     });
-    const repository = createWorkRepository('http', {
+    const repository = createWorkRepository({
       api: api.client,
       queryClient: api.queryClient,
     });
@@ -327,7 +363,7 @@ describe('createWorkRepository', () => {
   });
 
   // 조직 참여(#116)는 새로 승인된 요청을 보면 소속 조회를 무효로 만든다. 승인 전에 받아 둔 소속으로 계속 막히지 않게 한다
-  it("'http' 는 소속 조회가 무효가 되면(참여 승인) 다음 조회 때 소속을 다시 받는다", async () => {
+  it('소속 조회가 무효가 되면(참여 승인) 다음 조회 때 소속을 다시 받는다', async () => {
     const api = createTestApi({
       session: testSession(),
       server: createFakeServer()
@@ -352,7 +388,7 @@ describe('createWorkRepository', () => {
           ok(workDetailResponse()),
         ),
     });
-    const repository = createWorkRepository('http', {
+    const repository = createWorkRepository({
       api: api.client,
       queryClient: api.queryClient,
     });
@@ -366,7 +402,7 @@ describe('createWorkRepository', () => {
     expect(api.server.callsTo('GET', MEMBERSHIPS_PATH)).toHaveLength(2);
   });
 
-  it("'http' 는 활성 기사 소속이 없으면 볼 수 없는 작업 오류다", async () => {
+  it('활성 기사 소속이 없으면 볼 수 없는 작업 오류다', async () => {
     const api = createTestApi({
       session: testSession(),
       server: createFakeServer().on(
@@ -375,7 +411,7 @@ describe('createWorkRepository', () => {
         ok({ memberships: [] }),
       ),
     });
-    const repository = createWorkRepository('http', {
+    const repository = createWorkRepository({
       api: api.client,
       queryClient: api.queryClient,
     });
@@ -385,42 +421,55 @@ describe('createWorkRepository', () => {
     expect(isUnavailableWork(error)).toBe(true);
   });
 
-  // #136 예시(더미) 작업으로 채우지 않는다. 기사 작업 API(#112)가 생길 때까지 작업 화면은 빈 상태다
-  it("'local' 은 예시 작업 없이 빈 저장소로 시작한다: 일정·응답 필요 요청·이력·진행할 작업이 없다 (소속 없이)", async () => {
-    const api = createTestApi();
-    const opened = new Date(2026, 9, 21, 14, 0);
-    const repository = createWorkRepository('local', {
+  // #155 운영 저장소는 기사 작업 API 다. 목록 행의 업체명은 백엔드 행에 없어 경로의 발주사(소속 목록) 이름이다
+  it('내 일정·이력은 기사 발주사의 API 를 부르고, 행에 소속 목록의 발주사 이름을 붙인다', async () => {
+    const api = createTestApi({
+      session: testSession(),
+      server: createFakeServer()
+        .on(
+          'GET',
+          MEMBERSHIPS_PATH,
+          ok({
+            memberships: [
+              {
+                organizationId: 7,
+                organizationName: '오르빗 설비',
+                role: 'TECHNICIAN',
+                status: 'ACTIVE',
+              },
+            ],
+          }),
+        )
+        .on(
+          'GET',
+          '/api/v1/organizations/7/my-schedule',
+          ok({ works: [scheduledWorkResponse()] }),
+        )
+        .on(
+          'GET',
+          '/api/v1/organizations/7/my-schedule/pending',
+          ok({ works: [] }),
+        )
+        .on(
+          'GET',
+          '/api/v1/organizations/7/work-history',
+          ok(workHistoryResponse({ works: [assignedWorkResponse()] })),
+        ),
+    });
+    const repository = createWorkRepository({
       api: api.client,
       queryClient: api.queryClient,
-      now: () => opened,
     });
-    // 예시가 있던 구간: 이번 주, 앞뒤 달, 응답 필요 요청을 찾는 구간
-    const months = [7, 8, 9, 10].map(month => ({ year: 2026, month }));
-    const schedulePeriods = [
-      weekPeriod(opened),
-      ...months.map(monthPeriod),
-      ...pendingPeriods(opened),
-    ];
 
-    const schedules = await Promise.all(
-      schedulePeriods.map(range => repository.getMySchedule(range)),
-    );
-    const histories = await Promise.all(
-      months.map(month => repository.getWorkHistory(monthPeriod(month))),
-    );
+    const schedule = await repository.getMySchedule(period);
+    const history = await repository.getWorkHistory(period);
 
-    schedules.forEach(schedule => expect(schedule.works).toEqual([]));
-    expect(pickCurrentWork(schedules[0].works, opened)).toBeUndefined();
-    histories.forEach(history =>
-      expect(history).toEqual({
-        works: [],
-        statistics: { assigned: 0, completed: 0, rejected: 0, cancelled: 0 },
-        totalCompleted: 0,
-      }),
-    );
-    // 전에 예시로 있던 작업 id(진행할 작업 101)도 볼 수 없는 작업이다
-    const error = await repository.getWorkDetail(101).catch(e => e);
-    expect(isUnavailableWork(error)).toBe(true);
-    expect(api.server.calls).toHaveLength(0);
+    expect(schedule.works).toEqual([
+      expect.objectContaining({ workId: 10, organizationName: '오르빗 설비' }),
+    ]);
+    expect(history.works).toEqual([
+      expect.objectContaining({ workId: 10, organizationName: '오르빗 설비' }),
+    ]);
+    expect(api.server.callsTo('GET', MEMBERSHIPS_PATH)).toHaveLength(1);
   });
 });

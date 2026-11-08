@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { colors, pressedBackground } from '../../../shared/design-system';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import {
   fail,
   hang,
@@ -277,6 +278,56 @@ describe('MyPageScreen', () => {
     for (const name of ['알림 설정', '약관 및 앱 정보', '계정 관리']) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
+  });
+
+  // #141: Figma 마이페이지 3235:17104 › 설정 및 정보 카드 3235:17171 (아이콘 20, #585858, 아이콘–글자 10)
+  describe('설정 및 정보 행 아이콘 (Figma)', () => {
+    const svgIn = (row: HostElement) => {
+      const [iconView] = row.children;
+      const [svg] =
+        iconView === undefined || typeof iconView === 'string'
+          ? []
+          : iconView.children;
+      if (svg === undefined || typeof svg === 'string') {
+        throw new Error('아이콘 SVG 가 없습니다');
+      }
+      return svg;
+    };
+
+    it.each([
+      // Web Icon 종 (3235:17173)
+      ['알림 설정', 'settings-bell', 'd="M5.5 8C5.5 6.67392'],
+      // famicons:document-text-outline (3235:17179) — 글줄 두 개
+      [
+        '약관 및 앱 정보',
+        'settings-document',
+        'M7.75 11.7504H13.25M7.75 14.5004H13.25',
+      ],
+      // ci:user-03 (3235:17185)
+      ['계정 관리', 'settings-user', 'd="M15 15.8333C15 13.9917'],
+    ] as const)(
+      '%s 행은 Figma 에서 내보낸 %s 아이콘을 20 · Gray700 으로 그린다',
+      async (name, icon, path) => {
+        await renderLoadedMyPage();
+
+        const svg = svgIn(screen.getByRole('button', { name }));
+        expect(svg.props.xml).toContain(path);
+        expect(svg.props.xml).toBe(iconSvgs[icon].xml);
+        expect(svg.props).toMatchObject({
+          width: 20,
+          height: 20,
+          color: colors.gray[700],
+        });
+      },
+    );
+
+    it('설정 행의 아이콘과 글자 사이는 10 이다', async () => {
+      await renderLoadedMyPage();
+
+      for (const name of ['알림 설정', '약관 및 앱 정보', '계정 관리']) {
+        expect(screen.getByRole('button', { name })).toHaveStyle({ gap: 10 });
+      }
+    });
   });
 
   it.each([

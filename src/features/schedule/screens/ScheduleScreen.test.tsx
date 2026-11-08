@@ -508,7 +508,8 @@ describe('ScheduleScreen — 확정 일정', () => {
   });
 });
 
-// 주간 줄·월 달력은 리스트 머리에 있다. 달력을 만지는 동안(닿은 뒤 뗄 때까지)은 리스트가 세로로 움직이지 않는다 (#99)
+// 주간 줄·월 달력은 리스트 머리에 있다. 주간 줄을 만지는 동안(닿은 뒤 뗄 때까지)은 리스트가 세로로 움직이지 않는다 (#99).
+// 펼친 달력은 처음 움직인 방향으로 정한다: 가로면 막고 달을 넘기며, 세로면 리스트가 스크롤한다 (#144)
 describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -539,6 +540,13 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
     act(() =>
       target.props.onTouchCancel(touchesEvent({ changed: [id], touches: [] })),
     );
+  // 손가락이 닿은 자리(0,0)에서 (x, y) 로 움직인다
+  const touchMove = (target: HostElement, x: number, y: number, id = 0) =>
+    act(() =>
+      target.props.onTouchMove(
+        touchesEvent({ changed: [id], touches: [id], x, y }),
+      ),
+    );
 
   it.each(['ios', 'android'] as const)(
     '%s: 주간 줄에 손가락이 닿으면 리스트 스크롤을 막고, 떼면 다시 스크롤한다',
@@ -564,19 +572,108 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
     expect(list().props.scrollEnabled).toBe(true);
   });
 
-  it('펼친 달력도 손가락이 닿은 동안 리스트 스크롤을 막는다', async () => {
-    await renderSchedule();
-    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+  describe('펼친 달력 — 처음 움직인 방향 (#144)', () => {
+    const openCalendar = async (os: 'ios' | 'android') => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderSchedule();
+      await userEvent.press(
+        screen.getByRole('button', { name: '달력 펼치기' }),
+      );
+    };
+    const calendar = () => screen.getByTestId('month-calendar');
 
-    await touchStart(screen.getByTestId('month-calendar'));
-    expect(list().props.scrollEnabled).toBe(false);
+    it.each(['ios', 'android'] as const)(
+      '%s: 달력 위에서 세로로 밀면 리스트가 스크롤하고 달은 그대로다',
+      async os => {
+        await openCalendar(os);
 
-    await touchEnd(screen.getByTestId('month-calendar'));
-    expect(list().props.scrollEnabled).toBe(true);
+        await touchStart(calendar());
+        await touchMove(calendar(), 3, -12);
+        expect(list().props.scrollEnabled).toBe(true);
+        const { granted } = await drag(calendar().props, {
+          path: [
+            { x: 0, y: 0 },
+            { x: 3, y: -12 },
+            { x: -40, y: -60 },
+            { x: -80, y: -120 },
+          ],
+        });
+        await touchMove(calendar(), -80, -120);
+        expect(list().props.scrollEnabled).toBe(true);
+        await touchEnd(calendar());
 
-    await touchStart(screen.getByTestId('month-calendar'));
-    await touchCancel(screen.getByTestId('month-calendar'));
-    expect(list().props.scrollEnabled).toBe(true);
+        expect(granted).toBe(false);
+        expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+        expect(list().props.scrollEnabled).toBe(true);
+      },
+    );
+
+    it.each(['ios', 'android'] as const)(
+      '%s: 달력 위에서 가로로 밀면 리스트 스크롤을 막고 달을 넘긴다',
+      async os => {
+        await openCalendar(os);
+
+        await touchStart(calendar());
+        await touchMove(calendar(), -12, 3);
+        expect(list().props.scrollEnabled).toBe(false);
+        const { granted } = await drag(calendar().props, {
+          path: [
+            { x: 0, y: 0 },
+            { x: -12, y: 3 },
+            { x: -40, y: 30 },
+            { x: -80, y: 60 },
+          ],
+        });
+        await touchMove(calendar(), -80, 60);
+        expect(list().props.scrollEnabled).toBe(false);
+        await touchEnd(calendar());
+
+        expect(granted).toBe(true);
+        expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+        expect(list().props.scrollEnabled).toBe(true);
+      },
+    );
+
+    // iOS 는 막은 뒤 다시 켜도 그 손길에서 스크롤하지 않으므로 방향을 정하기 전에는 막지 않는다
+    it('iOS: 달력에 닿기만 해서는 리스트 스크롤을 막지 않는다', async () => {
+      await openCalendar('ios');
+
+      await touchStart(calendar());
+      await touchMove(calendar(), -10, 0);
+
+      expect(list().props.scrollEnabled).not.toBe(false);
+    });
+
+    // Android 리스트는 밀기가 응답자가 되기 전에 가로채므로 방향을 정할 때까지 막아 둔다
+    it('Android: 달력에 닿으면 방향을 정할 때까지 막고, 떼거나 취소되면 푼다', async () => {
+      await openCalendar('android');
+
+      await touchStart(calendar());
+      await touchMove(calendar(), -10, 0);
+      expect(list().props.scrollEnabled).toBe(false);
+      await touchEnd(calendar());
+      expect(list().props.scrollEnabled).toBe(true);
+
+      await touchStart(calendar());
+      await touchCancel(calendar());
+      expect(list().props.scrollEnabled).toBe(true);
+    });
+
+    it.each(['ios', 'android'] as const)(
+      '%s: 달력 날짜를 누르면 고르고, 손을 떼면 리스트가 스크롤한다',
+      async os => {
+        await openCalendar(os);
+
+        await touchStart(calendar());
+        await fireEvent.press(
+          screen.getByRole('button', { name: '12월 23일 수요일' }),
+        );
+        await touchEnd(calendar());
+
+        expect(screen.getByText('2026년 12월 23일 (수)')).toBeOnTheScreen();
+        expect(list().props.scrollEnabled).toBe(true);
+      },
+    );
   });
 
   it('달력 밖(날짜 머리·일정 목록)에서 시작한 터치는 리스트 스크롤을 막지 않는다', async () => {
@@ -647,6 +744,10 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
       const before = screen.getByTestId(testID).props;
 
       await touchStart(screen.getByTestId(testID));
+      // 펼친 달력은 가로로 정해질 때 막는다 (iOS)
+      if (open) {
+        await touchMove(screen.getByTestId(testID), -12, 0);
+      }
       expect(list().props.scrollEnabled).toBe(false);
       await touchEnd(screen.getByTestId(testID));
       expect(list().props.scrollEnabled).toBe(true);

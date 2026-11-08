@@ -54,6 +54,26 @@ export const iconSvgs = {
     size: 24,
     color: '#585858',
   },
+  // 마이페이지 › 설정 및 정보 행 아이콘 (#141, Figma 마이페이지 3235:17104 › 3235:17171 에서 내보냄).
+  // 알림 설정 Web Icon 종(3235:17173) · 약관 및 앱 정보 famicons:document-text-outline(3235:17179) · 계정 관리 ci:user-03(3235:17185)
+  'settings-bell': {
+    tint: true,
+    xml: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 8C5.5 6.67392 5.97411 5.40215 6.81802 4.46447C7.66193 3.52678 8.80653 3 10 3C11.1935 3 12.3381 3.52678 13.182 4.46447C14.0259 5.40215 14.5 6.67392 14.5 8C14.5 12.1667 16 13 16 13H4C4 13 5.5 12.1667 5.5 8Z" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/><path d="M8 15C8 15.5304 8.21071 16.0391 8.58579 16.4142C8.96086 16.7893 9.46957 17 10 17C10.5304 17 11.0391 16.7893 11.4142 16.4142C11.7893 16.0391 12 15.5304 12 15" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 20,
+    color: '#585858',
+  },
+  'settings-document': {
+    tint: true,
+    xml: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 9.45547V16.15C16 16.5876 15.8262 17.0073 15.5167 17.3167C15.2073 17.6262 14.7876 17.8 14.35 17.8H6.65C6.21239 17.8 5.79271 17.6262 5.48327 17.3167C5.17384 17.0073 5 16.5876 5 16.15V5.15C5 4.71239 5.17384 4.29271 5.48327 3.98327C5.79271 3.67384 6.21239 3.5 6.65 3.5H10.0445C10.3362 3.50004 10.6159 3.6159 10.8221 3.82209L15.6779 8.67791C15.8841 8.88415 16 9.16383 16 9.45547Z" stroke-width="1.232" stroke-linejoin="round" stroke="currentColor"/><path d="M10.5 3.77539V7.90039C10.5 8.19213 10.6159 8.47192 10.8222 8.67821C11.0285 8.8845 11.3083 9.00039 11.6 9.00039H15.725M7.75 11.7504H13.25M7.75 14.5004H13.25" stroke-width="1.232" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 20,
+    color: '#585858',
+  },
+  'settings-user': {
+    tint: true,
+    xml: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 15.8333C15 13.9917 12.7617 12.5 10 12.5C7.23833 12.5 5 13.9917 5 15.8333M10 10C9.11595 10 8.2681 9.64881 7.64298 9.02369C7.01786 8.39857 6.66667 7.55072 6.66667 6.66667C6.66667 5.78261 7.01786 4.93477 7.64298 4.30964C8.2681 3.68452 9.11595 3.33333 10 3.33333C10.8841 3.33333 11.7319 3.68452 12.357 4.30964C12.9821 4.93477 13.3333 5.78261 13.3333 6.66667C13.3333 7.55072 12.9821 8.39857 12.357 9.02369C11.7319 9.64881 10.8841 10 10 10Z" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',
+    size: 20,
+    color: '#585858',
+  },
   check: {
     tint: true,
     xml: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12.5L10 16.5L18 8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>',

@@ -192,9 +192,11 @@ function ScheduleScreenView({
     [autoHide.height],
   );
 
-  // 달력을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99)
+  // 주간 줄을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99).
+  // 펼친 달력은 처음 움직인 방향이 가로일 때만 막고, 세로면 리스트가 스크롤한다 (#144)
   const scrollLock = useTouchScrollLock();
-  const calendarTouch = scrollLock.areaTouchHandlers;
+  const weekTouch = scrollLock.areaTouchHandlers;
+  const monthTouch = scrollLock.axisAreaTouchHandlers;
 
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => <ConfirmedRow item={item} />,
@@ -266,7 +268,7 @@ function ScheduleScreenView({
               selected={selected}
               eventCounts={eventCounts}
               edgeInset={styles.monthArea.paddingHorizontal}
-              touchHandlers={calendarTouch}
+              touchHandlers={monthTouch}
               onSelect={selectDate}
               onPrev={() => moveMonth(-1)}
               onNext={() => moveMonth(1)}
@@ -279,7 +281,7 @@ function ScheduleScreenView({
               days={week}
               selected={selected}
               edgeInset={styles.weekArea.paddingHorizontal}
-              touchHandlers={calendarTouch}
+              touchHandlers={weekTouch}
               onSelect={selectDate}
               onPrev={() => moveWeek(-1)}
               onNext={() => moveWeek(1)}
@@ -298,7 +300,8 @@ function ScheduleScreenView({
       toggleCalendar,
       moveMonth,
       moveWeek,
-      calendarTouch,
+      weekTouch,
+      monthTouch,
     ],
   );
 
@@ -335,7 +338,7 @@ function ScheduleScreenView({
             {...autoHide.scrollProps}
             // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
             directionalLockEnabled
-            // 달력에 손가락이 닿아 있는 동안은 세로로도 움직이지 않는다 (#99)
+            // 주간 줄에 손가락이 닿아 있는 동안, 펼친 달력을 가로로 미는 동안은 세로로 움직이지 않는다 (#99, #144)
             scrollEnabled={!scrollLock.locked}
             onTouchStartCapture={scrollLock.onListTouchStartCapture}
             data={daySchedules}

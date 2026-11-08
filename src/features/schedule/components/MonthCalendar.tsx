@@ -49,7 +49,7 @@ export function MonthCalendar({
    * 넘길 때 옆 달이 이만큼 바깥(화면 가장자리)에서 들어온다
    */
   edgeInset?: number;
-  /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
+  /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 가로로 미는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
 }) {
   const swipe = useHorizontalSwipe({ onPrev, onNext });

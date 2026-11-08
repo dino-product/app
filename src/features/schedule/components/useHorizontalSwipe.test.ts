@@ -113,6 +113,106 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onPrev).not.toHaveBeenCalled();
   });
 
+  // 처음 움직인 방향(decidePanAxis)으로 정하고 그 손길이 끝날 때까지 바꾸지 않는다 (#144).
+  // 세로로 스크롤하던 손가락이 옆으로 흘러도 달을 넘기지 않는다
+  it('처음에 세로로 움직였으면 이어서 가로로 많이 밀어도 응답자가 되지 않는다', async () => {
+    const { result, finish, offsets, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      path: [
+        { x: 0, y: 0 },
+        { x: 0, y: 6 },
+        { x: 0, y: 12 },
+        { x: -40, y: 12 },
+        { x: -80, y: 12 },
+      ],
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(offsets).toEqual([]);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('세로로 정한 손길이 끝나면 다음 손길은 처음부터 다시 정한다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    await drag(result.current.panHandlers, { dx: 0, dy: 40 });
+    const { granted } = await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+
+    expect(granted).toBe(true);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  // 방향은 화면에 손가락 하나로 시작해 방향을 정할 때까지 한 손가락인 손길에서만 본다 (useTouchScrollLock 과 같은 규칙)
+  it('화면 다른 곳에 손가락이 닿은 채로 시작한 손길은 지난 손길의 방향을 이어 쓰지 않고 넘기지 않는다', async () => {
+    const { result, finish, onNext, onPrev } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    const vertical = await drag(result.current.panHandlers, {
+      dy: 80,
+      otherFingersAtStart: 1,
+    });
+    const horizontal = await drag(result.current.panHandlers, {
+      dx: 80,
+      otherFingersAtStart: 1,
+    });
+    await finish();
+
+    expect(vertical.granted).toBe(false);
+    expect(horizontal.granted).toBe(false);
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(onPrev).not.toHaveBeenCalled();
+  });
+
+  it('두 손가락으로 가로로 밀다 한 손가락을 떼도 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      dx: -80,
+      fingers: step => (step < 4 ? 2 : 1),
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  // 두 번째 손가락이 밀기 뷰 밖(리스트 행 등)에 닿으면 밀기 뷰는 닿는 순간을 못 보고 손가락 수로만 안다
+  it('한 손가락으로 시작해 방향을 정하기 전에 두 손가락이 되면 그 손길은 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      dx: -80,
+      fingers: step => (step === 0 ? 1 : 2),
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  // 다른 뷰가 응답자인 동안 닿은 손가락은 밀기 뷰가 닿는 순간을 못 볼 수 있다. 지난 손길의 방향으로 넘기지 않는다
+  it('닿는 순간을 못 본 손길은 지난 손길이 가로였어도 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    const { granted } = await drag(
+      {
+        ...result.current.panHandlers,
+        onStartShouldSetResponderCapture: undefined,
+      },
+      { dy: 80 },
+    );
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it('조금만 천천히 밀었다 놓으면 넘기지 않고 제자리로 돌아간다', async () => {
     const { result, finish, lastSlide, onPrev, onNext } = await setup();
 
