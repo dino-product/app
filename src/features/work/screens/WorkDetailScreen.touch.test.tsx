@@ -30,6 +30,25 @@ describe('WorkDetailScreen 터치 영역', () => {
     );
   });
 
+  // #149 등장·퇴장 애니메이션을 넣으며 앵커를 따로 뺐다 (ReportJumpAnchor)
+  it('"완료 보고 작성하기" 앵커는 최소 터치 영역 이상이다', async () => {
+    await render(
+      <WorkDetailScreen
+        work={workDetail}
+        onBack={jest.fn()}
+        onSubmitReport={jest.fn()}
+        onDone={jest.fn()}
+        onCall={jest.fn()}
+        onNavigate={jest.fn()}
+        onOpenMap={jest.fn()}
+        onPickPhoto={jest.fn(async () => [])}
+      />,
+    );
+
+    const anchor = screen.getByRole('button', { name: '완료 보고 작성하기' });
+    expectMinTouchTarget(anchor, { height: stylePt(anchor, 'minHeight') });
+  });
+
   it('작업전 작업의 "작업 시작" 은 최소 터치 영역 이상이다', async () => {
     await render(
       <WorkDetailScreen

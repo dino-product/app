@@ -128,13 +128,14 @@ function WorkHistoryScreenView({
         onPrev={() => moveMonth(-1)}
         onNext={() => moveMonth(1)}
       />
-      {/* '이번 달 완료' 는 고른 달 기준이다 (기본안) */}
+      {/* Figma 3753:4903: 이번 달 완료(Primary 강조)가 왼쪽, 누적 완료가 오른쪽 (#145). '이번 달 완료' 는 고른 달 기준이다 (기본안) */}
       <View style={styles.summary}>
-        <SummaryCard label="누적 완료" count={totalCompleted} />
         <SummaryCard
           label="이번 달 완료"
           count={load.status === 'ready' ? monthWorks.length : null}
+          emphasis
         />
+        <SummaryCard label="누적 완료" count={totalCompleted} />
       </View>
     </View>
   );

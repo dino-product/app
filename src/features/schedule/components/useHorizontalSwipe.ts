@@ -65,6 +65,11 @@ type Slide = {
 export function useHorizontalSwipe(callbacks: {
   onPrev: () => void;
   onNext: () => void;
+  /**
+   * 이번 밀기를 이 뷰가 가지는지 (useTabSwipeRegion 의 ownsGesture). 화면 가장자리 띠·가장자리 여유에서 시작했으면
+   * 탭 전환 몫이라 응답자가 되지 않는다 (#140). 주지 않으면 늘 갖는다
+   */
+  ownsGesture?: () => boolean;
 }): HorizontalSwipe {
   // 부모가 렌더마다 새 콜백을 넘겨도 PanResponder 는 한 번만 만들고 최신 콜백을 부른다
   const latest = useRef(callbacks);
@@ -168,12 +173,15 @@ export function useHorizontalSwipe(callbacks: {
         axis = nativeEvent.touches.length === 1 ? null : 'none';
         return false;
       },
-      // 정하기 전에 손가락이 늘면 그 손길은 방향을 보지 않는다
+      // 정하기 전에 손가락이 늘면 그 손길은 방향을 보지 않는다.
+      // 가로로 정해져도 화면 가장자리 띠·가장자리 여유에서 시작한 손길이면 탭 전환에 양보한다 (#140, ownsGesture)
       onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
         if (axis === null) {
           axis = numberActiveTouches === 1 ? decidePanAxis(dx, dy) : 'none';
         }
-        return axis === 'horizontal';
+        return (
+          axis === 'horizontal' && (latest.current.ownsGesture?.() ?? true)
+        );
       },
       onPanResponderGrant: () => {
         // 응답자가 된 뒤로는 다시 묻지 않는다. 다음 손길의 닿는 순간을 못 보더라도(다른 뷰가 응답자일 때) 이 가로 방향을
