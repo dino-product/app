@@ -81,7 +81,8 @@ export function useHorizontalSwipe(callbacks: {
     let width = 0;
     let sliding: Slide | null = null;
     let dragFrom = 0;
-    // 이번 손길의 방향. 처음 정한 뒤로는 바꾸지 않는다. 'none' 은 여러 손가락이라 방향을 보지 않는 손길이다
+    // 이번 손길의 방향. 처음 정한 뒤로는 바꾸지 않는다. 'none' 은 방향을 보지 않는 손길이다:
+    // 여러 손가락인 손길, 그리고 응답자가 된 뒤 다음 닿는 순간을 볼 때까지
     let axis: PanAxis | 'none' | null = null;
 
     const restAt = (target: number) => -target * width;
