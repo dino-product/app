@@ -32,6 +32,7 @@ export { Toggle, type ToggleProps } from './components/Toggle';
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
 export { TextArea, type TextAreaProps } from './components/TextArea';
 export {
+  UNDERLINE_TABS_HEIGHT,
   UnderlineTabs,
   type UnderlineTabsItem,
   type UnderlineTabsProps,

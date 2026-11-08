@@ -21,6 +21,14 @@ import {
   createTestApi,
   renderWithApi,
 } from '../../../shared/testing/renderWithApi';
+import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
+import {
+  autoHideHeader,
+  autoHideHeaderOffset,
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { testSession } from '../../../shared/testing/session';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
@@ -360,6 +368,7 @@ describe('MyPageScreen', () => {
     });
   });
 
+  // #148: 상단 바는 스크롤 뷰 위에 겹쳐 그리므로 내용 위 여백에 상단 바 높이를 더한다
   it('프로필 카드는 상단 바 아래 20 에서 시작한다', async () => {
     await renderLoadedMyPage();
 
@@ -369,7 +378,51 @@ describe('MyPageScreen', () => {
     }
     expect(
       StyleSheet.flatten(scroll?.props.contentContainerStyle),
-    ).toMatchObject({ paddingTop: 20 });
+    ).toMatchObject({ paddingTop: TAB_HEADER_HEIGHT + 20 });
+  });
+
+  // #148: 아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다 (공용 AutoHideHeaderLayout)
+  describe('상단 바 자동 숨김', () => {
+    let finishAnimations: () => Promise<void>;
+    beforeEach(() => {
+      finishAnimations = holdNativeAnimations().finish;
+    });
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('제목과 종은 스크롤 뷰 위에 겹쳐 그린 머리 안에 있다', async () => {
+      await renderLoadedMyPage();
+
+      expect(
+        within(autoHideHeader()).getByRole('header', { name: '마이페이지' }),
+      ).toBeOnTheScreen();
+      expect(
+        within(autoHideHeader()).getByRole('button', { name: '알림센터' }),
+      ).toBeOnTheScreen();
+    });
+
+    it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보이며 종을 누를 수 있다', async () => {
+      const props = await renderLoadedMyPage();
+      const scroll = screen.getByTestId('my-page-scroll');
+
+      await scrollDownFromTop(scroll);
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
+
+      await scrollListTo(scroll, 280);
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(0);
+      await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
+      expect(props.onOpenNotifications).toHaveBeenCalledTimes(1);
+    });
+
+    // 새로고침이 없는 화면이라 위아래 바운스도 없다 (#103 noOverscroll)
+    it('바운스 없이 스크롤한다', async () => {
+      await renderLoadedMyPage();
+
+      expect(screen.getByTestId('my-page-scroll')).toHaveProp('bounces', false);
+    });
   });
 
   // #102: 누르는 동안 회색 배경 (흰 카드 안의 행은 Gray50)

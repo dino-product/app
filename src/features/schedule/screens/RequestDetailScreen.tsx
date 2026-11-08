@@ -65,7 +65,7 @@ export function RequestDetailScreen({
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+    <SafeAreaView edges={SCREEN_EDGES} style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -99,7 +99,6 @@ export function RequestDetailScreen({
       </ScrollView>
       <View style={[readableColumn, styles.actions]}>
         <CTA
-          size="M"
           variant="outline"
           label="거절"
           onPress={onReject}
@@ -107,7 +106,6 @@ export function RequestDetailScreen({
           style={styles.action}
         />
         <CTA
-          size="M"
           label="수락"
           onPress={accept}
           disabled={accepting}
@@ -118,17 +116,20 @@ export function RequestDetailScreen({
   );
 }
 
+// Figma 2714:12494 아래 바: 큰 버튼(56) 사이 10, 위 14, 아래 32 는 홈 인디케이터 자리다 (거절 사유 화면과 같다).
+// 안전 영역이 더 크면 그만큼, 없는 기기도 32 를 둔다
+const SCREEN_EDGES = { top: 'additive', bottom: 'maximum' } as const;
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
+  screen: { flex: 1, paddingBottom: 32, backgroundColor: colors.white[100] },
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 24 },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 14,
   },
   action: { flex: 1 },
 });

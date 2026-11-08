@@ -791,7 +791,7 @@ describe('RejectReasonScreen', () => {
         color: colors.gray[600],
       });
       expect(title.parent).toHaveStyle({ gap: 12 });
-      // 소개 묶음 아래 여백 24 + 묶음 사이 24
+      // 소개 묶음 아래 여백 24 + 묶음 사이 24. 본문은 상단 바(높이 56) 아래 26 에서 시작한다 (Figma y 142 = 116 + 26)
       expect(
         StyleSheet.flatten(
           screen.getByTestId('reject-reason-scroll').props
@@ -801,7 +801,7 @@ describe('RejectReasonScreen', () => {
         expect.objectContaining({
           gap: 48,
           paddingHorizontal: 24,
-          paddingTop: 24,
+          paddingTop: 26,
         }),
       );
     });

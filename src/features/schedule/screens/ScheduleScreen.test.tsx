@@ -17,6 +17,14 @@ jest.mock('../../../shared/haptics', () => ({
 }));
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
+import { UNDERLINE_TABS_HEIGHT } from '../../../shared/design-system';
+import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
+import {
+  autoHideHeader,
+  autoHideHeaderOffset,
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
@@ -50,7 +58,6 @@ const pending: PendingRequest[] = [
     ...base,
     id: 'p1',
     dateKey: '2026-12-20',
-    dateLabel: '12/20',
     title: '에어컨 필터 교체',
     timeRange: '14:00 – 15:00',
   },
@@ -58,7 +65,6 @@ const pending: PendingRequest[] = [
     ...base,
     id: 'p2',
     dateKey: '2026-12-21',
-    dateLabel: '12/21',
     title: '수전 교체',
     timeRange: '10:00 – 11:00',
   },
@@ -78,6 +84,19 @@ const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
   );
 
 const weekStrip = () => screen.getByTestId('week-strip').props;
+
+/** element 를 감싼 리스트(네이티브 스크롤 뷰) */
+const scrollViewOf = (element: HostElement) => {
+  let node = element;
+  while (node.parent && node.type !== 'RCTScrollView') {
+    node = node.parent;
+  }
+  expect(node.type).toBe('RCTScrollView');
+  return node;
+};
+/** 리스트 내용(머리·카드)을 감싸는 컨테이너의 스타일. jest 의 스크롤 뷰 목은 컨테이너에 스타일을 그리지 않아 prop 으로 본다 */
+const contentStyleOf = (list: HostElement) =>
+  StyleSheet.flatten(list.props.contentContainerStyle);
 
 /** 선택(검정) 칸의 날짜. 넘기는 동안 드러나는 옆 페이지까지 본다 */
 const selectedDays = () =>
@@ -404,8 +423,8 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
   });
 
-  // Figma 는 접힘·펼침에서 모양이 좌우로 뒤집혀 있고 색도 다르다
-  it('날짜 줄 오른쪽 버튼은 주간·달력 모두 Figma 의 달력 전환 아이콘이다', async () => {
+  // Figma 3754:6269·3754:6457: Web Icon Calender/ Weekly(주간) · Monthly(펼침, 좌우 반전), 둘 다 Gray500
+  it('날짜 줄 오른쪽 버튼은 주간·달력에서 Figma 의 달력 전환 아이콘(Gray500)이다', async () => {
     await renderSchedule();
 
     const toggleSvg = () =>
@@ -418,11 +437,11 @@ describe('ScheduleScreen — 확정 일정', () => {
     await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
     expect(toggleSvg().props).toMatchObject({
       xml: iconSvgs['calendar-switch-open'].xml,
-      color: colors.gray[800],
+      color: colors.gray[500],
     });
   });
 
-  // 제목 줄은 탭 첫 화면 공통 상단 바다 (#103, Figma 3463:17455: 상태 표시줄 아래 12, 종 없음 2714:12918).
+  // 제목 줄은 탭 첫 화면 공통 상단 바다 (#103, Figma 3463:17455: 상태 표시줄 아래 12, 종 없음 3754:6269).
   // Figma 내 일정: 제목과 탭 사이 24. 머리말 아래에 그림자가 리스트 위로 드리운다
   it('머리말은 공통 상단 바(종 없음) 아래 24 에 탭이 있고, 아래에 그림자가 있다', async () => {
     await renderSchedule();
@@ -440,41 +459,71 @@ describe('ScheduleScreen — 확정 일정', () => {
     });
   });
 
-  it('주간 줄 위 구분선은 화면 가장자리에서 24 안쪽이다', async () => {
+  // Figma 3754:6269: 머리말 아래 회색(Background/3) 위에 날짜 블록(날짜 줄 → 16 → 주간 줄)과 카드 목록이 24 간격으로 놓인다.
+  // 날짜 블록 아래 12 띠와 주간 줄 위 구분선은 없어졌다
+  it('확정 일정 리스트는 회색 배경 위에 좌우 24 로 날짜 블록·카드를 놓고, 띠·구분선이 없다', async () => {
     await renderSchedule();
 
-    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
-    const rule = weekArea.children[0] as HostElement;
-    expect(
-      stylePt(weekArea, 'paddingHorizontal') +
-        stylePt(rule, 'marginHorizontal'),
-    ).toBe(24);
-  });
+    const list = scrollViewOf(screen.getByTestId('week-strip'));
+    expect(list).toHaveStyle({ backgroundColor: colors.background[3] });
+    expect(contentStyleOf(list)).toMatchObject({ paddingBottom: 24 });
 
-  // Figma: 날짜 줄 좌우 24, 주간 줄은 좌우 10·위아래 20 (구분선 포함), 펼친 달력은 좌우·위아래 24 (구분선 없음)
-  it('주간 줄과 펼친 달력은 Figma 여백 안에 놓인다', async () => {
-    await renderSchedule();
-
-    const weekArea = screen.getByTestId('week-strip').parent as HostElement;
-    expect(weekArea).toHaveStyle({
-      paddingHorizontal: 10,
-      paddingTop: 20,
-      paddingBottom: 20,
-      gap: 20,
-    });
-
-    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
-    const monthArea = screen.getByTestId('month-calendar')
-      .parent as HostElement;
-    expect(monthArea).toHaveStyle({
-      paddingHorizontal: 24,
+    const dateArea = screen.getByTestId('week-strip').parent as HostElement;
+    expect(dateArea).toHaveStyle({
       paddingTop: 24,
       paddingBottom: 24,
+      paddingHorizontal: 24,
+      gap: 16,
     });
-    expect(monthArea.children).toHaveLength(1);
+    expect(dateArea).not.toHaveStyle({ borderBottomWidth: 12 });
+    // 날짜 줄과 주간 줄뿐이다 (구분선 없음)
+    expect(dateArea.children).toHaveLength(2);
+    expect(
+      within(dateArea.children[0] as HostElement).getByText(
+        '2026년 12월 15일 (화)',
+      ),
+    ).toBeOnTheScreen();
   });
 
-  it('펼친 달력에 확정 일정의 날짜별 개수만큼 점을 찍는다', async () => {
+  it('펼친 달력도 같은 날짜 블록 안에서 날짜 줄 아래 16 에 놓인다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    const dateArea = screen.getByTestId('month-calendar').parent as HostElement;
+    expect(dateArea).toHaveStyle({
+      paddingTop: 24,
+      paddingBottom: 24,
+      paddingHorizontal: 24,
+      gap: 16,
+    });
+    expect(dateArea.children).toHaveLength(2);
+  });
+
+  it('확정 일정 카드는 시간 뒤에 고른 날을 카드 표기로 보이고, 오늘이면 앞에 오늘을 붙인다', async () => {
+    await renderSchedule();
+
+    expect(
+      screen.getAllByText('08:00 - 09:00  오늘 · 12. 15. (화)'),
+    ).toHaveLength(2);
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '12월 16일 수요일' }),
+    );
+    expect(screen.getByText('08:00 - 09:00  12. 16. (수)')).toBeOnTheScreen();
+  });
+
+  it('일정 카드는 좌우 24 안쪽에 놓이고 사이는 12 다', async () => {
+    await renderSchedule();
+
+    expect(screen.getByLabelText(/^세탁기 설치,/)).toHaveStyle({
+      marginHorizontal: 24,
+    });
+    expect(screen.getAllByTestId('schedule-card-gap')).toHaveLength(1);
+    expect(screen.getByTestId('schedule-card-gap')).toHaveStyle({ height: 12 });
+  });
+
+  // DesignSystem Event Indicator 는 0/1 뿐이라 일정이 있는 날은 건수와 관계없이 점 하나다
+  it('펼친 달력에 확정 일정이 있는 날마다 점 하나를 찍는다', async () => {
     await renderSchedule();
     await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
 
@@ -482,7 +531,7 @@ describe('ScheduleScreen — 확정 일정', () => {
       within(screen.getByRole('button', { name })).queryAllByTestId(
         'event-dot',
       );
-    expect(dotsOf('12월 15일 화요일')).toHaveLength(2);
+    expect(dotsOf('12월 15일 화요일')).toHaveLength(1);
     expect(dotsOf('12월 16일 수요일')).toHaveLength(1);
     expect(dotsOf('12월 17일 목요일')).toHaveLength(0);
   });
@@ -764,7 +813,123 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
   });
 });
 
+// #148: 아래로 스크롤하면 제목 줄(상단 바)이 숨고 하위 탭은 화면 맨 위에 남는다. 위로 스크롤을 시작하면 다시 보인다
+describe('ScheduleScreen — 상단 바 자동 숨김', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** 제목 줄과 그 아래 여백(탭과의 간격). 숨는 거리다 */
+  const TITLE_BAR = TAB_HEADER_HEIGHT + 16;
+  const confirmedList = () => screen.getByTestId('schedule-confirmed-list');
+  const pendingList = () => screen.getByTestId('schedule-pending-list');
+
+  it('제목 줄과 하위 탭은 리스트 위에 겹쳐 그린 머리 안에 있고, 내용은 그 아래에서 시작한다', async () => {
+    await renderSchedule();
+
+    expect(
+      within(autoHideHeader()).getByRole('header', { name: '내 일정' }),
+    ).toBeOnTheScreen();
+    expect(
+      within(autoHideHeader()).getByRole('tab', { name: '확정 일정 2건' }),
+    ).toBeOnTheScreen();
+    expect(
+      StyleSheet.flatten(confirmedList().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: TITLE_BAR + UNDERLINE_TABS_HEIGHT });
+  });
+
+  it('당겨서 새로고침 표시는 Android 에서 머리 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderSchedule();
+    expect(confirmedList()).toHaveProp(
+      'progressViewOffset',
+      TITLE_BAR + UNDERLINE_TABS_HEIGHT,
+    );
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderSchedule();
+    expect(confirmedList().props.progressViewOffset).toBeUndefined();
+  });
+
+  it('아래로 스크롤하면 제목 줄만 숨고 하위 탭은 남으며, 위로 스크롤을 시작하면 다시 보인다', async () => {
+    await renderSchedule();
+
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+    expect(
+      within(autoHideHeader()).getByRole('tab', { name: '응답 필요 2건' }),
+    ).toBeOnTheScreen();
+
+    await scrollListTo(confirmedList(), 280);
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+  });
+
+  // 하위 탭마다 리스트가 따로다. 새로 그린 리스트는 맨 위이므로 상단 바를 다시 보인다
+  // 두 하위 탭은 같은 자리의 리스트 하나를 data 만 바꿔 쓴다(스크롤 위치·레이아웃 그대로). 탭을 누르면 다시 보인다
+  it('하위 탭을 바꾸면 상단 바를 다시 보이고, 바꾼 리스트를 스크롤해도 숨는다', async () => {
+    await renderSchedule();
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+
+    await scrollDownFromTop(pendingList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+  });
+
+  // 달력을 만지는 동안 리스트 스크롤을 막는다 (#99). 막았다 풀어도 스크롤에 따라 숨는 것은 그대로다
+  it('달력을 만져 리스트 스크롤을 막았다 풀어도 스크롤하면 숨는다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await act(() => {
+      const event = touchesEvent({ changed: [0], touches: [0] });
+      confirmedList().props.onTouchStartCapture(event);
+      strip.props.onTouchStart(event);
+    });
+    expect(confirmedList().props.scrollEnabled).toBe(false);
+    await act(() =>
+      strip.props.onTouchEnd(touchesEvent({ changed: [0], touches: [] })),
+    );
+    expect(confirmedList().props.scrollEnabled).toBe(true);
+
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+  });
+});
+
 describe('ScheduleScreen — 응답 필요', () => {
+  // Figma 3754:6804: 머리말 아래 24, 좌우 24, 카드 사이 12, 회색(Background/3) 배경
+  it('응답 필요 리스트는 회색 배경 위 위·좌우 24 에 카드를 12 간격으로 놓는다', async () => {
+    await renderSchedule();
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+
+    const list = scrollViewOf(
+      screen.getByText('에어컨 필터 교체') as HostElement,
+    );
+    expect(list).toHaveStyle({ backgroundColor: colors.background[3] });
+    // 겹쳐 그린 머리(제목 줄 + 하위 탭, #148) 아래 24 에서 시작한다
+    expect(contentStyleOf(list)).toMatchObject({
+      paddingTop: TAB_HEADER_HEIGHT + 16 + UNDERLINE_TABS_HEIGHT + 24,
+      paddingHorizontal: 24,
+      paddingBottom: 24,
+    });
+    expect(screen.getAllByTestId('schedule-card-gap')).toHaveLength(1);
+    expect(screen.getByTestId('schedule-card-gap')).toHaveStyle({ height: 12 });
+  });
+
   // #32: 햅틱은 결과다. 수락이 서버에서 성공한 뒤에만 울린다
   it('수락이 성공하면 성공 햅틱을 울리고, 거절·상세에서는 울리지 않는다', async () => {
     jest.mocked(haptic.success).mockClear();
@@ -835,7 +1000,8 @@ describe('ScheduleScreen — 응답 필요', () => {
     await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
 
     expect(screen.getByText('에어컨 필터 교체')).toBeOnTheScreen();
-    expect(screen.getByText('12/20 · 14:00 – 15:00')).toBeOnTheScreen();
+    // 시간 뒤 날짜는 카드 표기(formatCardDay)다. 오늘이 아니라 '오늘' 이 붙지 않는다
+    expect(screen.getByText('14:00 – 15:00  12. 20. (일)')).toBeOnTheScreen();
 
     await userEvent.press(
       screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),
@@ -922,6 +1088,7 @@ describe('ScheduleScreen — Android 가장자리 밀기', () => {
 
       const dateArea = screen.getByTestId(testID).parent as HostElement;
       const inset = stylePt(dateArea, 'paddingHorizontal');
+      expect(inset).toBe(24);
       expect(
         StyleSheet.flatten(screen.getByTestId('gesture-exclusion').props.style),
       ).toMatchObject({ left: -inset, right: -inset });
