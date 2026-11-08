@@ -8,30 +8,21 @@ import {
 } from 'react';
 import {
   Dimensions,
-  PanResponder,
   StyleSheet,
   View,
   type GestureResponderEvent,
-  type PanResponderGestureState,
 } from 'react-native';
 import {
-  decideTabSwipe,
   startOwner,
-  swipeDirection,
   type GestureOwner,
   type Rect,
   type SwipeDirection,
 } from './tabSwipe';
+import { useSwipeSwitch } from './useSwipeSwitch';
 
-// 메인 탭 좌우 밀기 (#140). 판정 규칙은 tabSwipe.ts 다.
+// 메인 탭 좌우 밀기 (#140). 판정 규칙은 tabSwipe.ts, 넘기는 엔진은 useSwipeSwitch.ts 다.
 //
-// TabSwipeArea 는 탭 화면 하나를 통째로 감싸는 PanResponder 다. 터치를 시작할 때는 응답자가 되지 않고(누르기·스크롤은 안쪽 몫),
-// 한 손가락의 방향이 가로로 정해지면(10pt) bubble 단계에서 응답자가 되고, 가로로 임계값을 넘는 순간 이웃 탭으로 옮긴다
-// (손을 떼기 전에 전환이 시작된다). 응답자를 먼저 잡는 것은 네이티브 부모의 가로채기를 막기 위해서다 (Android 세로 리스트는
-// 세로로 터치 슬롭만 움직여도 터치를 가져간다. 응답자가 되면 PanResponder 기본값으로 막는다).
-// RN 은 새 응답자에게 grant 를 먼저 보내고 지금 응답자가 놓아 주지 않으면 reject 를 보내므로, 탭은 grant 가 아니라
-// 응답자가 된 뒤 오는 이동(또는 손을 뗄 때)에서 바꾼다. 안쪽 누르기(Pressable)는 응답자를 놓아 주므로 누르기가 취소되고,
-// 자체 가로 제스처(달력 넘김 등)는 아래 규칙으로 먼저 받는다.
+// TabSwipeArea 는 탭 화면 하나를 통째로 감싸 좌우 밀기로 이웃 탭을 고른다 (응답자 잡기·임계값·reject 처리는 useSwipeSwitch).
 // RN 모달(Modal·BottomSheet)의 터치도 React 트리를 따라 이 영역까지 올라온다. 지금 탭 첫 화면에는 모달이 없다
 // (모달은 탭 안쪽 화면에 있고 거기서는 canSwipe 가 false 다). 탭 첫 화면에 모달을 두면 열린 동안 canSwipe 가 false 가 되게 한다.
 //
@@ -61,95 +52,27 @@ export function TabSwipeArea({
   testID?: string;
   children: ReactNode;
 }) {
-  // PanResponder 는 한 번만 만들고 최신 값을 읽는다
-  const latest = useRef({ canSwipe, onSwipe });
+  // 이번 제스처가 세부 컴포넌트 안쪽 깊은 곳에서 시작했는지. 첫 손가락이 닿을 때 비우고 안쪽 컴포넌트가 알린다
+  const [component] = useState(() => ({ current: false }));
+  const latestCanSwipe = useRef(canSwipe);
   useLayoutEffect(() => {
-    latest.current = { canSwipe, onSwipe };
+    latestCanSwipe.current = canSwipe;
   });
-
-  const [area] = useState(() => {
-    // 지금 제스처. 첫 손가락이 닿을 때 새로 시작한다
-    const gesture = {
-      /** 세부 컴포넌트 안쪽 깊은 곳에서 시작했다 */
-      component: false,
-      /** 이번 제스처는 판정이 끝났다 (바꿨거나, 탭 전환이 아니다) */
-      settled: false,
-      /** 응답자가 되기까지 움직인 거리. 응답자가 되면 PanResponder 가 dx·dy 를 0 부터 다시 잰다 */
-      claimedAt: { dx: 0, dy: 0 },
-    };
-    // 응답자가 된 뒤의 이동: 시작점부터 움직인 거리로 판정한다
-    const follow = (
-      _: GestureResponderEvent,
-      { dx, dy, numberActiveTouches }: PanResponderGestureState,
-    ) => {
-      if (gesture.settled) {
-        return;
-      }
-      const total = {
-        dx: gesture.claimedAt.dx + dx,
-        dy: gesture.claimedAt.dy + dy,
-      };
-      const decision = decideTabSwipe({
-        ...total,
-        touches: numberActiveTouches,
-      });
-      if (decision === 'ignore') {
-        gesture.settled = true;
-      } else if (decision === 'switch') {
-        gesture.settled = true;
-        latest.current.onSwipe(swipeDirection(total.dx));
-      }
-    };
-    const responder = PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
-        if (gesture.settled || gesture.component) {
-          return false;
-        }
-        if (!latest.current.canSwipe()) {
-          gesture.settled = true;
-          return false;
-        }
-        const decision = decideTabSwipe({
-          dx,
-          dy,
-          touches: numberActiveTouches,
-        });
-        if (decision === 'ignore') {
-          gesture.settled = true;
-          return false;
-        }
-        if (decision === 'wait') {
-          return false;
-        }
-        gesture.claimedAt = { dx, dy };
-        return true;
-      },
-      // 지금 응답자(안쪽 리스트 등)가 놓아 주지 않았다. 이번 제스처는 그쪽 몫이다
-      onPanResponderReject: () => {
-        gesture.settled = true;
-      },
-      onPanResponderMove: follow,
-      // 한 번에 크게 움직이고 바로 떼면 응답자가 된 뒤의 이동이 없다
-      onPanResponderRelease: follow,
-    });
-    return {
-      panHandlers: responder.panHandlers,
-      onTouchStartCapture: ({ nativeEvent }: GestureResponderEvent) => {
-        // 이번에 닿은 손가락 말고 다른 손가락이 이미 닿아 있으면 두 손가락 이상이다
-        if (nativeEvent.touches.length > nativeEvent.changedTouches.length) {
-          gesture.settled = true;
-          return;
-        }
-        gesture.component = false;
-        gesture.settled = false;
-      },
-      report: {
-        claimForComponent: () => {
-          gesture.component = true;
-        },
-      },
-    };
+  const swipe = useSwipeSwitch({
+    canSwipe: () => !component.current && latestCanSwipe.current(),
+    onSwipe,
   });
+  const [area] = useState(() => ({
+    onTouchStartCapture: (event: GestureResponderEvent) => {
+      component.current = false;
+      swipe.onTouchStartCapture(event);
+    },
+    report: {
+      claimForComponent: () => {
+        component.current = true;
+      },
+    },
+  }));
 
   return (
     <TabSwipeContext.Provider value={area.report}>
@@ -157,7 +80,7 @@ export function TabSwipeArea({
         testID={testID}
         style={styles.area}
         onTouchStartCapture={area.onTouchStartCapture}
-        {...area.panHandlers}
+        {...swipe.panHandlers}
       >
         {children}
       </View>
