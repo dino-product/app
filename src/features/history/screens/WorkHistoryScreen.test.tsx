@@ -63,7 +63,7 @@ const prevMonth = () => screen.getByRole('button', { name: '이전 달' });
 const nextMonth = () => screen.getByRole('button', { name: '다음 달' });
 
 describe('WorkHistoryScreen — 화면 구성', () => {
-  it('제목, 오늘이 속한 달, 요약 카드(누적·이번 달 완료)를 보여준다', async () => {
+  it('제목, 오늘이 속한 달, 요약 카드(이번 달·누적 완료)를 보여준다', async () => {
     await renderHistory();
 
     expect(screen.getByRole('header', { name: '작업 이력' })).toBeOnTheScreen();
