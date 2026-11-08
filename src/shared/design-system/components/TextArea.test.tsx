@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { colors } from '../tokens/colors';
+import { typography } from '../tokens/typography';
 import { TextArea } from './TextArea';
 
 describe('TextArea', () => {
@@ -20,6 +21,24 @@ describe('TextArea', () => {
       minHeight: 110,
       borderRadius: 12,
       borderColor: colors.gray[200],
+    });
+  });
+
+  // 한 줄 입력의 세로 가운데 규칙(singleLineInputText, #151)은 여러 줄 입력에 쓰지 않는다
+  it('여러 줄이라 줄 높이·여백 16·위쪽 정렬을 그대로 둔다', async () => {
+    await render(
+      <TextArea
+        label="수행 메모 입력"
+        placeholder="수행 메모 작성"
+        value=""
+        onChangeText={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('수행 메모 입력')).toHaveStyle({
+      ...typography['Caption/M/Regular'],
+      padding: 16,
+      textAlignVertical: 'top',
     });
   });
 

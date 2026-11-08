@@ -14,6 +14,7 @@ import {
   Platform,
   type AlertButton,
 } from 'react-native';
+import { MIN_TOUCH_TARGET } from '../../../../shared/design-system';
 import * as cameraPermissionModule from '../../../../shared/native/NativeCameraPermissionIOS';
 import {
   fail,
@@ -102,6 +103,23 @@ describe('OrgJoinScreen', () => {
       screen.getByText('회사 관리자에게 받은 코드를 입력해 주세요.'),
     ).toBeOnTheScreen();
   });
+
+  // 마이 Figma 3235:17258 / 3255:18332, 온보딩 3278:23180: 글자는 칸 왼쪽 16 에서 시작한다 (#151)
+  it.each([
+    ['my', 56],
+    ['onboarding', 46],
+  ] as const)(
+    '%s 회사 코드 입력칸은 Figma 대로 높이 %i·가로 여백 16 이다',
+    async (flow, height) => {
+      await renderJoin({ flow });
+
+      expect(codeInput()).toHaveStyle({
+        // 온보딩은 Android 최소 터치 영역(48)까지 키운다 (#85)
+        minHeight: Math.max(height, MIN_TOUCH_TARGET),
+        paddingHorizontal: 16,
+      });
+    },
+  );
 
   // 서버 규칙 (Dino CompanyCode): Crockford Base32 대문자 6자 (#97)
   describe('회사 코드 규칙', () => {

@@ -4,6 +4,7 @@ import { smallestLineHeight } from '../../../../shared/design-system/tokens/touc
 import { networkError } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
+import { expectCenteredSingleLineInput } from '../../../../shared/testing/singleLineInput';
 import {
   expectIconButtonTouchTarget,
   expectMinTouchTarget,
@@ -81,20 +82,25 @@ describe('조직 참여 터치 영역', () => {
     );
   });
 
-  // 입력칸은 hitSlop 으로 넓힐 수 없어 보이는 높이가 터치 영역이다. 온보딩 Figma 는 46 이다 (#85)
-  it('온보딩 회사 코드 입력칸은 최소 터치 영역 이상이다', async () => {
-    await renderOrg(
-      <OrgJoinScreen
-        flow="onboarding"
-        onBack={jest.fn()}
-        onFound={jest.fn()}
-        onScanQr={jest.fn()}
-      />,
-    );
+  // 입력칸은 hitSlop 으로 넓힐 수 없어 보이는 높이가 터치 영역이다. 온보딩 Figma 는 46 이다 (#85).
+  // 값·플레이스홀더는 그 칸 세로 가운데에 온다 (#151)
+  it.each(['my', 'onboarding'] as const)(
+    '%s 회사 코드 입력칸은 최소 터치 영역 이상이고, 값을 칸 세로 가운데에 둔다',
+    async flow => {
+      await renderOrg(
+        <OrgJoinScreen
+          flow={flow}
+          onBack={jest.fn()}
+          onFound={jest.fn()}
+          onScanQr={jest.fn()}
+        />,
+      );
 
-    const input = screen.getByLabelText('회사 코드 입력');
-    expectMinTouchTarget(input, { height: stylePt(input, 'minHeight') });
-  });
+      const input = screen.getByLabelText('회사 코드 입력');
+      expectMinTouchTarget(input, { height: stylePt(input, 'minHeight') });
+      expectCenteredSingleLineInput(input, 'Body/XS/Medium');
+    },
+  );
 
   // QR 코드 인식(#108)의 닫기는 아이콘(24)만 보이는 버튼이라 hitSlop 으로 넓힌다
   it('QR 코드 인식의 닫기는 최소 터치 영역 이상이다', async () => {
