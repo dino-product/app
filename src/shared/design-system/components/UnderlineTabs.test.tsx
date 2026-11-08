@@ -1,7 +1,8 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
-import { UnderlineTabs } from './UnderlineTabs';
+import { UNDERLINE_TABS_HEIGHT, UnderlineTabs } from './UnderlineTabs';
 
 const items = [
   { key: 'confirmed', label: '확정 일정', count: 2 },
@@ -66,6 +67,31 @@ describe('UnderlineTabs', () => {
       gap: 24,
       borderBottomColor: colors.gray[200],
     });
+  });
+
+  // 겹쳐 그리는 머리(내 일정, #148)가 처음 그릴 때 내용 위 여백으로 쓴다
+  it('기본 글자 크기의 높이는 탭 위 여백 + 라벨 한 줄 + 밑줄까지 간격 + 밑줄 + 아래 선이다', async () => {
+    await render(
+      <UnderlineTabs
+        items={items}
+        selectedKey="confirmed"
+        onChange={jest.fn()}
+      />,
+    );
+
+    const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
+    const tabStyle = StyleSheet.flatten(tab.props.style);
+    const indicator = StyleSheet.flatten(
+      screen.getByTestId('underline-tabs-indicator-confirmed').props.style,
+    );
+    const list = StyleSheet.flatten(tab.parent?.props.style);
+    expect(UNDERLINE_TABS_HEIGHT).toBe(
+      Number(tabStyle.paddingTop) +
+        typography['Body/XS/SemiBold'].lineHeight +
+        Number(tabStyle.gap) +
+        Number(indicator.height) +
+        Number(list.borderBottomWidth),
+    );
   });
 
   it('선택된 탭에만 밑줄을 칠한다', async () => {

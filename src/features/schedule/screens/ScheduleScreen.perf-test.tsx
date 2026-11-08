@@ -3,6 +3,10 @@ import { measureRenders } from 'reassure';
 import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { perfBudget } from '../../../shared/perf/budget';
+import {
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
 import { makeScheduleMock } from '../mockData';
 import { ScheduleScreen } from './ScheduleScreen';
 
@@ -218,6 +222,36 @@ describe('ScheduleScreen 렌더 예산', () => {
 
     // 마운트 1 + 펼치기 1 + 날짜 고르기 1. 날짜별 일정 개수는 렌더 중에 세고(useMemo) 상태로 따로 두지 않는다
     expect(Math.max(...result.counts)).toBe(3);
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
+  }, 30_000);
+
+  // #148: 상단 바를 숨기고 다시 보이는 것은 UI 스레드 애니메이션이다. 스크롤 중에 화면을 다시 그리지 않는다.
+  // 애니메이션은 끝내지 않고 붙잡아 둔다 (프리셋 목은 16ms 뒤 저절로 끝나 측정이 흔들린다). 끝날 때는 RN Animated 가
+  // 끝난 값을 맞추려고 머리 뷰(Animated.View)만 한 번 다시 그린다
+  it('스크롤해 상단 바를 숨겼다 다시 보여도 다시 그리지 않는다', async () => {
+    holdNativeAnimations();
+    const result = await measureRenders(
+      <ScheduleScreen
+        today={today}
+        confirmed={confirmed}
+        pending={pending}
+        onAccept={async () => true}
+        onReject={() => {}}
+        onOpenRequest={() => {}}
+      />,
+      {
+        scenario: async () => {
+          const list = screen.getByTestId('schedule-confirmed-list');
+          await scrollDownFromTop(list);
+          await scrollListTo(list, 250);
+          await scrollListTo(list, 0);
+        },
+      },
+    );
+
+    expect(Math.max(...result.counts)).toBe(1);
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
     );

@@ -17,6 +17,14 @@ jest.mock('../../../shared/haptics', () => ({
 }));
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
+import { UNDERLINE_TABS_HEIGHT } from '../../../shared/design-system';
+import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
+import {
+  autoHideHeader,
+  autoHideHeaderOffset,
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
@@ -761,6 +769,103 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
       node = node.parent;
     }
     expect(node.props.scrollEnabled).not.toBe(false);
+  });
+});
+
+// #148: 아래로 스크롤하면 제목 줄(상단 바)이 숨고 하위 탭은 화면 맨 위에 남는다. 위로 스크롤을 시작하면 다시 보인다
+describe('ScheduleScreen — 상단 바 자동 숨김', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** 제목 줄과 그 아래 여백(탭과의 간격). 숨는 거리다 */
+  const TITLE_BAR = TAB_HEADER_HEIGHT + 16;
+  const confirmedList = () => screen.getByTestId('schedule-confirmed-list');
+  const pendingList = () => screen.getByTestId('schedule-pending-list');
+
+  it('제목 줄과 하위 탭은 리스트 위에 겹쳐 그린 머리 안에 있고, 내용은 그 아래에서 시작한다', async () => {
+    await renderSchedule();
+
+    expect(
+      within(autoHideHeader()).getByRole('header', { name: '내 일정' }),
+    ).toBeOnTheScreen();
+    expect(
+      within(autoHideHeader()).getByRole('tab', { name: '확정 일정 2건' }),
+    ).toBeOnTheScreen();
+    expect(
+      StyleSheet.flatten(confirmedList().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: TITLE_BAR + UNDERLINE_TABS_HEIGHT });
+  });
+
+  it('당겨서 새로고침 표시는 Android 에서 머리 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderSchedule();
+    expect(confirmedList()).toHaveProp(
+      'progressViewOffset',
+      TITLE_BAR + UNDERLINE_TABS_HEIGHT,
+    );
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderSchedule();
+    expect(confirmedList().props.progressViewOffset).toBeUndefined();
+  });
+
+  it('아래로 스크롤하면 제목 줄만 숨고 하위 탭은 남으며, 위로 스크롤을 시작하면 다시 보인다', async () => {
+    await renderSchedule();
+
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+    expect(
+      within(autoHideHeader()).getByRole('tab', { name: '응답 필요 2건' }),
+    ).toBeOnTheScreen();
+
+    await scrollListTo(confirmedList(), 280);
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+  });
+
+  // 하위 탭마다 리스트가 따로다. 새로 그린 리스트는 맨 위이므로 상단 바를 다시 보인다
+  // 두 하위 탭은 같은 자리의 리스트 하나를 data 만 바꿔 쓴다(스크롤 위치·레이아웃 그대로). 탭을 누르면 다시 보인다
+  it('하위 탭을 바꾸면 상단 바를 다시 보이고, 바꾼 리스트를 스크롤해도 숨는다', async () => {
+    await renderSchedule();
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+
+    await scrollDownFromTop(pendingList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
+  });
+
+  // 달력을 만지는 동안 리스트 스크롤을 막는다 (#99). 막았다 풀어도 스크롤에 따라 숨는 것은 그대로다
+  it('달력을 만져 리스트 스크롤을 막았다 풀어도 스크롤하면 숨는다', async () => {
+    await renderSchedule();
+    const strip = screen.getByTestId('week-strip');
+
+    await act(() => {
+      const event = touchesEvent({ changed: [0], touches: [0] });
+      confirmedList().props.onTouchStartCapture(event);
+      strip.props.onTouchStart(event);
+    });
+    expect(confirmedList().props.scrollEnabled).toBe(false);
+    await act(() =>
+      strip.props.onTouchEnd(touchesEvent({ changed: [0], touches: [] })),
+    );
+    expect(confirmedList().props.scrollEnabled).toBe(true);
+
+    await scrollDownFromTop(confirmedList());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
   });
 });
 

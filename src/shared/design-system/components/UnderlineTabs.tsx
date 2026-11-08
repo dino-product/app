@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from '../tokens/colors';
 import { MIN_TOUCH_TARGET, smallestLineHeight } from '../tokens/touchTarget';
+import { typography } from '../tokens/typography';
 import { Text } from './Text';
 
 // Figma 앱UI › Underline Tabs (내 일정의 확정 일정 / 응답 필요). TabBar 와 달리 탭이 라벨 폭만큼만 차지한다.
@@ -72,6 +73,13 @@ const TAB_PADDING_TOP = 8;
 const LABEL_GAP = 12;
 const INDICATOR_HEIGHT = 2;
 const BORDER_WIDTH = 1;
+/** 기본 글자 크기에서 탭 목록의 높이 (아래 선 포함). 위에 겹쳐 그리는 머리가 내용 위 여백을 미리 잡을 때 쓴다 (#148) */
+export const UNDERLINE_TABS_HEIGHT =
+  TAB_PADDING_TOP +
+  typography['Body/XS/SemiBold'].lineHeight +
+  LABEL_GAP +
+  INDICATOR_HEIGHT +
+  BORDER_WIDTH;
 // 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 38.4, Android 39.0)
 const MIN_TAB_HEIGHT =
   TAB_PADDING_TOP +
