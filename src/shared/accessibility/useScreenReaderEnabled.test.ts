@@ -60,7 +60,8 @@ describe('useScreenReaderEnabled (#148)', () => {
     const first = jest.fn();
     const latest = jest.fn();
     const { rerender } = await renderHook(
-      ({ onChange }) => useScreenReaderEnabled(onChange),
+      ({ onChange }: { onChange: (enabled: boolean) => void }) =>
+        useScreenReaderEnabled(onChange),
       { initialProps: { onChange: first } },
     );
     await act(async () => {});
