@@ -7,7 +7,7 @@ import {
   startOwner,
   swipeDirection,
 } from './tabSwipe';
-import { AXIS_DECISION_DISTANCE, decidePanAxis } from './panAxis';
+import { AXIS_DECISION_DISTANCE } from './panAxis';
 
 const WINDOW_WIDTH = 390;
 // 화면 가운데 놓인 카드 (좌우 여백 80, 가장자리 띠 밖)
@@ -171,26 +171,17 @@ describe('decideTabSwipe — 손바닥 오작동 방지', () => {
   });
 });
 
-describe('decideTabSwipe — 방향 판정은 공용 규칙(decidePanAxis)과 같다', () => {
-  it('공용 규칙이 가로로 정한 손길(30° 안쪽)만 탭 전환 후보다', () => {
-    // 같은 이동을 두 규칙에 넣는다. 탭 밀기는 공용 규칙을 수평 30° 로 좁혀 쓴다
-    const moves = [
-      { dx: 11, dy: 0 },
-      { dx: 20, dy: 11 },
-      { dx: 20, dy: 12 },
-      { dx: 5, dy: 11 },
-      { dx: -70, dy: 39 },
-      { dx: -70, dy: 41 },
-    ];
-    for (const { dx, dy } of moves) {
-      const axis = decidePanAxis(dx, dy, { horizontalMaxAngle: 30 });
-      const decision = decideTabSwipe({ dx, dy, touches: 1 });
-      expect([dx, dy, decision === 'ignore']).toEqual([
-        dx,
-        dy,
-        axis === 'vertical',
-      ]);
-    }
+describe('decideTabSwipe — 방향 판정은 공용 규칙(decidePanAxis)을 수평 30° 로 좁혀 쓴다', () => {
+  it.each([
+    // [dx, dy, 판정]  각도는 수평에서 잰 값
+    [11, 0, 'track'], // 0°, 10pt 를 넘어 가로로 정함
+    [20, 11, 'track'], // 28.8°
+    [20, 12, 'ignore'], // 31.0°
+    [5, 11, 'ignore'], // 65.6°, 세로
+    [-70, 39, 'switch'], // 29.1°, 임계값 넘음
+    [-70, 41, 'ignore'], // 30.4°
+  ] as const)('(%i, %i) → %s', (dx, dy, expected) => {
+    expect(decideTabSwipe({ dx, dy, touches: 1 })).toBe(expected);
   });
 });
 
