@@ -124,7 +124,6 @@ describe('WorkLocationMap', () => {
     expect(nativeMap().props.pointerEvents).toBe('none');
   });
 
-  // Android 지도는 SurfaceView 라 부모의 둥근 자르기가 먹지 않아, 네이티브가 귀퉁이를 카드 배경색으로 덮는다
   it('지도를 누르면 카카오맵 열기를 부른다', async () => {
     const onPress = jest.fn();
     await renderMap(site, onPress);

@@ -5,6 +5,10 @@
 #import <react/renderer/components/DinoAppSpec/Props.h>
 #import <react/renderer/components/DinoAppSpec/RCTComponentViewHelpers.h>
 
+// DinoApp-Swift.h 는 앱의 @objc Swift 클래스를 모두 담는다. ObjC++ 에서는 모듈 import 가 꺼져 있어
+// 그 상위 클래스(SceneDelegate : RCTDefaultReactNativeFactoryDelegate) 헤더를 먼저 가져와야 컴파일된다
+#import <React/RCTDefaultReactNativeFactoryDelegate.h>
+
 #import "DinoApp-Swift.h"
 
 using namespace facebook::react;

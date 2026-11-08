@@ -196,7 +196,12 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
   private fun markerBitmap(): Bitmap {
     val source = BitmapFactory.decodeResource(resources, R.drawable.kakao_map_marker)
     val size = (MARKER_SIZE_DP * resources.displayMetrics.density).roundToInt()
-    return Bitmap.createScaledBitmap(source, size, size, true)
+    val scaled = Bitmap.createScaledBitmap(source, size, size, true)
+    // 축소본만 쓴다. 크기가 같아 원본을 그대로 돌려받은 경우는 놓지 않는다
+    if (scaled !== source) {
+      source.recycle()
+    }
+    return scaled
   }
 
   private fun emitError(code: Int) {
@@ -220,6 +225,8 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
 
   override fun requestLayout() {
     super.requestLayout()
+    // 같은 프레임에 여러 번 요청돼도 한 번만 잰다
+    removeCallbacks(measureAndLayout)
     post(measureAndLayout)
   }
 

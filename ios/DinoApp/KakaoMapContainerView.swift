@@ -134,7 +134,11 @@ private final class KakaoMapEngine: NSObject, MapControllerDelegate {
     controller.delegate = self
     self.controller = controller
     startObserving()
-    controller.prepareEngine()
+    guard controller.prepareEngine() else {
+      // 엔진을 준비하지 못했다. 불러오는 중으로 남지 않게 실패로 알린다
+      fail(Self.unknownError)
+      return
+    }
     updateRendering()
   }
 

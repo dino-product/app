@@ -183,6 +183,33 @@ describe('iOS 지도 네이티브 뷰 연결 (#67)', () => {
     expect(source).toContain(`<RCT${specName}ViewProtocol>`);
   });
 
+  // DinoApp-Swift.h 는 앱의 @objc Swift 클래스를 모두 담는다. ObjC++ 에서는 모듈 import 가 꺼져 있어
+  // 그 상위 클래스 헤더를 먼저 가져오지 않으면 컴파일이 깨진다 (CI: SceneDelegate 의 RCTDefaultReactNativeFactoryDelegate)
+  it('Swift 생성 헤더보다 앱 Swift 클래스들의 ObjC 상위 클래스 헤더를 먼저 가져온다', () => {
+    const source = code(read(IOS_COMPONENT));
+    const swiftHeader = source.indexOf('#import "DinoApp-Swift.h"');
+    const superclasses = [
+      ...fs
+        .readdirSync(path.join(ROOT, 'ios/DinoApp'))
+        .filter(name => name.endsWith('.swift'))
+        .flatMap(name =>
+          [
+            ...read(`ios/DinoApp/${name}`).matchAll(
+              /^(?:@objc\S* )?(?:public |open |final )*class \w+: (RCT\w+)/gm,
+            ),
+          ].map(match => match[1]),
+        ),
+    ];
+
+    expect(swiftHeader).toBeGreaterThan(-1);
+    expect(superclasses).toContain('RCTDefaultReactNativeFactoryDelegate');
+    for (const superclass of superclasses) {
+      const header = source.indexOf(`#import <React/${superclass}.h>`);
+      expect(header).toBeGreaterThan(-1);
+      expect(header).toBeLessThan(swiftHeader);
+    }
+  });
+
   // KakaoMapsSDK 주의사항: 재사용(recycle)하도록 만들어지지 않았다
   it('Fabric 컴포넌트를 재사용하지 않고, 내려가면 엔진을 정리한다', () => {
     const source = code(read(IOS_COMPONENT));
