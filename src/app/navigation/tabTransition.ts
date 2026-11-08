@@ -1,10 +1,10 @@
-import type {
-  BottomTabNavigationOptions,
-  BottomTabSceneInterpolatedStyle,
-  BottomTabSceneInterpolationProps,
-  TransitionSpec,
-} from '@react-navigation/bottom-tabs';
+import type { BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import { Easing } from 'react-native';
+
+type TransitionSpec = NonNullable<BottomTabNavigationOptions['transitionSpec']>;
+type SceneStyleInterpolator = NonNullable<
+  BottomTabNavigationOptions['sceneStyleInterpolator']
+>;
 
 // 메인 탭 전환 (#140). 탭 순서(홈 → 내 일정 → 작업 이력 → 마이)에서 오른쪽 탭으로 가면 새 화면이 오른쪽에서, 왼쪽 탭이면 왼쪽에서
 // 살짝 들어온다. 탭 바를 누르든 밀든 같다. 또렷한 슬라이드가 아니라 찰나에 방향만 느껴지는 짧은 시간·작은 거리다.
@@ -29,22 +29,18 @@ const instantSpec: TransitionSpec = {
   config: { duration: 0 },
 };
 
-export function forTabEnter({
-  current,
-}: BottomTabSceneInterpolationProps): BottomTabSceneInterpolatedStyle {
-  return {
-    sceneStyle: {
-      transform: [
-        {
-          translateX: current.progress.interpolate({
-            inputRange: [-1, 0, 1],
-            outputRange: [-TAB_ENTER_OFFSET, 0, TAB_ENTER_OFFSET],
-          }),
-        },
-      ],
-    },
-  };
-}
+export const forTabEnter: SceneStyleInterpolator = ({ current }) => ({
+  sceneStyle: {
+    transform: [
+      {
+        translateX: current.progress.interpolate({
+          inputRange: [-1, 0, 1],
+          outputRange: [-TAB_ENTER_OFFSET, 0, TAB_ENTER_OFFSET],
+        }),
+      },
+    ],
+  },
+});
 
 export function tabTransitionOptions(
   reduceMotion: boolean,

@@ -1,5 +1,10 @@
 import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
 import {
   colors,
   Icon,
@@ -7,6 +12,7 @@ import {
   Text,
   touchSlop,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import {
   addMonths,
@@ -52,7 +58,17 @@ export function MonthCalendar({
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
 }) {
-  const swipe = useHorizontalSwipe({ onPrev, onNext });
+  // 화면 가장자리 띠·달력 가장자리 여유에서 시작한 밀기는 탭 전환 몫이라 달을 넘기지 않는다 (#140)
+  const tabSwipe = useTabSwipeRegion();
+  const swipe = useHorizontalSwipe({
+    onPrev,
+    onNext,
+    ownsGesture: tabSwipe.ownsGesture,
+  });
+  const onTouchStart = (event: GestureResponderEvent) => {
+    touchHandlers?.onTouchStart(event);
+    tabSwipe.onTouchStart(event);
+  };
   // 앞뒤 달 격자도 미리 만들어 둔다 (이전·지금·다음)
   const grids = useMemo(
     () =>
@@ -85,6 +101,7 @@ export function MonthCalendar({
       hitSlop={ROOT_HIT_SLOP}
       style={styles.container}
       {...touchHandlers}
+      onTouchStart={onTouchStart}
       {...swipe.panHandlers}
     >
       <View style={styles.titleRow}>

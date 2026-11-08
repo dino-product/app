@@ -64,6 +64,11 @@ type Slide = {
 export function useHorizontalSwipe(callbacks: {
   onPrev: () => void;
   onNext: () => void;
+  /**
+   * 이번 밀기를 이 뷰가 가지는지 (useTabSwipeRegion 의 ownsGesture). 화면 가장자리 띠·가장자리 여유에서 시작했으면
+   * 탭 전환 몫이라 응답자가 되지 않는다 (#140). 주지 않으면 늘 갖는다
+   */
+  ownsGesture?: () => boolean;
 }): HorizontalSwipe {
   // 부모가 렌더마다 새 콜백을 넘겨도 PanResponder 는 한 번만 만들고 최신 콜백을 부른다
   const latest = useRef(callbacks);
@@ -161,7 +166,8 @@ export function useHorizontalSwipe(callbacks: {
       onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) =>
         numberActiveTouches === 1 &&
         Math.abs(dx) > CLAIM_DISTANCE &&
-        Math.abs(dx) > Math.abs(dy),
+        Math.abs(dx) > Math.abs(dy) &&
+        (latest.current.ownsGesture?.() ?? true),
       onPanResponderGrant: () => {
         const wasSliding = sliding !== null;
         dragFrom = takeOver();

@@ -12,6 +12,7 @@ import {
   StatusChip,
   Text,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
 import {
   completedWorkA11yLabel,
   formatWorkTime,
@@ -26,11 +27,14 @@ export const CompletedWorkRow = memo(function CompletedWorkRowView({
   item: CompletedWork;
   onPress: (id: string) => void;
 }) {
+  // 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다. 화면 폭을 꽉 채운 행이라 화면 가장자리 띠에서는 바꾼다 (#140)
+  const tabSwipe = useTabSwipeRegion({ stacked: true });
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={completedWorkA11yLabel(item)}
       onPress={() => onPress(item.id)}
+      onTouchStart={tabSwipe.onTouchStart}
       style={rowStyle}
     >
       <View style={styles.titleRow}>

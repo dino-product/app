@@ -14,6 +14,7 @@ import {
   Text,
   workStatusLabels,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 
 // 내 일정 목록의 행 (확정 일정) 과 카드 (응답 필요). Figma 2714:12918, 2367:12834
@@ -51,6 +52,8 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   item: ConfirmedSchedule;
   onPress?: (id: string) => void;
 }) {
+  // 상세로 들어가는 행은 안쪽에서 시작한 가로 밀기로 탭을 바꾸지 않는다. 화면 폭을 꽉 채운 행이라 화면 가장자리 띠에서는 바꾼다 (#140)
+  const tabSwipe = useTabSwipeRegion({ stacked: true });
   const label = `${item.title}, ${workStatusLabels[item.status]}, ${
     item.timeRange
   }, ${item.company} ${item.customerName} · ${item.address}`;
@@ -85,6 +88,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onPress(item.id)}
+      onTouchStart={tabSwipe.onTouchStart}
       style={confirmedRowStyle}
     >
       {content}
@@ -106,8 +110,12 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   /** 이 요청의 수락을 보내는 동안 거절·수락을 잠근다 */
   disabled?: boolean;
 }) {
+  const tabSwipe = useTabSwipeRegion({ stacked: true });
   return (
-    <View style={[styles.row, styles.card]}>
+    <View
+      style={[styles.row, styles.card]}
+      onTouchStart={tabSwipe.onTouchStart}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${item.title} 상세, ${item.dateLabel} ${item.timeRange}, ${item.company} ${item.customerName} · ${item.address}`}

@@ -12,6 +12,7 @@ import {
   Text,
   workStatusLabels,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
 import type { ScheduleItem } from '../model';
 
 // 메인화면 주간 일정 카드. 칩은 제목·시간 묶음 오른쪽 위에 붙는다
@@ -22,6 +23,8 @@ export const ScheduleCard = memo(function ScheduleCardView({
   item: ScheduleItem;
   onPress: (id: string) => void;
 }) {
+  // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (#140)
+  const tabSwipe = useTabSwipeRegion();
   return (
     <Pressable
       accessibilityRole="button"
@@ -31,6 +34,7 @@ export const ScheduleCard = memo(function ScheduleCardView({
         item.address
       }`}
       onPress={() => onPress(item.id)}
+      onTouchStart={tabSwipe.onTouchStart}
       style={cardStyle}
     >
       <View style={styles.titleRow}>

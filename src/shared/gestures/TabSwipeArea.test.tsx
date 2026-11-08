@@ -63,7 +63,7 @@ function OwnSwipe() {
 async function setup({ enabled = true }: { enabled?: boolean } = {}) {
   const onSwipe = jest.fn();
   const view = await render(
-    <TabSwipeArea enabled={enabled} onSwipe={onSwipe} testID="area">
+    <TabSwipeArea canSwipe={() => enabled} onSwipe={onSwipe} testID="area">
       <View testID="background">
         <Card testID="card" />
         <Card testID="row" stacked />

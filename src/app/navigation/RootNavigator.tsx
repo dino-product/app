@@ -1,16 +1,29 @@
 import {
   createBottomTabNavigator,
   type BottomTabBarProps,
+  type BottomTabNavigationOptions,
+  type BottomTabNavigationProp,
 } from '@react-navigation/bottom-tabs';
-import type { ParamListBase, ScreenLayoutArgs } from '@react-navigation/native';
+import {
+  TabActions,
+  type ParamListBase,
+  type RouteProp,
+  type ScreenLayoutArgs,
+} from '@react-navigation/native';
 import {
   createNativeStackNavigator,
   type NativeStackNavigationOptions,
   type NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
-import { useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { NextStep } from '../../features/onboarding/profileApi';
+import { useReduceMotionEnabled } from '../../shared/accessibility/useReduceMotion';
+import {
+  neighborIndex,
+  type SwipeDirection,
+} from '../../shared/gestures/tabSwipe';
+import { TabSwipeArea } from '../../shared/gestures/TabSwipeArea';
 import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
 import {
@@ -52,6 +65,7 @@ import {
   WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
+import { tabTransitionOptions } from './tabTransition';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
@@ -94,7 +108,15 @@ function useStackOptions() {
     [width],
   );
 }
-const tabOptions = { headerShown: false } as const;
+
+// 탭을 옮길 때 오른쪽 탭은 오른쪽에서, 왼쪽 탭은 왼쪽에서 찰나에 들어온다 (#140, tabTransition.ts). 동작 줄이기면 바로 바꾼다
+function useTabOptions(): BottomTabNavigationOptions {
+  const reduceMotion = useReduceMotionEnabled();
+  return useMemo(
+    () => ({ headerShown: false, ...tabTransitionOptions(reduceMotion) }),
+    [reduceMotion],
+  );
+}
 
 // VoiceOver 두 손가락 Z(escape)로 뒤로 간다. 네이티브 헤더를 껐으니 스택 화면을 감싸 직접 받는다.
 // 스택 첫 화면은 돌아갈 곳이 없어 받지 않는다 (탭을 바꾸는 Android 뒤로가기와 달리 iOS 관례).
@@ -123,6 +145,66 @@ function stackScreenLayout({
 }
 
 const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
+
+// 탭 화면을 좌우로 밀면 이웃 탭으로 옮긴다 (#140, TabSwipeArea). 탭 바를 누를 때와 같은 전환으로 들어온다.
+// 탭 안 스택이 첫 화면일 때만 받는다. 안쪽 화면은 iOS 26 화면 전체 뒤로 가기 밀기와 겹치고, 탭 메인 화면이 아니다
+function TabSwipeLayout({
+  route,
+  navigation,
+  children,
+}: {
+  route: RouteProp<MainTabParamList>;
+  navigation: BottomTabNavigationProp<MainTabParamList>;
+  children: ReactNode;
+}) {
+  // 밀 때마다 지금 상태로 본다. 안쪽 스택 상태가 아직 없으면 첫 화면이다
+  const atFirstScreen = useCallback(() => {
+    const nested = navigation
+      .getState()
+      .routes.find(item => item.key === route.key)?.state;
+    return (
+      nested === undefined || (nested.index ?? nested.routes.length - 1) === 0
+    );
+  }, [navigation, route.key]);
+  const onSwipe = useCallback(
+    (direction: SwipeDirection) => {
+      const { index, routes } = navigation.getState();
+      const next = neighborIndex(index, routes.length, direction);
+      if (next !== null) {
+        navigation.dispatch(
+          TabActions.jumpTo(routes[next].name, routes[next].params),
+        );
+      }
+    },
+    [navigation],
+  );
+  return (
+    <TabSwipeArea
+      canSwipe={atFirstScreen}
+      onSwipe={onSwipe}
+      testID={`tab-swipe-${route.name}`}
+    >
+      {children}
+    </TabSwipeArea>
+  );
+}
+
+function tabScreenLayout({
+  route,
+  navigation,
+  children,
+}: ScreenLayoutArgs<
+  MainTabParamList,
+  keyof MainTabParamList,
+  BottomTabNavigationOptions,
+  BottomTabNavigationProp<MainTabParamList>
+>) {
+  return (
+    <TabSwipeLayout route={route} navigation={navigation}>
+      {children}
+    </TabSwipeLayout>
+  );
+}
 
 // 같은 항목은 한 번만 쌓고(연달아 누름), 다른 항목은 새 화면으로 쌓아 입력 상태가 섞이지 않게 한다
 const byId = ({ params }: { params: { id: string } }) => params.id;
@@ -313,11 +395,13 @@ const loginOptions = { animationTypeForReplace: 'pop' } as const;
 
 // Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
 function MainTabs() {
+  const tabOptions = useTabOptions();
   return (
     <Tab.Navigator
       backBehavior="firstRoute"
       tabBar={renderTabBar}
       screenOptions={tabOptions}
+      screenLayout={tabScreenLayout}
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />

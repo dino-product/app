@@ -44,22 +44,22 @@ type RegionReport = { claimForComponent: () => void };
 const TabSwipeContext = createContext<RegionReport | null>(null);
 
 export function TabSwipeArea({
-  enabled,
+  canSwipe,
   onSwipe,
   testID,
   children,
 }: {
-  /** 꺼 두면 밀어도 탭을 바꾸지 않는다 (탭 안쪽 화면: iOS 뒤로 가기 밀기와 겹친다) */
-  enabled: boolean;
+  /** 지금 밀어서 탭을 바꿀 수 있는지. 밀 때마다 묻는다 (탭 안쪽 화면이면 false: iOS 뒤로 가기 밀기와 겹친다) */
+  canSwipe: () => boolean;
   /** 이웃 탭으로 옮긴다. 한 제스처에 한 번만 부른다 */
   onSwipe: (direction: SwipeDirection) => void;
   testID?: string;
   children: ReactNode;
 }) {
   // PanResponder 는 한 번만 만들고 최신 값을 읽는다
-  const latest = useRef({ enabled, onSwipe });
+  const latest = useRef({ canSwipe, onSwipe });
   useLayoutEffect(() => {
-    latest.current = { enabled, onSwipe };
+    latest.current = { canSwipe, onSwipe };
   });
 
   const [area] = useState(() => {
@@ -73,7 +73,11 @@ export function TabSwipeArea({
     };
     const responder = PanResponder.create({
       onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
-        if (!latest.current.enabled || gesture.settled || gesture.component) {
+        if (gesture.settled || gesture.component) {
+          return false;
+        }
+        if (!latest.current.canSwipe()) {
+          gesture.settled = true;
           return false;
         }
         const decision = decideTabSwipe({

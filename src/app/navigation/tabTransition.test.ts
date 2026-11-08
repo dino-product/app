@@ -11,9 +11,10 @@ const sceneAt = (progress: number) => {
   const { sceneStyle } = forTabEnter({
     current: { progress: new Animated.Value(progress) },
   });
-  const style = sceneStyle as {
+  // 보간 값은 JS 쪽 지금 값을 꺼내 본다 (Animated 내부 메서드)
+  const style = sceneStyle as unknown as {
     opacity?: unknown;
-    transform: [{ translateX: Animated.AnimatedInterpolation<number> }];
+    transform: [{ translateX: { __getValue: () => number } }];
   };
   return {
     translateX: style.transform[0].translateX.__getValue(),

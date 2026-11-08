@@ -7,6 +7,7 @@ import {
   Text,
   type DropShadow,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gestures/TabSwipeArea';
 import type { CurrentWork } from '../model';
 
 // 작업이 있을 때와 없을 때 같은 Figma 프레임의 드롭 섀도
@@ -33,8 +34,14 @@ export function CurrentWorkCard({
   /** 시작을 보내는 동안 "작업 시작" 을 잠근다 */
   starting?: boolean;
 }) {
+  // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (가장자리 여유·화면 가장자리 띠는 바꾼다, #140)
+  const tabSwipe = useTabSwipeRegion();
   return (
-    <ShadowView shadow={CARD_SHADOW} style={[styles.frame, styles.card]}>
+    <ShadowView
+      shadow={CARD_SHADOW}
+      style={[styles.frame, styles.card]}
+      onTouchStart={tabSwipe.onTouchStart}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${work.title} 상세 보기`}
