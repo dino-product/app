@@ -16,7 +16,7 @@ import {
   Icon,
   Text,
   MIN_TOUCH_TARGET,
-  typography,
+  singleLineInputText,
   withOpacity,
 } from '../../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../../shared/keyboard/KeyboardAvoidingArea';
@@ -236,8 +236,9 @@ export function OrgJoinScreen({
 
 const styles = StyleSheet.create({
   codeRow: { flexDirection: 'row' },
+  // 칸 높이(looks 의 minHeight) 세로 가운데에 값을 둔다 (#151)
   input: {
-    ...typography['Body/XS/Medium'],
+    ...singleLineInputText('Body/XS/Medium'),
     flex: 1,
     borderRadius: 12,
     borderWidth: 1,
@@ -258,10 +259,11 @@ const myStyles = StyleSheet.create({
   intro: { gap: 8 },
   field: { gap: 10 },
   inputGroup: { gap: 10 },
+  // 글자는 칸 왼쪽 16 에서 시작한다 (3255:18332)
   input: {
     minHeight: 56,
     marginRight: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderColor: colors.gray[200],
   },
   checkButton: { paddingHorizontal: 20 },

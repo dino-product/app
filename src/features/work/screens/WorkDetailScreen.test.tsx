@@ -6,11 +6,21 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { Platform } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  NativeModules,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
 import { colors } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../mockData';
+import {
+  ANCHOR_ANTICIPATION,
+  ANCHOR_OVERSHOOT,
+} from '../components/reportAnchorMotion';
 import type { WorkDetail } from '../model';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -549,6 +559,39 @@ describe('WorkDetailScreen', () => {
   });
 
   describe('완료 보고 작성하기 버튼', () => {
+    // jest 프리셋의 네이티브 애니메이션 목은 16ms 뒤에 저절로 끝난다. 끝내는 시점을 테스트가 정한다 (BottomSheet.test 와 같다).
+    // 시퀀스는 앞 단계가 끝나야 다음 단계를 시작하므로 남은 것이 없을 때까지 끝낸다
+    let runningAnimations: Array<(result: { finished: boolean }) => void> = [];
+    const finishAnimations = async () => {
+      while (runningAnimations.length > 0) {
+        await act(() => {
+          runningAnimations.splice(0).forEach(end => end({ finished: true }));
+        });
+      }
+    };
+    beforeEach(() => {
+      runningAnimations = [];
+      jest
+        .spyOn(NativeModules.NativeAnimatedModule, 'startAnimatingNode')
+        .mockImplementation((...args: unknown[]) => {
+          runningAnimations.push(
+            args[3] as (result: { finished: boolean }) => void,
+          );
+        });
+    });
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    // 숨는 중(스크린리더에서 숨은 채)에도 찾는다
+    const anchor = () =>
+      screen.queryByRole('button', {
+        name: '완료 보고 작성하기',
+        includeHiddenElements: true,
+      });
+    const anchorWrapper = () =>
+      screen.getByTestId('work-detail-jump', { includeHiddenElements: true });
+
     async function layout() {
       await fireEvent(screen.getByTestId('work-detail-scroll'), 'layout', {
         nativeEvent: { layout: { height: 700 } },
@@ -627,15 +670,27 @@ describe('WorkDetailScreen', () => {
         ).not.toBeOnTheScreen();
       });
 
-      it('보고 영역까지 스크롤해 버튼이 숨으면 그라데이션도 없다', async () => {
+      it('보고 영역까지 스크롤해 버튼이 숨으면 그라데이션도 버튼과 함께 내려가 없어진다', async () => {
         await renderDetail();
         await layout();
 
         await scrollTo(1000);
+        // 버튼과 같은 값으로 함께 내려가는 동안에는 남아 있다
+        expect(fade()).toBeOnTheScreen();
+        await finishAnimations();
         expect(fade()).not.toBeOnTheScreen();
 
         await scrollTo(0);
         expect(fade()).toBeOnTheScreen();
+      });
+
+      it('버튼과 함께 움직이도록 둘 다 세로 이동(translateY)으로 그린다', async () => {
+        await renderDetail();
+
+        expect(fade()).toHaveStyle({ transform: [{ translateY: 0 }] });
+        expect(anchorWrapper()).toHaveStyle({
+          transform: [{ translateY: 0 }],
+        });
       });
 
       it('제출을 마친 읽기 전용 상세에는 없다', async () => {
@@ -643,6 +698,174 @@ describe('WorkDetailScreen', () => {
 
         expect(fade()).not.toBeOnTheScreen();
       });
+    });
+
+    // #149 카툰 등장·퇴장. 값은 버튼이 제자리에서 아래로 내려간 거리 (reportAnchorMotion)
+    describe('등장·퇴장 애니메이션', () => {
+      const HIDDEN = 218;
+      const targets = (timing: jest.SpyInstance) =>
+        timing.mock.calls.map(([, config]) => config.toValue);
+
+      it('처음 열 때는 애니메이션 없이 제자리에 있다', async () => {
+        const timing = jest.spyOn(Animated, 'timing');
+        await renderDetail();
+
+        expect(timing).not.toHaveBeenCalled();
+        expect(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        ).toBeOnTheScreen();
+      });
+
+      it('숨을 때는 위로 살짝 떴다가 아래로 빠지고, UI 스레드에서 돈다', async () => {
+        await renderDetail();
+        await layout();
+        const timing = jest.spyOn(Animated, 'timing');
+
+        await scrollTo(1000);
+
+        expect(targets(timing)).toEqual([-ANCHOR_ANTICIPATION, HIDDEN]);
+        timing.mock.calls.forEach(([, config]) =>
+          expect(config.useNativeDriver).toBe(true),
+        );
+      });
+
+      it('숨기 시작하면 바로 누를 수 없고 스크린리더에서 숨으며, 다 빠지면 사라진다', async () => {
+        await renderDetail();
+        await layout();
+
+        await scrollTo(1000);
+
+        expect(anchor()).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('button', { name: '완료 보고 작성하기' }),
+        ).not.toBeOnTheScreen();
+        expect(anchorWrapper().props.pointerEvents).toBe('none');
+
+        await finishAnimations();
+        expect(anchor()).not.toBeOnTheScreen();
+      });
+
+      it('나타날 때는 아래에서 올라와 위로 살짝 넘쳤다가 제자리로 오고, 올라오는 동안 누를 수 있다', async () => {
+        const timing = jest.spyOn(Animated, 'timing');
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        await finishAnimations();
+        timing.mockClear();
+
+        await scrollTo(0);
+
+        expect(targets(timing)).toEqual([-ANCHOR_OVERSHOOT, 0]);
+        expect(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        ).toBeOnTheScreen();
+        expect(anchorWrapper().props.pointerEvents).toBe('box-none');
+      });
+
+      // 테스트 환경의 scrollTo 는 모든 스크롤 뷰가 같이 쓰는 jest.fn 이다 (RejectReasonScreen.test 와 같다)
+      const scrollToReport = () =>
+        jest.mocked(ScrollView.prototype.scrollTo).mockClear();
+
+      it('보이는 동안 누르면 완료 보고 영역으로 스크롤한다', async () => {
+        await renderDetail();
+        await layout();
+        const scroll = scrollToReport();
+
+        await userEvent.press(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        );
+
+        expect(scroll).toHaveBeenCalledWith({ y: 1500, animated: true });
+      });
+
+      it('숨는 중에는 눌러도 스크롤하지 않는다', async () => {
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        const scroll = scrollToReport();
+
+        await userEvent.press(anchor()!);
+
+        expect(scroll).not.toHaveBeenCalled();
+      });
+
+      it('숨는 도중에 다시 보이면 끝까지 숨지 않고 지금 자리에서 올라온다', async () => {
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        const stop = jest.spyOn(
+          NativeModules.NativeAnimatedModule,
+          'stopAnimation',
+        );
+        const timing = jest.spyOn(Animated, 'timing');
+        const setValue = jest.spyOn(Animated.Value.prototype, 'setValue');
+
+        await scrollTo(0);
+
+        // 숨던 애니메이션을 멈추고, 값을 처음 자리로 되돌리지 않은 채 반대로 시작한다
+        expect(stop).toHaveBeenCalled();
+        expect(setValue).not.toHaveBeenCalled();
+        expect(targets(timing)).toEqual([-ANCHOR_OVERSHOOT, 0]);
+        await finishAnimations();
+        expect(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        ).toBeOnTheScreen();
+      });
+
+      it('올라오는 도중에 숨으면 위로 더 뜨지 않고 바로 아래로 빠진다', async () => {
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        await finishAnimations();
+        await scrollTo(0);
+        const timing = jest.spyOn(Animated, 'timing');
+
+        await scrollTo(1000);
+
+        expect(targets(timing)).toEqual([HIDDEN]);
+        await finishAnimations();
+        expect(anchor()).not.toBeOnTheScreen();
+      });
+
+      it('화면을 떠나면(언마운트) 돌던 애니메이션을 멈춘다', async () => {
+        await renderDetail();
+        await layout();
+        await scrollTo(1000);
+        const stop = jest.spyOn(
+          NativeModules.NativeAnimatedModule,
+          'stopAnimation',
+        );
+
+        await screen.unmount();
+
+        expect(stop).toHaveBeenCalled();
+      });
+
+      it('동작 줄이기가 켜져 있으면 애니메이션 없이 바로 숨고 바로 나타난다', async () => {
+        jest
+          .mocked(AccessibilityInfo.isReduceMotionEnabled)
+          .mockResolvedValueOnce(true);
+        await renderDetail();
+        // 설정을 읽은 뒤에 움직인다
+        await act(async () => {});
+        await layout();
+        const timing = jest.spyOn(Animated, 'timing');
+
+        await scrollTo(1000);
+        expect(anchor()).not.toBeOnTheScreen();
+        expect(fadeAfterHide()).not.toBeOnTheScreen();
+
+        await scrollTo(0);
+        expect(
+          screen.getByRole('button', { name: '완료 보고 작성하기' }),
+        ).toBeOnTheScreen();
+        expect(timing).not.toHaveBeenCalled();
+      });
+
+      const fadeAfterHide = () =>
+        screen.queryByTestId('work-detail-jump-fade', {
+          includeHiddenElements: true,
+        });
     });
   });
 

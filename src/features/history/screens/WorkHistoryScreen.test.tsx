@@ -72,7 +72,7 @@ const prevMonth = () => screen.getByRole('button', { name: '이전 달' });
 const nextMonth = () => screen.getByRole('button', { name: '다음 달' });
 
 describe('WorkHistoryScreen — 화면 구성', () => {
-  it('제목, 오늘이 속한 달, 요약 카드(누적·이번 달 완료)를 보여준다', async () => {
+  it('제목, 오늘이 속한 달, 요약 카드(이번 달·누적 완료)를 보여준다', async () => {
     await renderHistory();
 
     expect(screen.getByRole('header', { name: '작업 이력' })).toBeOnTheScreen();
@@ -319,15 +319,50 @@ describe('WorkHistoryScreen — Figma 값', () => {
     expect(parentOf(monthRow)).toHaveStyle({ paddingTop: 14 });
   });
 
-  it('요약 카드는 모서리 16, 카드 사이 10, 설명은 Gray700', async () => {
+  // 요약 카드는 새 Figma 작업이력 (기본) 3753:4890 › 3753:4903 기준이다 (#145)
+  it('요약 카드는 모서리 16, 카드 사이 10, 누적 완료 설명은 Gray600', async () => {
     await renderHistory();
 
     const card = screen.getByLabelText('누적 완료 4건');
     expect(card).toHaveStyle({ borderRadius: 16 });
     expect(parentOf(card)).toHaveStyle({ gap: 10 });
     expect(screen.getByText('누적 완료')).toHaveStyle({
-      color: colors.gray[700],
+      color: colors.gray[600],
     });
+  });
+
+  it('요약 카드는 이번 달 완료(Primary 강조)가 왼쪽, 누적 완료가 오른쪽이다', async () => {
+    await renderHistory();
+
+    const month = screen.getByLabelText('이번 달 완료 3건');
+    const total = screen.getByLabelText('누적 완료 4건');
+    expect(parentOf(month)).toBe(parentOf(total));
+    expect(parentOf(month).children).toEqual([month, total]);
+    expect(month).toHaveStyle({ backgroundColor: colors.primary });
+    expect(total).not.toHaveStyle({ backgroundColor: colors.primary });
+  });
+
+  it('스크린리더도 이번 달 완료 → 누적 완료 순서로 읽는다', async () => {
+    await renderHistory();
+
+    expect(
+      screen
+        .getAllByLabelText(/^(이번 달 완료|누적 완료) /)
+        .map(card => card.props.accessibilityLabel),
+    ).toEqual(['이번 달 완료 3건', '누적 완료 4건']);
+  });
+
+  // 카드를 다시 그리면 그 View 의 props 객체가 새로 만들어진다. 같은 객체면 memo 로 건너뛴 것이다
+  // (props 를 toBe 로 비교하면 실패할 때 자식 요소까지 diff 를 찍다 메모리가 넘쳐 참·거짓으로 본다)
+  it('달을 바꿔도 누적 완료 카드는 다시 그리지 않는다', async () => {
+    await renderHistory();
+    const before = screen.getByLabelText('누적 완료 4건').props;
+
+    await userEvent.press(prevMonth());
+
+    expect(screen.getByLabelText('이번 달 완료 1건')).toBeOnTheScreen();
+    const sameProps = screen.getByLabelText('누적 완료 4건').props === before;
+    expect(sameProps).toBe(true);
   });
 
   it('행은 줄 사이 10, 아래 구분선 Gray200, 제목 Body/M/SemiBold', async () => {

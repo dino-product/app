@@ -5,7 +5,11 @@ import {
   userEvent,
 } from '@testing-library/react-native';
 import { useState } from 'react';
-import { colors } from '../../../shared/design-system';
+import {
+  colors,
+  typography,
+  type TypographyVariant,
+} from '../../../shared/design-system';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { PaymentMethod } from '../model';
 import { AmountInput, LineInput, PaymentMethodSelect } from './ReportFields';
@@ -28,12 +32,20 @@ function ControlledAmount({
   );
 }
 
-// 흰 배경, Gray200 테두리, 모서리 12 (수행 메모 TextArea 와 같은 모양)
+// 한 줄 입력의 글자 모양 (줄 높이는 두지 않는다, #151)
+const fontOf = (variant: TypographyVariant) => {
+  const { fontFamily, fontSize, letterSpacing } = typography[variant];
+  return { fontFamily, fontSize, letterSpacing };
+};
+
+// 흰 배경, Gray200 테두리, 모서리 12 (수행 메모 TextArea 와 같은 모양).
+// 글자는 테두리 안 20 에서 시작한다 (Figma 3235:16434 / 16442 / 16448, #151)
 const fieldBox = {
   backgroundColor: colors.white[100],
   borderWidth: 1,
   borderColor: colors.gray[200],
   borderRadius: 12,
+  paddingHorizontal: 20,
 };
 
 describe('AmountInput', () => {
@@ -89,6 +101,19 @@ describe('AmountInput', () => {
 
     const box = screen.getByLabelText('결제 금액 입력').parent as HostElement;
     expect(box).toHaveStyle(fieldBox);
+  });
+
+  // Figma 작업수행-상세/보고제출 활성 3235:16442, 작업이력 상세 3463:17299: 여백 가로 20·세로 16 + 한 줄 22 = 56
+  it('Figma 대로 칸 높이 56·가로 여백 20 이고, 값과 "원" 은 Body/XS/Medium 이다', async () => {
+    await render(<AmountInput value="" onChange={jest.fn()} />);
+
+    const input = screen.getByLabelText('결제 금액 입력');
+    expect(input.parent as HostElement).toHaveStyle({
+      minHeight: 56,
+      paddingHorizontal: 20,
+    });
+    expect(input).toHaveStyle(fontOf('Body/XS/Medium'));
+    expect(screen.getByText('원')).toHaveStyle(typography['Body/XS/Medium']);
   });
 
   it('readOnly 면 쉼표 넣은 값을 보여주기만 하고 고칠 수 없다', async () => {
@@ -170,6 +195,25 @@ describe('LineInput', () => {
 
     await userEvent.type(input, '밸');
     expect(onChangeText).toHaveBeenLastCalledWith('밸');
+  });
+
+  // Figma 작업수행-상세/보고제출 활성 3235:16434, 작업이력 상세 3463:17291: 여백 가로 20·세로 16 + 한 줄 21 = 55
+  it('Figma 대로 칸 높이 55·가로 여백 20 이고, 글자는 Caption/M/Regular 다', async () => {
+    await render(
+      <LineInput
+        label="사용 부품 입력"
+        placeholder="사용 부품 작성"
+        value=""
+        onChangeText={jest.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText('사용 부품 입력');
+    expect(input.parent as HostElement).toHaveStyle({
+      minHeight: 55,
+      paddingHorizontal: 20,
+    });
+    expect(input).toHaveStyle(fontOf('Caption/M/Regular'));
   });
 
   it('readOnly 면 고칠 수 없다', async () => {
