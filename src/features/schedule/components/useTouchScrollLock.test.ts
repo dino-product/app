@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { touchesEvent } from '../../../../jest/gesture';
 import { useTouchScrollLock } from './useTouchScrollLock';
 
@@ -151,4 +152,173 @@ describe('useTouchScrollLock', () => {
       first.onListTouchStartCapture,
     );
   });
+});
+
+// 펼친 달력은 처음 움직인 방향으로 정한다 (#144). 가로면 리스트를 막아 달을 넘기고, 세로면 리스트가 스크롤한다.
+// iOS 는 손가락이 닿은 채로 scrollEnabled 를 다시 켜도 그 손길에서는 스크롤하지 않으므로, 가로로 정해질 때 막는다.
+// Android 는 리스트가 세로 8dp 만 넘어도 가로채므로 닿을 때 막아 두고, 세로로 정해지면 풀어 리스트가 가로채게 한다
+describe('useTouchScrollLock — 처음 움직인 방향으로 막기 (펼친 달력)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const setupAxis = async (os: 'ios' | 'android') => {
+    jest.replaceProperty(Platform, 'OS', os);
+    let renders = 0;
+    const hook = await renderHook(() => {
+      renders += 1;
+      return useTouchScrollLock();
+    });
+    const { axisAreaTouchHandlers: area, onListTouchStartCapture } =
+      hook.result.current;
+    // 손가락 0 번이 (0,0) 에 닿는다
+    const start = (changed = [0], touches = changed) =>
+      act(() => {
+        const event = touchesEvent({ changed, touches });
+        onListTouchStartCapture(event);
+        area.onTouchStart(event);
+      });
+    // 손가락이 모두 (x, y) 로 움직인다
+    const move = (x: number, y: number, touches = [0]) =>
+      act(() =>
+        area.onTouchMove(touchesEvent({ changed: touches, touches, x, y })),
+      );
+    const end = (changed = [0], touches: number[] = []) =>
+      act(() => area.onTouchEnd(touchesEvent({ changed, touches })));
+    return {
+      locked: () => hook.result.current.locked,
+      renderCount: () => renders,
+      start,
+      move,
+      end,
+    };
+  };
+
+  describe('iOS', () => {
+    it('닿기만 해서는 막지 않는다 (탭·세로 스크롤이 그대로 된다)', async () => {
+      const { locked, start } = await setupAxis('ios');
+
+      await start();
+
+      expect(locked()).toBe(false);
+    });
+
+    it('처음 움직임이 가로면 막고, 떼면 푼다', async () => {
+      const { locked, start, move, end } = await setupAxis('ios');
+
+      await start();
+      await move(-11, 3);
+      expect(locked()).toBe(true);
+
+      await end();
+      expect(locked()).toBe(false);
+    });
+
+    it('처음 움직임이 세로면 막지 않고, 이어서 옆으로 흘러도 막지 않는다', async () => {
+      const { locked, start, move } = await setupAxis('ios');
+
+      await start();
+      await move(3, 11);
+      expect(locked()).toBe(false);
+
+      await move(-80, 11);
+      expect(locked()).toBe(false);
+    });
+
+    it('10pt 이하로만 움직이면 아직 정하지 않는다', async () => {
+      const { locked, start, move } = await setupAxis('ios');
+
+      await start();
+      await move(-10, 0);
+      expect(locked()).toBe(false);
+
+      await move(-11, 0);
+      expect(locked()).toBe(true);
+    });
+  });
+
+  describe('Android', () => {
+    it('닿으면 방향을 정하기 전까지 막아 둔다 (가로 밀기를 리스트가 가로채지 않게)', async () => {
+      const { locked, start, move } = await setupAxis('android');
+
+      await start();
+      expect(locked()).toBe(true);
+
+      await move(-10, 0);
+      expect(locked()).toBe(true);
+    });
+
+    it('처음 움직임이 세로면 풀어 리스트가 스크롤하게 하고, 이어서 옆으로 흘러도 다시 막지 않는다', async () => {
+      const { locked, start, move } = await setupAxis('android');
+
+      await start();
+      await move(3, -11);
+      expect(locked()).toBe(false);
+
+      await move(-80, -11);
+      expect(locked()).toBe(false);
+    });
+
+    it('처음 움직임이 가로면 계속 막고, 떼면 푼다', async () => {
+      const { locked, start, move, end } = await setupAxis('android');
+
+      await start();
+      await move(11, 3);
+      await move(11, 80);
+      expect(locked()).toBe(true);
+
+      await end();
+      expect(locked()).toBe(false);
+    });
+  });
+
+  it.each(['ios', 'android'] as const)(
+    '%s: 다음 손길은 처음부터 다시 정한다',
+    async os => {
+      const { locked, start, move, end } = await setupAxis(os);
+
+      await start();
+      await move(0, 11);
+      await end();
+      await start();
+      await move(-11, 0);
+
+      expect(locked()).toBe(true);
+    },
+  );
+
+  // 두 손가락은 밀기가 응답자가 되지 않는다. 방향을 보지 않고 닿을 때의 상태를 뗄 때까지 둔다
+  it.each([
+    ['ios', false],
+    ['android', true],
+  ] as const)(
+    '%s: 정하기 전에 두 번째 손가락이 닿으면 방향을 보지 않는다',
+    async (os, expected) => {
+      const { locked, start, move } = await setupAxis(os);
+
+      await start([0]);
+      await start([1], [0, 1]);
+      await move(0, 40, [0, 1]);
+      await move(-40, 0, [0, 1]);
+
+      expect(locked()).toBe(expected);
+    },
+  );
+
+  it.each(['ios', 'android'] as const)(
+    '%s: 움직이는 동안 잠금이 바뀔 때만 다시 그린다',
+    async os => {
+      const { renderCount, start, move } = await setupAxis(os);
+      const mounted = renderCount();
+
+      await start();
+      await move(-5, 0);
+      await move(-11, 0);
+      await move(-30, 0);
+      await move(-60, 0);
+
+      // 막기 시작할 때 한 번 (Android 는 닿을 때 이미 막았다)
+      expect(renderCount()).toBe(mounted + 1);
+    },
+  );
 });

@@ -50,17 +50,22 @@ function touchEvent(
 }
 
 /**
- * onTouchStart·onTouchEnd·onTouchCancel 이 받는 이벤트. 응답자와 상관없이 닿은 뷰에서 위로 올라간다.
- * changed 는 이번에 닿거나 뗀 손가락, touches 는 그 뒤에도 화면에 닿아 있는 손가락이다
+ * onTouchStart·onTouchMove·onTouchEnd·onTouchCancel 이 받는 이벤트. 응답자와 상관없이 닿은 뷰에서 위로 올라간다.
+ * changed 는 이번에 닿거나 움직이거나 뗀 손가락, touches 는 그 뒤에도 화면에 닿아 있는 손가락이다.
+ * 손가락은 모두 (x, y) 에 있다
  */
 export function touchesEvent({
   changed,
   touches,
+  x = 0,
+  y = 0,
 }: {
   changed: readonly number[];
   touches: readonly number[];
+  x?: number;
+  y?: number;
 }): GestureResponderEvent {
-  const touch = (identifier: number) => ({ identifier, pageX: 0, pageY: 0 });
+  const touch = (identifier: number) => ({ identifier, pageX: x, pageY: y });
   return {
     nativeEvent: {
       changedTouches: changed.map(touch),
