@@ -44,7 +44,7 @@ export type WorkHistoryScreenProps = {
   today: Date;
   /** 완료한 작업. 고른 달의 작업만 있어도 된다 (고른 달로 거른다) */
   works: readonly CompletedWork[];
-  /** 누적 완료 건수. 주지 않으면 works 의 개수, null 이면 모른다('-': 불러오는 중이거나 서버가 주지 않음) */
+  /** 누적 완료 건수. 주지 않으면 works 의 개수, null 이면 모른다(받는 동안은 스켈레톤, 그 밖에는 '-') */
   totalCompleted?: number | null;
   onOpenWork: (id: string) => void;
   /** 바깥에서 리스트를 맨 위로 올릴 때 쓴다 */

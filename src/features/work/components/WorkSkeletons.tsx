@@ -99,7 +99,7 @@ export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView({
   );
 });
 
-// 확정 일정·완료 작업 행 (ConfirmedRow, CompletedWorkRow) 자리: 제목과 칩, 날짜·시간, 업체 | 고객 · 주소
+// 완료 작업 행 (CompletedWorkRow) 자리: 제목과 칩, 날짜·시간, 업체 | 고객 · 주소
 function WorkRowSkeleton() {
   return (
     <View style={styles.row} testID="work-row-skeleton">
@@ -116,7 +116,7 @@ function WorkRowSkeleton() {
   );
 }
 
-/** 작업 행 목록(내 일정 확정 일정, 작업 이력)을 받는 동안. 리스트의 빈 자리(머리 아래)에 그린다 */
+/** 작업 이력의 완료 작업 행 목록을 받는 동안. 리스트의 빈 자리(머리 아래)에 그린다 */
 export const WorkRowsSkeleton = memo(function WorkRowsSkeletonView() {
   return (
     <Skeleton testID="work-rows-skeleton">
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summary: { flex: 1, gap: 6 },
-  // ConfirmedRow·CompletedWorkRow 와 같은 행
+  // CompletedWorkRow 와 같은 행
   row: {
     gap: 10,
     padding: 24,
