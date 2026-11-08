@@ -18,7 +18,7 @@ const renderSections = () =>
   );
 
 describe('WorkInfoSections 터치 영역', () => {
-  it('고객 전화 버튼은 40 원 그대로 터치 영역만 최소 터치 영역으로 넓힌다', async () => {
+  it('고객 전화 버튼은 44 원 그대로 터치 영역만 최소 터치 영역으로 넓힌다', async () => {
     await renderSections();
 
     const call = screen.getByRole('button', { name: '박민지 고객에게 전화' });

@@ -1,7 +1,7 @@
 import type { CompletedWork, YearMonth } from '../../history/model';
 import {
+  formatCardDay,
   isSameDay,
-  WEEKDAYS,
   type ConfirmedSchedule,
   type PendingRequest,
 } from '../../schedule/model';
@@ -98,11 +98,6 @@ export function toCurrentWork(work: ScheduledWork): CurrentWork {
   };
 }
 
-function dayLabel(start: Date, today: Date): string {
-  const label = `${shortDate(start)} (${WEEKDAYS[start.getDay()]})`;
-  return isSameDay(start, today) ? `오늘 · ${label}` : label;
-}
-
 export function toScheduleItem(work: ScheduledWork, today: Date): ScheduleItem {
   return {
     id: String(work.workId),
@@ -110,7 +105,8 @@ export function toScheduleItem(work: ScheduledWork, today: Date): ScheduleItem {
     title: work.name,
     status: workStatusChip(work.status, work.delayed).status,
     timeRange: timeRange(work),
-    dayLabel: dayLabel(new Date(work.startTime), today),
+    // 내 일정 카드와 같은 표기 ('오늘 · 9. 19. (토)')
+    dayLabel: formatCardDay(localDateKey(work.startTime), today),
     company: work.organizationName ?? EMPTY_VALUE,
     customerName: work.customerName ?? EMPTY_VALUE,
     address: addressOf(work),
@@ -156,13 +152,7 @@ export function confirmedOf(
 
 /** 응답 필요: 수락을 기다리는 요청 */
 export function pendingOf(works: readonly ScheduledWork[]): PendingRequest[] {
-  return uniqueWith(works, ['PENDING_ACCEPT']).map(work => {
-    const start = new Date(work.startTime);
-    return {
-      ...toConfirmedSchedule(work),
-      dateLabel: `${start.getMonth() + 1}/${start.getDate()}`,
-    };
-  });
+  return uniqueWith(works, ['PENDING_ACCEPT']).map(toConfirmedSchedule);
 }
 
 export function toCompletedWork(work: HistoryWork): CompletedWork {

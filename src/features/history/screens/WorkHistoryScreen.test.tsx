@@ -4,10 +4,10 @@ import {
   render,
   screen,
   userEvent,
+  within,
 } from '@testing-library/react-native';
 import { useState } from 'react';
-import { AccessibilityInfo, StyleSheet } from 'react-native';
-import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
+import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { swipeFrom } from '../../../../jest/responder';
 import {
   colors,
@@ -18,6 +18,14 @@ import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
 import { SWITCH_DISTANCE } from '../../../shared/gesture/tabSwipe';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
+import {
+  autoHideHeader,
+  autoHideHeaderOffset,
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
@@ -134,6 +142,52 @@ describe('WorkHistoryScreen — 상단 바', () => {
       paddingHorizontal: 24,
     });
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
+  });
+});
+
+// #148: 아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다 (공용 AutoHideHeaderLayout)
+describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+  const list = () => screen.getByTestId('work-history-list');
+
+  it('제목은 리스트 위에 겹쳐 그린 머리 안에 있고, 내용(월 선택)은 상단 바 아래에서 시작한다', async () => {
+    await renderHistory();
+
+    expect(
+      within(autoHideHeader()).getByRole('header', { name: '작업 이력' }),
+    ).toBeOnTheScreen();
+    expect(
+      StyleSheet.flatten(list().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: TAB_HEADER_HEIGHT });
+  });
+
+  it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다', async () => {
+    await renderHistory();
+
+    await scrollDownFromTop(list());
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
+
+    await scrollListTo(list(), 280);
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+  });
+
+  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderHistory({ onRefresh: jest.fn() });
+    expect(list()).toHaveProp('progressViewOffset', TAB_HEADER_HEIGHT);
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderHistory({ onRefresh: jest.fn() });
+    expect(list().props.progressViewOffset).toBeUndefined();
   });
 });
 

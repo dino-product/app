@@ -2,6 +2,7 @@ import {
   addMonths,
   addWeeks,
   countByDate,
+  formatCardDay,
   formatDateHeader,
   formatMonthTitle,
   isSameDay,
@@ -21,6 +22,24 @@ describe('날짜 계산', () => {
     expect(formatDateHeader(new Date(2026, 11, 31))).toBe(
       '2026년 12월 31일 (목)',
     );
+  });
+
+  // Figma 일정 카드 시간 줄 '11:00 – 12:00  오늘 · 9. 19. (토)'. 작업 홈 일정 카드와 같은 표기다
+  describe('formatCardDay', () => {
+    it('오늘이면 "오늘 · M. D. (요일)" 이다 (시각은 보지 않는다)', () => {
+      expect(formatCardDay('2026-09-19', new Date(2026, 8, 19, 23, 59))).toBe(
+        '오늘 · 9. 19. (토)',
+      );
+    });
+
+    it('오늘이 아니면 "M. D. (요일)" 이다', () => {
+      expect(formatCardDay('2026-09-20', new Date(2026, 8, 19))).toBe(
+        '9. 20. (일)',
+      );
+      expect(formatCardDay('2027-01-01', new Date(2026, 11, 31))).toBe(
+        '1. 1. (금)',
+      );
+    });
   });
 
   it('formatMonthTitle 은 "YYYY년 M월" 로 만든다', () => {

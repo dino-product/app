@@ -55,7 +55,6 @@ export function makeScheduleMock(today: Date): {
       ...place,
       id: `request-${n}`,
       dateKey: toDateKey(requestDay),
-      dateLabel: `${requestDay.getMonth() + 1}/${requestDay.getDate()}`,
       title: '에어컨 필터 교체',
       status: 'assigned',
       timeRange: '14:00 – 15:00',

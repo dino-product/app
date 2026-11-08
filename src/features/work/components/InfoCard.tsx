@@ -3,7 +3,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, Text, typography } from '../../../shared/design-system';
 
 // 작업 상세의 정보 카드 (흰 배경, Gray100 테두리, 모서리 16, 패딩 20).
-// filled 는 회색 채움에 테두리 없는 카드다 (작업 내용)
+// filled 는 Background/3 채움에 테두리 없는 카드다 (작업 내용: 모서리 14, 좌우 20·위아래 21, 줄 사이 20)
 export function InfoCard({
   children,
   filled = false,
@@ -87,7 +87,14 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[100],
     backgroundColor: colors.white[100],
   },
-  filled: { borderWidth: 0, backgroundColor: colors.gray[50] },
+  filled: {
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 21,
+    borderRadius: 14,
+    borderWidth: 0,
+    backgroundColor: colors.background[3],
+  },
   field: { gap: 2 },
   section: { gap: 12, paddingHorizontal: 24, paddingTop: 24 },
   // 작은 글씨지만 줄 높이는 제목에 맞춰, 행간이 다른 글자가 한 줄에 섞여 줄 높이가 바뀌지 않게 한다

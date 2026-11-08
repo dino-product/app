@@ -179,7 +179,6 @@ describe('화면 행으로', () => {
       {
         id: '1',
         dateKey: '2026-10-21',
-        dateLabel: '10/21',
         title: '보일러 점검',
         status: 'assigned',
         timeRange: '11:00 - 12:00',

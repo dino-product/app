@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react-native';
 import { colors } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
+import type { HostElement } from '../../../shared/testing/touchTarget';
 import { workDetail } from '../../work/mockData';
 import { RequestDetailScreen } from './RequestDetailScreen';
 
@@ -115,8 +116,23 @@ describe('RequestDetailScreen', () => {
     );
 
     expect(screen.getByTestId('work-content-card')).toHaveStyle({
-      backgroundColor: colors.gray[50],
+      backgroundColor: colors.background[3],
     });
+  });
+
+  // Figma 2714:12494 아래 바(393x102): 거절·수락은 Bottom CTA L(56), 사이 10, 바 위 14·아래 32(홈 인디케이터 자리).
+  // 거절 사유 화면의 아래 바와 같다
+  it('하단 거절·수락은 높이 56 의 큰 버튼이고 사이 10, 바 위 14·아래 32 다', async () => {
+    await renderRequest();
+
+    const accept = screen.getByRole('button', { name: '수락' });
+    const reject = screen.getByRole('button', { name: '거절' });
+    for (const button of [accept, reject]) {
+      expect(button).toHaveStyle({ minHeight: 56, borderRadius: 12 });
+    }
+    const actions = accept.parent as HostElement;
+    expect(actions).toHaveStyle({ gap: 10, paddingTop: 14 });
+    expect(actions.parent).toHaveStyle({ paddingBottom: 32 });
   });
   // #104: Figma 응답 필요 작업 상세 `2714-12494` 의 현장 사진 섹션
   describe('현장 사진 섹션', () => {
