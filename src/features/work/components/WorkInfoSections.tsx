@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
   colors,
@@ -7,13 +8,10 @@ import {
   Text,
   touchSlop,
 } from '../../../shared/design-system';
-import { formatPrice, type WorkDetail } from '../model';
+import { formatPrice, type WorkDetail, type WorkPlace } from '../model';
 import { InfoCard, InfoField, Section, SectionBand } from './InfoCard';
 import { SitePhotosSection } from './SitePhotosSection';
 import { WorkLocationMap } from './WorkLocationMap';
-
-/** 작업 현장: 주소와 서버가 그 주소에서 구한 좌표 (없으면 null) */
-export type WorkPlace = Pick<WorkDetail, 'address' | 'location'>;
 
 // 작업 상세의 정보 영역 (요약, 일정 및 담당, 고객, 위치, 작업 내용, 현장 사진).
 // 모든 작업 상세가 함께 쓴다: 작업 수행 상세(완료 보고 포함, 홈·알림), 작업 이력 상세, 내 일정의 응답 필요 상세.
@@ -30,7 +28,13 @@ export function WorkInfoSections({
   /** 작업 위치 지도를 누르면 그 위치를 지도 앱에서 연다 */
   onOpenMap: (place: WorkPlace) => void;
 }) {
-  const place: WorkPlace = { address: work.address, location: work.location };
+  const { address, location } = work;
+  const place = useMemo<WorkPlace>(
+    () => ({ address, location }),
+    [address, location],
+  );
+  // 지도(memo)가 완료 보고 입력 같은 다른 갱신에 다시 그려지지 않게 같은 함수를 넘긴다
+  const openMap = useCallback(() => onOpenMap(place), [onOpenMap, place]);
   return (
     <>
       <View style={styles.summary}>
@@ -117,7 +121,7 @@ export function WorkInfoSections({
                 : 'none'
             }
             location={work.location}
-            onPress={() => onOpenMap(place)}
+            onPress={openMap}
           />
         </InfoCard>
         <CTA

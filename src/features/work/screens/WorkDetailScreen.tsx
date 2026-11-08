@@ -31,10 +31,7 @@ import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingA
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { Section, SectionBand } from '../components/InfoCard';
-import {
-  WorkInfoSections,
-  type WorkPlace,
-} from '../components/WorkInfoSections';
+import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
 import {
   AmountInput,
@@ -51,6 +48,7 @@ import {
   PHOTO_LIMIT,
   type SubmitResult,
   type WorkDetail,
+  type WorkPlace,
   type WorkReport,
 } from '../model';
 import type { WorkStatusCode } from '../data/types';

@@ -27,6 +27,9 @@ export type ScheduleItem = {
 /** WGS84 위도·경도 */
 export type GeoPoint = { latitude: number; longitude: number };
 
+/** 작업 현장: 주소와 서버가 그 주소에서 구한 좌표 (없으면 null). 지도 열기·길찾기가 받는다 */
+export type WorkPlace = { address: string; location: GeoPoint | null };
+
 export type WorkDetail = {
   id: string;
   title: string;

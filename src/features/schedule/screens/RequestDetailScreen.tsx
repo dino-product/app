@@ -17,11 +17,8 @@ import {
 import { haptic } from '../../../shared/haptics';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
-import {
-  WorkInfoSections,
-  type WorkPlace,
-} from '../../work/components/WorkInfoSections';
-import type { WorkDetail } from '../../work/model';
+import { WorkInfoSections } from '../../work/components/WorkInfoSections';
+import type { WorkDetail, WorkPlace } from '../../work/model';
 
 // Figma 스케줄 › 응답 필요 작업의 상세 (하단 거절 / 수락)
 export function RequestDetailScreen({

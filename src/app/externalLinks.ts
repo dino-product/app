@@ -1,5 +1,5 @@
 import { Linking, Platform } from 'react-native';
-import type { GeoPoint } from '../features/work/model';
+import type { GeoPoint, WorkPlace } from '../features/work/model';
 
 // 처리할 앱이 없으면 조용히 넘어간다 (안내 UI 는 추후)
 const openExternal = (url: string) => {
@@ -7,9 +7,6 @@ const openExternal = (url: string) => {
 };
 
 export const callPhone = (phone: string) => openExternal(`tel:${phone}`);
-
-/** 작업 현장. 좌표는 서버가 주소에서 구한 값이고 없을 수 있다 */
-export type Place = { address: string; location: GeoPoint | null };
 
 type AppAndWeb = { app: string; web: string };
 
@@ -47,7 +44,7 @@ const openAppOrWeb = ({ app, web }: AppAndWeb) => {
 };
 
 /** 작업 위치 지도를 누르면 카카오맵에서 그 마커 위치를 연다. 좌표가 없으면 지도가 없어 열지 않는다 */
-export const openMap = ({ address, location }: Place) => {
+export const openMap = ({ address, location }: WorkPlace) => {
   if (location) {
     openAppOrWeb(kakaoMapLinks(location, address).map);
   }
@@ -57,7 +54,7 @@ export const openMap = ({ address, location }: Place) => {
  * 길찾기. 좌표가 있으면 카카오맵 길찾기(목적지 = 현장 좌표)를 연다.
  * 서버가 좌표를 구하지 못한 작업은 지금처럼 주소로 기기 지도 앱을 연다
  */
-export const openDirections = ({ address, location }: Place) => {
+export const openDirections = ({ address, location }: WorkPlace) => {
   if (location) {
     openAppOrWeb(kakaoMapLinks(location, address).route);
     return;

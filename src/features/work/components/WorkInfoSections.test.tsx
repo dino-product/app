@@ -1,4 +1,5 @@
 import {
+  act,
   render,
   screen,
   userEvent,
@@ -110,6 +111,31 @@ describe('WorkInfoSections', () => {
         latitude: workDetail.location!.latitude,
         longitude: workDetail.location!.longitude,
       });
+    });
+
+    // 키·플랫폼 인증 실패, 네트워크 오류: 지도만 회색 자리로 두고 주소 글자와 길찾기는 그대로 쓴다
+    it('지도를 그리지 못해도 주소 글자와 길찾기는 그대로 쓸 수 있다', async () => {
+      const onNavigate = jest.fn();
+      await renderSections(workDetail, { onNavigate });
+
+      await act(() =>
+        screen
+          .getByTestId('work-location-native-map', {
+            includeHiddenElements: true,
+          })
+          .props.onMapError({ nativeEvent: { code: 401 } }),
+      );
+
+      expect(
+        within(locationCard()).getByText(workDetail.address),
+      ).toBeOnTheScreen();
+      expect(
+        within(locationCard()).getByTestId('work-location-map-placeholder', {
+          includeHiddenElements: true,
+        }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '길찾기' }));
+      expect(onNavigate).toHaveBeenCalledWith(place);
     });
 
     it('좌표가 없으면 지도 대신 회색 자리를 둔다', async () => {
