@@ -5,7 +5,13 @@ import {
   screen,
   userEvent,
 } from '@testing-library/react-native';
-import { AccessibilityInfo, Animated, StyleSheet, Text } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  NativeModules,
+  StyleSheet,
+  Text,
+} from 'react-native';
 import { holdNativeAnimations } from '../../../jest/nativeAnimation';
 import {
   autoHideHeader,
@@ -134,6 +140,20 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       expect(screen.getByTestId('list')).toHaveProp('scrollIndicatorInsets', {
         top: 46,
       });
+    });
+
+    // Animated.View 는 배열·객체 props 를 참조로 비교해 바뀌면 네이티브 애니메이션 연결을 새로 만든다.
+    // 화면이 다시 그려져 상단 바 요소가 새로 만들어져도 머리의 연결은 그대로 둔다
+    it('화면이 다시 그려져도 머리의 애니메이션 연결을 다시 만들지 않는다', async () => {
+      const view = await render(<Harness />);
+      const connect = jest
+        .spyOn(NativeModules.NativeAnimatedModule, 'connectAnimatedNodeToView')
+        .mockClear();
+
+      await view.rerender(<Harness onOpenNotifications={() => {}} />);
+      await view.rerender(<Harness sticky={<Text>하위 탭</Text>} />);
+
+      expect(connect).not.toHaveBeenCalled();
     });
 
     it('스크롤 위치는 네이티브 드라이버 이벤트로 받는다', async () => {

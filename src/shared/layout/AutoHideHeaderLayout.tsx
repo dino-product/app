@@ -47,14 +47,18 @@ export function AutoHideHeaderLayout({
         onLayout={onHeaderLayout}
         style={headerStyle}
       >
-        <View
-          testID="auto-hide-header-collapsible"
-          onLayout={onCollapsibleLayout}
-          style={styles.passThrough}
-        >
-          {header}
-        </View>
-        {sticky}
+        {/* 자식을 요소 하나(Fragment)로 넘긴다. Animated.View 는 배열 props(여러 자식)를 참조로 비교해,
+            화면이 다시 그려질 때마다 네이티브 애니메이션 연결을 새로 만든다 */}
+        <>
+          <View
+            testID="auto-hide-header-collapsible"
+            onLayout={onCollapsibleLayout}
+            style={styles.passThrough}
+          >
+            {header}
+          </View>
+          {sticky}
+        </>
       </Animated.View>
       {children}
     </View>
