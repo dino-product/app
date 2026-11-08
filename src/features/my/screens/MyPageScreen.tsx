@@ -18,6 +18,7 @@ import {
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
@@ -68,6 +69,8 @@ function MyPageScreenView({
   onOpenAccount,
   scrollRef,
 }: MyPageScreenProps) {
+  // 설정 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (가장자리 여유·화면 가장자리 띠는 바꾼다, #140)
+  const tabSwipe = useTabSwipeRegion();
   // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
   const autoHide = useAutoHideHeader();
   const contentStyle = useMemo(
@@ -180,7 +183,10 @@ function MyPageScreenView({
             <Text accessibilityRole="header" variant="Body/S/SemiBold">
               설정 및 정보
             </Text>
-            <View style={[styles.card, styles.settingsCard]}>
+            <View
+              style={[styles.card, styles.settingsCard]}
+              onTouchStart={tabSwipe.onTouchStart}
+            >
               <SettingRow
                 icon="settings-bell"
                 label="알림 설정"
@@ -237,6 +243,8 @@ function ProfileCard({
     profile.signedUpAt === null
       ? null
       : `가입일 ${formatJoinDate(profile.signedUpAt)}`;
+  // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (#140)
+  const tabSwipe = useTabSwipeRegion();
 
   return (
     <Pressable
@@ -246,6 +254,7 @@ function ProfileCard({
         .join(', ')}
       accessibilityHint="프로필을 수정합니다"
       onPress={onPress}
+      onTouchStart={tabSwipe.onTouchStart}
       style={profileCardStyle}
     >
       <View style={styles.avatar}>

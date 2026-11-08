@@ -4,8 +4,10 @@ import {
   StyleSheet,
   View,
   type AccessibilityActionEvent,
+  type GestureResponderEvent,
 } from 'react-native';
 import { colors, Text } from '../../../shared/design-system';
+import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import { GestureExclusionArea } from '../../../shared/native/GestureExclusionArea';
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, dayColor, weekA11yLabel } from './calendarDay';
@@ -51,7 +53,17 @@ export function WeekStrip({
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
 }) {
-  const swipe = useHorizontalSwipe({ onPrev, onNext });
+  // 화면 가장자리 띠·줄 가장자리 여유에서 시작한 밀기는 탭 전환 몫이라 주를 넘기지 않는다 (#140)
+  const tabSwipe = useTabSwipeRegion();
+  const swipe = useHorizontalSwipe({
+    onPrev,
+    onNext,
+    ownsGesture: tabSwipe.ownsGesture,
+  });
+  const onTouchStart = (event: GestureResponderEvent) => {
+    touchHandlers?.onTouchStart(event);
+    tabSwipe.onTouchStart(event);
+  };
   // 밀기처럼 보이는 주만 넘기고 고른 날은 그대로 둔다. 포커스한 칸은 그대로 남고 레이블만 바뀌어
   // VoiceOver 가 저절로 읽지 않으므로 넘긴 주를 읽어 준다 (말하던 것이 끝난 뒤에)
   const moveWeek = ({ nativeEvent }: AccessibilityActionEvent) => {
@@ -114,7 +126,12 @@ export function WeekStrip({
   };
 
   return (
-    <View testID="week-strip" {...touchHandlers} {...swipe.panHandlers}>
+    <View
+      testID="week-strip"
+      {...touchHandlers}
+      onTouchStart={onTouchStart}
+      {...swipe.panHandlers}
+    >
       <GestureExclusionArea edgeInset={edgeInset} />
       <SwipeTrack
         swipe={swipe}

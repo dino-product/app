@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
-import { useReduceMotion } from './useReduceMotion';
+import { useReduceMotion, useReduceMotionEnabled } from './useReduceMotion';
 
 // jest 프리셋의 AccessibilityInfo 는 공유 목이라 spyOn 이 같은 목을 돌려준다. 앞 테스트의 기록을 지운다
 const listenReduceMotion = () => {
@@ -81,5 +81,47 @@ describe('useReduceMotion', () => {
     await act(async () => {});
 
     expect(result.current.current).toBe(false);
+  });
+});
+
+// 설정에 따라 그리는 것이 달라지는 곳(탭 전환 설정 #140)은 값이 바뀔 때 다시 그려야 한다
+describe('useReduceMotionEnabled', () => {
+  it('처음에는 꺼진 것으로 그리고, 설정을 읽어 켜져 있으면 다시 그린다', async () => {
+    let resolveRead: (enabled: boolean) => void = () => {};
+    settingIs(new Promise(resolve => (resolveRead = resolve)));
+    listenReduceMotion();
+    const { result } = await renderHook(() => useReduceMotionEnabled());
+
+    expect(result.current).toBe(false);
+    await act(async () => resolveRead(true));
+    expect(result.current).toBe(true);
+  });
+
+  it('화면을 연 채로 설정을 바꾸면 따르고, 닫으면 구독을 푼다', async () => {
+    const { change, remove } = listenReduceMotion();
+    const { result, unmount } = await renderHook(() =>
+      useReduceMotionEnabled(),
+    );
+    await act(async () => {});
+
+    await change(true);
+    expect(result.current).toBe(true);
+    await change(false);
+    expect(result.current).toBe(false);
+
+    await unmount();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('읽는 사이에 설정이 바뀌면 나중에 온 읽기 결과가 덮어쓰지 않는다', async () => {
+    let resolveRead: (enabled: boolean) => void = () => {};
+    settingIs(new Promise(resolve => (resolveRead = resolve)));
+    const { change } = listenReduceMotion();
+    const { result } = await renderHook(() => useReduceMotionEnabled());
+
+    await change(true);
+    await act(async () => resolveRead(false));
+
+    expect(result.current).toBe(true);
   });
 });

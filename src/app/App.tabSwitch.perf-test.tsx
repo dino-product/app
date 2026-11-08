@@ -1,5 +1,7 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ComponentType, ReactNode } from 'react';
+import { swipeFrom } from '../../jest/responder';
+import { SWITCH_DISTANCE } from '../shared/gesture/tabSwipe';
 import { fixAppTestClock, renderSignedInHome } from './testing';
 
 // 탭 전환 렌더 예산 (#114·#115 리뷰). 탭 첫 화면(내 작업·내 일정·작업 이력·마이페이지)은 포커스를 잃으면 조회 구독을 멈추고(useIsFocused)
@@ -90,6 +92,58 @@ describe('탭 전환 렌더 예산', () => {
       await settle();
     }
 
+    expect({
+      home: mockRenders.home - before.home,
+      schedule: mockRenders.schedule - before.schedule,
+      history: mockRenders.history - before.history,
+      my: mockRenders.my - before.my,
+    }).toEqual({ home: 0, schedule: 0, history: 0, my: 0 });
+  });
+});
+
+// 좌우로 밀어 탭을 옮겨도(#140) 탭 바를 누를 때와 같다. 밀기 판정은 화면을 다시 그리지 않고, 전환 애니메이션은 네이티브 드라이버로 돈다
+describe('탭 밀기 렌더 예산', () => {
+  it('밀어서 탭을 오가도 떠나는 탭과 데이터가 그대로인 채 돌아온 탭의 화면은 다시 그려지지 않는다', async () => {
+    const app = await renderSignedInHome();
+    const tab = (name: string) => screen.getByRole('tab', { name });
+    const settle = () =>
+      waitFor(() => expect(app.queryClient.isFetching()).toBe(0));
+    const swipe = (name: string, dx: number) =>
+      swipeFrom(
+        screen.getByTestId(`tab-swipe-${name}`, {
+          includeHiddenElements: true,
+        }),
+        { from: { x: 200, y: 400 }, dx },
+      );
+    const far = SWITCH_DISTANCE + 30;
+    // 네 탭을 한 번씩 열어 데이터를 받아 둔다
+    await userEvent.press(tab('내 일정'));
+    await screen.findAllByRole('button', { name: /^\d+월 \d+일 .요일$/ });
+    await userEvent.press(tab('작업 이력'));
+    await screen.findAllByRole('button', { name: /, 완료, / });
+    await userEvent.press(tab('마이'));
+    await screen.findByRole('button', { name: /^박기사/ });
+    await screen.findByLabelText('오르빗 설비, 기사, 활성');
+    await userEvent.press(tab('홈'));
+    await settle();
+    const before = { ...mockRenders };
+
+    // 홈 → 내 일정 → 작업 이력 → 마이 → 작업 이력 → 내 일정 → 홈
+    for (const [name, dx] of [
+      ['home', -far],
+      ['schedule', -far],
+      ['history', -far],
+      ['my', far],
+      ['history', far],
+      ['schedule', far],
+    ] as const) {
+      await swipe(name, dx);
+      await settle();
+    }
+
+    expect(
+      screen.getByRole('tab', { name: '홈', selected: true }),
+    ).toBeOnTheScreen();
     expect({
       home: mockRenders.home - before.home,
       schedule: mockRenders.schedule - before.schedule,
