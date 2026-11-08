@@ -14,10 +14,8 @@ export type ConfirmedSchedule = {
   address: string;
 };
 
-export type PendingRequest = ConfirmedSchedule & {
-  /** 카드에 보이는 날짜 (예: 9/20) */
-  dateLabel: string;
-};
+/** 응답 필요 요청. 카드에 보이는 날짜는 dateKey 로 만든다 (formatCardDay) */
+export type PendingRequest = ConfirmedSchedule;
 
 export const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -37,6 +35,17 @@ export function formatDateHeader(date: Date): string {
   return `${date.getFullYear()}년 ${
     date.getMonth() + 1
   }월 ${date.getDate()}일 (${WEEKDAYS[date.getDay()]})`;
+}
+
+/**
+ * 일정 카드 시간 줄의 날짜 (YYYY-MM-DD). 오늘이면 '오늘 · 9. 19. (토)', 아니면 '9. 20. (일)' 이다.
+ * Figma 내 일정 카드와 작업 홈 일정 카드가 같은 표기를 쓴다
+ */
+export function formatCardDay(dateKey: string, today: Date): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const label = `${month}. ${day}. (${WEEKDAYS[date.getDay()]})`;
+  return dateKey === toDateKey(today) ? `오늘 · ${label}` : label;
 }
 
 export function formatMonthTitle(year: number, month: number): string {

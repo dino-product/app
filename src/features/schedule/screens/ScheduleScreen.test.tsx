@@ -50,7 +50,6 @@ const pending: PendingRequest[] = [
     ...base,
     id: 'p1',
     dateKey: '2026-12-20',
-    dateLabel: '12/20',
     title: '에어컨 필터 교체',
     timeRange: '14:00 – 15:00',
   },
@@ -58,7 +57,6 @@ const pending: PendingRequest[] = [
     ...base,
     id: 'p2',
     dateKey: '2026-12-21',
-    dateLabel: '12/21',
     title: '수전 교체',
     timeRange: '10:00 – 11:00',
   },
@@ -493,6 +491,19 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(dateArea.children).toHaveLength(2);
   });
 
+  it('확정 일정 카드는 시간 뒤에 고른 날을 카드 표기로 보이고, 오늘이면 앞에 오늘을 붙인다', async () => {
+    await renderSchedule();
+
+    expect(
+      screen.getAllByText('08:00 - 09:00  오늘 · 12. 15. (화)'),
+    ).toHaveLength(2);
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '12월 16일 수요일' }),
+    );
+    expect(screen.getByText('08:00 - 09:00  12. 16. (수)')).toBeOnTheScreen();
+  });
+
   it('일정 카드는 좌우 24 안쪽에 놓이고 사이는 12 다', async () => {
     await renderSchedule();
 
@@ -882,7 +893,8 @@ describe('ScheduleScreen — 응답 필요', () => {
     await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
 
     expect(screen.getByText('에어컨 필터 교체')).toBeOnTheScreen();
-    expect(screen.getByText('12/20 · 14:00 – 15:00')).toBeOnTheScreen();
+    // 시간 뒤 날짜는 카드 표기(formatCardDay)다. 오늘이 아니라 '오늘' 이 붙지 않는다
+    expect(screen.getByText('14:00 – 15:00  12. 20. (일)')).toBeOnTheScreen();
 
     await userEvent.press(
       screen.getByRole('button', { name: '에어컨 필터 교체 수락' }),

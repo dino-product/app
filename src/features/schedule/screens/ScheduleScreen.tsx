@@ -38,6 +38,7 @@ import {
   addMonths,
   addWeeks,
   countByDate,
+  formatCardDay,
   isSameDay,
   formatDateHeader,
   startOfWeek,
@@ -189,9 +190,13 @@ function ScheduleScreenView({
 
   const renderConfirmed = useCallback(
     ({ item }: { item: ConfirmedSchedule }) => (
-      <ConfirmedRow item={item} style={styles.cardInset} />
+      <ConfirmedRow
+        item={item}
+        dayLabel={formatCardDay(item.dateKey, today)}
+        style={styles.cardInset}
+      />
     ),
-    [],
+    [today],
   );
   // 수락을 보내는 동안 그 요청의 버튼을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
   const [accepting, setAccepting] = useState<ReadonlySet<string>>(
@@ -221,13 +226,14 @@ function ScheduleScreenView({
     ({ item }: { item: PendingRequest }) => (
       <PendingRequestCard
         item={item}
+        dayLabel={formatCardDay(item.dateKey, today)}
         onAccept={accept}
         onReject={onReject}
         onOpen={onOpenRequest}
         disabled={accepting.has(item.id)}
       />
     ),
-    [accept, onReject, onOpenRequest, accepting],
+    [accept, onReject, onOpenRequest, accepting, today],
   );
 
   // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)

@@ -156,13 +156,7 @@ export function confirmedOf(
 
 /** 응답 필요: 수락을 기다리는 요청 */
 export function pendingOf(works: readonly ScheduledWork[]): PendingRequest[] {
-  return uniqueWith(works, ['PENDING_ACCEPT']).map(work => {
-    const start = new Date(work.startTime);
-    return {
-      ...toConfirmedSchedule(work),
-      dateLabel: `${start.getMonth() + 1}/${start.getDate()}`,
-    };
-  });
+  return uniqueWith(works, ['PENDING_ACCEPT']).map(toConfirmedSchedule);
 }
 
 export function toCompletedWork(work: HistoryWork): CompletedWork {

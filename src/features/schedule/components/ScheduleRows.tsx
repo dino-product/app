@@ -10,7 +10,6 @@ import {
 import {
   colors,
   CTA,
-  Icon,
   pressedBackground,
   StatusChip,
   Text,
@@ -18,69 +17,74 @@ import {
 } from '../../../shared/design-system';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 
-// 내 일정 목록의 행 (확정 일정) 과 카드 (응답 필요). Figma 2714:12918, 2367:12834
+// 내 일정 목록의 카드: 확정 일정 (Figma 3754:6312) 과 응답 필요 (3754:6846).
+// 둘 다 흰 카드에 제목·시간 줄과 상태 칩, 업체 | 고객 · 주소 줄이 같고, 응답 필요는 아래에 거절·수락 버튼이 붙는다
 
-/** 업체 | 고객 · 주소. 업체명은 확정 일정 행에서 Medium, 응답 필요 카드에서 SemiBold 다 (Figma) */
-function Meta({
+/** 제목·시간 줄(왼쪽)과 상태 칩(오른쪽 위), 그 아래 업체 | 고객 · 주소 */
+function CardSummary({
   item,
-  companyVariant = 'Caption/M/Medium',
+  dayLabel,
 }: {
   item: ConfirmedSchedule;
-  companyVariant?: 'Caption/M/Medium' | 'Caption/M/SemiBold';
+  dayLabel: string;
 }) {
   return (
-    <View style={styles.meta}>
-      <Text variant={companyVariant} color={colors.gray[800]}>
-        {item.company}
-      </Text>
-      <View style={styles.divider} />
-      <Text
-        variant="Caption/M/Medium"
-        color={colors.gray[600]}
-        numberOfLines={1}
-        style={styles.shrink}
-      >
-        {`${item.customerName} · ${item.address}`}
-      </Text>
-    </View>
+    <>
+      <View style={styles.titleRow}>
+        <View style={styles.summary}>
+          <Text variant="Body/S/SemiBold" numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text variant="Caption/M/Medium">
+            {item.timeRange}
+            {'  '}
+            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+              {dayLabel}
+            </Text>
+          </Text>
+        </View>
+        <StatusChip status={item.status} size="S" />
+      </View>
+      <View style={styles.meta}>
+        <Text variant="Caption/M/Medium" color={colors.gray[800]}>
+          {item.company}
+        </Text>
+        <View style={styles.divider} />
+        <Text
+          variant="Caption/M/Medium"
+          color={colors.gray[600]}
+          numberOfLines={1}
+          style={styles.shrink}
+        >
+          {`${item.customerName} · ${item.address}`}
+        </Text>
+      </View>
+    </>
   );
 }
 
 export const ConfirmedRow = memo(function ConfirmedRowView({
   item,
+  dayLabel,
   onPress,
   style,
 }: {
   item: ConfirmedSchedule;
+  /** 시간 뒤의 날짜 (formatCardDay) */
+  dayLabel: string;
   onPress?: (id: string) => void;
   /** 리스트가 주는 바깥 여백 */
   style?: StyleProp<ViewStyle>;
 }) {
   const label = `${item.title}, ${workStatusLabels[item.status]}, ${
     item.timeRange
-  }, ${item.company} ${item.customerName} · ${item.address}`;
-  const content = (
-    <>
-      <View style={styles.titleRow}>
-        <Text variant="Body/M/SemiBold" numberOfLines={1} style={styles.shrink}>
-          {item.title}
-        </Text>
-        <StatusChip status={item.status} size="S" style={styles.chip} />
-      </View>
-      <View style={styles.time}>
-        <Icon name="calendar" color={colors.gray[600]} />
-        <Text variant="Body/XS/Medium" color={colors.gray[600]}>
-          {item.timeRange}
-        </Text>
-      </View>
-      <Meta item={item} />
-    </>
-  );
+  } ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`;
+  const content = <CardSummary item={item} dayLabel={dayLabel} />;
 
   // 누를 동작이 없으면 버튼이 아니라 한 덩어리 정보로 읽히게 한다
   if (!onPress) {
     return (
-      <View accessible accessibilityLabel={label} style={[styles.row, style]}>
+      <View accessible accessibilityLabel={label} style={[styles.card, style]}>
         {content}
       </View>
     );
@@ -90,7 +94,7 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onPress(item.id)}
-      style={state => [confirmedRowStyle(state), style]}
+      style={state => [confirmedCardStyle(state), style]}
     >
       {content}
     </Pressable>
@@ -99,12 +103,15 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
 
 export const PendingRequestCard = memo(function PendingRequestCardView({
   item,
+  dayLabel,
   onAccept,
   onReject,
   onOpen,
   disabled = false,
 }: {
   item: PendingRequest;
+  /** 시간 뒤의 날짜 (formatCardDay) */
+  dayLabel: string;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onOpen: (id: string) => void;
@@ -112,29 +119,18 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   disabled?: boolean;
 }) {
   return (
-    <View style={[styles.row, styles.card]}>
+    <View style={styles.pendingCard}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${item.title} 상세, ${item.dateLabel} ${item.timeRange}, ${item.company} ${item.customerName} · ${item.address}`}
+        accessibilityLabel={`${item.title} 상세, ${item.timeRange} ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`}
         onPress={() => onOpen(item.id)}
-        style={cardBodyStyle}
+        style={pendingBodyStyle}
       >
-        <View style={styles.titleRow}>
-          <StatusChip status={item.status} size="S" style={styles.chip} />
-          <Text variant="Body/XS/SemiBold" color={colors.gray[700]}>
-            {`${item.dateLabel} · ${item.timeRange}`}
-          </Text>
-        </View>
-        <View style={styles.cardTitle}>
-          <Text variant="Body/M/SemiBold" color={colors.pt01} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Meta item={item} companyVariant="Caption/M/SemiBold" />
-        </View>
+        <CardSummary item={item} dayLabel={dayLabel} />
       </Pressable>
       <View style={styles.actions}>
         <CTA
-          size="M"
+          type="modal"
           variant="outline"
           label="거절"
           onPress={() => onReject(item.id)}
@@ -143,7 +139,7 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
           accessibilityLabel={`${item.title} 거절`}
         />
         <CTA
-          size="M"
+          type="modal"
           label="수락"
           onPress={() => onAccept(item.id)}
           disabled={disabled}
@@ -155,51 +151,53 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   );
 });
 
-// 누르는 동안 회색 배경 (#102). 응답 필요 카드는 상세를 여는 본문만 칠하고 거절·수락 줄은 그대로다
-const confirmedRowStyle = ({ pressed }: PressableStateCallbackType) => [
-  styles.row,
+// 누르는 동안 둥근 모서리 안을 회색으로 칠한다 (#102). 응답 필요 카드는 상세를 여는 본문만 칠하고 버튼 줄은 그대로다
+const confirmedCardStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.card,
   pressed && styles.pressed,
 ];
-const cardBodyStyle = ({ pressed }: PressableStateCallbackType) => [
-  styles.cardBody,
+const pendingBodyStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.pendingBody,
   pressed && styles.pressed,
 ];
 
+// Figma 카드 아래 테두리 Gray50 1 (위·옆은 없다)
+const cardSurface = {
+  borderRadius: 16,
+  borderBottomWidth: 1,
+  borderBottomColor: colors.gray[50],
+  backgroundColor: colors.white[100],
+} as const;
+const CARD_PADDING = 20;
+
 const styles = StyleSheet.create({
-  row: {
-    gap: 10,
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
-    backgroundColor: colors.white[100],
-  },
+  card: { ...cardSurface, gap: 6, padding: CARD_PADDING },
   pressed: { backgroundColor: pressedBackground.onWhite },
-  // 칩 줄 → 14 → 제목·업체 줄 → 16 → 버튼 줄. 눌림 배경이 카드 위·옆 끝까지 칠해지도록
-  // 카드 여백(24)과 버튼 줄 위 간격(16)을 본문·버튼 줄 안으로 옮겼다
-  card: { gap: 0, padding: 0 },
-  cardBody: {
-    gap: 14,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+  // 눌림 배경이 카드 위·옆 끝까지 칠해지도록 카드 여백을 본문·버튼 줄이 나눠 갖고, 둥근 모서리 밖은 자른다.
+  // 윗부분 → 12 → 버튼 줄
+  pendingCard: { ...cardSurface, overflow: 'hidden' },
+  pendingBody: {
+    gap: 6,
+    paddingTop: CARD_PADDING,
+    paddingHorizontal: CARD_PADDING,
+    paddingBottom: 12,
   },
-  cardTitle: { gap: 8 },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
   },
-  chip: { alignSelf: 'center' },
+  summary: { flexShrink: 1, gap: 6 },
   shrink: { flexShrink: 1 },
-  time: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },
   actions: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: CARD_PADDING,
+    paddingBottom: CARD_PADDING,
   },
-  action: { flex: 1 },
+  // Figma 이 카드의 Modal CTA 인스턴스는 모서리 10 이다 (DesignSystem 기본 8)
+  action: { flex: 1, borderRadius: 10 },
 });
