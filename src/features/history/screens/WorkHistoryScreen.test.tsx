@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react-native';
 import { useState } from 'react';
-import { AccessibilityInfo, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import {
   colors,
   pressedBackground,
@@ -155,10 +155,15 @@ describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
     expect(autoHideHeaderOffset()).toBe(0);
   });
 
-  it('당겨서 새로고침 표시는 상단 바 아래에서 나온다 (Android)', async () => {
-    await renderHistory({ onRefresh: jest.fn() });
-
+  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderHistory({ onRefresh: jest.fn() });
     expect(list()).toHaveProp('progressViewOffset', TAB_HEADER_HEIGHT);
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderHistory({ onRefresh: jest.fn() });
+    expect(list().props.progressViewOffset).toBeUndefined();
   });
 });
 

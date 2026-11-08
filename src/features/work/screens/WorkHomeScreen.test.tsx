@@ -6,7 +6,7 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { appStorage } from '../../../shared/storage/appStorage';
@@ -731,13 +731,50 @@ describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
     expect(title).toBeOnTheScreen();
   });
 
-  it('당겨서 새로고침 표시는 상단 바 아래에서 나온다 (Android)', async () => {
-    await renderHome({ onRefresh: jest.fn() });
-
+  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderHome({ onRefresh: jest.fn() });
     expect(screen.getByTestId('work-home-list')).toHaveProp(
       'progressViewOffset',
       TAB_HEADER_HEIGHT,
     );
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderHome({ onRefresh: jest.fn() });
+    expect(
+      screen.getByTestId('work-home-list').props.progressViewOffset,
+    ).toBeUndefined();
+  });
+
+  // 숨은 채 리스트가 로딩·오류 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그 자리가 그려지면 다시 보인다
+  it('상단 바가 숨은 채 불러오기 화면으로 바뀌면 다시 보인다', async () => {
+    const view = await renderHome();
+    await scrollDownFromTop(screen.getByTestId('work-home-list'));
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
+
+    await view.rerender(
+      <WorkHomeScreen
+        currentWork={null}
+        schedule={[]}
+        today={homeToday}
+        weekLabel="9. 14. – 9. 20."
+        started={false}
+        onStartWork={jest.fn()}
+        onOpenWork={jest.fn()}
+        onOpenNotifications={jest.fn()}
+        load={{ status: 'loading' }}
+      />,
+    );
+    await fireEvent(
+      screen.getByLabelText('불러오는 중').parent?.parent as HostElement,
+      'layout',
+      { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } },
+    );
+    await finishAnimations();
+
+    expect(autoHideHeaderOffset()).toBe(0);
   });
 });
 

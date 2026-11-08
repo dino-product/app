@@ -8,6 +8,7 @@ import {
 import {
   Animated,
   Easing,
+  Platform,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -28,6 +29,7 @@ import { TAB_HEADER_HEIGHT } from './TabHeader';
 //
 // - 스크롤 위치는 네이티브 드라이버 이벤트로 받아 맨 위에서 당길 때(iOS 바운스·당겨서 새로고침) 상단 바가 내용과 함께
 //   내려온다. 새로고침 표시가 상단 바에 가리지 않는다. Android 는 위치가 음수가 되지 않아 progressViewOffset 으로 내린다.
+//   iOS 에는 progressViewOffset 을 주지 않는다: 주면 표시를 그만큼 아래(상단 바 자리)로 그려 상단 바 뒤에 가려진다.
 // - 숨길지는 같은 이벤트를 JS 로 받아 순수 함수(nextAutoHideState)로 정하고, 바뀔 때만 UI 스레드 애니메이션을 시작한다.
 //   스크롤 중에 상태(setState)를 바꾸지 않아 다시 그리지 않는다.
 // - 동작 줄이기면 애니메이션 없이 바로 옮긴다. 스크린리더를 쓰는 동안은 숨기지 않는다: 화면 밖으로 옮긴 버튼은
@@ -56,8 +58,10 @@ const TAB_HEADER_ONLY: AutoHideHeaderEstimate = {
 export type AutoHideHeader = {
   /** 머리를 옮기는 거리 (네이티브 값) */
   translateY: Animated.AnimatedNode;
-  /** 머리 전체 높이. 스크롤 내용 위 여백에 더하고, 당겨서 새로고침이 있으면 progressViewOffset 으로도 준다 (Android) */
+  /** 머리 전체 높이. 스크롤 내용 위 여백에 더한다 */
   height: number;
+  /** 당겨서 새로고침이 있는 리스트의 progressViewOffset. Android 는 머리 높이, iOS 는 없음(상단 바가 함께 내려온다) */
+  progressViewOffset: number | undefined;
   /** 머리 전체의 onLayout */
   onHeaderLayout: (event: LayoutChangeEvent) => void;
   /** 숨는 부분(상단 바)의 onLayout */
@@ -67,7 +71,9 @@ export type AutoHideHeader = {
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     scrollEventThrottle: number;
     /** 스크롤 뷰가 새로 자리 잡으면(하위 탭을 바꿔 다른 리스트가 그려짐, 화면 크기 바뀜) 맨 위이므로 다시 보인다 */
-    onLayout: () => void;
+    onLayout: (event: LayoutChangeEvent) => void;
+    /** 내용이 짧아져 상단 바 높이만큼도 스크롤할 수 없게 되면 다시 보인다 (스크롤 이벤트가 오지 않을 수 있다) */
+    onContentSizeChange: (width: number, height: number) => void;
     scrollIndicatorInsets: { top: number };
   };
 };
@@ -94,12 +100,14 @@ export function useAutoHideHeader(
     () => ({
       translateY: model.translateY,
       height,
+      progressViewOffset: Platform.OS === 'android' ? height : undefined,
       onHeaderLayout,
       onCollapsibleLayout: model.onCollapsibleLayout,
       scrollProps: {
         onScroll: model.onScroll,
         scrollEventThrottle: 16,
-        onLayout: model.show,
+        onLayout: model.onScrollLayout,
+        onContentSizeChange: model.onContentSizeChange,
         scrollIndicatorInsets: { top: height },
       },
     }),
@@ -132,6 +140,8 @@ function createAutoHide(
 
   let state: AutoHideState = AUTO_HIDE_INITIAL;
   let topZone = initialDistance;
+  /** 스크롤 뷰 높이 */
+  let viewport = 0;
   let screenReader = false;
 
   const update = (next: AutoHideState) => {
@@ -178,6 +188,15 @@ function createAutoHide(
       { useNativeDriver: true, listener: onScrollEvent },
     ),
     show,
+    onScrollLayout: (event: LayoutChangeEvent) => {
+      viewport = event.nativeEvent.layout.height;
+      show();
+    },
+    onContentSizeChange: (_width: number, height: number) => {
+      if (height - viewport < topZone) {
+        show();
+      }
+    },
     onCollapsibleLayout: (event: LayoutChangeEvent) => {
       topZone = event.nativeEvent.layout.height;
       distance.setValue(topZone);

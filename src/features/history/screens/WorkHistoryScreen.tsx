@@ -173,7 +173,7 @@ function WorkHistoryScreenView({
           }
           refreshing={refreshing}
           onRefresh={onRefresh}
-          progressViewOffset={autoHide.height}
+          progressViewOffset={autoHide.progressViewOffset}
           style={styles.list}
           contentContainerStyle={contentStyle}
         />

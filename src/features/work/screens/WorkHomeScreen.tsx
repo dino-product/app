@@ -212,7 +212,11 @@ function WorkHomeScreenView({
         style={styles.headerBar}
       >
         {load.status !== 'ready' ? (
-          <View style={{ paddingTop: autoHide.height }}>
+          // 상단 바가 숨은 채 이 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그려지면 다시 보인다
+          <View
+            onLayout={autoHide.scrollProps.onLayout}
+            style={{ paddingTop: autoHide.height }}
+          >
             <LoadStateView state={load} />
           </View>
         ) : (
@@ -228,7 +232,7 @@ function WorkHomeScreenView({
             ItemSeparatorComponent={Separator}
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressViewOffset={autoHide.height}
+            progressViewOffset={autoHide.progressViewOffset}
             contentContainerStyle={contentStyle}
           />
         )}

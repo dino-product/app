@@ -802,10 +802,20 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
     expect(
       StyleSheet.flatten(confirmedList().props.contentContainerStyle),
     ).toMatchObject({ paddingTop: TITLE_BAR + UNDERLINE_TABS_HEIGHT });
+  });
+
+  it('당겨서 새로고침 표시는 Android 에서 머리 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderSchedule();
     expect(confirmedList()).toHaveProp(
       'progressViewOffset',
       TITLE_BAR + UNDERLINE_TABS_HEIGHT,
     );
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderSchedule();
+    expect(confirmedList().props.progressViewOffset).toBeUndefined();
   });
 
   it('아래로 스크롤하면 제목 줄만 숨고 하위 탭은 남으며, 위로 스크롤을 시작하면 다시 보인다', async () => {

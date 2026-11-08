@@ -354,7 +354,7 @@ function ScheduleScreenView({
             }
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressViewOffset={autoHide.height}
+            progressViewOffset={autoHide.progressViewOffset}
             style={styles.list}
             contentContainerStyle={contentStyle}
           />
@@ -375,7 +375,7 @@ function ScheduleScreenView({
             }
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressViewOffset={autoHide.height}
+            progressViewOffset={autoHide.progressViewOffset}
             style={styles.list}
             contentContainerStyle={contentStyle}
           />

@@ -5,7 +5,11 @@ import type { HostElement } from './touchTarget';
 // 탭 첫 화면 상단 바 자동 숨김(#148)을 화면 테스트에서 확인하는 헬퍼.
 // 숨김·다시 보임 애니메이션은 jest/nativeAnimation 의 holdNativeAnimations 로 붙잡았다가 끝낸다
 
-/** 스크롤 뷰(높이 600, 내용 높이 2000)가 y 까지 스크롤된 이벤트를 보낸다 */
+/**
+ * 스크롤 뷰(높이 600, 내용 높이 2000)가 y 까지 스크롤된 이벤트를 보낸다.
+ * userEvent.scrollTo 는 끌기 시작·끝·관성 이벤트도 보내 FlatList 가 셀 배치를 다시 그린다. 상단 바가 스크롤 중에
+ * 화면을 다시 그리지 않는지 재는 perf 테스트에 그 렌더가 섞이지 않게 스크롤 이벤트만 보낸다
+ */
 export const scrollListTo = (list: HostElement, y: number) =>
   fireEvent.scroll(list, {
     nativeEvent: {

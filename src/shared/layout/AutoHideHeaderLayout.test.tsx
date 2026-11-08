@@ -9,6 +9,7 @@ import {
   AccessibilityInfo,
   Animated,
   NativeModules,
+  Platform,
   StyleSheet,
   Text,
 } from 'react-native';
@@ -55,6 +56,7 @@ function Harness({
         data={items}
         keyExtractor={item => item}
         renderItem={({ item }) => <Text>{item}</Text>}
+        progressViewOffset={autoHide.progressViewOffset}
         contentContainerStyle={{ paddingTop: autoHide.height }}
       />
     </AutoHideHeaderLayout>
@@ -132,6 +134,22 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
           screen.getByTestId('list').props.contentContainerStyle,
         ).paddingTop,
       ).toBe(46);
+    });
+
+    // iOS 는 상단 바가 당긴 만큼 함께 내려와 새로고침 표시가 그 위 틈에 보인다. progressViewOffset 을 주면 iOS 도
+    // 표시를 그만큼 아래로 그려 상단 바 뒤에 가려진다. Android 는 위치가 음수가 되지 않아 표시를 상단 바 아래로 내린다
+    it('Android 에서만 당겨서 새로고침 표시를 상단 바 아래로 내린다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      await render(<Harness />);
+      expect(screen.getByTestId('list')).toHaveProp('progressViewOffset', 46);
+    });
+
+    it('iOS 에서는 당겨서 새로고침 표시를 옮기지 않는다', async () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      await render(<Harness />);
+      expect(
+        screen.getByTestId('list').props.progressViewOffset,
+      ).toBeUndefined();
     });
 
     it('스크롤 표시줄은 상단 바 아래에서 시작한다 (iOS)', async () => {
@@ -279,6 +297,24 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       await fireEvent(screen.getByTestId('list'), 'layout', layout(600));
       await finishAnimations();
 
+      expect(autoHideHeaderOffset()).toBe(0);
+    });
+
+    // 숨은 동안 내용이 줄어 상단 바 높이만큼도 스크롤할 수 없으면 스크롤 이벤트가 오지 않을 수 있다
+    it('숨은 동안 내용이 짧아져 상단 바 높이만큼도 스크롤할 수 없으면 다시 보인다', async () => {
+      await render(<Harness />);
+      await fireEvent(list(), 'layout', layout(600));
+      await scrollDown();
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(-46);
+
+      // 아직 상단 바 높이보다 길게 스크롤할 수 있으면 그대로다
+      await fireEvent(list(), 'contentSizeChange', 390, 1500);
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(-46);
+
+      await fireEvent(list(), 'contentSizeChange', 390, 620);
+      await finishAnimations();
       expect(autoHideHeaderOffset()).toBe(0);
     });
 
