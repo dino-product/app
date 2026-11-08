@@ -185,12 +185,15 @@ describe('useTouchScrollLock — 처음 움직인 방향으로 막기 (펼친 �
       );
     const end = (changed = [0], touches: number[] = []) =>
       act(() => area.onTouchEnd(touchesEvent({ changed, touches })));
+    const cancel = (changed = [0], touches: number[] = []) =>
+      act(() => area.onTouchCancel(touchesEvent({ changed, touches })));
     return {
       locked: () => hook.result.current.locked,
       renderCount: () => renders,
       start,
       move,
       end,
+      cancel,
     };
   };
 
@@ -302,6 +305,70 @@ describe('useTouchScrollLock — 처음 움직인 방향으로 막기 (펼친 �
       await move(-40, 0, [0, 1]);
 
       expect(locked()).toBe(expected);
+    },
+  );
+
+  // 밀기(useHorizontalSwipe)도 화면에 손가락이 하나일 때만 방향을 보므로 같은 손길은 같게 다룬다
+  it.each([
+    ['ios', false],
+    ['android', true],
+  ] as const)(
+    '%s: 화면 다른 곳에 손가락이 닿은 채로 시작한 손길은 방향을 보지 않는다',
+    async (os, expected) => {
+      const { locked, start, move } = await setupAxis(os);
+
+      await start([1], [0, 1]);
+      await move(-40, 0, [1]);
+      await move(0, 40, [1]);
+
+      expect(locked()).toBe(expected);
+    },
+  );
+
+  it('iOS: 정하기 전에 화면 다른 곳에 손가락이 닿으면 그 손길은 방향을 보지 않는다', async () => {
+    const { locked, start, move } = await setupAxis('ios');
+
+    await start();
+    await move(-40, 0, [0, 1]);
+    await move(-60, 0);
+
+    expect(locked()).toBe(false);
+  });
+
+  it('지켜보던 손가락이 움직임에 없으면 아직 정하지 않는다', async () => {
+    const { locked, start, move } = await setupAxis('ios');
+
+    await start([0]);
+    await move(-40, 0, [1]);
+    expect(locked()).toBe(false);
+
+    await move(-40, 0, [0]);
+    expect(locked()).toBe(true);
+  });
+
+  it('iOS: 가로로 정해 막은 뒤 터치가 취소되면 푼다', async () => {
+    const { locked, start, move, cancel } = await setupAxis('ios');
+
+    await start();
+    await move(-11, 0);
+    expect(locked()).toBe(true);
+    await cancel();
+
+    expect(locked()).toBe(false);
+  });
+
+  // 만지던 칸이 사라져 뗀 이벤트를 놓쳐도, 다음 손길은 리스트의 capture 에서 지난 손길을 지우고 처음부터 정한다
+  it.each(['ios', 'android'] as const)(
+    '%s: 뗀 이벤트를 놓친 뒤 새 손길은 처음부터 다시 정한다',
+    async os => {
+      const { locked, start, move } = await setupAxis(os);
+
+      await start();
+      await move(0, 11);
+      await start();
+      await move(-11, 0);
+
+      expect(locked()).toBe(true);
     },
   );
 

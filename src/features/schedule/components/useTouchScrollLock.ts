@@ -86,11 +86,11 @@ export function useTouchScrollLock(): {
         onTouchStart: (event: GestureResponderEvent) => {
           const first = touching.size === 0;
           hold(event);
-          const { changedTouches } = event.nativeEvent;
+          const { changedTouches, touches } = event.nativeEvent;
           const [touch] = changedTouches;
-          // 한 손가락으로 시작한 손길만 방향을 본다. 두 손가락은 밀기가 응답자가 되지 않는다
+          // 화면에 손가락 하나로 시작한 손길만 방향을 본다. 여러 손가락이면 밀기도 응답자가 되지 않는다
           watching =
-            first && changedTouches.length === 1
+            first && touches.length === 1
               ? { id: touch.identifier, x: touch.pageX, y: touch.pageY }
               : null;
           if (first && Platform.OS === 'android') {
@@ -99,6 +99,11 @@ export function useTouchScrollLock(): {
         },
         onTouchMove: ({ nativeEvent }: GestureResponderEvent) => {
           if (!watching) {
+            return;
+          }
+          // 정하기 전에 화면 다른 곳에 손가락이 닿으면 그 손길은 방향을 보지 않는다 (밀기와 같다)
+          if (nativeEvent.touches.length !== 1) {
+            watching = null;
             return;
           }
           const { id, x, y } = watching;

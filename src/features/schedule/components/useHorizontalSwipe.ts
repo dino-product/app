@@ -10,7 +10,8 @@ import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import { decidePanAxis, type PanAxis } from '../../../shared/gesture/panAxis';
 
 // 달력을 좌우로 밀어 넘긴다. 새 의존성 없이 PanResponder 로 받고, 끄는 동안 트랙이 손가락을 따라 움직인다.
-// 손길마다 처음 움직인 방향을 decidePanAxis 로 한 번 정하고(10pt·45도), 한 손가락이 가로로 정해졌을 때만 응답자가 된다.
+// 손길마다 처음 움직인 방향을 decidePanAxis 로 한 번 정하고(10pt·45도), 가로로 정해졌을 때만 응답자가 된다.
+// 방향은 화면에 손가락 하나로 시작해 정할 때까지 한 손가락인 손길에서만 본다 (useTouchScrollLock 과 같은 규칙).
 // 그래서 날짜 탭은 안쪽 Pressable 이 받고, 세로로 정해진 손길은 끝까지 리스트 스크롤 몫이다 (#144).
 // 리스트 머리에 둔 달력은 같은 규칙으로 리스트 스크롤을 막는다(useTouchScrollLock).
 // 밀던 중에는 리스트가 응답자를 달라고 해도(iOS) 넘겨 주지 않고, 응답자가 되면 네이티브 부모의 가로채기도 막는다
@@ -80,8 +81,8 @@ export function useHorizontalSwipe(callbacks: {
     let width = 0;
     let sliding: Slide | null = null;
     let dragFrom = 0;
-    // 이번 손길의 방향. 처음 정한 뒤로는 바꾸지 않는다
-    let axis: PanAxis | null = null;
+    // 이번 손길의 방향. 처음 정한 뒤로는 바꾸지 않는다. 'none' 은 여러 손가락이라 방향을 보지 않는 손길이다
+    let axis: PanAxis | 'none' | null = null;
 
     const restAt = (target: number) => -target * width;
     // 앞뒤 한 페이지까지만 그려 두므로 그 너머로는 끌지 않는다 (큰 화면에서는 창보다 길게 끌 수 있다)
@@ -160,16 +161,18 @@ export function useHorizontalSwipe(callbacks: {
     };
 
     const responder = PanResponder.create({
-      // 응답자가 되지는 않고 손길이 새로 시작될 때 방향을 비운다. PanResponder 도 이때 dx·dy 를 0 으로 되돌린다
+      // 응답자가 되지는 않고 손가락이 닿을 때마다 이번 손길을 정한다. 화면에 손가락이 하나면 새 손길이라 방향을 비운다
+      // (PanResponder 도 이때 dx·dy 를 0 으로 되돌린다). 다른 손가락이 함께 닿아 있으면 그 손길은 방향을 보지 않는다
       onStartShouldSetPanResponderCapture: ({ nativeEvent }) => {
-        if (nativeEvent.touches.length === 1) {
-          axis = null;
-        }
+        axis = nativeEvent.touches.length === 1 ? null : 'none';
         return false;
       },
+      // 정하기 전에 손가락이 늘면 그 손길은 방향을 보지 않는다
       onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
-        axis ??= decidePanAxis(dx, dy);
-        return numberActiveTouches === 1 && axis === 'horizontal';
+        if (axis === null) {
+          axis = numberActiveTouches === 1 ? decidePanAxis(dx, dy) : 'none';
+        }
+        return axis === 'horizontal';
       },
       onPanResponderGrant: () => {
         const wasSliding = sliding !== null;

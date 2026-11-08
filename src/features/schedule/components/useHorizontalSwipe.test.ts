@@ -145,6 +145,41 @@ describe('useHorizontalSwipe 넘김 판정', () => {
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
+  // 방향은 화면에 손가락 하나로 시작해 방향을 정할 때까지 한 손가락인 손길에서만 본다 (useTouchScrollLock 과 같은 규칙)
+  it('화면 다른 곳에 손가락이 닿은 채로 시작한 손길은 지난 손길의 방향을 이어 쓰지 않고 넘기지 않는다', async () => {
+    const { result, finish, onNext, onPrev } = await setup();
+
+    await drag(result.current.panHandlers, { dx: -80 });
+    await finish();
+    const vertical = await drag(result.current.panHandlers, {
+      dy: 80,
+      otherFingersAtStart: 1,
+    });
+    const horizontal = await drag(result.current.panHandlers, {
+      dx: 80,
+      otherFingersAtStart: 1,
+    });
+    await finish();
+
+    expect(vertical.granted).toBe(false);
+    expect(horizontal.granted).toBe(false);
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(onPrev).not.toHaveBeenCalled();
+  });
+
+  it('두 손가락으로 가로로 밀다 한 손가락을 떼도 넘기지 않는다', async () => {
+    const { result, finish, onNext } = await setup();
+
+    const { granted } = await drag(result.current.panHandlers, {
+      dx: -80,
+      fingers: step => (step < 4 ? 2 : 1),
+    });
+    await finish();
+
+    expect(granted).toBe(false);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
   it('조금만 천천히 밀었다 놓으면 넘기지 않고 제자리로 돌아간다', async () => {
     const { result, finish, lastSlide, onPrev, onNext } = await setup();
 
