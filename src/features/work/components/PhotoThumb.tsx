@@ -6,7 +6,7 @@ import { colors } from '../../../shared/design-system';
 // 열리지 않는 사진: 이어 쓰기(#34)로 복원했는데 촬영·앨범의 임시 파일을 OS 가 지운 경우 등
 const PLACEHOLDER_SCHEMES = ['mock://', 'fake-photo://'];
 
-// site 는 응답 필요 작업 상세의 현장 사진 칸이다 (Figma 2714-12573: 110×110, 모서리 10)
+// site 는 작업 상세의 현장 사진(작업 요청 사진) 칸이다 (Figma 2714-12573: 110×110, 모서리 10). default 는 완료 보고 사진 칸
 export function PhotoThumb({
   uri,
   variant = 'default',
