@@ -94,19 +94,18 @@ export type SubmitResult =
   | { kind: 'submitted'; at: string }
   | { kind: 'canceled'; reason: string; at: string };
 
-/** 작업 전·후 사진과 결제 금액·방식은 필수, 수행 메모·사용 부품은 선택 */
+/**
+ * 결제 금액(0 보다 큼)과 결제 방식만 필수다. 작업 전·후 사진, 수행 메모·사용 부품은 비워도 낼 수 있다.
+ * 백엔드 완료 보고 요청은 배정 순번 말고는 모두 비워 보낼 수 있고 Figma 는 메모·부품에만 '(선택)' 을 달아,
+ * 사진·금액은 사용자가 정했다 (#150)
+ */
 export function canSubmitReport(report: WorkReport): boolean {
-  return (
-    report.beforePhotos.length > 0 &&
-    report.afterPhotos.length > 0 &&
-    Number(report.amount) > 0 &&
-    report.paymentMethod !== null
-  );
+  return Number(report.amount) > 0 && report.paymentMethod !== null;
 }
 
 /**
  * 하나라도 입력했는지 (화면을 닫으면 사라질 입력). 공백만 쓴 메모·부품은 빈 것으로 본다.
- * base 는 아무것도 쓰지 않은 보고다: 계획값으로 미리 채운 금액·결제 방식은 그대로면 입력이 아니다
+ * base 는 아무것도 쓰지 않은 보고다: 계획값으로 미리 채운 금액은 그대로면 입력이 아니다
  */
 export function hasReportInput(
   report: WorkReport,
@@ -122,14 +121,14 @@ export function hasReportInput(
   );
 }
 
-/** 아무것도 쓰지 않은 완료 보고: 결제 금액·방식을 작업의 계획값으로 미리 채운다 (계획값이 없으면 빈 칸) */
-export function reportFromPlan(
-  work: Pick<WorkDetail, 'price' | 'paymentMethod'>,
-): WorkReport {
+/**
+ * 아무것도 쓰지 않은 완료 보고: 결제 금액을 작업의 계획값으로 미리 채운다 (계획값이 없으면 빈 칸).
+ * 결제 방식은 계획값이 있어도 고르지 않은 채로 둔다. 기사가 직접 고르는 것이 제출을 여는 계기다 (#150)
+ */
+export function reportFromPlan(work: Pick<WorkDetail, 'price'>): WorkReport {
   return {
     ...emptyReport,
     amount: work.price === null ? '' : String(work.price),
-    paymentMethod: work.paymentMethod,
   };
 }
 

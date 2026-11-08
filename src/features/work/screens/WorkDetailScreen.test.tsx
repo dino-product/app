@@ -39,13 +39,8 @@ const renderDetail = (
     />,
   );
 
+// #150 필수는 결제 금액(0 보다 큼)과 결제 방식뿐이다 (canSubmitReport)
 async function fillRequired() {
-  await userEvent.press(
-    screen.getByRole('button', { name: '작업 전 사진 추가' }),
-  );
-  await userEvent.press(
-    screen.getByRole('button', { name: '작업 후 사진 추가' }),
-  );
   await userEvent.type(screen.getByLabelText('결제 금액 입력'), '75000');
   await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
   await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
@@ -161,6 +156,33 @@ describe('WorkDetailScreen', () => {
     ).toBeDisabled();
   });
 
+  // Figma 작업수행-상세/보고제출 활성 (3235:16226) 입력 전의 CTA (3235:16456): Disabled 변수 채움에 흰 글자
+  it('비활성 제출 버튼은 Figma 처럼 Disabled 채움에 흰 글자다', async () => {
+    await renderDetail();
+
+    const submit = screen.getByRole('button', { name: '완료보고 제출' });
+    expect(submit).toHaveStyle({ backgroundColor: colors.disabled });
+    expect(within(submit).getByText('완료보고 제출')).toHaveStyle({
+      color: colors.white[100],
+    });
+  });
+
+  it('(선택) 항목인 수행 메모·사용 부품은 채우든 비우든 제출 활성 여부를 바꾸지 않는다', async () => {
+    await renderDetail();
+    const submit = () => screen.getByRole('button', { name: '완료보고 제출' });
+
+    await userEvent.type(screen.getByLabelText('수행 메모 입력'), '배관 교체');
+    await userEvent.type(screen.getByLabelText('사용 부품 입력'), '밸브');
+    expect(submit()).toBeDisabled();
+
+    await fillRequired();
+    expect(submit()).toBeEnabled();
+
+    await userEvent.clear(screen.getByLabelText('수행 메모 입력'));
+    await userEvent.clear(screen.getByLabelText('사용 부품 입력'));
+    expect(submit()).toBeEnabled();
+  });
+
   it('필수 항목을 채우면 제출할 수 있고, 제출 결과 모달을 띄운다', async () => {
     const onSubmitReport = jest.fn(() => ({
       kind: 'submitted' as const,
@@ -174,14 +196,11 @@ describe('WorkDetailScreen', () => {
     expect(submit).toBeEnabled();
     await userEvent.press(submit);
 
-    expect(onSubmitReport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        beforePhotos: ['mock://photo'],
-        afterPhotos: ['mock://photo'],
-        amount: '75000',
-        paymentMethod: 'card',
-      }),
-    );
+    expect(onSubmitReport).toHaveBeenCalledWith({
+      ...workDetailReport,
+      amount: '75000',
+      paymentMethod: 'card',
+    });
     expect(
       await screen.findByRole('header', { name: '제출 완료' }),
     ).toBeOnTheScreen();
@@ -210,15 +229,33 @@ describe('WorkDetailScreen', () => {
     expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue('75');
   });
 
-  it('사진을 지우면 다시 제출할 수 없다', async () => {
+  // #150 사진은 필수가 아니다 (백엔드도 비워 보낼 수 있다)
+  it('사진을 넣었다 지워도 제출할 수 있다', async () => {
     await renderDetail();
     await fillRequired();
+    await userEvent.press(
+      screen.getByRole('button', { name: '작업 전 사진 추가' }),
+    );
 
     await userEvent.press(
       screen.getByRole('button', { name: '작업 전 사진 1 삭제' }),
     );
 
-    expect(screen.getByText('0/6')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: '작업 전 사진 추가' }),
+    ).toHaveAccessibilityValue({ text: '0/6' });
+    expect(screen.getByRole('button', { name: '완료보고 제출' })).toBeEnabled();
+  });
+
+  it('결제 금액을 0 으로 두면 결제 방식을 골라도 제출할 수 없다', async () => {
+    await renderDetail();
+
+    await userEvent.type(screen.getByLabelText('결제 금액 입력'), '0');
+    await userEvent.press(
+      screen.getByRole('button', { name: '결제 방식 선택' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
+
     expect(
       screen.getByRole('button', { name: '완료보고 제출' }),
     ).toBeDisabled();
@@ -942,24 +979,30 @@ describe('WorkDetailScreen', () => {
 
   // 앱이 종료됐다가 다시 열리면 기기에 남긴 초안으로 이어 쓴다 (#34)
   describe('계획값으로 미리 채운 완료 보고 (plannedReport)', () => {
+    // 결제 방식은 계획값으로 채우지 않는다 (#150, reportFromPlan)
     const plannedReport = {
       beforePhotos: [],
       afterPhotos: [],
       memo: '',
       parts: '',
       amount: '75000',
-      paymentMethod: 'card' as const,
+      paymentMethod: null,
     };
 
-    it('결제 금액·결제 방식을 계획값으로 채워 연다', async () => {
+    it('결제 금액을 계획값으로 채워 열고, 결제 방식은 고르지 않은 채라 제출이 비활성이다', async () => {
       await renderDetail({ plannedReport });
 
       expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
         '75,000',
       );
       expect(
-        screen.getByRole('button', { name: '결제 방식 선택' }),
-      ).toHaveAccessibilityValue({ text: '현장 카드' });
+        within(
+          screen.getByRole('button', { name: '결제 방식 선택' }),
+        ).getByText('결제 방식 선택'),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '완료보고 제출' }),
+      ).toBeDisabled();
     });
 
     it('미리 채운 값은 잃을 입력이 아니라 작성 중이라고 알리지 않고, 바꾸면 알린다', async () => {
@@ -974,27 +1017,26 @@ describe('WorkDetailScreen', () => {
       expect(onUnsavedReportChange).toHaveBeenLastCalledWith(false);
     });
 
-    it('사진만 넣으면 미리 채운 금액·방식으로 바로 제출할 수 있다', async () => {
+    // #150 활성화 계기는 결제 방식을 고르는 것이다
+    it('결제 방식만 고르면 제출이 활성이 되고 미리 채운 금액으로 제출한다', async () => {
       const onSubmitReport = jest.fn(() => ({
         kind: 'submitted' as const,
         at: '10.01 15:15',
       }));
       await renderDetail({ plannedReport, onSubmitReport });
+      const submit = screen.getByRole('button', { name: '완료보고 제출' });
+      expect(submit).toBeDisabled();
 
       await userEvent.press(
-        screen.getByRole('button', { name: '작업 전 사진 추가' }),
+        screen.getByRole('button', { name: '결제 방식 선택' }),
       );
-      await userEvent.press(
-        screen.getByRole('button', { name: '작업 후 사진 추가' }),
-      );
-      await userEvent.press(
-        screen.getByRole('button', { name: '완료보고 제출' }),
-      );
+      await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
+      expect(submit).toBeEnabled();
+      await userEvent.press(submit);
 
       expect(onSubmitReport).toHaveBeenCalledWith({
         ...plannedReport,
-        beforePhotos: ['mock://photo'],
-        afterPhotos: ['mock://photo'],
+        paymentMethod: 'card',
       });
     });
 
