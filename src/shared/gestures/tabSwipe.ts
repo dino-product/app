@@ -9,22 +9,28 @@
 //
 // 언제 탭을 바꾸나 (손바닥 오작동 방지)
 // - 한 손가락으로, 가로로 SWITCH_DISTANCE 이상, 수평에서 MAX_SWIPE_ANGLE 안쪽으로 움직였을 때만. 그 전에는 아무 일도 없다
+// - 방향이 가로로 정해지면(track) 응답자는 먼저 잡는다. Android 세로 리스트는 세로로 터치 슬롭(약 8dp)만 움직여도 가로 성분과
+//   상관없이 터치를 가져가므로, 임계값까지 기다리면 엄지로 호를 그리며 민 손길을 놓친다. 탭은 여전히 임계값에서 바꾼다
 // - 방향이 정해질 만큼(DIRECTION_LOCK) 움직였는데 가로가 확실히 크지 않으면(세로 우세·세로 먼저) 그 제스처는 끝까지 탭 전환이 아니다
 // - 두 손가락 이상이 닿으면 그 제스처는 무시한다
 
 export type GestureOwner = 'tab' | 'component';
 /** next: 오른쪽 탭으로 (손가락을 왼쪽으로 민다), prev: 왼쪽 탭으로 */
 export type SwipeDirection = 'next' | 'prev';
-/** wait: 아직 모른다, switch: 탭을 바꾼다, ignore: 이번 제스처는 탭 전환이 아니다 */
-export type SwipeDecision = 'wait' | 'switch' | 'ignore';
+/**
+ * wait: 방향을 아직 모른다, track: 가로로 정해졌지만 임계값 전이다 (응답자만 잡는다),
+ * switch: 탭을 바꾼다, ignore: 이번 제스처는 탭 전환이 아니다
+ */
+export type SwipeDecision = 'wait' | 'track' | 'switch' | 'ignore';
 export type Rect = { x: number; y: number; width: number; height: number };
 
 /** 1pt(iOS)·1dp(Android) 는 약 1/160 inch 다 (Android 기준 밀도 160dpi, iPhone 1x 163ppi) */
 const POINTS_PER_MM = 160 / 25.4;
 /**
- * 엄지 접촉면 폭 (mm). 한 손 엄지로 안정적으로 누르는 최소 목표 크기 9.2mm
- * (Parhi·Karlson·Bederson 2006, "Target size study for one-handed thumb use on small touchscreen devices").
- * 성인 남성 엄지로 가장자리에서 밀기 시작하면 터치 좌표(접촉면 중심)는 화면 가장자리에서 이 폭 안쪽에 찍힌다
+ * 엄지 접촉면 폭의 대용값 (mm). 엄지 접촉면 폭을 직접 잰 자료 대신, 한 손 엄지로 안정적으로 누르는 최소 목표 크기
+ * 9.2mm 를 쓴다 (Parhi·Karlson·Bederson 2006, "Target size study for one-handed thumb use on small touchscreen devices").
+ * 목표 크기는 접촉면 크기와 누를 때의 흔들림을 함께 담은 값이라 엄지 접촉면보다 조금 넉넉하다.
+ * 엄지를 가장자리에 대고 밀기 시작하면 터치 좌표(접촉면 중심)는 가장자리에서 이 폭 안쪽에 찍힌다
  */
 const THUMB_CONTACT_MM = 9.2;
 
@@ -37,9 +43,10 @@ export const EDGE_BAND = Math.round(THUMB_CONTACT_MM * POINTS_PER_MM);
 export const COMPONENT_SLACK = 12;
 /**
  * 탭을 바꾸는 가로 이동 (pt). 한 손으로 쥔 손바닥·엄지 뿌리가 화면 가장자리에 닿아 비벼지는 정도로는 넘지 않게
- * 엄지 접촉면 하나 폭 이상을 가로로 움직여야 '화면 전환 요구' 로 본다. 실기기 체감으로 조정한다
+ * 엄지 접촉면 하나 폭(띠 폭과 같은 값에서 시작) 이상을 가로로 움직여야 '화면 전환 요구' 로 본다.
+ * 띠 폭과 따로 실기기 체감으로 조정한다
  */
-export const SWITCH_DISTANCE = EDGE_BAND;
+export const SWITCH_DISTANCE = 58;
 /** 이만큼 움직이면 방향을 정한다 (pt). 날짜 탭과 밀기를 가르는 기존 기준(useHorizontalSwipe)과 같다 */
 export const DIRECTION_LOCK = 10;
 /** 수평에서 이 각도(°) 안쪽이어야 가로가 세로보다 확실히 큰 것으로 본다 */
@@ -88,13 +95,13 @@ export function decideTabSwipe({
   const horizontal = Math.abs(dx);
   const vertical = Math.abs(dy);
   const clearlyHorizontal = horizontal >= vertical * MIN_HORIZONTAL_RATIO;
-  if (horizontal >= SWITCH_DISTANCE && clearlyHorizontal) {
-    return 'switch';
+  if (Math.max(horizontal, vertical) < DIRECTION_LOCK) {
+    return 'wait';
   }
-  if (Math.max(horizontal, vertical) >= DIRECTION_LOCK && !clearlyHorizontal) {
+  if (!clearlyHorizontal) {
     return 'ignore';
   }
-  return 'wait';
+  return horizontal >= SWITCH_DISTANCE ? 'switch' : 'track';
 }
 
 /** 손가락을 왼쪽으로 밀면(dx < 0) 오른쪽 탭으로 간다 */

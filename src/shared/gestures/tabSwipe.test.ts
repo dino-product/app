@@ -114,11 +114,20 @@ describe('startOwner — 밀기 시작점의 주인', () => {
 });
 
 describe('decideTabSwipe — 손바닥 오작동 방지', () => {
-  it('가로 이동이 임계값에 못 미치면 기다린다 (아무 일도 없다)', () => {
+  it('방향을 정할 만큼 움직이기 전에는 기다린다', () => {
+    expect(decideTabSwipe({ dx: 0, dy: 0, touches: 1 })).toBe('wait');
+    expect(
+      decideTabSwipe({ dx: -(DIRECTION_LOCK - 1), dy: 0, touches: 1 }),
+    ).toBe('wait');
+  });
+
+  it('가로로 정해졌지만 임계값에 못 미치면 따라가기만 한다 (아직 바꾸지 않는다)', () => {
+    expect(decideTabSwipe({ dx: -DIRECTION_LOCK, dy: 0, touches: 1 })).toBe(
+      'track',
+    );
     expect(
       decideTabSwipe({ dx: -(SWITCH_DISTANCE - 1), dy: 0, touches: 1 }),
-    ).toBe('wait');
-    expect(decideTabSwipe({ dx: 0, dy: 0, touches: 1 })).toBe('wait');
+    ).toBe('track');
   });
 
   it('가로 이동이 임계값을 넘고 가로가 확실히 크면 전환한다 (양방향)', () => {

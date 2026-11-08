@@ -160,13 +160,14 @@ export async function swipeFrom(
     }
     return null;
   };
+  // RN 순서: 새 응답자에게 grant 를 먼저 보내고, 현재 응답자에게 놓아 줄지 묻는다. 거절하면 새 응답자는 reject 를 받고 그대로다
   const claim = (index: number, event: GestureResponderEvent) => {
     const current = responder === null ? undefined : chain[responder];
+    chain[index].onResponderGrant?.(event);
     if (current && current.onResponderTerminationRequest?.(event) === false) {
       chain[index].onResponderReject?.(event);
       return;
     }
-    chain[index].onResponderGrant?.(event);
     current?.onResponderTerminate?.(event);
     responder = index;
   };

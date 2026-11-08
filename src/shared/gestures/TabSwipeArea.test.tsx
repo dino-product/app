@@ -60,6 +60,19 @@ function OwnSwipe() {
   );
 }
 
+// 터치를 시작할 때 응답자가 되고 끝까지 넘겨 주지 않는 안쪽 컴포넌트 (예: 스크롤 중인 리스트)
+function Holder() {
+  const region = useTabSwipeRegion();
+  return (
+    <View
+      testID="holder"
+      onTouchStart={region.onTouchStart}
+      onStartShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+    />
+  );
+}
+
 async function setup({ enabled = true }: { enabled?: boolean } = {}) {
   const onSwipe = jest.fn();
   const view = await render(
@@ -68,6 +81,7 @@ async function setup({ enabled = true }: { enabled?: boolean } = {}) {
         <Card testID="card" />
         <Card testID="row" stacked />
         <OwnSwipe />
+        <Holder />
       </View>
     </TabSwipeArea>,
   );
@@ -75,6 +89,7 @@ async function setup({ enabled = true }: { enabled?: boolean } = {}) {
     [screen.getByTestId('card'), CARD],
     [screen.getByTestId('row'), fullRow()],
     [screen.getByTestId('own-swipe'), CARD],
+    [screen.getByTestId('holder'), CARD],
   ]);
   const swipe = (
     testID: string,
@@ -144,6 +159,71 @@ describe('TabSwipeArea — 어디서 밀면 탭이 바뀌나', () => {
       dx: -FAR,
     });
     expect(onSwipe).toHaveBeenLastCalledWith('next');
+  });
+});
+
+describe('TabSwipeArea — 응답자 잡기', () => {
+  it('가로로 방향이 정해지면(10pt) 바로 응답자가 되고, 바꾸는 것은 임계값을 넘을 때다', async () => {
+    const { swipe, onSwipe } = await setup();
+
+    // Android 세로 리스트는 세로로 8dp 남짓 움직이면 터치를 가져간다. 그 전에 응답자가 돼 부모의 가로채기를 막는다
+    const short = await swipe('background', {
+      from: center,
+      path: [
+        { x: 0, y: 0 },
+        { x: -12, y: 4 },
+        { x: -30, y: 8 },
+      ],
+    });
+    // 응답자는 탭 영역이다
+    expect(short?.onMoveShouldSetResponder).toBe(
+      screen.getByTestId('area').props.onMoveShouldSetResponder,
+    );
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    await swipe('background', {
+      from: center,
+      path: [
+        { x: 0, y: 0 },
+        { x: -12, y: 4 },
+        { x: -40, y: 12 },
+        { x: -FAR, y: 20 },
+      ],
+    });
+    expect(onSwipe).toHaveBeenCalledWith('next');
+  });
+
+  it('응답자가 된 뒤 세로로 꺾이면(세로 우세) 바꾸지 않는다', async () => {
+    const { swipe, onSwipe } = await setup();
+
+    await swipe('background', {
+      from: center,
+      path: [
+        { x: 0, y: 0 },
+        { x: -14, y: 2 },
+        { x: -20, y: 80 },
+        { x: -FAR * 2, y: 120 },
+      ],
+    });
+
+    expect(onSwipe).not.toHaveBeenCalled();
+  });
+
+  it('한 번에 크게 움직이고 바로 떼도 바꾼다', async () => {
+    const { swipe, onSwipe } = await setup();
+
+    await swipe('background', { from: center, dx: -FAR, steps: 1 });
+
+    expect(onSwipe).toHaveBeenCalledWith('next');
+  });
+
+  it('안쪽 응답자가 넘겨 주지 않으면(거절) 바꾸지 않는다', async () => {
+    const { swipe, onSwipe } = await setup();
+
+    // 가장자리 띠에서 시작해 탭 전환 몫이지만, 이미 응답자인 안쪽 뷰가 놓아 주지 않는다
+    await swipe('holder', { from: { x: 4, y: CARD.y + 60 }, dx: FAR });
+
+    expect(onSwipe).not.toHaveBeenCalled();
   });
 });
 

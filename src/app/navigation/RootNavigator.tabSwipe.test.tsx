@@ -208,11 +208,41 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     });
     expectSelected('home');
   });
+
+  it('내 일정 펼친 달력은 안쪽에서는 달을 넘기고, 화면 가장자리 띠에서는 탭이 먼저 바뀐다', async () => {
+    await renderSignedInHome();
+    await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
+    await screen.findAllByRole('button', { name: /^10월 21일/ });
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    expect(screen.getByText('2026년 10월')).toBeOnTheScreen();
+    const calendar = () => screen.getByTestId('month-calendar');
+    const rect = { x: 20, y: 200, width: windowWidth() - 40, height: 360 };
+    const day = () => screen.getAllByRole('button', { name: /^10월 21일/ })[0];
+
+    await swipeFrom(day(), {
+      from: { x: windowWidth() / 2, y: 380 },
+      dx: -FAR,
+      rects: new Map([[calendar(), rect]]),
+    });
+    expectSelected('schedule');
+    expect(await screen.findByText('2026년 11월')).toBeOnTheScreen();
+
+    await swipeFrom(calendar(), {
+      from: { x: windowWidth() - EDGE_BAND + 8, y: 380 },
+      dx: -FAR,
+      rects: new Map([[calendar(), rect]]),
+    });
+    expectSelected('history');
+  });
 });
 
 describe('탭 전환 애니메이션 방향', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    // 공유 목이라 restoreAllMocks 로 돌아가지 않는다. 다른 테스트로 새지 않게 꺼진 것으로 되돌린다
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockImplementation(() => Promise.resolve(false));
   });
 
   it('탭 바로 오른쪽 탭에 가면 +x 에서, 왼쪽 탭에 가면 -x 에서 0 으로 들어오고 투명도는 그대로다', async () => {

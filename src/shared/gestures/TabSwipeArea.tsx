@@ -2,7 +2,6 @@ import {
   createContext,
   useContext,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -13,6 +12,7 @@ import {
   StyleSheet,
   View,
   type GestureResponderEvent,
+  type PanResponderGestureState,
 } from 'react-native';
 import {
   decideTabSwipe,
@@ -26,9 +26,14 @@ import {
 // 메인 탭 좌우 밀기 (#140). 판정 규칙은 tabSwipe.ts 다.
 //
 // TabSwipeArea 는 탭 화면 하나를 통째로 감싸는 PanResponder 다. 터치를 시작할 때는 응답자가 되지 않고(누르기·스크롤은 안쪽 몫),
-// 한 손가락이 가로로 임계값을 넘게 움직였을 때 bubble 단계에서 응답자가 되며 바로 이웃 탭으로 옮긴다 (손을 떼기 전에 전환이 시작된다).
-// 안쪽 누르기(Pressable)는 응답자를 놓아 주므로 누르기가 취소되고, 자체 가로 제스처(달력 넘김 등)는 아래 규칙으로 먼저 받는다.
-// 응답자가 되면 네이티브 부모의 가로채기를 막는다 (Android 세로 리스트, PanResponder 기본값).
+// 한 손가락의 방향이 가로로 정해지면(10pt) bubble 단계에서 응답자가 되고, 가로로 임계값을 넘는 순간 이웃 탭으로 옮긴다
+// (손을 떼기 전에 전환이 시작된다). 응답자를 먼저 잡는 것은 네이티브 부모의 가로채기를 막기 위해서다 (Android 세로 리스트는
+// 세로로 터치 슬롭만 움직여도 터치를 가져간다. 응답자가 되면 PanResponder 기본값으로 막는다).
+// RN 은 새 응답자에게 grant 를 먼저 보내고 지금 응답자가 놓아 주지 않으면 reject 를 보내므로, 탭은 grant 가 아니라
+// 응답자가 된 뒤 오는 이동(또는 손을 뗄 때)에서 바꾼다. 안쪽 누르기(Pressable)는 응답자를 놓아 주므로 누르기가 취소되고,
+// 자체 가로 제스처(달력 넘김 등)는 아래 규칙으로 먼저 받는다.
+// RN 모달(Modal·BottomSheet)의 터치도 React 트리를 따라 이 영역까지 올라온다. 지금 탭 첫 화면에는 모달이 없다
+// (모달은 탭 안쪽 화면에 있고 거기서는 canSwipe 가 false 다). 탭 첫 화면에 모달을 두면 열린 동안 canSwipe 가 false 가 되게 한다.
 //
 // 세부 컴포넌트는 useTabSwipeRegion 의 onTouchStart 를 루트에 단다. 터치를 시작한 자리가 그 컴포넌트 안쪽 깊은 곳이면
 // 이번 제스처는 컴포넌트 몫이라 탭을 바꾸지 않는다. 가장자리 여유·화면 가장자리 띠에서 시작했으면 탭 전환 몫이다.
@@ -69,7 +74,31 @@ export function TabSwipeArea({
       component: false,
       /** 이번 제스처는 판정이 끝났다 (바꿨거나, 탭 전환이 아니다) */
       settled: false,
-      direction: 'next' as SwipeDirection,
+      /** 응답자가 되기까지 움직인 거리. 응답자가 되면 PanResponder 가 dx·dy 를 0 부터 다시 잰다 */
+      claimedAt: { dx: 0, dy: 0 },
+    };
+    // 응답자가 된 뒤의 이동: 시작점부터 움직인 거리로 판정한다
+    const follow = (
+      _: GestureResponderEvent,
+      { dx, dy, numberActiveTouches }: PanResponderGestureState,
+    ) => {
+      if (gesture.settled) {
+        return;
+      }
+      const total = {
+        dx: gesture.claimedAt.dx + dx,
+        dy: gesture.claimedAt.dy + dy,
+      };
+      const decision = decideTabSwipe({
+        ...total,
+        touches: numberActiveTouches,
+      });
+      if (decision === 'ignore') {
+        gesture.settled = true;
+      } else if (decision === 'switch') {
+        gesture.settled = true;
+        latest.current.onSwipe(swipeDirection(total.dx));
+      }
     };
     const responder = PanResponder.create({
       onMoveShouldSetPanResponder: (_, { dx, dy, numberActiveTouches }) => {
@@ -87,15 +116,21 @@ export function TabSwipeArea({
         });
         if (decision === 'ignore') {
           gesture.settled = true;
+          return false;
         }
-        // 응답자가 되면 PanResponder 가 dx 를 0 으로 되돌리므로 방향은 여기서 정한다
-        gesture.direction = swipeDirection(dx);
-        return decision === 'switch';
+        if (decision === 'wait') {
+          return false;
+        }
+        gesture.claimedAt = { dx, dy };
+        return true;
       },
-      onPanResponderGrant: () => {
+      // 지금 응답자(안쪽 리스트 등)가 놓아 주지 않았다. 이번 제스처는 그쪽 몫이다
+      onPanResponderReject: () => {
         gesture.settled = true;
-        latest.current.onSwipe(gesture.direction);
       },
+      onPanResponderMove: follow,
+      // 한 번에 크게 움직이고 바로 떼면 응답자가 된 뒤의 이동이 없다
+      onPanResponderRelease: follow,
     });
     return {
       panHandlers: responder.panHandlers,
@@ -156,28 +191,35 @@ export function useTabSwipeRegion({
   stacked = false,
 }: { stacked?: boolean } = {}) {
   const area = useContext(TabSwipeContext);
-  return useMemo(() => {
+  // 핸들러는 한 번만 만들고 최신 값을 읽는다 (바뀌는 주인 상태를 렌더 캐시에 두지 않는다)
+  const latest = useRef({ area, stacked });
+  useLayoutEffect(() => {
+    latest.current = { area, stacked };
+  });
+  const [region] = useState(() => {
     // 처음 닿기 전과 잴 수 없을 때는 컴포넌트 몫이다 (자체 제스처가 그대로 돈다)
     let owner: GestureOwner = 'component';
     return {
       onTouchStart: (event: GestureResponderEvent) => {
         const { touches, changedTouches, pageX, pageY } = event.nativeEvent;
-        if (area === null || touches.length > changedTouches.length) {
+        const current = latest.current;
+        if (current.area === null || touches.length > changedTouches.length) {
           return;
         }
         owner = startOwner(
           { x: pageX, y: pageY },
           regionRect(event.currentTarget),
           Dimensions.get('window').width,
-          { stacked },
+          { stacked: current.stacked },
         );
         if (owner === 'component') {
-          area.claimForComponent();
+          current.area.claimForComponent();
         }
       },
       ownsGesture: () => owner === 'component',
     };
-  }, [area, stacked]);
+  });
+  return region;
 }
 
 const styles = StyleSheet.create({
