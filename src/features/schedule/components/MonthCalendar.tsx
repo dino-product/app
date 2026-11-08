@@ -28,7 +28,8 @@ import { PAGE_OFFSETS, SwipeTrack, type PageOffset } from './SwipeTrack';
 import { useHorizontalSwipe } from './useHorizontalSwipe';
 import type { AreaTouchHandlers } from './useTouchScrollLock';
 
-// Figma 내 일정 › 달력 펼침 (Calendar Contents). 선택일은 Primary 둥근 사각형, 일정은 날짜 아래 점 1~3개로 표시한다.
+// Figma 내 일정 › 달력 펼침 (3754:6618, Calendar Contents). 회색 바탕 위 흰 카드다. 선택일은 Primary 둥근 사각형,
+// 일정이 있는 이번 달 날짜는 아래에 점 하나(DesignSystem Event Indicator 는 0/1 뿐)를 찍는다.
 // 왼쪽으로 밀면 다음 달, 오른쪽으로 밀면 이전 달. 끄는 동안 날짜 격자만 손가락을 따라 움직여 옆 달이 드러나고,
 // 이전·다음 달 버튼은 격자를 옆 달로 미끄러뜨린다. 둘 다 다 넘어간 뒤에 같은 콜백을 부르고 그때 제목이 바뀐다.
 export function MonthCalendar({
@@ -51,8 +52,8 @@ export function MonthCalendar({
   onPrev: () => void;
   onNext: () => void;
   /**
-   * 부모가 화면 가장자리에서 들어간 거리. Android 에서 이만큼 바깥까지 가장자리 밀기를 받고,
-   * 넘길 때 옆 달이 이만큼 바깥(화면 가장자리)에서 들어온다
+   * 부모가 화면 가장자리에서 들어간 거리. Android 에서 이만큼 바깥까지 가장자리 밀기를 받는다.
+   * 넘길 때 옆 달은 흰 카드 안에서만 보인다
    */
   edgeInset?: number;
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 가로로 미는 동안 리스트 스크롤을 막는 데 쓴다 */
@@ -98,7 +99,6 @@ export function MonthCalendar({
   return (
     <View
       testID="month-calendar"
-      hitSlop={ROOT_HIT_SLOP}
       style={styles.container}
       {...touchHandlers}
       onTouchStart={onTouchStart}
@@ -142,7 +142,7 @@ export function MonthCalendar({
           {WEEKDAYS.map((label, day) => (
             <Text
               key={label}
-              variant="Body/XS/Medium"
+              variant="Caption/M/Medium"
               color={weekdayHeaderColor(day)}
               style={styles.weekdayText}
             >
@@ -158,9 +158,10 @@ export function MonthCalendar({
               뒤로 가기다), 어느 달이든 셋째 주에서 200dp 를 넘어 달을 넘겨도 같은 자리다.
               트랙 밖에 둬 끄는 동안 따라 움직이지 않고, 뒤 형제인 넘김 창(날짜 칸)이 먼저 터치를 받는다 */}
           <GestureExclusionArea edgeInset={edgeInset} height={gridHeight} />
+          {/* 흰 카드 폭에서 잘라 옆 달이 카드 밖 회색 여백으로 나와 보이지 않게 한다 */}
           <SwipeTrack
             swipe={swipe}
-            inset={edgeInset}
+            inset={0}
             testID="month-calendar-track"
             renderPage={renderGrid}
           />
@@ -225,15 +226,12 @@ const MonthGrid = memo(function MonthGridView({
                 >
                   {date.getDate()}
                 </Text>
-                {count > 0 && (
+                {count > 0 && inMonth && (
                   <View style={styles.dots}>
-                    {DOT_SLOTS.slice(0, count).map(i => (
-                      <View
-                        key={i}
-                        testID="event-dot"
-                        style={[styles.dot, active && styles.dotActive]}
-                      />
-                    ))}
+                    <View
+                      testID="event-dot"
+                      style={[styles.dot, active && styles.dotActive]}
+                    />
                   </View>
                 )}
               </Pressable>
@@ -245,14 +243,11 @@ const MonthGrid = memo(function MonthGridView({
   );
 });
 
-// Figma Event Count 0~3. 일정이 3건을 넘어도 점은 3개다
-const DOT_SLOTS = [0, 1, 2];
 const ARROW_SIZE = 24;
 const TITLE_GAP = 6;
 const CELL_HEIGHT = 69;
-// Figma 점 5.18, 간격 1.73 을 반올림했다 (점 묶음 폭 19 는 같다)
-const DOT_SIZE = 5;
-const DOT_GAP = 2;
+// Figma Event Indicator Count=1: 7×7 점 하나, 칸 아래에서 13
+const DOT_SIZE = 7;
 
 // 24 화살표를 최소 터치 영역으로 보완한다. 제목 쪽은 간격(6)까지만 넓히고(제목이 먼저 받는다) 나머지는 바깥쪽으로
 const ARROW_SLOP = touchSlop(ARROW_SIZE);
@@ -274,11 +269,16 @@ const NEXT_HIT_SLOP = {
 // 창도 같이 넓혀야 한다
 const DAY_SLOP = touchSlop(CELL_HEIGHT);
 const DAY_HIT_SLOP = { top: DAY_SLOP, bottom: DAY_SLOP };
-// 루트가 네이티브 뷰가 되어도 화살표가 루트 밖으로 넓힌 영역에 터치가 닿게 한다
-const ROOT_HIT_SLOP = { top: PREV_HIT_SLOP.top };
 
 const styles = StyleSheet.create({
-  container: { gap: 12 },
+  // Figma 3754:6618: 흰 카드, 모서리 18, 위 20 에 달 이동 줄, 그 아래 24 에 요일 줄·날짜 격자. 좌우·아래 여백은 없다.
+  // 위 여백(20)이 화살표가 위로 넓힌 영역(10)을 품는다
+  container: {
+    gap: 24,
+    paddingTop: 20,
+    borderRadius: 18,
+    backgroundColor: colors.white[100],
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -299,12 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   cellActive: { backgroundColor: colors.primary },
-  dots: {
-    position: 'absolute',
-    bottom: 15,
-    flexDirection: 'row',
-    gap: DOT_GAP,
-  },
+  dots: { position: 'absolute', bottom: 13 },
   dot: {
     width: DOT_SIZE,
     height: DOT_SIZE,

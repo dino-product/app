@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 import {
   colors,
   pressedBackground,
@@ -23,8 +23,8 @@ const confirmed: ConfirmedSchedule = {
 const pending: PendingRequest = {
   ...confirmed,
   id: 'p1',
+  dateKey: '2026-12-20',
   title: '에어컨 필터 교체',
-  dateLabel: '9/20',
   timeRange: '14:00 – 15:00',
 };
 
@@ -33,42 +33,84 @@ const fontOf = (variant: keyof typeof typography) => ({
   fontSize: typography[variant].fontSize,
 });
 
-// Figma 내 일정 › 확정 일정 (2714:12918) 의 일정 행
-describe('ConfirmedRow', () => {
-  it('행은 사방 24 여백, 줄 간격 10, 아래 Gray200 선이다', async () => {
-    await render(<ConfirmedRow item={confirmed} />);
+// Figma 내 일정 › 확정 일정 카드 (3754:6312) · 응답 필요 카드 (3754:6846) 의 같은 윗부분
+describe.each([
+  {
+    label: 'ConfirmedRow',
+    title: '세탁기 설치',
+    time: '08:00 - 09:00',
+    day: '오늘 · 12. 15. (화)',
+    renderCard: () =>
+      render(<ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />),
+  },
+  {
+    label: 'PendingRequestCard',
+    title: '에어컨 필터 교체',
+    time: '14:00 – 15:00',
+    day: '12. 20. (일)',
+    renderCard: () =>
+      render(
+        <PendingRequestCard
+          item={pending}
+          dayLabel="12. 20. (일)"
+          onAccept={jest.fn()}
+          onReject={jest.fn()}
+          onOpen={jest.fn()}
+        />,
+      ),
+  },
+])('$label 윗부분', ({ title, time, day, renderCard }) => {
+  it('제목은 Body/S/SemiBold Gray900, 그 아래 6 에 시간(Gray900)과 날짜(Gray600)를 Caption/M/Medium 으로 잇는다', async () => {
+    await renderCard();
 
-    expect(screen.getByLabelText(/^세탁기 설치, /)).toHaveStyle({
-      padding: 24,
-      gap: 10,
-      borderBottomColor: colors.gray[200],
+    const titleText = screen.getByText(title);
+    expect(titleText).toHaveStyle({
+      ...fontOf('Body/S/SemiBold'),
+      color: colors.gray[900],
     });
+    const timeLine = screen.getByText(`${time}  ${day}`);
+    expect(timeLine).toHaveStyle({
+      ...fontOf('Caption/M/Medium'),
+      color: colors.gray[900],
+    });
+    expect(screen.getByText(day)).toHaveStyle({ color: colors.gray[600] });
+    expect(titleText.parent).toHaveStyle({ gap: 6 });
+    expect(timeLine.parent).toBe(titleText.parent);
   });
 
-  it('제목은 Body/M/SemiBold 이다', async () => {
-    await render(<ConfirmedRow item={confirmed} />);
+  // 칩은 제목·시간 묶음 오른쪽 위에 붙는다
+  it('칩은 제목·시간 묶음의 오른쪽 위에 있다', async () => {
+    await renderCard();
 
-    expect(screen.getByText('세탁기 설치')).toHaveStyle(
-      fontOf('Body/M/SemiBold'),
-    );
+    const summary = screen.getByText(title).parent as HostElement;
+    const titleRow = summary.parent as HostElement;
+    expect(titleRow).toHaveStyle({
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    });
+    expect(titleRow.children[0]).toBe(summary);
+    expect(titleRow.children).toHaveLength(2);
+    expect(
+      within(titleRow.children[1] as HostElement).getByText('배정됨'),
+    ).toBeOnTheScreen();
   });
 
-  it('시간 줄은 24 달력 아이콘과 5 간격으로 위에 맞춘다', async () => {
-    await render(<ConfirmedRow item={confirmed} />);
-
-    const timeRow = screen.getByText('08:00 - 09:00').parent as HostElement;
-    expect(timeRow).toHaveStyle({ gap: 5, alignItems: 'flex-start' });
-    expect(timeRow.children[0]).toHaveStyle({ width: 24, height: 24 });
-  });
-
-  it('업체·고객 줄은 간격 8, Gray400 구분선, 모두 Caption/M/Medium 이다', async () => {
-    await render(<ConfirmedRow item={confirmed} />);
+  it('업체·고객 줄은 간격 8, Gray400 구분선, 업체 Gray800·고객 Gray600 모두 Caption/M/Medium 이다', async () => {
+    await renderCard();
 
     const company = screen.getByText('한빛 설비');
     const meta = company.parent as HostElement;
     expect(meta).toHaveStyle({ gap: 8 });
-    expect(meta.children[1]).toHaveStyle({ backgroundColor: colors.gray[400] });
-    expect(company).toHaveStyle(fontOf('Caption/M/Medium'));
+    expect(meta.children[1]).toHaveStyle({
+      width: 1,
+      height: 12,
+      backgroundColor: colors.gray[400],
+    });
+    expect(company).toHaveStyle({
+      ...fontOf('Caption/M/Medium'),
+      color: colors.gray[800],
+    });
     expect(screen.getByText('정다은 · 서울 용산구 이태원로 202')).toHaveStyle({
       ...fontOf('Caption/M/Medium'),
       color: colors.gray[600],
@@ -76,10 +118,54 @@ describe('ConfirmedRow', () => {
   });
 });
 
-// Figma 내 일정 › 응답 필요 (2367:12834) 의 요청 카드
+describe('ConfirmedRow', () => {
+  // Figma 3754:6312: 흰 카드(Gray0), 모서리 16, 사방 20, 줄 사이 6, 아래만 Gray50 선
+  it('흰 카드에 모서리 16, 사방 20, 줄 사이 6, 아래 Gray50 선이다', async () => {
+    await render(
+      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+    );
+
+    expect(screen.getByLabelText(/^세탁기 설치, /)).toHaveStyle({
+      backgroundColor: colors.gray[0],
+      borderRadius: 16,
+      padding: 20,
+      gap: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.gray[50],
+    });
+  });
+
+  it('스크린리더는 제목, 상태, 시간과 날짜, 업체·고객·주소를 한 번에 읽는다', async () => {
+    await render(
+      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+    );
+
+    expect(
+      screen.getByLabelText(
+        '세탁기 설치, 배정됨, 08:00 - 09:00 오늘 · 12. 15. (화), 한빛 설비 정다은 · 서울 용산구 이태원로 202',
+      ),
+    ).toBeOnTheScreen();
+  });
+
+  it('달력 아이콘 없이 시간 줄을 보인다', async () => {
+    await render(
+      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+    );
+
+    const timeLine = screen.getByText('08:00 - 09:00  오늘 · 12. 15. (화)');
+    expect(timeLine.parent?.children).toHaveLength(2);
+  });
+});
+
 describe('ConfirmedRow 눌림 (#102)', () => {
-  it('누를 수 있는 행은 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
-    await render(<ConfirmedRow item={confirmed} onPress={jest.fn()} />);
+  it('누를 수 있는 카드는 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
+    await render(
+      <ConfirmedRow
+        item={confirmed}
+        dayLabel="오늘 · 12. 15. (화)"
+        onPress={jest.fn()}
+      />,
+    );
 
     await expectPressedBackground(
       screen.getByRole('button', { name: /^세탁기 설치, / }),
@@ -93,54 +179,54 @@ describe('PendingRequestCard', () => {
     render(
       <PendingRequestCard
         item={pending}
+        dayLabel="12. 20. (일)"
         onAccept={jest.fn()}
         onReject={jest.fn()}
         onOpen={jest.fn()}
       />,
     );
 
-  it('제목은 Body/M/SemiBold 에 P/T/01 색이다', async () => {
+  // Figma 3754:6846: 흰 카드, 모서리 16, 사방 20, 윗부분(줄 사이 6) → 12 → 버튼 줄(사이 10), 아래만 Gray50 선.
+  // 누르는 본문이 눌림 배경을 카드 위·옆 끝까지 칠하도록 여백을 본문·버튼 줄이 나눠 갖는다 (#102)
+  it('흰 카드에 모서리 16, 본문 위·옆 20·아래 12, 버튼 줄 옆·아래 20·사이 10 이다', async () => {
     await renderCard();
 
-    expect(screen.getByText('에어컨 필터 교체')).toHaveStyle({
-      ...fontOf('Body/M/SemiBold'),
-      color: colors.pt01,
+    const body = screen.getByRole('button', {
+      name: /^에어컨 필터 교체 상세,/,
     });
-  });
-
-  it('날짜·시간은 Body/XS/SemiBold Gray700, 업체명은 Caption/M/SemiBold 이다', async () => {
-    await renderCard();
-
-    expect(screen.getByText('9/20 · 14:00 – 15:00')).toHaveStyle({
-      ...fontOf('Body/XS/SemiBold'),
-      color: colors.gray[700],
-    });
-    expect(screen.getByText('한빛 설비')).toHaveStyle(
-      fontOf('Caption/M/SemiBold'),
-    );
-  });
-
-  // 칩 줄 → 14 → 제목·업체 줄(사이 8) → 16 → 버튼 줄(사이 10)
-  it('칩 줄과 제목 사이 14, 제목과 업체 줄 사이 8, 버튼 줄 위 16, 버튼 사이 10 이다', async () => {
-    await renderCard();
-
-    const titleBlock = screen.getByText('에어컨 필터 교체')
-      .parent as HostElement;
-    expect(titleBlock).toHaveStyle({ gap: 8 });
-    expect(titleBlock.parent).toHaveStyle({ gap: 14 });
     const actions = screen.getByRole('button', {
       name: '에어컨 필터 교체 수락',
     }).parent as HostElement;
-    expect(actions).toHaveStyle({ gap: 10 });
-    // 누르는 본문이 눌림 배경을 카드 위·옆 끝까지 칠하도록 여백을 본문·버튼 줄이 나눠 갖는다 (#102)
-    const body = titleBlock.parent as HostElement;
-    expect(body).toHaveStyle({
-      paddingTop: 24,
-      paddingHorizontal: 24,
-      paddingBottom: 16,
+    const card = body.parent as HostElement;
+    expect(card).toHaveStyle({
+      backgroundColor: colors.gray[0],
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.gray[50],
     });
-    expect(actions).toHaveStyle({ paddingHorizontal: 24, paddingBottom: 24 });
-    expect(actions.parent).toHaveStyle({ gap: 0, padding: 0 });
+    expect(body).toHaveStyle({
+      gap: 6,
+      paddingTop: 20,
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+    });
+    expect(actions).toHaveStyle({
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+    });
+  });
+
+  it('스크린리더는 본문을 제목 상세, 시간과 날짜, 업체·고객·주소로 읽는다', async () => {
+    await renderCard();
+
+    expect(
+      screen.getByRole('button', {
+        name: '에어컨 필터 교체 상세, 14:00 – 15:00 12. 20. (일), 한빛 설비 정다은 · 서울 용산구 이태원로 202',
+      }),
+    ).toBeOnTheScreen();
   });
 
   // #102: 누르는 본문(상세 열기)만 회색이 되고, 거절·수락 버튼 줄은 그대로다
@@ -153,15 +239,20 @@ describe('PendingRequestCard', () => {
     );
   });
 
-  it('거절·수락은 높이 46, 반경 12 의 M 버튼이다', async () => {
+  // Figma CTA Type=Modal CTA, Size=M: 높이 42, Button/S. 이 카드의 인스턴스는 모서리 10 이다
+  it('거절·수락은 높이 42, 모서리 10, Button/S 의 모달 CTA 다', async () => {
     await renderCard();
 
     for (const name of ['에어컨 필터 교체 거절', '에어컨 필터 교체 수락']) {
       expect(screen.getByRole('button', { name })).toHaveStyle({
-        minHeight: 46,
-        borderRadius: 12,
+        minHeight: 42,
+        borderRadius: 10,
       });
     }
-    expect(screen.getByText('수락')).toHaveStyle(fontOf('Body/XS/Medium'));
+    expect(screen.getByText('수락')).toHaveStyle(fontOf('Button/S'));
+    expect(screen.getByText('거절')).toHaveStyle({
+      ...fontOf('Button/S'),
+      color: colors.gray[700],
+    });
   });
 });

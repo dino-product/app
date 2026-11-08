@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
+import type { HostElement } from '../../../shared/testing/touchTarget';
 import { workDetail } from '../mockData';
 import type { WorkDetail } from '../model';
 import { WorkInfoSections } from './WorkInfoSections';
@@ -15,7 +16,7 @@ describe('WorkInfoSections', () => {
     await renderSections();
 
     const card = screen.getByTestId('work-content-card');
-    expect(card).toHaveStyle({ backgroundColor: colors.gray[50] });
+    expect(card).toHaveStyle({ backgroundColor: colors.background[3] });
     expect(StyleSheet.flatten(card.props.style).borderWidth ?? 0).toBe(0);
   });
 
@@ -74,5 +75,74 @@ describe('WorkInfoSections', () => {
 
     expect(screen.getByRole('header', { name: '현장 사진' })).toBeOnTheScreen();
     expect(screen.getByText('등록된 현장 사진이 없습니다')).toBeOnTheScreen();
+  });
+});
+
+const fontOf = (variant: keyof typeof typography) => ({
+  fontFamily: typography[variant].fontFamily,
+  fontSize: typography[variant].fontSize,
+});
+
+// Figma 작업 상세 (내 일정 요청 상세 2714:12494, 작업 수행 3235:15926, 작업 이력 3101:5794·3463:16630 이 같다)
+describe('WorkInfoSections Figma 값', () => {
+  it('요약은 제목 줄(제목↔칩 12)과 코드 줄 사이 12, 등록일은 Caption/M/Medium Gray600 이다', async () => {
+    await renderSections();
+
+    const titleRow = screen.getByText(workDetail.title).parent as HostElement;
+    expect(titleRow).toHaveStyle({ gap: 12 });
+    expect(titleRow.parent).toHaveStyle({ gap: 12 });
+    expect(screen.getByText(`· ${workDetail.registeredAt} 등록`)).toHaveStyle({
+      ...fontOf('Caption/M/Medium'),
+      color: colors.gray[600],
+    });
+  });
+
+  it('일정 및 담당 카드의 두 줄 사이는 14, 고객 카드의 고객명과 연락처 줄 사이는 12 다', async () => {
+    await renderSections();
+
+    const dateField = screen.getByText('날짜').parent as HostElement;
+    expect(dateField.parent?.parent).toHaveStyle({ gap: 14 });
+    const nameField = screen.getByText('고객명').parent as HostElement;
+    expect(nameField.parent).toHaveStyle({ gap: 12 });
+  });
+
+  it('고객 전화 버튼은 44 원에 Gray100 이다', async () => {
+    await renderSections();
+
+    expect(
+      screen.getByRole('button', { name: '박민지 고객에게 전화' }),
+    ).toHaveStyle({
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.gray[100],
+    });
+  });
+
+  // 작업 내용 카드: Background/3, 모서리 14, 좌우 20·위아래 21, 메모 → 20 → 선 → 20 → 가격
+  it('작업 내용 카드는 모서리 14, 좌우 20·위아래 21, 줄 사이 20 이다', async () => {
+    await renderSections();
+
+    expect(screen.getByTestId('work-content-card')).toHaveStyle({
+      borderRadius: 14,
+      paddingHorizontal: 20,
+      paddingVertical: 21,
+      gap: 20,
+    });
+  });
+
+  it('작업 메모는 라벨 아래 8 에 Caption/M/Medium Gray800 본문, 가격은 Body/S/Bold Gray800 이다', async () => {
+    await renderSections();
+
+    const memo = screen.getByText(workDetail.memo);
+    expect(memo).toHaveStyle({
+      ...fontOf('Caption/M/Medium'),
+      color: colors.gray[800],
+    });
+    expect(memo.parent).toHaveStyle({ gap: 8 });
+    expect(screen.getByText('75,000원')).toHaveStyle({
+      ...fontOf('Body/S/Bold'),
+      color: colors.gray[800],
+    });
   });
 });

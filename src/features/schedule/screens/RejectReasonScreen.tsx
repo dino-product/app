@@ -550,11 +550,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, paddingBottom: 32, backgroundColor: colors.white[100] },
   header: { height: 56, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 20 },
-  // 소개 묶음(위아래 여백 24)과 선택지 사이 24 를 합쳐 48 이다
+  // 소개 묶음(위아래 여백 24)과 선택지 사이 24 를 합쳐 48 이다. 본문은 상단 바 아래 26 에서 시작한다 (Figma 3239:9164)
   content: {
     gap: 48,
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 26,
     paddingBottom: 24,
   },
   intro: { gap: 12 },
