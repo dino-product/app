@@ -9,7 +9,7 @@ import {
   type Ref,
 } from 'react';
 import {
-  FlatList,
+  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -29,8 +29,10 @@ import {
   LoadStateView,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
+import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
+import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { toDateKey } from '../../schedule/model';
 import {
   CurrentWorkCard,
@@ -126,6 +128,17 @@ function WorkHomeScreenView({
     [schedule, selectedKey],
   );
   const block = view === 'block';
+  // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
+  const autoHide = useAutoHideHeader();
+  // 애니메이션 리스트는 배열·객체 props 가 바뀌면 스크롤 이벤트 연결을 다시 만든다. 높이가 바뀔 때만 새로 만든다
+  const contentStyle = useMemo(
+    () => [
+      readableColumn,
+      styles.content,
+      { paddingTop: autoHide.height + CONTENT_TOP },
+    ],
+    [autoHide.height],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: ScheduleItem }) => (
@@ -185,31 +198,45 @@ function WorkHomeScreenView({
     </View>
   );
 
-  if (load.status !== 'ready') {
-    return (
-      <SafeAreaView edges={['top']} style={styles.screen}>
-        <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
-        <LoadStateView state={load} />
-      </SafeAreaView>
-    );
-  }
-
+  // 불러오는 동안에도 같은 머리에 상단 바를 둔다. 다 불러와 리스트로 바뀌어도 상단 바를 새로 그리지 않는다
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <TabHeader title="내 작업" onOpenNotifications={onOpenNotifications} />
-      <FlatList
-        ref={listRef}
-        testID="work-home-list"
-        data={block ? daySchedule : schedule}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        ListHeaderComponent={header}
-        ListEmptyComponent={block ? emptyDay : emptyWeek}
-        ItemSeparatorComponent={Separator}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={[readableColumn, styles.content]}
-      />
+      <AutoHideHeaderLayout
+        autoHide={autoHide}
+        header={
+          <TabHeader
+            title="내 작업"
+            onOpenNotifications={onOpenNotifications}
+          />
+        }
+        style={styles.headerBar}
+      >
+        {load.status !== 'ready' ? (
+          // 상단 바가 숨은 채 이 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그려지면 다시 보인다
+          <View
+            onLayout={autoHide.show}
+            style={{ paddingTop: autoHide.height }}
+          >
+            <LoadStateView state={load} />
+          </View>
+        ) : (
+          <Animated.FlatList
+            ref={listRef}
+            testID="work-home-list"
+            {...autoHide.scrollProps}
+            data={block ? daySchedule : schedule}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            ListHeaderComponent={header}
+            ListEmptyComponent={block ? emptyDay : emptyWeek}
+            ItemSeparatorComponent={Separator}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            progressViewOffset={autoHide.progressViewOffset}
+            contentContainerStyle={contentStyle}
+          />
+        )}
+      </AutoHideHeaderLayout>
     </SafeAreaView>
   );
 }
@@ -257,6 +284,8 @@ function EmptySchedule({
   );
 }
 
+// 진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 3463:17452: 제목 줄 72–106, 카드 126)
+const CONTENT_TOP = 20;
 // Figma 에서 '일정' 줄과 첫 일정 카드 사이 (목록 보기)
 const HEADER_PADDING_BOTTOM = 12;
 // Figma 3463:17452 에서 날짜 줄(아래 끝 455)과 첫 일정 카드(469) 사이 (블록 보기)
@@ -286,12 +315,13 @@ const BLOCK_HIT_SLOP = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background[3] },
-  // 진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 3463:17452: 제목 줄 72–106, 카드 126).
+  // 상단 바는 리스트 위에 겹쳐 그려 내용이 그 아래로 지나간다. 화면 배경으로 가린다 (#148)
+  headerBar: { backgroundColor: colors.background[3] },
+  // 내용 위 여백은 상단 바 높이 + CONTENT_TOP 이다.
   // 화면은 탭 바 위에서 끝나므로 마지막 카드 아래는 다른 화면처럼 24 만 둔다 (기본안).
   // Figma 메인화면의 하단 흐림 레이어(3463:17535)는 넣지 않는다: 흐림은 작업 상세 버튼 뒤에만 둔다 (#95, 사용자 결정)
   content: {
     paddingHorizontal: 24,
-    paddingTop: 20,
     paddingBottom: 24,
   },
   header: { gap: 20, paddingBottom: HEADER_PADDING_BOTTOM },

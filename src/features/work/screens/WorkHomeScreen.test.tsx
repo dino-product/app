@@ -6,13 +6,21 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { appStorage } from '../../../shared/storage/appStorage';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
+import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
+import {
+  autoHideHeader,
+  autoHideHeaderOffset,
+  scrollDownFromTop,
+  scrollListTo,
+} from '../../../shared/testing/autoHideHeader';
+import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import type { ScheduleItem } from '../model';
 import { HOME_VIEW_KEY, loadHomeView, saveHomeView } from '../homeView';
@@ -218,6 +226,7 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     });
   });
 
+  // #148: 상단 바는 리스트 위에 겹쳐 그리므로 내용 위 여백에 상단 바 높이를 더한다
   it('진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 제목 줄 아래 106 → 카드 126)', async () => {
     await renderHome();
 
@@ -226,7 +235,7 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
       list = list.parent;
     }
     expect(StyleSheet.flatten(list?.props.contentContainerStyle)).toMatchObject(
-      { paddingTop: 20 },
+      { paddingTop: TAB_HEADER_HEIGHT + 20 },
     );
   });
 
@@ -655,6 +664,117 @@ describe('WorkHomeScreen — 불러오기', () => {
 
     await act(async () => finish());
     expect(start()).toBeEnabled();
+  });
+});
+
+// #148: 아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다 (공용 AutoHideHeaderLayout)
+describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('제목과 종은 리스트 위에 겹쳐 그린 머리 안에 있다', async () => {
+    await renderHome();
+
+    expect(
+      within(autoHideHeader()).getByRole('header', { name: '내 작업' }),
+    ).toBeOnTheScreen();
+    expect(
+      within(autoHideHeader()).getByRole('button', { name: '알림센터' }),
+    ).toBeOnTheScreen();
+  });
+
+  it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다', async () => {
+    await renderHome();
+    const list = screen.getByTestId('work-home-list');
+
+    await scrollDownFromTop(list);
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
+
+    await scrollListTo(list, 280);
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(0);
+  });
+
+  // 불러오기를 마쳐 리스트로 바뀌어도 상단 바를 새로 그리지 않는다 (스크린리더 포커스·찾아 둔 요소가 그대로다)
+  it('불러오는 동안에도 같은 머리에 상단 바를 두고 진행 표시는 그 아래에 있으며, 다 불러와도 상단 바는 그대로다', async () => {
+    const view = await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+    const title = screen.getByRole('header', { name: '내 작업' });
+    expect(within(autoHideHeader()).getByRole('header')).toBe(title);
+    expect(screen.getByLabelText('불러오는 중').parent?.parent).toHaveStyle({
+      paddingTop: TAB_HEADER_HEIGHT,
+    });
+
+    await view.rerender(
+      <WorkHomeScreen
+        currentWork={currentWork}
+        schedule={weeklySchedule}
+        today={homeToday}
+        weekLabel="9. 14. – 9. 20."
+        started={false}
+        onStartWork={jest.fn()}
+        onOpenWork={jest.fn()}
+        onOpenNotifications={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('work-home-list')).toBeOnTheScreen();
+    expect(title).toBeOnTheScreen();
+  });
+
+  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await renderHome({ onRefresh: jest.fn() });
+    expect(screen.getByTestId('work-home-list')).toHaveProp(
+      'progressViewOffset',
+      TAB_HEADER_HEIGHT,
+    );
+    await view.unmount();
+
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await renderHome({ onRefresh: jest.fn() });
+    expect(
+      screen.getByTestId('work-home-list').props.progressViewOffset,
+    ).toBeUndefined();
+  });
+
+  // 숨은 채 리스트가 로딩·오류 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그 자리가 그려지면 다시 보인다
+  it('상단 바가 숨은 채 불러오기 화면으로 바뀌면 다시 보인다', async () => {
+    const view = await renderHome();
+    await scrollDownFromTop(screen.getByTestId('work-home-list'));
+    await finishAnimations();
+    expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
+
+    await view.rerender(
+      <WorkHomeScreen
+        currentWork={null}
+        schedule={[]}
+        today={homeToday}
+        weekLabel="9. 14. – 9. 20."
+        started={false}
+        onStartWork={jest.fn()}
+        onOpenWork={jest.fn()}
+        onOpenNotifications={jest.fn()}
+        load={{ status: 'loading' }}
+      />,
+    );
+    await fireEvent(
+      screen.getByLabelText('불러오는 중').parent?.parent as HostElement,
+      'layout',
+      { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } },
+    );
+    await finishAnimations();
+
+    expect(autoHideHeaderOffset()).toBe(0);
   });
 });
 
