@@ -72,12 +72,13 @@ describe('ScheduleScreen 렌더 예산', () => {
     );
   }, 30_000);
 
-  // 달력을 만지는 동안 리스트 스크롤을 막는다 (#99). 막고 풀 때 리스트만 다시 그리고 달력은 그대로 둔다
+  // 주간 줄을 만지는 동안(#99), 펼친 달력을 가로로 미는 동안(#144) 리스트 스크롤을 막는다.
+  // 막고 풀 때 리스트만 다시 그리고 달력은 그대로 두며, 방향을 정하는 움직임마다 다시 그리지 않는다
   it.each([
     { label: '주간 줄', testID: 'week-strip', open: false },
     { label: '펼친 달력', testID: 'month-calendar', open: true },
   ])(
-    '$label 에 손가락이 닿을 때와 뗄 때 한 번씩만 다시 그린다',
+    '$label 을 만져 막을 때와 뗄 때 한 번씩만 다시 그린다',
     async ({ testID, open }) => {
       const result = await measureRenders(
         <ScheduleScreen
@@ -101,6 +102,14 @@ describe('ScheduleScreen 렌더 예산', () => {
                 touchesEvent({ changed: [0], touches: [0] }),
               ),
             );
+            // 펼친 달력은 가로로 정해질 때 막는다 (iOS)
+            for (const x of open ? [-4, -8, -12, -30, -60] : []) {
+              await act(() =>
+                area.props.onTouchMove(
+                  touchesEvent({ changed: [0], touches: [0], x }),
+                ),
+              );
+            }
             await act(() =>
               area.props.onTouchEnd(
                 touchesEvent({ changed: [0], touches: [] }),
