@@ -1,10 +1,15 @@
 import { render, screen } from '@testing-library/react-native';
 import { boxOf } from '../../../shared/testing/skeleton';
 import { CompletedWorkRow } from '../../history/components/CompletedWorkRow';
-import { ConfirmedRow } from '../../schedule/components/ScheduleRows';
-import { weeklySchedule } from '../mockData';
+import type { HostElement } from '../../../shared/testing/touchTarget';
+import { weeklySchedule, workDetail } from '../mockData';
 import { ScheduleCard } from './ScheduleCard';
-import { WorkHomeSkeleton, WorkRowsSkeleton } from './WorkSkeletons';
+import { WorkInfoSections } from './WorkInfoSections';
+import {
+  WorkDetailSkeleton,
+  WorkHomeSkeleton,
+  WorkRowsSkeleton,
+} from './WorkSkeletons';
 
 // 받은 내용으로 바뀔 때 높이가 크게 튀지 않도록 (#139), 되풀이되는 카드·행 스켈레톤은 실제 컴포넌트와 같은
 // 상자(여백·간격·모서리·테두리)를 쓴다. 줄 높이는 글자 스타일의 줄 높이다 (Skeleton.test)
@@ -22,28 +27,19 @@ describe('작업 스켈레톤', () => {
     expect(boxOf(cards[0])).toEqual(real);
   });
 
-  it('작업 행 스켈레톤은 확정 일정 행(ConfirmedRow)·완료 작업 행(CompletedWorkRow)과 같은 상자다', async () => {
-    const work = {
-      id: 'w1',
-      title: '세탁기 설치',
-      company: '한빛 설비',
-      customerName: '정다은',
-      address: '서울 용산구 이태원로 202',
-    };
-    await render(
-      <ConfirmedRow
-        item={{
-          ...work,
-          dateKey: '2026-12-15',
-          status: 'assigned',
-          timeRange: '08:00 - 09:00',
-        }}
-      />,
-    );
-    const confirmed = boxOf(screen.getByLabelText(/^세탁기 설치, /));
+  it('작업 행 스켈레톤은 완료 작업 행(CompletedWorkRow)과 같은 상자다', async () => {
     await render(
       <CompletedWorkRow
-        item={{ ...work, dateKey: '2026-09-26', start: '08:00', end: '09:00' }}
+        item={{
+          id: 'w1',
+          title: '세탁기 설치',
+          company: '한빛 설비',
+          customerName: '정다은',
+          address: '서울 용산구 이태원로 202',
+          dateKey: '2026-09-26',
+          start: '08:00',
+          end: '09:00',
+        }}
         onPress={noop}
       />,
     );
@@ -53,7 +49,31 @@ describe('작업 스켈레톤', () => {
 
     const rows = screen.getAllByTestId('work-row-skeleton');
     expect(rows).toHaveLength(3);
-    expect(boxOf(rows[0])).toEqual(confirmed);
     expect(boxOf(rows[0])).toEqual(completed);
+  });
+
+  it('작업 상세 스켈레톤은 실제 정보 영역(WorkInfoSections)의 요약·일정 카드·고객 카드와 같은 상자다', async () => {
+    await render(
+      <WorkInfoSections work={workDetail} onCall={noop} onNavigate={noop} />,
+    );
+    const titleRow = screen.getByText(workDetail.title).parent as HostElement;
+    const cardOf = (section: string) =>
+      (screen.getByRole('header', { name: section }).parent as HostElement)
+        .children[1] as HostElement;
+    const real = {
+      summary: boxOf(titleRow.parent as HostElement),
+      titleRow: boxOf(titleRow),
+      schedule: boxOf(cardOf('일정 및 담당 정보')),
+      customer: boxOf(cardOf('고객 정보')),
+    };
+
+    await render(<WorkDetailSkeleton />);
+
+    const part = (name: string) =>
+      boxOf(screen.getByTestId(`work-detail-skeleton-${name}`));
+    expect(part('summary')).toEqual(real.summary);
+    expect(part('title')).toEqual(real.titleRow);
+    expect(part('schedule')).toEqual(real.schedule);
+    expect(part('customer')).toEqual(real.customer);
   });
 });

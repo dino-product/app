@@ -33,10 +33,12 @@ import {
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TAB_HEADER_HEIGHT, TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
-import { WorkRowsSkeleton } from '../../work/components/WorkSkeletons';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
-import { PendingRequestsSkeleton } from '../components/ScheduleSkeletons';
+import {
+  ConfirmedCardsSkeleton,
+  PendingRequestsSkeleton,
+} from '../components/ScheduleSkeletons';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
 import { WeekStrip } from '../components/WeekStrip';
 import {
@@ -377,7 +379,7 @@ function ScheduleScreenView({
               ) : (
                 <LoadStateView
                   state={confirmedLoad}
-                  skeleton={<WorkRowsSkeleton />}
+                  skeleton={<ConfirmedCardsSkeleton />}
                 />
               )
             }

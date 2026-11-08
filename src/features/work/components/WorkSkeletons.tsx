@@ -5,6 +5,7 @@ import {
   Skeleton,
   SkeletonBlock,
   SkeletonLine,
+  typography,
 } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { InfoCard, SectionBand } from './InfoCard';
@@ -20,6 +21,8 @@ const CARD_CTA_HEIGHT = 48;
 // 블록 보기 날짜 칸의 최소 높이 (WeekDays)
 const WEEK_DAY_HEIGHT = 69;
 const CTA_RADIUS = 12;
+// 작업 상세 번호 알약: Caption/S 글자 + 위아래 4
+const ID_PILL_HEIGHT = typography['Caption/S/Medium'].lineHeight + 8;
 
 function Chip() {
   return <SkeletonBlock width={CHIP_WIDTH} height={CHIP_HEIGHT} radius={999} />;
@@ -148,16 +151,22 @@ function SectionSkeleton({ children }: { children: ReactNode }) {
 export const WorkDetailSkeleton = memo(function WorkDetailSkeletonView() {
   return (
     <Skeleton style={readableColumn} testID="work-detail-skeleton">
-      <View style={styles.detailSummary}>
-        <View style={styles.detailTitle}>
+      <View style={styles.detailSummary} testID="work-detail-skeleton-summary">
+        <View style={styles.detailTitle} testID="work-detail-skeleton-title">
           <SkeletonLine variant="Body/XL/Bold" width="55%" />
           <Chip />
         </View>
-        <SkeletonLine variant="Caption/S/Medium" width="45%" />
+        <View style={styles.detailMeta}>
+          <SkeletonBlock width={72} height={ID_PILL_HEIGHT} radius={8} />
+          <SkeletonLine variant="Caption/M/Medium" width="40%" />
+        </View>
       </View>
       <SectionBand />
       <SectionSkeleton>
-        <InfoCard>
+        <InfoCard
+          style={styles.detailScheduleCard}
+          testID="work-detail-skeleton-schedule"
+        >
           <View style={styles.pair}>
             <FieldSkeleton width="80%" />
             <FieldSkeleton width="70%" />
@@ -169,7 +178,10 @@ export const WorkDetailSkeleton = memo(function WorkDetailSkeletonView() {
         </InfoCard>
       </SectionSkeleton>
       <SectionSkeleton>
-        <InfoCard>
+        <InfoCard
+          style={styles.detailCustomerCard}
+          testID="work-detail-skeleton-customer"
+        >
           <FieldSkeleton width="40%" />
           <FieldSkeleton width="55%" />
         </InfoCard>
@@ -231,8 +243,12 @@ const styles = StyleSheet.create({
   },
   rowTime: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   // WorkInfoSections 의 요약과 같은 여백
-  detailSummary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },
-  detailTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detailSummary: { gap: 12, paddingHorizontal: 24, paddingTop: 24 },
+  detailTitle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  detailMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // 일정 및 담당 카드는 두 줄 사이 14, 고객 카드는 고객명↔연락처 12
+  detailScheduleCard: { gap: 14 },
+  detailCustomerCard: { gap: 12 },
   section: { gap: 12, paddingHorizontal: 24, paddingTop: 24 },
   pair: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   field: { flex: 1, gap: 2 },

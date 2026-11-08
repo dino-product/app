@@ -1146,10 +1146,10 @@ describe('ScheduleScreen — 불러오기', () => {
   const failed = (onRetry = jest.fn()) =>
     ({ status: 'error', message: '네트워크 문구', onRetry } as const);
 
-  it('확정 일정을 불러오는 동안 목록 자리에 일정 행을 닮은 스켈레톤을 보인다 (빈 안내·스피너 대신)', async () => {
+  it('확정 일정을 불러오는 동안 목록 자리에 일정 카드를 닮은 스켈레톤을 보인다 (빈 안내·스피너 대신)', async () => {
     await renderSchedule({ confirmed: [], confirmedLoad: loading });
 
-    expectOnlySkeletons('work-rows-skeleton');
+    expectOnlySkeletons('confirmed-cards-skeleton');
     expect(screen.queryByText('예정된 일정이 없습니다')).not.toBeOnTheScreen();
   });
 
