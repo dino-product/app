@@ -74,7 +74,7 @@ async function renderWithBackButton() {
 // 프리셋의 Alert 는 네이티브 목으로 이어지므로 띄우지 않게 막는다
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
-// 진행할 작업을 시작하고 상세에서 완료 보고를 채워 제출한다. 결제 금액·방식은 계획값으로 미리 채워져 있다.
+// 진행할 작업을 시작하고 상세에서 완료 보고를 채워 제출한다. 결제 금액은 계획값으로 미리 채워져 있고 결제 방식은 고른다 (#150).
 // 결과 모달이 열린 채로 끝난다
 async function submitReport() {
   await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
@@ -88,6 +88,8 @@ async function submitReport() {
   await userEvent.press(
     screen.getByRole('button', { name: '작업 후 사진 추가' }),
   );
+  await userEvent.press(screen.getByRole('button', { name: '결제 방식 선택' }));
+  await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
   await userEvent.press(screen.getByRole('button', { name: '완료보고 제출' }));
   await screen.findByRole('header', { name: '제출 완료' });
 }
@@ -432,7 +434,8 @@ describe('App', () => {
   });
 
   // 로컬 저장소 처음 데이터: 오늘(지금 오후 2시) 보일러 점검 13:40~14:40, 세탁기 설치 15:40~16:40
-  it('완료 보고 결제 금액·방식은 작업의 계획값으로 미리 채워져 있다', async () => {
+  // #150 결제 방식은 계획값(현장 카드)이 있어도 고르지 않은 채로 열고, 제출은 고를 때까지 막는다
+  it('완료 보고 첫 화면은 결제 금액만 계획값으로 채우고 결제 방식은 고르지 않은 채라 제출이 비활성이다', async () => {
     await renderSignedInHome();
 
     await openStartedWorkDetail();
@@ -440,9 +443,12 @@ describe('App', () => {
     expect(screen.getByLabelText('결제 금액 입력')).toHaveDisplayValue(
       '75,000',
     );
+    const method = screen.getByRole('button', { name: '결제 방식 선택' });
+    expect(method).not.toHaveAccessibilityValue({ text: '현장 카드' });
+    expect(within(method).getByText('결제 방식 선택')).toBeOnTheScreen();
     expect(
-      screen.getByRole('button', { name: '결제 방식 선택' }),
-    ).toHaveAccessibilityValue({ text: '현장 카드' });
+      screen.getByRole('button', { name: '완료보고 제출' }),
+    ).toBeDisabled();
   });
 
   it('완료 보고를 제출하고 메인으로 돌아오면 다음 작업이 "작업 시작" 으로 온다', async () => {

@@ -61,7 +61,7 @@ async function relaunch(kill: () => Promise<void>) {
 
 const openWorkDetail = openStartedWorkDetail;
 
-// 결제 금액·방식은 계획값(75,000원·현장 카드)으로 미리 채워져 있어 다른 값으로 바꾼다
+// 결제 금액은 계획값(75,000원)으로 미리 채워져 있어 다른 값으로 바꾸고, 결제 방식은 고른다 (#150 계획값으로 채우지 않는다)
 async function writeReport() {
   await openWorkDetail();
   await userEvent.press(
@@ -233,6 +233,26 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       expect(
         screen.getByRole('button', { name: '작업 전 사진 추가' }),
       ).toHaveAccessibilityValue({ text: '1/6' });
+    });
+
+    // #150 결제 방식을 고르지 않은 초안을 다시 열어도 계획값(현장 카드)으로 채우지 않는다
+    it('결제 방식을 고르지 않은 채 쓰던 보고는 다시 열어도 결제 방식이 비어 있다', async () => {
+      const kill = await launch();
+      await openWorkDetail();
+      await userEvent.type(
+        screen.getByLabelText('수행 메모 입력'),
+        '배관 교체',
+      );
+
+      await relaunch(kill);
+      await findWorkDetailLoaded();
+
+      expect(screen.getByLabelText('수행 메모 입력')).toHaveDisplayValue(
+        '배관 교체',
+      );
+      expect(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      ).not.toHaveAccessibilityValue({ text: '현장 카드' });
     });
 
     it('이어 쓰는 보고도 나갈 때 묻고, 화면 스택도 남아 뒤로 가면 메인화면이다', async () => {

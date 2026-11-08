@@ -68,7 +68,7 @@ export type WorkDetailScreenProps = {
   titleRef?: Ref<TextInstance>;
   /** 제출하지 않은 완료 보고 입력이 있는지 처음과 바뀔 때 알린다. 바깥에서 화면을 닫기 전에 물을 때 쓴다 */
   onUnsavedReportChange?: (unsaved: boolean) => void;
-  /** 아무것도 쓰지 않은 보고 (결제 금액·방식을 계획값으로 미리 채운 것). 이어 쓸 보고가 없으면 이것으로 열고, 이것과 같으면 잃을 입력이 없다 */
+  /** 아무것도 쓰지 않은 보고 (결제 금액을 계획값으로 미리 채운 것, 결제 방식은 고르지 않은 채). 이어 쓸 보고가 없으면 이것으로 열고, 이것과 같으면 잃을 입력이 없다 */
   plannedReport?: WorkReport;
   /** 이어 쓸 보고 (앱이 종료되기 전에 쓰던 초안). 처음 열 때만 쓴다 */
   initialReport?: WorkReport;
