@@ -185,7 +185,7 @@ function WorkHistoryScreenView({
   const canGoNext = isBeforeMonth(viewMonth, monthOf(today));
 
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
-  // 목록 영역(리스트에서 보이는 머리를 뺀 아래쪽) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
+  // 목록 영역(리스트에서 보이는 상단 바·머리를 뺀 아래쪽, monthSwipe.ts rowsArea) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
   // 머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다. 세로 우세면 리스트가 스크롤한다
   const barRef = useRef<ViewInstance>(null);
   const headerRef = useRef<ViewInstance>(null);

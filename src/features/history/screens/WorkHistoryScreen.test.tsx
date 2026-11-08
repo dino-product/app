@@ -179,6 +179,10 @@ describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
     expect(
       StyleSheet.flatten(list().props.contentContainerStyle),
     ).toMatchObject({ paddingTop: TAB_HEADER_HEIGHT });
+    // 상단 바를 잴 수 있게 감싼 뷰도 빈 곳 터치를 아래 리스트로 통과시킨다 (끌면 리스트가 스크롤된다, #153)
+    expect(screen.getByTestId('work-history-bar')).toHaveStyle({
+      pointerEvents: 'box-none',
+    });
   });
 
   it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다', async () => {
