@@ -214,7 +214,7 @@ function WorkHomeScreenView({
         {load.status !== 'ready' ? (
           // 상단 바가 숨은 채 이 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그려지면 다시 보인다
           <View
-            onLayout={autoHide.scrollProps.onLayout}
+            onLayout={autoHide.show}
             style={{ paddingTop: autoHide.height }}
           >
             <LoadStateView state={load} />

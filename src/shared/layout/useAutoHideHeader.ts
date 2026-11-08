@@ -66,11 +66,13 @@ export type AutoHideHeader = {
   onHeaderLayout: (event: LayoutChangeEvent) => void;
   /** 숨는 부분(상단 바)의 onLayout */
   onCollapsibleLayout: (event: LayoutChangeEvent) => void;
+  /** 숨은 상단 바를 다시 보인다. 스크롤 없이 화면이 바뀔 때 부른다 (내 일정 하위 탭 전환, 리스트 대신 불러오기 화면) */
+  show: () => void;
   /** 스크롤 뷰(Animated.FlatList · Animated.ScrollView)에 펼쳐 넣는다 */
   scrollProps: {
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     scrollEventThrottle: number;
-    /** 스크롤 뷰가 새로 자리 잡으면(하위 탭을 바꿔 다른 리스트가 그려짐, 화면 크기 바뀜) 맨 위이므로 다시 보인다 */
+    /** 스크롤 뷰가 새로 자리 잡으면(새로 마운트됨, 화면 크기 바뀜) 다시 보인다 */
     onLayout: (event: LayoutChangeEvent) => void;
     /** 내용이 짧아져 상단 바 높이만큼도 스크롤할 수 없게 되면 다시 보인다 (스크롤 이벤트가 오지 않을 수 있다) */
     onContentSizeChange: (width: number, height: number) => void;
@@ -103,6 +105,7 @@ export function useAutoHideHeader(
       progressViewOffset: Platform.OS === 'android' ? height : undefined,
       onHeaderLayout,
       onCollapsibleLayout: model.onCollapsibleLayout,
+      show: model.show,
       scrollProps: {
         onScroll: model.onScroll,
         scrollEventThrottle: 16,
@@ -190,6 +193,8 @@ function createAutoHide(
     show,
     onScrollLayout: (event: LayoutChangeEvent) => {
       viewport = event.nativeEvent.layout.height;
+      // 앞 리스트의 마지막 위치(당기던 음수 위치)가 남아 머리를 밀어 두지 않게 한다
+      scrollY.setValue(0);
       show();
     },
     onContentSizeChange: (_width: number, height: number) => {

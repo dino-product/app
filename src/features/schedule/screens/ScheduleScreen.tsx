@@ -185,8 +185,16 @@ function ScheduleScreenView({
   const week = useMemo(() => weekDays(new Date(weekStart)), [weekStart]);
 
   // 아래로 스크롤하면 제목 줄이 숨고 하위 탭은 화면 맨 위에 남는다. 위로 스크롤하면 다시 보인다 (#148).
-  // 하위 탭을 바꾸면 새 리스트가 그려지며(맨 위) 다시 보인다
+  // 하위 탭은 같은 리스트를 data 만 바꿔 쓰므로(스크롤 위치 그대로) 탭을 누를 때 다시 보인다
   const autoHide = useAutoHideHeader(HEADER_ESTIMATE);
+  const showHeader = autoHide.show;
+  const selectTab = useCallback(
+    (next: ScheduleTab) => {
+      setTab(next);
+      showHeader();
+    },
+    [showHeader],
+  );
   const contentStyle = useMemo(
     () => [readableColumn, { paddingTop: autoHide.height }],
     [autoHide.height],
@@ -324,7 +332,7 @@ function ScheduleScreenView({
                 { key: 'pending', label: '응답 필요', count: pending.length },
               ]}
               selectedKey={tab}
-              onChange={setTab}
+              onChange={selectTab}
             />
           </View>
         }

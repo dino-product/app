@@ -786,9 +786,6 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
   const TITLE_BAR = TAB_HEADER_HEIGHT + 16;
   const confirmedList = () => screen.getByTestId('schedule-confirmed-list');
   const pendingList = () => screen.getByTestId('schedule-pending-list');
-  const layoutEvent = {
-    nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } },
-  };
 
   it('제목 줄과 하위 탭은 리스트 위에 겹쳐 그린 머리 안에 있고, 내용은 그 아래에서 시작한다', async () => {
     await renderSchedule();
@@ -834,14 +831,14 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
   });
 
   // 하위 탭마다 리스트가 따로다. 새로 그린 리스트는 맨 위이므로 상단 바를 다시 보인다
-  it('하위 탭을 바꿔 다른 리스트가 그려지면 다시 보이고, 그 리스트를 스크롤해도 숨는다', async () => {
+  // 두 하위 탭은 같은 자리의 리스트 하나를 data 만 바꿔 쓴다(스크롤 위치·레이아웃 그대로). 탭을 누르면 다시 보인다
+  it('하위 탭을 바꾸면 상단 바를 다시 보이고, 바꾼 리스트를 스크롤해도 숨는다', async () => {
     await renderSchedule();
     await scrollDownFromTop(confirmedList());
     await finishAnimations();
     expect(autoHideHeaderOffset()).toBe(-TITLE_BAR);
 
     await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
-    await fireEvent(pendingList(), 'layout', layoutEvent);
     await finishAnimations();
     expect(autoHideHeaderOffset()).toBe(0);
 

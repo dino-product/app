@@ -288,6 +288,56 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       expect(autoHideHeaderOffset()).toBe(0);
     });
 
+    // 리스트가 새로 자리 잡으면 앞 리스트의 마지막 위치(당기던 음수 위치)로 머리를 밀어 두지 않는다
+    it('스크롤 뷰가 새로 자리 잡으면 앞 리스트에서 당기던 만큼 밀려 있던 머리를 제자리로 돌린다', async () => {
+      const event = jest.spyOn(Animated, 'event');
+      const view = await render(<Harness />);
+      const scrollY = (
+        event.mock.calls[0][0] as [
+          { nativeEvent: { contentOffset: { y: Animated.Value } } },
+        ]
+      )[0].nativeEvent.contentOffset.y;
+      await act(() => scrollY.setValue(-60));
+
+      await fireEvent(list(), 'layout', layout(600));
+      await view.rerender(<Harness />);
+
+      expect(autoHideHeaderOffset()).toBe(0);
+    });
+
+    // 바깥(내 일정 하위 탭 전환, 리스트 대신 불러오기 화면)에서 바로 다시 보일 수 있다
+    it('show 를 부르면 숨은 상단 바가 다시 보인다', async () => {
+      let show = () => {};
+      function Exposed() {
+        const autoHide = useAutoHideHeader();
+        show = autoHide.show;
+        return (
+          <AutoHideHeaderLayout
+            autoHide={autoHide}
+            header={<TabHeader title="내 작업" />}
+            style={headerBackground}
+          >
+            <Animated.FlatList
+              testID="list"
+              {...autoHide.scrollProps}
+              data={items}
+              keyExtractor={item => item}
+              renderItem={({ item }) => <Text>{item}</Text>}
+            />
+          </AutoHideHeaderLayout>
+        );
+      }
+      await render(<Exposed />);
+      await scrollDown();
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(-46);
+
+      await act(() => show());
+      await finishAnimations();
+
+      expect(autoHideHeaderOffset()).toBe(0);
+    });
+
     // 하위 탭을 바꿔 다른 리스트가 그려지거나 화면 크기가 바뀌면 새 리스트는 맨 위다
     it('스크롤 뷰가 새로 자리 잡으면 상단 바를 다시 보인다', async () => {
       await render(<Harness />);
