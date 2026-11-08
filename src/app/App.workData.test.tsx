@@ -216,6 +216,10 @@ describe('App — 작업 데이터 (#114)', () => {
       await userEvent.press(
         screen.getByRole('button', { name: '작업 후 사진 추가' }),
       );
+      await userEvent.press(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
 
       await userEvent.press(
         screen.getByRole('button', { name: '완료보고 제출' }),
@@ -276,6 +280,10 @@ describe('App — 작업 데이터 (#114)', () => {
       await userEvent.press(
         screen.getByRole('button', { name: '작업 후 사진 추가' }),
       );
+      await userEvent.press(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
       read.mockClear();
 
       await userEvent.press(
@@ -317,7 +325,7 @@ describe('App — 작업 데이터 (#114)', () => {
       expect(await findWorkDetailLoaded()).toBeOnTheScreen();
     });
 
-    it('완료 보고는 사진·메모·부품·계획 금액·결제 방식으로 제출 Command 를 보낸다', async () => {
+    it('완료 보고는 사진·메모·부품·계획 금액·고른 결제 방식으로 제출 Command 를 보낸다', async () => {
       const { repository, render } = setup();
       const submit = jest.spyOn(repository, 'submitCompletionReport');
       await render();
@@ -335,6 +343,10 @@ describe('App — 작업 데이터 (#114)', () => {
         screen.getByRole('button', { name: '작업 후 사진 추가' }),
       );
       await userEvent.type(screen.getByLabelText('수행 메모 입력'), '교체');
+      await userEvent.press(
+        screen.getByRole('button', { name: '결제 방식 선택' }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '현장 카드' }));
       await userEvent.press(
         screen.getByRole('button', { name: '완료보고 제출' }),
       );

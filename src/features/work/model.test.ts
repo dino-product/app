@@ -11,6 +11,7 @@ import {
   paymentMethodLabels,
   PHOTO_LIMIT,
   reportFromPlan,
+  type WorkDetail,
   type WorkReport,
 } from './model';
 
@@ -50,20 +51,18 @@ describe('mondayWeek', () => {
 
 const filled: WorkReport = {
   ...emptyReport,
-  beforePhotos: ['a'],
-  afterPhotos: ['b'],
   amount: '75000',
   paymentMethod: 'card',
 };
 
+// #150 사용자 결정(선택지 C): 결제 방식과 결제 금액(0 보다 큼)만 필수다.
+// 백엔드 완료 보고 요청은 배정 순번 말고는 모두 비워 보낼 수 있고, Figma 는 수행 메모·사용 부품에만 '(선택)' 을 단다
 describe('canSubmitReport', () => {
-  it('작업 전·후 사진, 결제 금액·방식이 모두 있으면 제출할 수 있다', () => {
+  it('결제 금액과 결제 방식이 있으면 제출할 수 있다', () => {
     expect(canSubmitReport(filled)).toBe(true);
   });
 
   it.each<[string, Partial<WorkReport>]>([
-    ['작업 전 사진이 없으면', { beforePhotos: [] }],
-    ['작업 후 사진이 없으면', { afterPhotos: [] }],
     ['결제 금액이 비어 있으면', { amount: '' }],
     ['결제 금액이 0 이면', { amount: '0' }],
     ['결제 방식을 고르지 않았으면', { paymentMethod: null }],
@@ -71,8 +70,20 @@ describe('canSubmitReport', () => {
     expect(canSubmitReport({ ...filled, ...patch })).toBe(false);
   });
 
-  it('수행 메모와 사용 부품은 선택 항목이다', () => {
+  it('작업 전·후 사진은 없어도 제출할 수 있다', () => {
+    expect(
+      canSubmitReport({ ...filled, beforePhotos: [], afterPhotos: [] }),
+    ).toBe(true);
+  });
+
+  it('수행 메모와 사용 부품은 쓰든 말든 제출 여부에 영향이 없다', () => {
     expect(canSubmitReport({ ...filled, memo: '', parts: '' })).toBe(true);
+    expect(canSubmitReport({ ...filled, memo: '배관', parts: '밸브' })).toBe(
+      true,
+    );
+    expect(
+      canSubmitReport({ ...emptyReport, memo: '배관', parts: '밸브' }),
+    ).toBe(false);
   });
 });
 
@@ -128,18 +139,25 @@ describe('hasReportInput', () => {
 });
 
 describe('reportFromPlan', () => {
-  it('완료 보고 결제 금액·방식을 작업의 계획값으로 미리 채운다', () => {
-    expect(reportFromPlan({ price: 75000, paymentMethod: 'invoice' })).toEqual({
+  it('완료 보고 결제 금액을 작업의 계획값으로 미리 채운다', () => {
+    expect(reportFromPlan({ price: 75000 })).toEqual({
       ...emptyReport,
       amount: '75000',
-      paymentMethod: 'invoice',
     });
   });
 
+  // #150 결제 방식은 기사가 직접 고른다. 고르는 것이 제출 버튼을 여는 계기다
+  it('작업에 계획한 결제 방식이 있어도 결제 방식은 고르지 않은 채로 둔다', () => {
+    const plannedWork: Pick<WorkDetail, 'price' | 'paymentMethod'> = {
+      price: 75000,
+      paymentMethod: 'invoice',
+    };
+
+    expect(reportFromPlan(plannedWork).paymentMethod).toBeNull();
+  });
+
   it('계획값이 없으면 빈 칸이다', () => {
-    expect(reportFromPlan({ price: null, paymentMethod: null })).toEqual(
-      emptyReport,
-    );
+    expect(reportFromPlan({ price: null })).toEqual(emptyReport);
   });
 });
 

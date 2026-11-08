@@ -163,6 +163,59 @@ describe('선제 재발급', () => {
   });
 });
 
+// 백엔드 develop(79b47ad8) 의 재발급 계약 (#138): AuthSessionController POST /api/v1/auth/refresh,
+// 요청 RefreshTokensRequest { refreshToken }, 응답 RefreshedTokensResponse { accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt }
+// (accountId·registered 없음), 거절은 모두 401 AUTH-009, 만료·폐기된 access 는 404 COMMON-404. 값은 백엔드 @Schema 예시 모양
+describe('재발급 계약 (백엔드 HM-337 기기 세션)', () => {
+  const backendRefreshToken =
+    '7f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b.q3Jx0Yb9kVwH2tN7sLmA4cDeFgHiJkLmNoPqRsTuVwX';
+  const refreshedTokensResponse = {
+    accessToken: 'eyJhbGciOiJIUzI1NiJ9.rotated.signature',
+    accessTokenExpiresAt: '2026-11-04T02:00:00Z',
+    refreshToken:
+      '7f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b.Zp8sQw2rTy6uIo0pAs4dFg7hJk1lZx3cVb5nMq9wErT',
+    refreshTokenExpiresAt: '2026-12-04T01:00:00Z',
+  };
+
+  it('경로·오류 코드가 백엔드와 같다', () => {
+    expect(REFRESH_PATH).toBe('/api/v1/auth/refresh');
+    expect(ApiErrorCode.refreshRejected).toBe('AUTH-009');
+    expect(ApiErrorCode.notFound).toBe('COMMON-404');
+  });
+
+  it('Bearer 없이 JSON { refreshToken } 만 보내고, 응답의 토큰 네 값으로 세션을 바꾸며 accountId 는 그대로 둔다', async () => {
+    server
+      .on('POST', REFRESH_PATH, ok(refreshedTokensResponse))
+      .on('GET', '/api/v1/auth/me', ok({ accountId: 7 }));
+    const { client, tokenStore } = setup(
+      testSession(
+        {
+          accountId: 7,
+          refreshToken: backendRefreshToken,
+          accessTokenExpiresAt: iso(NOW),
+        },
+        NOW,
+      ),
+    );
+
+    await client.get('/api/v1/auth/me');
+
+    const [refresh] = server.callsTo('POST', REFRESH_PATH);
+    expect(refresh.headers).toEqual({
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    });
+    expect(refresh.body).toEqual({ refreshToken: backendRefreshToken });
+    expect(tokenStore.current).toEqual({
+      accountId: 7,
+      ...refreshedTokensResponse,
+    });
+    expect(bearerOf('/api/v1/auth/me')).toEqual([
+      `Bearer ${refreshedTokensResponse.accessToken}`,
+    ]);
+  });
+});
+
 describe('COMMON-404 뒤 재시도', () => {
   const invalidToken = fail(404, ApiErrorCode.notFound, {
     message: '요청한 리소스를 찾을 수 없습니다.',
