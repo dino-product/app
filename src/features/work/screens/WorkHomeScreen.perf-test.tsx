@@ -1,7 +1,9 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import { useState } from 'react';
 import { measureRenders } from 'reassure';
 import { perfBudget } from '../../../shared/perf/budget';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
+import type { LoadState } from '../../../shared/layout/LoadStateView';
 import { WorkHomeScreen } from './WorkHomeScreen';
 
 const noop = () => {};
@@ -114,6 +116,47 @@ describe('WorkHomeScreen 렌더 예산', () => {
     );
 
     expect(Math.max(...result.counts)).toBe(1);
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
+  }, 30_000);
+
+  // #139: 첫 응답 전에는 스켈레톤, 받으면 내용. 스켈레톤이 깜빡여도 다시 그리지 않고 바뀔 때 한 번만 그린다
+  it('스켈레톤에서 받은 내용으로 바뀔 때 한 번만 다시 그린다', async () => {
+    let finishLoading = () => {};
+    function Harness() {
+      const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+      finishLoading = () => setLoad({ status: 'ready' });
+      return (
+        <WorkHomeScreen
+          currentWork={load.status === 'ready' ? currentWork : null}
+          schedule={load.status === 'ready' ? weeklySchedule : []}
+          today={homeToday}
+          weekLabel="9. 14. – 9. 20."
+          started={false}
+          onStartWork={noop}
+          onOpenWork={noop}
+          onOpenNotifications={noop}
+          load={load}
+        />
+      );
+    }
+
+    const result = await measureRenders(<Harness />, {
+      scenario: async () => {
+        // 스켈레톤이 동작 줄이기 설정을 읽고 깜빡이기 시작할 때까지
+        await act(async () => {});
+        expect(screen.getByTestId('work-home-skeleton')).toBeOnTheScreen();
+        await act(() => finishLoading());
+        expect(screen.queryByTestId('work-home-skeleton')).toBeNull();
+      },
+    });
+
+    // 마운트 1 + 받은 내용 1
+    expect(Math.max(...result.counts)).toBe(2);
+    expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
+      perfBudget.render.maxInitialUpdateCount,
+    );
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
     );

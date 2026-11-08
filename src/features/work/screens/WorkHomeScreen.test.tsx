@@ -12,6 +12,7 @@ import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { appStorage } from '../../../shared/storage/appStorage';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { currentWork, homeToday, weeklySchedule } from '../mockData';
 import type { ScheduleItem } from '../model';
@@ -602,7 +603,9 @@ describe('WorkHomeScreen — 불러오기', () => {
     });
 
     expect(screen.getByRole('header', { name: '내 작업' })).toBeOnTheScreen();
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    // 진행할 작업 카드·일정 카드를 닮은 스켈레톤이고 스피너는 없다 (#139)
+    expectOnlySkeletons('work-home-skeleton');
+    expect(screen.getByTestId('work-home-skeleton-current')).toBeOnTheScreen();
     expect(
       screen.queryByText('현재 진행 중인 작업이 없습니다'),
     ).not.toBeOnTheScreen();

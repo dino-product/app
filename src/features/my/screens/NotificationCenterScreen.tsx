@@ -21,6 +21,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, pressedBackground, Text } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import {
+  NotificationListSkeleton,
+  NotificationMoreSkeleton,
+} from '../components/MySkeletons';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
   formatRelativeTime,
@@ -150,9 +154,7 @@ export function NotificationCenterScreen({
   // 다음 쪽은 목록 끝에서 받는 중을 보이고, 실패하면 그 쪽만 다시 받는다
   let footer: ReactElement | undefined;
   if (isFetchingNextPage) {
-    footer = (
-      <LoadStateView state={{ status: 'loading' }} style={styles.more} />
-    );
+    footer = <NotificationMoreSkeleton />;
   } else if (isFetchNextPageError) {
     footer = (
       <LoadStateView
@@ -180,6 +182,7 @@ export function NotificationCenterScreen({
                 }
               : { status: 'loading' }
           }
+          skeleton={<NotificationListSkeleton />}
         />
       ) : (
         <FlatList

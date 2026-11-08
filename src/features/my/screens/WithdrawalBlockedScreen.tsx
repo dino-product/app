@@ -13,6 +13,7 @@ import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
+import { WithdrawalBlocksSkeleton } from '../components/MySkeletons';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import {
   withdrawalBlockCards,
@@ -85,7 +86,11 @@ export function WithdrawalBlockedScreen({
             onOpen={onOpenBlock}
           />
         ) : (
-          <LoadStateView state={eligibility} style={styles.load} />
+          <LoadStateView
+            state={eligibility}
+            style={styles.load}
+            skeleton={<WithdrawalBlocksSkeleton />}
+          />
         )}
       </ScrollView>
     </SafeAreaView>

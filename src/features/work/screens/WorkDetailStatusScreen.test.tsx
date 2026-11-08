@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { WorkDetailStatusScreen } from './WorkDetailStatusScreen';
 
 describe('WorkDetailStatusScreen', () => {
@@ -9,7 +10,8 @@ describe('WorkDetailStatusScreen', () => {
     );
 
     expect(screen.getByRole('header', { name: '작업 상세' })).toBeOnTheScreen();
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    // 제목·정보 카드를 닮은 스켈레톤이고 스피너는 없다 (#139)
+    expectOnlySkeletons('work-detail-skeleton');
     await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
 
     expect(onBack).toHaveBeenCalledTimes(1);

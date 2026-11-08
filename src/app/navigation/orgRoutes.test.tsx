@@ -19,6 +19,7 @@ import {
 } from '../../features/my/org/testing';
 import { networkError, ok } from '../../shared/testing/fakeServer';
 import { createTestApi } from '../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../shared/testing/skeleton';
 import { testSession } from '../../shared/testing/session';
 import { ParticipationRequestGate } from './orgRoutes';
 
@@ -98,13 +99,13 @@ describe('ParticipationRequestGate', () => {
     expect(onMissing).not.toHaveBeenCalled();
   });
 
-  it('받는 동안에는 불러오는 중을 보이고 떠나지 않는다', async () => {
+  it('받는 동안에는 기본 스켈레톤(스피너 없음)을 보이고 떠나지 않는다', async () => {
     const { onMissing } = await renderGate({
       cached: [asPending],
       server: [rejected],
     });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('load-state-skeleton');
     expect(onMissing).not.toHaveBeenCalled();
     await shown(/^스마트 홈케어 REJECTED/);
   });

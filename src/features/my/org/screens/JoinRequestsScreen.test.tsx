@@ -15,6 +15,7 @@ import {
   type FakeServer,
 } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../../../shared/testing/skeleton';
 import { testSession } from '../../../../shared/testing/session';
 import {
   cancelRequestPath,
@@ -104,7 +105,7 @@ describe('JoinRequestsScreen', () => {
     ).toBeOnTheScreen();
   });
 
-  it('받는 동안에는 빈 상태 대신 불러오는 중을 보여준다', async () => {
+  it('받는 동안에는 빈 상태 대신 신청 카드를 닮은 스켈레톤을 보여준다 (스피너 없음)', async () => {
     const participation = createParticipationServer();
     participation.server.on('GET', PARTICIPATION_REQUESTS_PATH, hang());
     await renderWithApi(
@@ -112,7 +113,7 @@ describe('JoinRequestsScreen', () => {
       { server: participation.server, session: testSession() },
     );
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('join-requests-skeleton');
     expect(screen.queryByText('참여 신청 내역이 없어요')).toBeNull();
     expect(screen.queryByRole('button', { name: '조직 참여하기' })).toBeNull();
   });

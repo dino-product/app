@@ -15,6 +15,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { testSession } from '../../../shared/testing/session';
 import { PROFILE_RULE_MESSAGE } from '../model';
 import {
@@ -146,7 +147,7 @@ describe('ProfileEditScreen', () => {
         ),
       );
 
-      expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+      expectOnlySkeletons('profile-form-skeleton');
       expect(screen.queryByLabelText('이름')).toBeNull();
       expect(screen.queryByRole('button', { name: '저장하기' })).toBeNull();
 

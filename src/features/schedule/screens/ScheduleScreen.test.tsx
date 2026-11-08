@@ -18,6 +18,7 @@ jest.mock('../../../shared/haptics', () => ({
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
 import { ScheduleScreen, type ScheduleScreenProps } from './ScheduleScreen';
@@ -978,11 +979,19 @@ describe('ScheduleScreen — 불러오기', () => {
   const failed = (onRetry = jest.fn()) =>
     ({ status: 'error', message: '네트워크 문구', onRetry } as const);
 
-  it('확정 일정을 불러오는 동안 목록 자리에 진행 표시를 보인다 (빈 안내 대신)', async () => {
+  it('확정 일정을 불러오는 동안 목록 자리에 일정 행을 닮은 스켈레톤을 보인다 (빈 안내·스피너 대신)', async () => {
     await renderSchedule({ confirmed: [], confirmedLoad: loading });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('work-rows-skeleton');
     expect(screen.queryByText('예정된 일정이 없습니다')).not.toBeOnTheScreen();
+  });
+
+  it('응답 필요를 불러오는 동안 요청 카드를 닮은 스켈레톤을 보인다 (빈 안내·스피너 대신)', async () => {
+    await renderSchedule({ pending: [], pendingLoad: loading });
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 0건' }));
+
+    expectOnlySkeletons('pending-requests-skeleton');
+    expect(screen.queryByText('응답할 요청이 없습니다')).not.toBeOnTheScreen();
   });
 
   it('응답 필요를 불러오지 못하면 문구와 다시 시도를 보인다', async () => {

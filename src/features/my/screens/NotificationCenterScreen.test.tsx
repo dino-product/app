@@ -17,6 +17,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { pressIn } from '../../../shared/testing/press';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
@@ -123,11 +124,11 @@ describe('NotificationCenterScreen', () => {
     expect(screen.getByText('2일 전')).toBeOnTheScreen();
   });
 
-  it('받는 동안 진행 표시를 보인다', async () => {
+  it('받는 동안 알림 행을 닮은 스켈레톤을 보인다 (스피너 없음)', async () => {
     const server = notificationServer().on('GET', NOTIFICATIONS_PATH, hang());
     await renderCenter({ server });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('notification-list-skeleton');
     expect(screen.queryByText('새 알림이 없어요')).not.toBeOnTheScreen();
   });
 
@@ -322,7 +323,9 @@ describe('NotificationCenterScreen', () => {
 
     await scrollToEnd();
 
-    expect(await screen.findByLabelText('불러오는 중')).toBeOnTheScreen();
+    // 다음 쪽은 목록 끝에 알림 행을 닮은 스켈레톤으로 보인다 (#139)
+    await screen.findByTestId('notification-more-skeleton');
+    expectOnlySkeletons('notification-more-skeleton');
     await act(() => releaseNext());
     await waitFor(() =>
       expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen(),
