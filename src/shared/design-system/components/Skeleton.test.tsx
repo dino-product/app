@@ -107,6 +107,22 @@ describe('Skeleton', () => {
     });
   });
 
+  it('어두운 배경(Primary 카드) 위에서는 inverse 로 흰색 토큰을 옅게 칠한다', async () => {
+    await render(
+      <Skeleton>
+        <SkeletonBlock height={20} inverse testID="block" />
+        <SkeletonLine variant="Body/L/Bold" width={64} inverse testID="line" />
+      </Skeleton>,
+    );
+
+    expect(screen.getByTestId('block')).toHaveStyle({
+      backgroundColor: colors.white[9],
+    });
+    expect(screen.getByTestId('line-bar')).toHaveStyle({
+      backgroundColor: colors.white[9],
+    });
+  });
+
   it('스크린리더는 묶음 전체를 "불러오는 중" 하나로 읽는다', async () => {
     await render(skeleton);
 

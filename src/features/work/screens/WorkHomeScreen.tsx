@@ -218,7 +218,10 @@ function WorkHomeScreenView({
             onLayout={autoHide.show}
             style={{ paddingTop: autoHide.height }}
           >
-            <LoadStateView state={load} skeleton={homeSkeleton} />
+            <LoadStateView
+              state={load}
+              skeleton={<WorkHomeSkeleton block={block} />}
+            />
           </View>
         ) : (
           <Animated.FlatList
@@ -363,7 +366,6 @@ const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
 });
 
-const homeSkeleton = <WorkHomeSkeleton />;
 const emptyWeek = (
   <EmptySchedule title="이번 주 일정이 없어요" style={styles.emptyWeek} />
 );

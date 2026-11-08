@@ -604,7 +604,30 @@ describe('WorkHomeScreen 블록 보기', () => {
 });
 
 describe('WorkHomeScreen — 불러오기', () => {
-  it('불러오는 동안 제목 아래에 진행 표시만 보인다 (진행할 작업 없음 카드·빈 일정 대신)', async () => {
+  // 홈은 마지막으로 고른 보기로 열린다 (#147). 스켈레톤도 그 보기를 닮는다
+  it('블록 보기로 여는 기사(처음 설치 포함)는 스켈레톤에도 날짜 칸 일곱 자리가 있다', async () => {
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getAllByTestId('week-day-skeleton')).toHaveLength(7);
+  });
+
+  it('목록 보기로 여는 기사는 스켈레톤에 날짜 칸 자리가 없다', async () => {
+    saveHomeView('list');
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getByTestId('work-home-skeleton')).toBeOnTheScreen();
+    expect(screen.queryAllByTestId('week-day-skeleton')).toHaveLength(0);
+  });
+
+  it('불러오는 동안 제목 아래에 스켈레톤만 보인다 (진행할 작업 없음 카드·빈 일정 대신)', async () => {
     await renderHome({
       currentWork: null,
       schedule: [],

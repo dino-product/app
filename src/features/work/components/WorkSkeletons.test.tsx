@@ -15,7 +15,7 @@ describe('작업 스켈레톤', () => {
     await render(<ScheduleCard item={weeklySchedule[0]} onPress={noop} />);
     const real = boxOf(screen.getByRole('button'));
 
-    await render(<WorkHomeSkeleton />);
+    await render(<WorkHomeSkeleton block={false} />);
 
     const cards = screen.getAllByTestId('schedule-card-skeleton');
     expect(cards).toHaveLength(3);

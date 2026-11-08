@@ -17,6 +17,8 @@ const CHIP_WIDTH = 61;
 const CHIP_HEIGHT = 28;
 // 카드 안 CTA(M) 는 Figma 에서 48pt, 모서리 12
 const CARD_CTA_HEIGHT = 48;
+// 블록 보기 날짜 칸의 최소 높이 (WeekDays)
+const WEEK_DAY_HEIGHT = 69;
 const CTA_RADIUS = 12;
 
 function Chip() {
@@ -39,14 +41,24 @@ function ScheduleCardSkeleton() {
   );
 }
 
-/** 메인화면(내 작업): 진행할 작업 카드, '일정' 줄, 이번 주 일정 카드 세 장. 상단 바 아래 리스트 자리에 그린다 */
-export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView() {
+// 블록 보기의 날짜 칸 (WeekDays) 자리: 월~일 일곱 칸
+const WEEK = [0, 1, 2, 3, 4, 5, 6];
+
+/**
+ * 메인화면(내 작업): 진행할 작업 카드, '일정' 줄, 일정 카드. 상단 바 아래 리스트 자리에 그린다.
+ * 블록 보기(#147)면 날짜 칸 줄과 고른 날의 일정 카드 두 장, 목록 보기면 이번 주 일정 카드 세 장이다
+ */
+export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView({
+  block,
+}: {
+  block: boolean;
+}) {
   return (
     <Skeleton
       style={[readableColumn, styles.homeContent]}
       testID="work-home-skeleton"
     >
-      <View style={styles.homeHeader}>
+      <View style={[styles.homeHeader, block && styles.homeHeaderBlock]}>
         <View style={styles.currentCard} testID="work-home-skeleton-current">
           <View style={styles.currentInfo}>
             <SkeletonLine variant="Body/S/Bold" width="55%" />
@@ -55,15 +67,30 @@ export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView() {
           </View>
           <SkeletonBlock height={CARD_CTA_HEIGHT} radius={CTA_RADIUS} />
         </View>
-        <View style={styles.sectionRow}>
-          <SkeletonLine variant="Body/M/SemiBold" width={120} />
-          <SkeletonBlock width={56} height={26} radius={6} />
+        <View style={styles.schedule}>
+          <View style={styles.sectionRow}>
+            <SkeletonLine variant="Body/M/SemiBold" width={120} />
+            <SkeletonBlock width={56} height={26} radius={6} />
+          </View>
+          {block && (
+            <View style={styles.weekDays}>
+              {WEEK.map(day => (
+                <SkeletonBlock
+                  key={day}
+                  height={WEEK_DAY_HEIGHT}
+                  radius={10}
+                  style={styles.weekDay}
+                  testID="week-day-skeleton"
+                />
+              ))}
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.scheduleList}>
         <ScheduleCardSkeleton />
         <ScheduleCardSkeleton />
-        <ScheduleCardSkeleton />
+        {!block && <ScheduleCardSkeleton />}
       </View>
     </Skeleton>
   );
@@ -155,6 +182,10 @@ const styles = StyleSheet.create({
   // WorkHomeScreen 리스트와 같은 여백 (content, header)
   homeContent: { paddingHorizontal: 24, paddingTop: 20 },
   homeHeader: { gap: 20, paddingBottom: 12 },
+  homeHeaderBlock: { paddingBottom: 14 },
+  schedule: { gap: 12, marginTop: 4 },
+  weekDays: { flexDirection: 'row', gap: 5 },
+  weekDay: { flex: 1 },
   // CurrentWorkCard 와 같은 카드
   currentCard: {
     gap: 22,
@@ -168,7 +199,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
     marginLeft: 6,
   },
   scheduleList: { gap: 12 },
