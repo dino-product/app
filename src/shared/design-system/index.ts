@@ -30,6 +30,13 @@ export {
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
+export {
+  Skeleton,
+  SkeletonBlock,
+  SkeletonLine,
+  SKELETON_LABEL,
+  type SkeletonProps,
+} from './components/Skeleton';
 export { TextArea, type TextAreaProps } from './components/TextArea';
 export {
   UnderlineTabs,
