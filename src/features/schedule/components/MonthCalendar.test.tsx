@@ -236,7 +236,8 @@ describe('MonthCalendar 표시', () => {
       />,
     );
 
-  it('일정 개수만큼 점을 그리고, 3건이 넘어도 점은 3개다', async () => {
+  // Figma 3754:6457 · DesignSystem Event Indicator 는 Count 0/1 뿐이다: 일정이 있으면 7×7 점 하나
+  it('일정이 있으면 건수와 관계없이 날짜 아래 13 에 7×7 점 하나를 그린다', async () => {
     await renderDecember(
       new Map([
         ['2026-12-03', 1],
@@ -246,9 +247,40 @@ describe('MonthCalendar 표시', () => {
     );
 
     expect(dotsOf('12월 3일 목요일')).toHaveLength(1);
-    expect(dotsOf('12월 8일 화요일')).toHaveLength(2);
-    expect(dotsOf('12월 10일 목요일')).toHaveLength(3);
+    expect(dotsOf('12월 8일 화요일')).toHaveLength(1);
+    expect(dotsOf('12월 10일 목요일')).toHaveLength(1);
     expect(dotsOf('12월 9일 수요일')).toHaveLength(0);
+    const [dot] = dotsOf('12월 10일 목요일');
+    expect(dot).toHaveStyle({ width: 7, height: 7, borderRadius: 3.5 });
+    expect(dot.parent).toHaveStyle({ position: 'absolute', bottom: 13 });
+  });
+
+  // DesignSystem Calendar Contents: 다른 달(Inactive) 칸에는 점이 없다
+  it('다른 달 날짜에는 일정이 있어도 점을 그리지 않는다', async () => {
+    await renderDecember(
+      new Map([
+        ['2026-11-30', 2],
+        ['2027-01-01', 1],
+      ]),
+    );
+
+    expect(dotsOf('11월 30일 월요일')).toHaveLength(0);
+    expect(dotsOf('1월 1일 금요일')).toHaveLength(0);
+  });
+
+  // Figma 3754:6618: 흰 카드(모서리 18) 위 20 에 달 이동 줄, 그 아래 24 에 요일 줄·날짜 격자. 좌우·아래 여백 없음
+  it('흰 카드에 모서리 18, 위 20, 달 이동 줄과 격자 사이 24 다', async () => {
+    await renderDecember();
+
+    expect(screen.getByTestId('month-calendar')).toHaveStyle({
+      backgroundColor: colors.white[100],
+      borderRadius: 18,
+      paddingTop: 20,
+      gap: 24,
+    });
+    expect(screen.getByTestId('month-calendar')).not.toHaveStyle({
+      paddingBottom: 20,
+    });
   });
 
   it('점은 연보라이고, 선택한 날은 흰색이다', async () => {
@@ -337,12 +369,13 @@ describe('MonthCalendar 표시', () => {
   });
 
   // Figma 요일 줄은 날짜 칸과 다른 Type Color 를 쓴다
-  it('요일 줄은 Body/XS/Medium 이고 일 Type Color/Red, 토 Type Color/Blue, 평일 Gray800 이다', async () => {
+  it('요일 줄은 Caption/M/Medium 이고 일 Type Color/Red, 토 Type Color/Blue, 평일 Gray800 이다', async () => {
     await renderDecember();
 
     expect(screen.getByText('일')).toHaveStyle({
       color: colors.typeColor.red,
-      fontSize: typography['Body/XS/Medium'].fontSize,
+      fontSize: typography['Caption/M/Medium'].fontSize,
+      fontFamily: typography['Caption/M/Medium'].fontFamily,
     });
     expect(screen.getByText('토')).toHaveStyle({
       color: colors.typeColor.blue,
@@ -431,6 +464,21 @@ describe('MonthCalendar Android 가장자리 밀기', () => {
       within(swipeWindow).getByRole('button', { name: '9월 27일 일요일' }),
     ).toBeOnTheScreen();
     expect(within(swipeWindow).queryByTestId('gesture-exclusion')).toBeNull();
+  });
+
+  // Figma 3754:6618: 달력은 회색 바탕 위 흰 카드라, 옆 달이 카드 밖 여백으로 나와 보이지 않게 카드 폭에서 자른다.
+  // 가장자리 밀기 제외 영역은 그대로 부모 여백(화면 가장자리)까지 넓힌다
+  it('넘김 창은 카드 폭에서 자르고(옆 달이 카드 밖으로 나오지 않는다), 제외 영역만 부모 여백까지 넓힌다', async () => {
+    await renderMonthOn('android');
+
+    const swipeWindow = area().parent?.children[1] as HostElement;
+    expect(StyleSheet.flatten(swipeWindow.props.style).marginHorizontal).toBe(
+      -0,
+    );
+    expect(StyleSheet.flatten(area().props.style)).toMatchObject({
+      left: -24,
+      right: -24,
+    });
   });
 
   it('iOS 에서는 제외 영역을 두지 않는다', async () => {

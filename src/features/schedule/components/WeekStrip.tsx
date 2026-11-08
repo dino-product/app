@@ -135,6 +135,7 @@ const DAY_HIT_SLOP = { right: DAY_GAP };
 const styles = StyleSheet.create({
   // Figma 칸 48.14 는 393 화면에서 (373 - 간격 6×6) / 7 이다. 화면 폭에 맞춰 7칸이 나눠 갖는다
   row: { flexDirection: 'row', gap: DAY_GAP },
+  // Figma 3754:6303: 회색 바탕 위 흰 칸 (Calendar Contents View=Week, Unselected)
   day: {
     flex: 1,
     height: 69,
@@ -142,6 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderRadius: 10,
+    backgroundColor: colors.white[100],
   },
   dayActive: { backgroundColor: colors.primary },
   weekday: { opacity: 0.6 },

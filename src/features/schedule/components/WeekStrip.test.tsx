@@ -284,6 +284,15 @@ describe('WeekStrip 표시', () => {
       fontFamily: typography['Body/XS/Medium'].fontFamily,
     });
   });
+
+  // Figma 3754:6303: 회색 바탕 위에 고르지 않은 날도 흰 칸이다 (Calendar Contents View=Week, Unselected)
+  it('고르지 않은 날은 흰 칸이다', async () => {
+    await renderStrip();
+
+    expect(
+      screen.getByRole('button', { name: '12월 16일 수요일' }),
+    ).toHaveStyle({ backgroundColor: colors.white[100], borderRadius: 10 });
+  });
 });
 
 // 제스처 내비게이션에서는 가장자리에서 시작한 밀기를 시스템이 먼저 받아 뒤로 가기(홈 탭)로 쓴다 (#58)

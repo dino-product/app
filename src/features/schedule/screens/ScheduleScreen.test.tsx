@@ -514,7 +514,8 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByTestId('schedule-card-gap')).toHaveStyle({ height: 12 });
   });
 
-  it('펼친 달력에 확정 일정의 날짜별 개수만큼 점을 찍는다', async () => {
+  // DesignSystem Event Indicator 는 0/1 뿐이라 일정이 있는 날은 건수와 관계없이 점 하나다
+  it('펼친 달력에 확정 일정이 있는 날마다 점 하나를 찍는다', async () => {
     await renderSchedule();
     await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
 
@@ -522,7 +523,7 @@ describe('ScheduleScreen — 확정 일정', () => {
       within(screen.getByRole('button', { name })).queryAllByTestId(
         'event-dot',
       );
-    expect(dotsOf('12월 15일 화요일')).toHaveLength(2);
+    expect(dotsOf('12월 15일 화요일')).toHaveLength(1);
     expect(dotsOf('12월 16일 수요일')).toHaveLength(1);
     expect(dotsOf('12월 17일 목요일')).toHaveLength(0);
   });

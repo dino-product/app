@@ -97,13 +97,12 @@ describe('MonthCalendar 터치 영역', () => {
     );
   });
 
-  // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다
-  it('화살표가 루트 밖으로 넓힌 영역은 루트의 터치 영역 안에 든다', async () => {
+  // 루트가 네이티브 뷰가 되면(testID·제스처 핸들러) 그 경계 밖의 터치는 자식에게 가지 않는다.
+  // Figma 3754:6618 달력 카드는 위 여백이 20 이라 화살표가 위로 넓힌 영역이 카드 안에 들고, 루트를 넓히지 않는다
+  it('화살표가 위로 넓힌 영역은 카드 위 여백 안에 들고, 루트는 넓히지 않는다', async () => {
     await renderTouchCalendar();
 
-    const rootSlop = hitSlopOf(getRoot());
-    // 맨 위 제목 줄의 화살표 위쪽. 제목 줄 높이는 글자가 가장 작을 때 가장 낮고,
-    // 화살표보다 낮아지면 화살표가 제목 줄을 채워 위 여백이 없다
+    // 제목 줄 높이는 글자가 가장 작을 때 가장 낮고, 화살표보다 낮아지면 화살표가 제목 줄을 채워 위 여백이 없다
     const prev = getArrow('이전 달');
     const icon = prev.children[0] as HostElement;
     const titleInset = Math.max(
@@ -112,6 +111,9 @@ describe('MonthCalendar 터치 영역', () => {
         stylePt(icon, 'height')) /
         2,
     );
-    expect(hitSlopOf(prev).top - titleInset).toBeLessThanOrEqual(rootSlop.top);
+    expect(hitSlopOf(prev).top - titleInset).toBeLessThanOrEqual(
+      stylePt(getRoot(), 'paddingTop'),
+    );
+    expect(getRoot().props.hitSlop).toBeUndefined();
   });
 });
