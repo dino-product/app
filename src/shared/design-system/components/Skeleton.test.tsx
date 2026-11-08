@@ -5,7 +5,12 @@ import {
 } from '@react-navigation/native';
 import { act, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
-import { AccessibilityInfo, Animated, NativeModules } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  NativeModules,
+  PixelRatio,
+} from 'react-native';
 import { changeAppState, mockAppState } from '../../../../jest/appState';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
@@ -78,6 +83,8 @@ describe('Skeleton', () => {
     stop = jest
       .spyOn(NativeModules.NativeAnimatedModule, 'stopAnimation')
       .mockClear();
+    // 시스템 글자 크기 기본(배율 1). 키운 경우는 그 테스트가 정한다
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
   });
 
   afterEach(() => {
@@ -104,6 +111,20 @@ describe('Skeleton', () => {
     });
     expect(screen.getByTestId('name-bar')).toHaveStyle({
       backgroundColor: colors.gray[100],
+    });
+  });
+
+  // 디자인 시스템 Text 는 시스템 글자 크기를 따라 줄 높이가 커진다. 스켈레톤 줄도 같은 비율로 커져야 내용으로 바뀔 때 튀지 않는다
+  it('시스템 글자 크기를 키우면 줄 자리와 막대도 같은 비율로 커진다', async () => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.3);
+    await render(skeleton);
+
+    const { fontSize, lineHeight } = typography['Body/S/SemiBold'];
+    expect(screen.getByTestId('name')).toHaveStyle({
+      height: lineHeight * 1.3,
+    });
+    expect(screen.getByTestId('name-bar')).toHaveStyle({
+      height: fontSize * 1.3,
     });
   });
 
@@ -197,6 +218,42 @@ describe('Skeleton', () => {
     expect(started).toHaveLength(0);
     await act(async () => resolveRead(false));
     expect(running()).toBe(1);
+  });
+
+  it('설정을 읽는 사이에 동작 줄이기를 켜면 늦게 온 읽은 값(꺼짐)보다 바뀐 값을 따른다', async () => {
+    let resolveRead: (enabled: boolean) => void = () => {};
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockReturnValueOnce(new Promise(resolve => (resolveRead = resolve)));
+    const changeReduceMotion = listenReduceMotion();
+    await render(skeleton);
+
+    await changeReduceMotion(true);
+    await act(async () => resolveRead(false));
+
+    expect(started).toHaveLength(0);
+  });
+
+  it('설정을 읽지 못하면 꺼진 것으로 보고 깜빡인다', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockRejectedValueOnce(new Error('읽기 실패'));
+    await render(skeleton);
+    await settle();
+
+    expect(running()).toBe(1);
+  });
+
+  // 사라질 때는 떼어 낸 네이티브 노드를 setValue 로 다시 만들지 않는다 (멈춤만 하면 된다)
+  it('사라질 때는 처음 값으로 되돌리지 않는다', async () => {
+    const { unmount } = await render(skeleton);
+    await settle();
+    const setValue = jest.spyOn(Animated.Value.prototype, 'setValue');
+
+    await unmount();
+
+    expect(running()).toBe(0);
+    expect(setValue).not.toHaveBeenCalled();
   });
 
   it('로딩이 끝나 사라지면 멈춘다', async () => {

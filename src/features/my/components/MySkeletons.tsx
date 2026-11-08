@@ -50,13 +50,14 @@ export const MembershipsSkeleton = memo(function MembershipsSkeletonView() {
 
 function NotificationRowSkeleton() {
   return (
-    <View style={styles.notificationRow}>
+    <View style={styles.notificationRow} testID="notification-row-skeleton">
       <View style={[readableColumn, styles.notificationContent]}>
         <View style={styles.spread}>
           <SkeletonLine variant="Caption/S/Medium" width={48} />
           <SkeletonLine variant="Caption/S/Medium" width={40} />
         </View>
         <SkeletonLine variant="Caption/M/Medium" width="85%" />
+        <View style={styles.notificationRule} />
       </View>
     </View>
   );
@@ -199,12 +200,17 @@ const styles = StyleSheet.create({
   },
   // NotificationCenterScreen 목록·행과 같은 여백
   notificationList: { paddingTop: 8 },
-  notificationRow: {
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
+  notificationRow: { paddingHorizontal: 24 },
   notificationContent: { gap: 8, paddingVertical: 22 },
+  // 행 사이 선은 실제처럼 높이를 차지하지 않고 양옆을 조금 넘는다
+  notificationRule: {
+    position: 'absolute',
+    left: -4,
+    right: -4,
+    bottom: 0,
+    height: 1,
+    backgroundColor: colors.gray[100],
+  },
   // NotificationSettingsScreen 과 같은 여백·카드
   settings: { gap: 12, paddingHorizontal: 24, paddingTop: 18 },
   settingCard: {

@@ -3,7 +3,7 @@ import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { WorkDetailStatusScreen } from './WorkDetailStatusScreen';
 
 describe('WorkDetailStatusScreen', () => {
-  it('불러오는 동안 "작업 상세" 제목과 진행 표시를 보이고 뒤로 갈 수 있다', async () => {
+  it('불러오는 동안 "작업 상세" 제목과 정보 카드를 닮은 스켈레톤을 보이고 뒤로 갈 수 있다', async () => {
     const onBack = jest.fn();
     await render(
       <WorkDetailStatusScreen state={{ status: 'loading' }} onBack={onBack} />,

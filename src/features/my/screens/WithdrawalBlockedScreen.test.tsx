@@ -143,7 +143,7 @@ describe('WithdrawalBlockedScreen', () => {
   });
 
   describe('가능 여부 불러오기', () => {
-    it('받는 동안 안내 아래에 진행 표시를 보인다', async () => {
+    it('받는 동안 안내 아래에 사유 카드를 닮은 스켈레톤을 보인다', async () => {
       await renderBlocked(
         createFakeServer().on('GET', MY_ELIGIBILITY_PATH, hang()),
         jest.fn(),

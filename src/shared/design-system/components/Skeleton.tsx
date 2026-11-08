@@ -5,6 +5,7 @@ import {
   Animated,
   AppState,
   Easing,
+  PixelRatio,
   StyleSheet,
   View,
   type DimensionValue,
@@ -106,8 +107,11 @@ function usePulse(progress: Animated.Value) {
       } else if (!run && loop !== null) {
         loop.stop();
         loop = null;
-        // 멈춘 자리에서 흐린 채로 남지 않게 처음(불투명)으로 되돌린다
-        progress.setValue(0);
+        // 멈춘 자리에서 흐린 채로 남지 않게 처음(불투명)으로 되돌린다.
+        // 사라질 때는 되돌리지 않는다: 이미 떼어 낸 네이티브 노드를 setValue 가 다시 만든다
+        if (!disposed) {
+          progress.setValue(0);
+        }
       }
     };
 
@@ -184,7 +188,8 @@ export function SkeletonBlock({
 
 /**
  * 줄 모양. 글자 한 줄 자리라 그 글자 스타일의 줄 높이를 차지해, 실제 글자로 바뀌어도 높이가 같다.
- * 칠하는 막대는 글자 크기만큼이고 줄 가운데에 둔다
+ * 칠하는 막대는 글자 크기만큼이고 줄 가운데에 둔다. Text 처럼 시스템 글자 크기 배율을 곱한다
+ * (그리는 순간의 배율을 읽는다. 보는 중에 설정을 바꾸면 다음에 그릴 때 따른다)
  */
 export function SkeletonLine({
   variant,
@@ -201,9 +206,10 @@ export function SkeletonLine({
   testID?: string;
 }) {
   const { fontSize, lineHeight } = typography[variant];
+  const fontScale = PixelRatio.getFontScale();
   return (
     <View
-      style={[styles.line, { width, height: lineHeight }, style]}
+      style={[styles.line, { width, height: lineHeight * fontScale }, style]}
       testID={testID}
     >
       <View
@@ -211,7 +217,7 @@ export function SkeletonLine({
           styles.block,
           inverse && styles.inverse,
           styles.bar,
-          { height: fontSize },
+          { height: fontSize * fontScale },
         ]}
         testID={testID && `${testID}-bar`}
       />
