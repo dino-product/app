@@ -46,12 +46,12 @@ describe('WorkInfoSections', () => {
   it('작업 내용 다음에 "현장 사진" 섹션이 있고 요청 사진을 110 칸으로 보여준다', async () => {
     await renderSections();
 
+    // 섹션 제목이 그려진 순서에서 작업 내용 바로 다음이 현장 사진이다
+    const headers = screen.getAllByRole('header');
     const content = screen.getByRole('header', { name: '작업 내용' });
     const site = screen.getByRole('header', { name: '현장 사진' });
-    const order = JSON.stringify(screen.toJSON());
-    expect(order.indexOf('작업 내용')).toBeLessThan(order.indexOf('현장 사진'));
-    expect(content).toBeOnTheScreen();
-    expect(site).toBeOnTheScreen();
+    expect(headers.indexOf(content)).toBeGreaterThanOrEqual(0);
+    expect(headers.indexOf(site)).toBe(headers.indexOf(content) + 1);
 
     const card = screen.getByTestId('site-photo-card');
     expect(within(card).getByText(workDetail.address)).toBeOnTheScreen();
