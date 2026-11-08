@@ -42,7 +42,7 @@ export function WorkInfoSections({
               {work.id}
             </Text>
           </View>
-          <Text variant="Caption/S/Medium" color={colors.gray[600]}>
+          <Text variant="Caption/M/Medium" color={colors.gray[600]}>
             {`· ${work.registeredAt} 등록`}
           </Text>
         </View>
@@ -50,7 +50,7 @@ export function WorkInfoSections({
       <SectionBand />
 
       <Section title="일정 및 담당 정보">
-        <InfoCard>
+        <InfoCard style={styles.scheduleCard}>
           <View style={styles.pair}>
             <InfoField label="날짜" value={work.date} style={styles.half} />
             <InfoField
@@ -75,7 +75,7 @@ export function WorkInfoSections({
       </Section>
 
       <Section title="고객 정보">
-        <InfoCard>
+        <InfoCard style={styles.customerCard}>
           <InfoField label="고객명" value={work.customer.name} />
           <View style={styles.pair}>
             <InfoField
@@ -115,13 +115,23 @@ export function WorkInfoSections({
       <Section title="작업 내용">
         {/* Figma 작업 수행 상세(3235:16226)의 작업 내용 카드는 회색 채움이다 */}
         <InfoCard filled testID="work-content-card">
-          <InfoField label="작업 메모" value={work.memo} />
+          {/* 메모는 다른 칸과 달리 라벨 아래 8 에 작은 본문이다 */}
+          <View style={styles.memo}>
+            <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+              작업 메모
+            </Text>
+            <Text variant="Caption/M/Medium" color={colors.gray[800]}>
+              {work.memo}
+            </Text>
+          </View>
           <View style={styles.divider} />
           <View style={styles.priceRow}>
             <Text variant="Caption/M/Medium" color={colors.gray[600]}>
               가격
             </Text>
-            <Text variant="Body/M/SemiBold">{formatPrice(work.price)}</Text>
+            <Text variant="Body/S/Bold" color={colors.gray[800]}>
+              {formatPrice(work.price)}
+            </Text>
           </View>
         </InfoCard>
       </Section>
@@ -132,13 +142,14 @@ export function WorkInfoSections({
   );
 }
 
-const CALL_SIZE = 40;
-// 전화 버튼 40×40 을 최소 터치 영역으로 보완한다
+const CALL_SIZE = 44;
+// 전화 버튼 44×44 를 최소 터치 영역으로 보완한다 (Android 48)
 const CALL_HIT_SLOP = touchSlop(CALL_SIZE);
 
 const styles = StyleSheet.create({
-  summary: { gap: 10, paddingHorizontal: 24, paddingTop: 24 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Figma 작업 상세 요약: 제목 줄(제목↔칩 12) → 12 → 코드·등록일 줄
+  summary: { gap: 12, paddingHorizontal: 24, paddingTop: 24 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   chip: { alignSelf: 'center' },
   shrink: { flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -148,6 +159,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background[1],
   },
+  // Figma: 일정 및 담당 카드는 두 줄 사이 14, 고객 카드는 고객명↔연락처 12
+  scheduleCard: { gap: 14 },
+  customerCard: { gap: 12 },
   pair: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   half: { flex: 1 },
   call: {
@@ -156,10 +170,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: CALL_SIZE / 2,
-    backgroundColor: colors.gray[50],
+    backgroundColor: colors.gray[100],
   },
   map: { height: 160, borderRadius: 12, backgroundColor: colors.background[1] },
   navigate: { minHeight: 48 },
+  memo: { gap: 8 },
   divider: { height: 1, backgroundColor: colors.gray[100] },
   priceRow: {
     flexDirection: 'row',
