@@ -5,7 +5,11 @@ import {
   View,
   type KeyboardTypeOptions,
 } from 'react-native';
-import { colors, Text, typography } from '../../../shared/design-system';
+import {
+  colors,
+  singleLineInputText,
+  Text,
+} from '../../../shared/design-system';
 
 // 라벨 + 한 줄 입력칸. 포커스되면 보라 테두리 (Figma 마이페이지-프로필 수정 3255:19478, 온보딩 프로필 등록 3267:11212)
 export type FormFieldProps = {
@@ -56,11 +60,11 @@ export const FormField = memo(function MyFormField({
 
 const styles = StyleSheet.create({
   field: { gap: 8 },
+  // 높이 50 칸 세로 가운데에 값을 둔다 (#151)
   input: {
-    ...typography['Body/XS/Medium'],
+    ...singleLineInputText('Body/XS/Medium'),
     minHeight: 50,
     paddingHorizontal: 16,
-    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.gray[200],

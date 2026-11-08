@@ -165,16 +165,20 @@ function MyPageScreenView({
             onTouchStart={tabSwipe.onTouchStart}
           >
             <SettingRow
-              icon="bell"
+              icon="settings-bell"
               label="알림 설정"
               onPress={onOpenNotificationSettings}
             />
             <SettingRow
-              icon="document"
+              icon="settings-document"
               label="약관 및 앱 정보"
               onPress={onOpenTerms}
             />
-            <SettingRow icon="user" label="계정 관리" onPress={onOpenAccount} />
+            <SettingRow
+              icon="settings-user"
+              label="계정 관리"
+              onPress={onOpenAccount}
+            />
           </View>
         </View>
       </ScrollView>
@@ -457,10 +461,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.08)',
   },
+  // Figma 설정 및 정보 카드(3235:17171): 아이콘 20 과 글자 사이 10
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     minHeight: SETTING_ROW_HEIGHT,
     paddingHorizontal: 20 - CARD_INSET,
     borderRadius: ROW_RADIUS,

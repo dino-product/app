@@ -7,6 +7,7 @@ export {
   type TextStyleToken,
   type TypographyVariant,
 } from './tokens/typography';
+export { singleLineInputText } from './tokens/singleLineInput';
 export {
   ICON_HIT_SLOP,
   MIN_TOUCH_TARGET,
