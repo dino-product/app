@@ -35,6 +35,10 @@ import { TAB_HEADER_HEIGHT, TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { ConfirmedRow, PendingRequestCard } from '../components/ScheduleRows';
+import {
+  ConfirmedCardsSkeleton,
+  PendingRequestsSkeleton,
+} from '../components/ScheduleSkeletons';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
 import { WeekStrip } from '../components/WeekStrip';
 import {
@@ -373,7 +377,10 @@ function ScheduleScreenView({
               confirmedLoad.status === 'ready' ? (
                 <Empty text="예정된 일정이 없습니다" />
               ) : (
-                <LoadStateView state={confirmedLoad} />
+                <LoadStateView
+                  state={confirmedLoad}
+                  skeleton={<ConfirmedCardsSkeleton />}
+                />
               )
             }
             refreshing={refreshing}
@@ -395,7 +402,10 @@ function ScheduleScreenView({
               pendingLoad.status === 'ready' ? (
                 <Empty text="응답할 요청이 없습니다" />
               ) : (
-                <LoadStateView state={pendingLoad} />
+                <LoadStateView
+                  state={pendingLoad}
+                  skeleton={<PendingRequestsSkeleton />}
+                />
               )
             }
             refreshing={refreshing}

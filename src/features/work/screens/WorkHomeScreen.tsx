@@ -40,6 +40,7 @@ import {
 } from '../components/CurrentWorkCard';
 import { ScheduleCard } from '../components/ScheduleCard';
 import { WeekDays } from '../components/WeekDays';
+import { WorkHomeSkeleton } from '../components/WorkSkeletons';
 import { loadHomeView, saveHomeView, type ScheduleView } from '../homeView';
 import { mondayWeek, type CurrentWork, type ScheduleItem } from '../model';
 
@@ -217,7 +218,10 @@ function WorkHomeScreenView({
             onLayout={autoHide.show}
             style={{ paddingTop: autoHide.height }}
           >
-            <LoadStateView state={load} />
+            <LoadStateView
+              state={load}
+              skeleton={<WorkHomeSkeleton block={block} />}
+            />
           </View>
         ) : (
           <Animated.FlatList

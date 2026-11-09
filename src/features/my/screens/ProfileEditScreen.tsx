@@ -15,6 +15,7 @@ import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingA
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
+import { ProfileFormSkeleton } from '../components/MySkeletons';
 import {
   currentAccountId,
   ProfileErrorCode,
@@ -67,7 +68,7 @@ export function ProfileEditScreen({
       {profile.status === 'ready' ? (
         <ProfileForm saved={profile.data} onSaved={onSaved} onDone={onBack} />
       ) : (
-        <LoadStateView state={profile} />
+        <LoadStateView state={profile} skeleton={<ProfileFormSkeleton />} />
       )}
     </SafeAreaView>
   );

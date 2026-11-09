@@ -16,6 +16,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { testSession } from '../../../shared/testing/session';
 import type { NotificationSettings } from '../model';
 import { NOTIFICATION_SETTINGS_PATH } from '../notificationApi';
@@ -92,7 +93,7 @@ describe('NotificationSettingsScreen', () => {
     expect(toggle('작업 취소 알림')).toBeChecked();
   });
 
-  it('받는 동안 진행 표시를 보이고 토글은 아직 없다', async () => {
+  it('받는 동안 설정 카드를 닮은 스켈레톤을 보이고 토글은 아직 없다', async () => {
     await renderSettings({
       server: notificationServer().on(
         'GET',
@@ -101,7 +102,7 @@ describe('NotificationSettingsScreen', () => {
       ),
     });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('notification-settings-skeleton');
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
   });
 

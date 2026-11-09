@@ -11,6 +11,7 @@ import { colors, Text, Toggle } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
+import { NotificationSettingsSkeleton } from '../components/MySkeletons';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import type { NotificationSettings } from '../model';
 import { useNotificationSettings } from '../notificationQueries';
@@ -65,6 +66,7 @@ export function NotificationSettingsScreen({
                 }
               : { status: 'loading' }
           }
+          skeleton={<NotificationSettingsSkeleton />}
         />
       ) : (
         <ScrollView

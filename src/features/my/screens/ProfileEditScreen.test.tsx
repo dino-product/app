@@ -15,6 +15,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { testSession } from '../../../shared/testing/session';
 import { PROFILE_RULE_MESSAGE } from '../model';
 import {
@@ -133,7 +134,7 @@ describe('ProfileEditScreen', () => {
   });
 
   describe('불러오기', () => {
-    it('프로필을 받는 동안 진행 표시를 보이고 입력칸·저장하기는 아직 없다', async () => {
+    it('프로필을 받는 동안 사진·입력칸을 닮은 스켈레톤을 보이고 입력칸·저장하기는 아직 없다', async () => {
       let answer: (response: FakeResponse) => void = () => {};
       await renderEdit(
         myServer().on(
@@ -146,7 +147,7 @@ describe('ProfileEditScreen', () => {
         ),
       );
 
-      expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+      expectOnlySkeletons('profile-form-skeleton');
       expect(screen.queryByLabelText('이름')).toBeNull();
       expect(screen.queryByRole('button', { name: '저장하기' })).toBeNull();
 

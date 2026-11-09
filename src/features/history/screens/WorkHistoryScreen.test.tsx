@@ -27,6 +27,7 @@ import {
   scrollListTo,
 } from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import type { HostElement } from '../../../shared/testing/touchTarget';
 import type { CompletedWork } from '../model';
 import {
@@ -612,18 +613,68 @@ describe('WorkHistoryScreen — 불러오기', () => {
     expect(screen.getByText('-')).toBeOnTheScreen();
   });
 
-  it('고른 달을 불러오는 동안 이번 달 완료는 0건 대신 "-" 다', async () => {
-    await renderHistory({ works: [], load: { status: 'loading' } });
+  it('처음 불러오는 동안 두 요약 카드의 숫자 자리는 스켈레톤이고, 카드는 "불러오는 중" 으로 읽는다', async () => {
+    await renderHistory({
+      works: [],
+      totalCompleted: null,
+      load: { status: 'loading' },
+    });
 
-    expect(screen.getByLabelText('이번 달 완료, 알 수 없음')).toBeOnTheScreen();
+    expect(screen.getByLabelText('누적 완료, 불러오는 중')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('이번 달 완료, 불러오는 중'),
+    ).toBeOnTheScreen();
+    // 숫자 자리 스켈레톤은 카드가 읽으므로 스크린리더에서 숨는다
+    expect(
+      screen.getAllByTestId('summary-count-skeleton', {
+        includeHiddenElements: true,
+      }),
+    ).toHaveLength(2);
+    expect(screen.queryByText('-')).not.toBeOnTheScreen();
+    // 이번 달 완료(왼쪽)는 Primary 카드라 막대를 흰색 토큰으로 옅게, 누적 완료는 회색이다
+    const [month, total] = screen.getAllByTestId('summary-count-line-bar', {
+      includeHiddenElements: true,
+    });
+    expect(month).toHaveStyle({ backgroundColor: colors.white[9] });
+    expect(total).toHaveStyle({ backgroundColor: colors.gray[100] });
   });
 
-  it('불러오는 동안 목록 자리에 진행 표시를 보인다 (빈 상태 대신)', async () => {
+  it('달을 바꿔 그 달을 불러오는 동안 누적 완료는 그대로이고 이번 달 완료만 스켈레톤이다', async () => {
+    await renderHistory({
+      works: [],
+      totalCompleted: 42,
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getByLabelText('누적 완료 42건')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('이번 달 완료, 불러오는 중'),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getAllByTestId('summary-count-skeleton', {
+        includeHiddenElements: true,
+      }),
+    ).toHaveLength(1);
+  });
+
+  it('불러오는 동안 목록 자리에 완료 작업 행을 닮은 스켈레톤을 보인다 (빈 상태·스피너 대신)', async () => {
     await renderHistory({ works: [], load: { status: 'loading' } });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('work-rows-skeleton');
     expect(
       screen.queryByText('이 달에 완료한 작업이 없어요'),
+    ).not.toBeOnTheScreen();
+  });
+
+  it('불러오지 못하면 이번 달 완료는 스켈레톤 대신 "-" 다', async () => {
+    await renderHistory({
+      works: [],
+      load: { status: 'error', message: '네트워크 문구', onRetry: jest.fn() },
+    });
+
+    expect(screen.getByLabelText('이번 달 완료, 알 수 없음')).toBeOnTheScreen();
+    expect(
+      screen.queryByTestId('summary-count-skeleton'),
     ).not.toBeOnTheScreen();
   });
 

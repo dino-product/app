@@ -12,6 +12,7 @@ import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { appStorage } from '../../../shared/storage/appStorage';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import {
@@ -603,7 +604,30 @@ describe('WorkHomeScreen 블록 보기', () => {
 });
 
 describe('WorkHomeScreen — 불러오기', () => {
-  it('불러오는 동안 제목 아래에 진행 표시만 보인다 (진행할 작업 없음 카드·빈 일정 대신)', async () => {
+  // 홈은 마지막으로 고른 보기로 열린다 (#147). 스켈레톤도 그 보기를 닮는다
+  it('블록 보기로 여는 기사(처음 설치 포함)는 스켈레톤에도 날짜 칸 일곱 자리가 있다', async () => {
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getAllByTestId('week-day-skeleton')).toHaveLength(7);
+  });
+
+  it('목록 보기로 여는 기사는 스켈레톤에 날짜 칸 자리가 없다', async () => {
+    saveHomeView('list');
+    await renderHome({
+      currentWork: null,
+      schedule: [],
+      load: { status: 'loading' },
+    });
+
+    expect(screen.getByTestId('work-home-skeleton')).toBeOnTheScreen();
+    expect(screen.queryAllByTestId('week-day-skeleton')).toHaveLength(0);
+  });
+
+  it('불러오는 동안 제목 아래에 스켈레톤만 보인다 (진행할 작업 없음 카드·빈 일정 대신)', async () => {
     await renderHome({
       currentWork: null,
       schedule: [],
@@ -611,7 +635,9 @@ describe('WorkHomeScreen — 불러오기', () => {
     });
 
     expect(screen.getByRole('header', { name: '내 작업' })).toBeOnTheScreen();
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    // 진행할 작업 카드·일정 카드를 닮은 스켈레톤이고 스피너는 없다 (#139)
+    expectOnlySkeletons('work-home-skeleton');
+    expect(screen.getByTestId('work-home-skeleton-current')).toBeOnTheScreen();
     expect(
       screen.queryByText('현재 진행 중인 작업이 없습니다'),
     ).not.toBeOnTheScreen();
@@ -702,7 +728,7 @@ describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
   });
 
   // 불러오기를 마쳐 리스트로 바뀌어도 상단 바를 새로 그리지 않는다 (스크린리더 포커스·찾아 둔 요소가 그대로다)
-  it('불러오는 동안에도 같은 머리에 상단 바를 두고 진행 표시는 그 아래에 있으며, 다 불러와도 상단 바는 그대로다', async () => {
+  it('불러오는 동안에도 같은 머리에 상단 바를 두고 스켈레톤은 그 아래에 있으며, 다 불러와도 상단 바는 그대로다', async () => {
     const view = await renderHome({
       currentWork: null,
       schedule: [],
@@ -710,7 +736,8 @@ describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
     });
     const title = screen.getByRole('header', { name: '내 작업' });
     expect(within(autoHideHeader()).getByRole('header')).toBe(title);
-    expect(screen.getByLabelText('불러오는 중').parent?.parent).toHaveStyle({
+    // 불러오는 중으로 읽히는 것은 스켈레톤이고(#139), 그 바로 바깥 자리가 상단 바 높이만큼 내려온다
+    expect(screen.getByLabelText('불러오는 중').parent).toHaveStyle({
       paddingTop: TAB_HEADER_HEIGHT,
     });
 
@@ -768,7 +795,7 @@ describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
       />,
     );
     await fireEvent(
-      screen.getByLabelText('불러오는 중').parent?.parent as HostElement,
+      screen.getByLabelText('불러오는 중').parent as HostElement,
       'layout',
       { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } },
     );

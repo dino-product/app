@@ -12,6 +12,7 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { WorkDetailSkeleton } from '../components/WorkSkeletons';
 
 // 작업 상세(작업 수행·응답 필요·완료 작업)를 아직 그릴 수 없을 때: 불러오는 중, 오류(다시 시도), 볼 수 없는 작업.
 // 머리는 상세와 같다. Figma 에 없어 기존 컴포넌트로 최소 구성한 기본안이다 (Figma 미확인)
@@ -65,7 +66,7 @@ export function WorkDetailStatusScreen({
           </Text>
         </View>
       ) : (
-        <LoadStateView state={state} />
+        <LoadStateView state={state} skeleton={<WorkDetailSkeleton />} />
       )}
     </SafeAreaView>
   );

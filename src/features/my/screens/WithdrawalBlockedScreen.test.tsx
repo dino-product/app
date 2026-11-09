@@ -18,6 +18,7 @@ import {
   renderWithApi,
 } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import type { WithdrawalBlock, WithdrawalEligibility } from '../model';
 import { MY_ELIGIBILITY_PATH, seedMyCache } from '../profileTesting';
 import { withdrawalEligibilityQueryKey } from '../withdrawalApi';
@@ -142,14 +143,14 @@ describe('WithdrawalBlockedScreen', () => {
   });
 
   describe('가능 여부 불러오기', () => {
-    it('받는 동안 안내 아래에 진행 표시를 보인다', async () => {
+    it('받는 동안 안내 아래에 사유 카드를 닮은 스켈레톤을 보인다', async () => {
       await renderBlocked(
         createFakeServer().on('GET', MY_ELIGIBILITY_PATH, hang()),
         jest.fn(),
         { loaded: false },
       );
 
-      expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+      expectOnlySkeletons('withdrawal-blocks-skeleton');
       expect(cards()).toHaveLength(0);
       expect(screen.queryByText(NO_REASON)).toBeNull();
     });

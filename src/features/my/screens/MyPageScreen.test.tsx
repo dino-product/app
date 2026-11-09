@@ -3,6 +3,7 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
   within,
 } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
@@ -17,6 +18,7 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
+import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import {
   createTestApi,
   renderWithApi,
@@ -88,7 +90,6 @@ async function renderMyPage(server: FakeServer = myServer()) {
   return { ...view, props };
 }
 
-const loading = () => screen.queryAllByLabelText('불러오는 중');
 const retry = () => screen.getByRole('button', { name: '다시 시도' });
 
 describe('MyPageScreen', () => {
@@ -169,7 +170,7 @@ describe('MyPageScreen', () => {
       ).toBeOnTheScreen();
     });
 
-    it('받는 동안 프로필 카드와 소속 카드 자리에 진행 표시를 보이고, 설정 행은 그대로 쓸 수 있다', async () => {
+    it('받는 동안 프로필 카드와 소속 카드 자리에 그 모양의 스켈레톤을 보이고(스피너 없음), 설정 행은 그대로 쓸 수 있다', async () => {
       let answer: (response: FakeResponse) => void = () => {};
       const { props } = await renderMyPage(
         myServer()
@@ -184,7 +185,7 @@ describe('MyPageScreen', () => {
           .on('GET', MEMBERSHIPS_PATH, hang()),
       );
 
-      expect(loading()).toHaveLength(2);
+      expectOnlySkeletons('profile-card-skeleton', 'memberships-skeleton');
       expect(screen.queryByRole('button', { name: /^김현진/ })).toBeNull();
       expect(screen.queryByText('아직 소속된 발주사가 없어요')).toBeNull();
       await userEvent.press(screen.getByRole('button', { name: '계정 관리' }));
@@ -255,6 +256,29 @@ describe('MyPageScreen', () => {
 
       expect(screen.getByRole('button', { name: /^김현진/ })).toBeOnTheScreen();
       expect(api.server.callsTo('GET', MY_PROFILE_PATH)).toHaveLength(0);
+    });
+
+    it('받아 둔 프로필이 있으면 뒤에서 다시 받는 동안에도 스켈레톤을 다시 보이지 않는다 (#139)', async () => {
+      const api = createTestApi({
+        server: myServer().on('GET', MY_PROFILE_PATH, hang()),
+        session: testSession(),
+      });
+      seedMyCache(api.queryClient);
+      await render(
+        <ConnectedMyPage pendingRequestCount={0} {...callbacks()} />,
+        { wrapper: api.wrapper },
+      );
+
+      // 프로필 응답은 오지 않는다. 다시 받기가 끝나기를 기다리지 않고 받는 동안의 화면을 본다
+      await act(async () => {
+        api.queryClient.invalidateQueries();
+      });
+
+      await waitFor(() =>
+        expect(api.server.callsTo('GET', MY_PROFILE_PATH)).toHaveLength(1),
+      );
+      expect(screen.getByRole('button', { name: /^김현진/ })).toBeOnTheScreen();
+      expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen();
     });
   });
 

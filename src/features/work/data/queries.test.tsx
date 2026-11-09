@@ -241,6 +241,12 @@ describe('loadStateOf', () => {
     expect(fine.refetch).not.toHaveBeenCalled();
   });
 
+  it('받은 값이 있으면 뒤에서 다시 받는 동안(백그라운드 갱신)에도 준비라 스켈레톤을 다시 보이지 않는다 (#139)', () => {
+    expect(loadStateOf(query({ data: 1, isFetching: true }))).toEqual({
+      status: 'ready',
+    });
+  });
+
   it('받은 값이 있으면 다시 받다 실패해도 그 값을 보인다', () => {
     expect(
       loadStateOf(query({ data: 1, isError: true, error: new Error('x') })),

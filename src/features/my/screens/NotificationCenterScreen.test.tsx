@@ -1,6 +1,7 @@
 import {
   act,
   fireEvent,
+  render,
   screen,
   userEvent,
   waitFor,
@@ -17,6 +18,8 @@ import {
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
 import { pressIn } from '../../../shared/testing/press';
+import { boxOf, expectOnlySkeletons } from '../../../shared/testing/skeleton';
+import type { HostElement } from '../../../shared/testing/touchTarget';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
@@ -35,6 +38,7 @@ import {
   notificationServer,
   notificationsPage,
 } from '../notificationTesting';
+import { NotificationListSkeleton } from '../components/MySkeletons';
 import { NotificationCenterScreen } from './NotificationCenterScreen';
 
 const HOUR = 60 * 60_000;
@@ -123,11 +127,26 @@ describe('NotificationCenterScreen', () => {
     expect(screen.getByText('2일 전')).toBeOnTheScreen();
   });
 
-  it('받는 동안 진행 표시를 보인다', async () => {
+  // 받은 목록으로 바뀔 때 높이가 튀지 않도록 (#139). 행 사이 선은 실제처럼 높이를 차지하지 않는다
+  it('알림 행 스켈레톤은 실제 알림 행과 같은 상자다', async () => {
+    await renderCenter();
+    const realRow = await screen.findByTestId('notification-1');
+    const real = {
+      row: boxOf(realRow),
+      content: boxOf(realRow.children[0] as HostElement),
+    };
+    await render(<NotificationListSkeleton />);
+
+    const skeleton = screen.getAllByTestId('notification-row-skeleton')[0];
+    expect(boxOf(skeleton)).toEqual(real.row);
+    expect(boxOf(skeleton.children[0] as HostElement)).toEqual(real.content);
+  });
+
+  it('받는 동안 알림 행을 닮은 스켈레톤을 보인다 (스피너 없음)', async () => {
     const server = notificationServer().on('GET', NOTIFICATIONS_PATH, hang());
     await renderCenter({ server });
 
-    expect(screen.getByLabelText('불러오는 중')).toBeOnTheScreen();
+    expectOnlySkeletons('notification-list-skeleton');
     expect(screen.queryByText('새 알림이 없어요')).not.toBeOnTheScreen();
   });
 
@@ -302,7 +321,7 @@ describe('NotificationCenterScreen', () => {
     );
   });
 
-  it('다음 쪽을 받는 동안 목록 끝에 진행 표시를 보인다', async () => {
+  it('다음 쪽을 받는 동안 목록 끝에 알림 행을 닮은 스켈레톤을 보인다', async () => {
     const all = manyNotifications(25);
     let releaseNext: () => void = () => {};
     const server = notificationServer().on(
@@ -322,7 +341,9 @@ describe('NotificationCenterScreen', () => {
 
     await scrollToEnd();
 
-    expect(await screen.findByLabelText('불러오는 중')).toBeOnTheScreen();
+    // 다음 쪽은 목록 끝에 알림 행을 닮은 스켈레톤으로 보인다 (#139)
+    await screen.findByTestId('notification-more-skeleton');
+    expectOnlySkeletons('notification-more-skeleton');
     await act(() => releaseNext());
     await waitFor(() =>
       expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen(),
