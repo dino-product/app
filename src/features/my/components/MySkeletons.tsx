@@ -185,18 +185,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
-  // MyPageScreen 소속 행과 같은 여백 (카드 안 8 + 행 안 12)
+  // MyPageScreen 소속 행·선과 같은 상자 (카드 안 여백 20 은 카드가 준다, #182)
   membershipRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
   },
   membershipDivider: {
     height: 1,
-    marginHorizontal: 12,
-    backgroundColor: colors.gray[100],
+    marginTop: 11,
+    marginBottom: 12,
+    backgroundColor: colors.gray[50],
   },
   // NotificationCenterScreen 목록·행과 같은 여백
   notificationList: { paddingTop: 8 },

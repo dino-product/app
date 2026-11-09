@@ -17,8 +17,9 @@ import {
   type FakeResponse,
   type FakeServer,
 } from '../../../shared/testing/fakeServer';
+import { pressIn, pressOut } from '../../../shared/testing/press';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
-import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
+import { boxOf, expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import {
   createTestApi,
   renderWithApi,
@@ -472,51 +473,9 @@ describe('MyPageScreen', () => {
       },
     );
 
-    it('소속 발주사 행을 누르고 있는 동안 배경이 Gray50 이 되고 떼면 돌아온다', async () => {
-      await renderLoadedMyPage();
-
-      await expectPressedBackground(
-        screen.getByTestId('membership-1'),
-        pressedBackground.onWhite,
-      );
-    });
-
-    it('소속 행은 눌러도 동작이 없고 스크린리더에서는 지금처럼 정보 한 줄이다', async () => {
-      await renderLoadedMyPage();
-
-      const row = screen.getByTestId('membership-1');
-      expect(row).toHaveProp('accessible', true);
-      expect(row).toHaveAccessibleName('오빗 서비스, 총관리자, 활성');
-      expect(row).not.toHaveProp('accessibilityRole', 'button');
-      expect(
-        screen.queryByRole('button', { name: /^오빗 서비스/ }),
-      ).not.toBeOnTheScreen();
-      // Pressable 은 기본으로 Android 에서 클릭할 수 있는 뷰가 되어 TalkBack 이 '두 번 탭하여 활성화' 를 읽는다
-      expect(row).toHaveProp('focusable', false);
-    });
-
     // 회색은 카드 안쪽에 둥근 사각형으로 칠한다. 여백 일부를 행 안으로 옮겨 글자 자리는 그대로다
-    it('소속 행·설정 행의 글자는 지금처럼 카드 안 20 에서 시작하고, 소속 행 사이는 13·선·13 이다', async () => {
+    it('설정 행의 글자는 지금처럼 카드 안 20 에서 시작한다', async () => {
       await renderLoadedMyPage();
-
-      const membership = screen.getByTestId('membership-1');
-      const membershipCard = membership.parent as HostElement;
-      expect(
-        stylePt(membershipCard, 'paddingHorizontal') +
-          stylePt(membership, 'paddingHorizontal'),
-      ).toBe(20);
-      expect(
-        stylePt(membershipCard, 'paddingVertical') +
-          stylePt(membership, 'paddingVertical'),
-      ).toBe(20);
-      const divider = membershipCard.children[1] as HostElement;
-      expect(divider).toHaveStyle({ height: 1 });
-      expect(
-        stylePt(membershipCard, 'paddingHorizontal') +
-          stylePt(divider, 'marginHorizontal'),
-      ).toBe(20);
-      expect(stylePt(divider, 'marginVertical')).toBe(0);
-      expect(stylePt(membership, 'paddingVertical')).toBe(13);
 
       const setting = screen.getByRole('button', { name: '알림 설정' });
       const settingsCard = setting.parent as HostElement;
@@ -527,30 +486,134 @@ describe('MyPageScreen', () => {
     });
 
     // 카드 모서리(16)에서 안쪽 여백만큼 줄인 모서리라 회색이 카드의 둥근 모서리 밖으로 나가지 않는다
-    it('소속 행·설정 행의 회색은 카드 모서리와 같은 중심의 둥근 사각형이다', async () => {
+    it('설정 행의 회색은 카드 모서리와 같은 중심의 둥근 사각형이다', async () => {
       await renderLoadedMyPage();
 
-      for (const row of [
-        screen.getByTestId('membership-1'),
-        screen.getByRole('button', { name: '알림 설정' }),
-      ]) {
-        const card = row.parent as HostElement;
-        expect(
-          stylePt(row, 'borderRadius') + stylePt(card, 'paddingHorizontal'),
-        ).toBe(stylePt(card, 'borderRadius'));
-        expect(stylePt(card, 'paddingVertical')).toBeLessThanOrEqual(
-          stylePt(card, 'paddingHorizontal'),
-        );
-      }
+      const row = screen.getByRole('button', { name: '알림 설정' });
+      const card = row.parent as HostElement;
+      expect(
+        stylePt(row, 'borderRadius') + stylePt(card, 'paddingHorizontal'),
+      ).toBe(stylePt(card, 'borderRadius'));
+      expect(stylePt(card, 'paddingVertical')).toBeLessThanOrEqual(
+        stylePt(card, 'paddingHorizontal'),
+      );
     });
   });
 
-  it('소속 행은 누르는 동작이 없는 정보 행이다', async () => {
-    await renderLoadedMyPage();
+  // #182: 소속 발주사의 회사 줄은 누르는 기능이 없다. 누를 수 있는 것처럼 보이는 표시(눌림 회색·화살표·버튼 역할)를 두지 않는다
+  describe('소속 발주사 회사 줄 (누를 수 없음)', () => {
+    const rows = () => screen.getAllByTestId(/^membership-\d+$/);
+    const descendants = (element: HostElement): HostElement[] =>
+      element.children.flatMap(child =>
+        typeof child === 'string' ? [] : [child, ...descendants(child)],
+      );
 
-    expect(screen.getByTestId('membership-1')).not.toHaveProp(
-      'accessibilityRole',
-      'button',
-    );
+    it('회사 줄은 터치를 받지 않아 손가락을 대도 배경이 바뀌지 않는다', async () => {
+      await renderLoadedMyPage();
+
+      for (const row of rows()) {
+        // Pressable·Touchable 처럼 터치 응답자·클릭 뷰가 되지 않는다
+        expect(row).not.toHaveProp('onStartShouldSetResponder');
+        expect(row).not.toHaveProp('onResponderGrant');
+        expect(row).not.toHaveProp('onClick');
+      }
+      const row = screen.getByTestId('membership-1');
+      const idle = StyleSheet.flatten(row.props.style);
+      await pressIn(row);
+      expect(StyleSheet.flatten(row.props.style)).toEqual(idle);
+      expect(row).not.toHaveStyle({
+        backgroundColor: pressedBackground.onWhite,
+      });
+      await pressOut(row);
+    });
+
+    it('회사 줄에는 화살표 같은 아이콘이 없다', async () => {
+      await renderLoadedMyPage();
+
+      for (const row of rows()) {
+        expect(
+          descendants(row).filter(element => element.props.xml !== undefined),
+        ).toEqual([]);
+      }
+    });
+
+    it('스크린리더는 버튼이 아닌 정보 한 줄(이름, 역할, 상태)로 읽는다', async () => {
+      await renderLoadedMyPage();
+
+      const row = screen.getByTestId('membership-1');
+      expect(row).toHaveProp('accessible', true);
+      expect(row).toHaveAccessibleName('오빗 서비스, 총관리자, 활성');
+      expect(row).not.toHaveProp('accessibilityRole');
+      expect(row).not.toHaveProp('role');
+      expect(
+        screen.queryByRole('button', {
+          name: /오빗 서비스|현장 파트너스|테크 솔루션/,
+        }),
+      ).not.toBeOnTheScreen();
+    });
+
+    // Figma 마이페이지 3235:17104 › 소속 카드 3235:17146: 안 여백 20, 행 위·아래 여백 12 와 행 아래 선(Gray50 1)
+    // 선은 행 높이(57 = 글자 45 + 12)에 들어가지 않고 아래 여백 12 의 끝 1 에 그려진다 → 글자–선 11, 선–다음 글자 12
+    it('카드 안 여백은 20 이고, 행 사이는 글자–선 11 · 선 1(Gray50) · 선–글자 12 다 (Figma)', async () => {
+      await renderLoadedMyPage();
+
+      const row = screen.getByTestId('membership-1');
+      const card = row.parent as HostElement;
+      expect(stylePt(card, 'paddingHorizontal')).toBe(20);
+      expect(stylePt(card, 'paddingVertical')).toBe(20);
+      for (const member of rows()) {
+        expect(stylePt(member, 'padding')).toBe(0);
+        expect(stylePt(member, 'paddingHorizontal')).toBe(0);
+        expect(stylePt(member, 'paddingVertical')).toBe(0);
+      }
+      const dividers = card.children.filter(
+        (child, index) => index % 2 === 1,
+      ) as HostElement[];
+      expect(dividers).toHaveLength(2);
+      for (const divider of dividers) {
+        expect(divider).toHaveStyle({
+          height: 1,
+          marginTop: 11,
+          marginBottom: 12,
+          backgroundColor: colors.gray[50],
+        });
+        expect(stylePt(divider, 'marginHorizontal')).toBe(0);
+      }
+    });
+
+    // Figma 3235:17148: 이름 Body/XS/SemiBold Gray800(#222) · 역할 Caption/M/Medium Gray500(#7F7F7F) 사이 2
+    it('이름과 역할 사이는 2 이고, 역할 글자는 Figma Gray500(#7F7F7F) 이다', async () => {
+      await renderLoadedMyPage();
+
+      const row = screen.getByTestId('membership-1');
+      const name = within(row).getByText('오빗 서비스');
+      expect(name.parent).toHaveStyle({ gap: 2 });
+      expect(name).toHaveStyle({ fontSize: 16, color: colors.gray[900] });
+      expect(within(row).getByText('총관리자')).toHaveStyle({
+        fontSize: 14,
+        color: colors.libraryGray[500],
+      });
+    });
+
+    // 받은 내용으로 바뀔 때 높이가 튀지 않게 스켈레톤도 실제 행·선과 같은 상자다 (#139)
+    it('받는 동안의 스켈레톤 행·선은 실제 회사 줄·선과 같은 상자다', async () => {
+      await renderLoadedMyPage();
+      const realCard = screen.getByTestId('membership-1').parent as HostElement;
+      const realRow = realCard.children[0] as HostElement;
+      const realDivider = realCard.children[1] as HostElement;
+      const real = {
+        row: boxOf(realRow),
+        divider: StyleSheet.flatten(realDivider.props.style),
+      };
+
+      await renderLoadedMyPage({ memberships: { status: 'loading' } });
+
+      const skeleton = screen.getByTestId('memberships-skeleton');
+      expect(boxOf(skeleton)).toEqual({});
+      expect(boxOf(skeleton.children[0] as HostElement)).toEqual(real.row);
+      expect(
+        StyleSheet.flatten((skeleton.children[1] as HostElement).props.style),
+      ).toEqual(real.divider);
+    });
   });
 });
