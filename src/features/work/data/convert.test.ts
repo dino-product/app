@@ -38,6 +38,7 @@ const response = (
     postalCode: '04043',
     address: '서울시 마포구 양화로 45',
     addressDetail: '3층 302호',
+    location: { latitude: 37.556151, longitude: 126.922803 },
   },
   payment: { fee: 120000, method: 'ON_SITE_CARD' },
   schedule: {
@@ -95,6 +96,7 @@ describe('toWorkDetail', () => {
       workType: '배관',
       customer: { name: '이정호', phone: '010-1234-5678' },
       address: '서울시 마포구 양화로 45 3층 302호',
+      location: { latitude: 37.556151, longitude: 126.922803 },
       memo: '-',
       price: 120000,
       paymentMethod: 'card',
@@ -181,6 +183,7 @@ describe('toWorkDetail', () => {
       workType: '-',
       customer: { name: '-', phone: '-' },
       address: '-',
+      location: null,
       price: null,
       paymentMethod: null,
       date: '-',
@@ -201,6 +204,7 @@ describe('toWorkDetail', () => {
           postalCode: null,
           address: '서울시 마포구 양화로 45',
           addressDetail: null,
+          location: null,
         },
         payment: { fee: null, method: null },
         schedule: {
@@ -217,9 +221,47 @@ describe('toWorkDetail', () => {
       technician: '-',
       customer: { name: '-', phone: '-' },
       address: '서울시 마포구 양화로 45',
+      location: null,
       price: null,
       paymentMethod: null,
     });
+  });
+
+  // 서버가 현장 기본주소에서 구한 좌표(WGS84)를 그대로 쓴다. 앱은 주소를 좌표로 바꾸지 않는다 (#67)
+  it('현장 좌표(customer.location)를 지도·길찾기용 위도·경도로 그대로 둔다', () => {
+    const work = toWorkDetail(
+      response({
+        customer: {
+          ...response().customer!,
+          location: { latitude: 35.179554, longitude: 129.075642 },
+        },
+      }),
+    );
+
+    expect(work.location).toEqual({
+      latitude: 35.179554,
+      longitude: 129.075642,
+    });
+  });
+
+  it('좌표가 없으면(null·필드 없음, 숫자가 아님) 좌표 없음이다', () => {
+    // 예전 서버(HM-370 이전)는 location 필드를 보내지 않는다
+    const withoutField = { ...response().customer! } as Partial<
+      NonNullable<WorkDetailResponse['customer']>
+    >;
+    delete withoutField.location;
+    const cases = [
+      { ...response().customer!, location: null },
+      withoutField as NonNullable<WorkDetailResponse['customer']>,
+      {
+        ...response().customer!,
+        location: { latitude: Number.NaN, longitude: 126.9 },
+      },
+    ];
+
+    for (const customer of cases) {
+      expect(toWorkDetail(response({ customer })).location).toBeNull();
+    }
   });
 
   it.each([

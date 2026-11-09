@@ -69,6 +69,7 @@ export function workDetailResponse(
       postalCode: '04043',
       address: '서울시 마포구 양화로 45',
       addressDetail: '3층 302호',
+      location: { latitude: 37.556151, longitude: 126.922803 },
     },
     payment: { fee: 120000, method: 'ON_SITE_CARD' },
     schedule,

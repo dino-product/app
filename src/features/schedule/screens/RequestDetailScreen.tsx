@@ -18,7 +18,7 @@ import { haptic } from '../../../shared/haptics';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
-import type { WorkDetail } from '../../work/model';
+import type { WorkDetail, WorkPlace } from '../../work/model';
 
 // Figma 스케줄 › 응답 필요 작업의 상세 (하단 거절 / 수락)
 export function RequestDetailScreen({
@@ -28,6 +28,7 @@ export function RequestDetailScreen({
   onReject,
   onCall,
   onNavigate,
+  onOpenMap,
   titleRef,
 }: {
   work: WorkDetail;
@@ -37,7 +38,9 @@ export function RequestDetailScreen({
   /** 거절 사유 화면으로 */
   onReject: () => void;
   onCall: (phone: string) => void;
-  onNavigate: (address: string) => void;
+  onNavigate: (place: WorkPlace) => void;
+  /** 작업 위치 지도를 누르면 그 위치를 지도 앱에서 연다 */
+  onOpenMap: (place: WorkPlace) => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -87,7 +90,12 @@ export function RequestDetailScreen({
         contentContainerStyle={[readableColumn, styles.content]}
       >
         {/* 현장 사진(Figma 2714-12566)까지 작업 상세들과 같은 컴포넌트다 (#142) */}
-        <WorkInfoSections work={work} onCall={onCall} onNavigate={onNavigate} />
+        <WorkInfoSections
+          work={work}
+          onCall={onCall}
+          onNavigate={onNavigate}
+          onOpenMap={onOpenMap}
+        />
       </ScrollView>
       <View style={[readableColumn, styles.actions]}>
         <CTA

@@ -74,6 +74,7 @@ PODS:
     - KakaoSDKCommon (= 2.22.7)
     - KakaoSDKUser (= 2.22.7)
     - React
+  - KakaoMapsSDK (2.12.19)
   - KakaoSDKAuth (2.22.7):
     - KakaoSDKCommon (= 2.22.7)
   - KakaoSDKCommon (2.22.7):
@@ -2225,6 +2226,7 @@ DEPENDENCIES:
   - GoogleUtilities/Environment
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - "kakao-login (from `../node_modules/@react-native-seoul/kakao-login`)"
+  - KakaoMapsSDK (= 2.12.19)
   - NitroImage (from `../node_modules/react-native-nitro-image`)
   - NitroMmkv (from `../node_modules/react-native-mmkv`)
   - NitroModules (from `../node_modules/react-native-nitro-modules`)
@@ -2330,6 +2332,7 @@ SPEC REPOS:
     - FirebaseMessaging
     - GoogleDataTransport
     - GoogleUtilities
+    - KakaoMapsSDK
     - KakaoSDKAuth
     - KakaoSDKCommon
     - KakaoSDKUser
@@ -2558,6 +2561,7 @@ SPEC CHECKSUMS:
   GoogleUtilities: 7dc09b3fa9ecb5c2298b952313d14628b61b9da3
   hermes-engine: a1158910bb7e300b9e3d2f1e2d433f817ec1a4b5
   kakao-login: 5feac69c76f8c1f2886606bdb6a408a8d91ad0dc
+  KakaoMapsSDK: 23687437c9c72307e0516fb71135752993534ff4
   KakaoSDKAuth: 45204252ff7c379c0f86c5573f97ec36885afca0
   KakaoSDKCommon: 132164a6bac8bcd3a4346d3bf777f34f8f39fdca
   KakaoSDKUser: 4c9cf1da78710d19d0b2c2dd32d1a44c544cdfa4
@@ -2643,7 +2647,7 @@ SPEC CHECKSUMS:
   React-viewtransitionnativemodule: 8505b253586f792c6c722869a664889797ecae3e
   React-webperformancenativemodule: 67f32fde92ed7e8470ee1c669bdb7c2fcb760141
   ReactAppDependencyProvider: 782ee9546c9cd3b53b73f1e9e3dd728540085fc7
-  ReactCodegen: 037b494147266727966b47f5a424781ffdf6c7aa
+  ReactCodegen: c02c25e6fddee741ed4277c57328d095aeb54350
   ReactCommon: 145a14b942b19fc2fe38927f261955ada56978aa
   ReactNativeDependencies: d3b7423ba1e52525e42085c8470109abde583d2e
   RNAppleAuthentication: a89c9804592b38ed4ab11f0aee68d05ba12ad432
@@ -2657,6 +2661,6 @@ SPEC CHECKSUMS:
   VisionCamera: 0f292837bb94d00194221bc7cdc3278299418965
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
-PODFILE CHECKSUM: 17f18596d0ede117e462cd070f7bfdcd57d691a3
+PODFILE CHECKSUM: adf024087a7d56977978059bf20ce034ecc2ff0b
 
 COCOAPODS: 1.15.2

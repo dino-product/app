@@ -85,6 +85,9 @@
     "ios": {
       "modulesProvider": {
         "CameraPermissionIOS": "RCTCameraPermission"
+      },
+      "componentProvider": {
+        "KakaoMapView": "RCTKakaoMapView"
       }
     }
   },
