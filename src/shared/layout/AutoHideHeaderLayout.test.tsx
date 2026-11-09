@@ -21,6 +21,7 @@ import {
   scrollListTo,
 } from '../testing/autoHideHeader';
 import { AutoHideHeaderLayout } from './AutoHideHeaderLayout';
+import { TabEnterContext } from './tabEnter';
 import { TabHeader, TAB_HEADER_HEIGHT } from './TabHeader';
 import {
   AUTO_HIDE_MS,
@@ -467,5 +468,97 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
 
       expect(autoHideHeaderOffset()).toBe(0);
     });
+  });
+});
+
+// 탭을 옮길 때 탭 화면 안의 내용만 옆에서 들어온다 (#176). 머리 바탕·화면 바탕은 제자리다
+describe('AutoHideHeaderLayout — 탭 전환 때 내용만 옮긴다 (#176)', () => {
+  beforeEach(() => {
+    holdNativeAnimations();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function EnteringHarness({
+    shift,
+    title = '내 작업',
+  }: {
+    shift: Animated.Value | null;
+    title?: string;
+  }) {
+    const autoHide = useAutoHideHeader();
+    return (
+      <TabEnterContext.Provider value={shift}>
+        <AutoHideHeaderLayout
+          autoHide={autoHide}
+          header={<TabHeader title={title} />}
+          sticky={<Text>하위 탭</Text>}
+          style={headerBackground}
+          bodyStyle={bodyBackground}
+        >
+          <Animated.FlatList
+            testID="list"
+            {...autoHide.scrollProps}
+            data={items}
+            keyExtractor={item => item}
+            renderItem={({ item }) => <Text>{item}</Text>}
+          />
+        </AutoHideHeaderLayout>
+      </TabEnterContext.Provider>
+    );
+  }
+
+  const bodyBackground = { backgroundColor: '#EEF0F3' };
+  const headerContent = () => screen.getByTestId('tab-enter-header');
+  const bodyContent = () => screen.getByTestId('tab-enter-body');
+  const translateXOf = (element: { props: { style?: unknown } }) =>
+    (
+      StyleSheet.flatten(element.props.style as never)?.transform as
+        | Array<{ translateX?: number }>
+        | undefined
+    )?.find(item => item.translateX !== undefined)?.translateX;
+
+  it('머리 내용(상단 바·하위 탭)과 본문 내용(리스트)만 들어오는 값만큼 옮기고, 머리 바탕·본문 바탕은 제자리다', async () => {
+    await render(<EnteringHarness shift={new Animated.Value(12)} />);
+
+    expect(translateXOf(headerContent())).toBe(12);
+    expect(translateXOf(bodyContent())).toBe(12);
+    // 상단 바·하위 탭·리스트가 내용 쪽에 있다
+    expect(headerContent()).toContainElement(screen.getByText('내 작업'));
+    expect(headerContent()).toContainElement(screen.getByText('하위 탭'));
+    expect(bodyContent()).toContainElement(screen.getByTestId('list'));
+    // 바탕: 머리(스크롤로 숨는 세로 이동만)와 본문은 가로로 옮기지 않는다
+    expect(translateXOf(header())).toBeUndefined();
+    const body = header().parent;
+    expect(body).toHaveStyle({ backgroundColor: '#EEF0F3' });
+    expect(StyleSheet.flatten(body?.props.style).transform).toBeUndefined();
+  });
+
+  it('들어오는 값이 없으면(전환 중이 아니거나 동작 줄이기) 옮기지 않는다', async () => {
+    await render(<EnteringHarness shift={null} />);
+
+    expect(translateXOf(headerContent())).toBeUndefined();
+    expect(translateXOf(bodyContent())).toBeUndefined();
+  });
+
+  it('머리 내용의 빈 곳도 터치를 받지 않아 아래 리스트로 넘기고, 본문 내용은 남은 높이를 채운다', async () => {
+    await render(<EnteringHarness shift={new Animated.Value(-12)} />);
+
+    expect(headerContent()).toHaveStyle({ pointerEvents: 'box-none' });
+    expect(bodyContent()).toHaveStyle({ flex: 1 });
+  });
+
+  it('들어오는 동안 화면이 다시 그려져도 애니메이션 연결을 다시 만들지 않는다', async () => {
+    const shift = new Animated.Value(12);
+    const view = await render(<EnteringHarness shift={shift} />);
+    const connect = jest
+      .spyOn(NativeModules.NativeAnimatedModule, 'connectAnimatedNodeToView')
+      .mockClear();
+
+    await view.rerender(<EnteringHarness shift={shift} title="내 일정" />);
+
+    expect(connect).not.toHaveBeenCalled();
   });
 });

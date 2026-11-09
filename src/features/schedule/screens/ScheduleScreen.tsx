@@ -356,6 +356,7 @@ function ScheduleScreenView({
           </View>
         }
         style={styles.header}
+        bodyStyle={styles.listBackground}
       >
         {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
         {tab === 'confirmed' ? (
@@ -459,8 +460,10 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
   },
   titleBar: { paddingBottom: TITLE_BAR_PADDING_BOTTOM },
-  // 머리말 아래는 회색 바탕에 흰 카드가 놓인다 (Figma Background/3)
-  list: { flex: 1, backgroundColor: colors.background[3] },
+  // 머리말 아래는 회색 바탕에 흰 카드가 놓인다 (Figma Background/3). 바탕은 리스트 뒤 본문에 그려
+  // 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+  listBackground: { backgroundColor: colors.background[3] },
+  list: { flex: 1 },
   // 날짜 블록은 화면 폭을 차지하고(넓힌 터치 영역·가장자리 밀기 제외 영역이 그 안에 든다) 안쪽 여백으로 24 를 들인다
   confirmedContent: { paddingBottom: 24 },
   cardInset: { marginHorizontal: LIST_INSET },
