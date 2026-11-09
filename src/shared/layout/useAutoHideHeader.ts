@@ -8,7 +8,6 @@ import {
 import {
   Animated,
   Easing,
-  Platform,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -27,16 +26,16 @@ import { TAB_HEADER_HEIGHT } from './TabHeader';
 // 상단 바는 리스트 위에 겹쳐 그리고, 리스트 내용 위에 상단 바 높이만큼 여백(height)을 둔다. 그래서 상단 바가 위로
 // 올라가 숨으면 그만큼 내용이 보이는 영역이 넓어지고, 레이아웃(리스트 크기)은 바뀌지 않는다.
 //
-// - 스크롤 위치는 네이티브 드라이버 이벤트로 받아 맨 위에서 당길 때(iOS 바운스·당겨서 새로고침) 상단 바가 내용과 함께
-//   내려온다. 새로고침 표시가 상단 바에 가리지 않는다. Android 는 위치가 음수가 되지 않아 progressViewOffset 으로 내린다.
-//   iOS 에는 progressViewOffset 을 주지 않는다: 주면 표시를 그만큼 아래(상단 바 자리)로 그려 상단 바 뒤에 가려진다.
-// - 숨길지는 같은 이벤트를 JS 로 받아 순수 함수(nextAutoHideState)로 정하고, 바뀔 때만 UI 스레드 애니메이션을 시작한다.
-//   스크롤 중에 상태(setState)를 바꾸지 않아 다시 그리지 않는다.
+// - 상단 바는 스크롤 위치를 따라가지 않는다. 맨 위에서 더 당겨도(iOS 바운스·당겨서 새로고침의 음수 위치) 화면 맨 위에
+//   붙어 있고 내용만 그 아래로 내려온다 (#178). 새로고침 표시는 리스트 맨 위(상단 바 뒤)에 그려지므로 두 플랫폼 모두
+//   progressViewOffset(머리 높이)으로 상단 바 바로 아래에 내린다.
+// - 숨길지는 스크롤 이벤트를 JS 로 받아 순수 함수(nextAutoHideState)로 정하고, 바뀔 때만 UI 스레드 애니메이션을
+//   시작한다. 스크롤 중에 상태(setState)를 바꾸지 않아 다시 그리지 않는다.
 // - 동작 줄이기면 애니메이션 없이 바로 옮긴다. 스크린리더를 쓰는 동안은 숨기지 않는다: 화면 밖으로 옮긴 버튼은
 //   스크린리더로 두 번 탭해도 그 자리(화면 밖)를 누르게 되어 눌리지 않는다. 숨은 동안에도 접근성 트리에서 빼지 않는다.
 //
-// 스크롤 뷰는 Animated.FlatList · Animated.ScrollView 다. 이 컴포넌트는 배열·객체 props 를 참조로 비교해 바뀌면 네이티브
-// 스크롤 이벤트 연결을 다시 만들고 한 번 더 그린다. contentContainerStyle 같은 배열·객체는 useMemo 로 메모해 넘긴다.
+// 스크롤 뷰가 Animated.FlatList · Animated.ScrollView 면, 이 컴포넌트는 배열·객체 props 를 참조로 비교해 바뀌면
+// 애니메이션 props 노드를 다시 만든다. contentContainerStyle 같은 배열·객체는 useMemo 로 메모해 넘긴다.
 
 /** 숨고 나타나는 시간 (ms) */
 export const AUTO_HIDE_MS = 200;
@@ -60,15 +59,15 @@ export type AutoHideHeader = {
   translateY: Animated.AnimatedNode;
   /** 머리 전체 높이. 스크롤 내용 위 여백에 더한다 */
   height: number;
-  /** 당겨서 새로고침이 있는 리스트의 progressViewOffset. Android 는 머리 높이, iOS 는 없음(상단 바가 함께 내려온다) */
-  progressViewOffset: number | undefined;
+  /** 당겨서 새로고침이 있는 리스트의 progressViewOffset. 머리 높이 (표시를 맨 위에 붙어 있는 머리 아래에 그린다) */
+  progressViewOffset: number;
   /** 머리 전체의 onLayout */
   onHeaderLayout: (event: LayoutChangeEvent) => void;
   /** 숨는 부분(상단 바)의 onLayout */
   onCollapsibleLayout: (event: LayoutChangeEvent) => void;
   /** 숨은 상단 바를 다시 보인다. 스크롤 없이 화면이 바뀔 때 부른다 (내 일정 하위 탭 전환, 리스트 대신 불러오기 화면) */
   show: () => void;
-  /** 스크롤 뷰(Animated.FlatList · Animated.ScrollView)에 펼쳐 넣는다 */
+  /** 스크롤 뷰(FlatList · ScrollView, Animated 판도 된다)에 펼쳐 넣는다 */
   scrollProps: {
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     scrollEventThrottle: number;
@@ -102,7 +101,7 @@ export function useAutoHideHeader(
     () => ({
       translateY: model.translateY,
       height,
-      progressViewOffset: Platform.OS === 'android' ? height : undefined,
+      progressViewOffset: height,
       onHeaderLayout,
       onCollapsibleLayout: model.onCollapsibleLayout,
       show: model.show,
@@ -123,21 +122,15 @@ function createAutoHide(
   reduceMotion: RefObject<boolean>,
   initialDistance: number,
 ) {
-  const scrollY = new Animated.Value(0, { useNativeDriver: true });
   /** 0 보임, 1 숨음 */
   const progress = new Animated.Value(0, { useNativeDriver: true });
   /** 숨는 거리 (상단 바 높이) */
   const distance = new Animated.Value(initialDistance, {
     useNativeDriver: true,
   });
-  // 맨 위에서 당긴 만큼(음수 위치) 내려오고, 숨은 만큼 올라간다
-  const pull = scrollY.interpolate({
-    inputRange: [-1, 0],
-    outputRange: [1, 0],
-    extrapolateRight: 'clamp',
-  });
+  // 숨은 만큼 위로 올라간다. 0 에서 시작해 빼므로 보일 때는 -0 이 아닌 0 이다
   const translateY = Animated.subtract(
-    pull,
+    0,
     Animated.multiply(progress, distance),
   );
 
@@ -165,7 +158,7 @@ function createAutoHide(
   };
   const show = () => update(AUTO_HIDE_INITIAL);
 
-  const onScrollEvent = ({
+  const onScroll = ({
     nativeEvent,
   }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (screenReader) {
@@ -186,15 +179,10 @@ function createAutoHide(
 
   return {
     translateY,
-    onScroll: Animated.event<NativeScrollEvent>(
-      [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-      { useNativeDriver: true, listener: onScrollEvent },
-    ),
+    onScroll,
     show,
     onScrollLayout: (event: LayoutChangeEvent) => {
       viewport = event.nativeEvent.layout.height;
-      // 앞 리스트의 마지막 위치(당기던 음수 위치)가 남아 머리를 밀어 두지 않게 한다
-      scrollY.setValue(0);
       show();
     },
     onContentSizeChange: (_width: number, height: number) => {
