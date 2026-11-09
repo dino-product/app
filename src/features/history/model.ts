@@ -49,13 +49,9 @@ export const parseDate = (dateKey: string) => {
   return new Date(year, month - 1, day);
 };
 
-/** 목록 행의 날짜·시간 (예: 2026.09.26 (토) 08:00 - 09:00) */
-export function formatWorkTime(work: CompletedWork): string {
-  const date = parseDate(work.dateKey);
-  return `${work.dateKey.replaceAll('-', '.')} (${WEEKDAYS[date.getDay()]}) ${
-    work.start
-  } - ${work.end}`;
-}
+/** 목록 카드 시간 줄의 시간 범위 (Figma 작업이력 3753:4916: '11:00 – 12:00', 가운데는 en dash) */
+export const workTimeRange = (work: CompletedWork) =>
+  `${work.start} – ${work.end}`;
 
 const parseTime = (time: string) => time.split(':').map(Number);
 const periodOf = (hour: number) => (hour < 12 ? '오전' : '오후');

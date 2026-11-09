@@ -39,7 +39,11 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
-import { addMonths, formatMonthTitle } from '../../schedule/model';
+import {
+  addMonths,
+  formatCardDay,
+  formatMonthTitle,
+} from '../../schedule/model';
 import { WorkRowsSkeleton } from '../../work/components/WorkSkeletons';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { HistoryHeaderBar } from '../components/HistoryHeaderBar';
@@ -221,16 +225,21 @@ function WorkHistoryScreenView({
     );
   }, [load.status, viewMonth, monthWorks.length]);
 
+  // 시간 줄의 날짜는 오늘이면 '오늘 · 9. 19. (토)' 다 (내 일정·홈 일정 카드와 같은 표기)
   const renderItem = useCallback(
     ({ item }: { item: CompletedWork }) => (
-      <CompletedWorkRow item={item} onPress={onOpenWork} />
+      <CompletedWorkRow
+        item={item}
+        dayLabel={formatCardDay(item.dateKey, today)}
+        onPress={onOpenWork}
+      />
     ),
-    [onOpenWork],
+    [onOpenWork, today],
   );
 
   // 리스트 내용은 펼친 상단 바 아래에서 시작한다. 접힌 바는 더 짧아 그보다 더 가리지 않는다 (#175)
   const contentStyle = useMemo(
-    () => [readableColumn, { paddingTop: collapse.height }],
+    () => [readableColumn, styles.content, { paddingTop: collapse.height }],
     [collapse.height],
   );
 
@@ -259,7 +268,11 @@ function WorkHistoryScreenView({
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <SafeAreaView
+      edges={['top']}
+      testID="work-history-screen"
+      style={styles.screen}
+    >
       <View style={styles.body}>
         {/* 리스트 위에 겹쳐 그리는 상단 바 (#175). Figma 작업이력에는 종이 없다 */}
         <HistoryHeaderBar
@@ -284,6 +297,7 @@ function WorkHistoryScreenView({
               data={monthWorks}
               keyExtractor={keyExtractor}
               renderItem={renderItem}
+              ItemSeparatorComponent={CardGap}
               CellRendererComponent={MonthShiftCell}
               ListHeaderComponent={header}
               ListEmptyComponent={
@@ -309,6 +323,11 @@ function WorkHistoryScreenView({
 }
 
 const keyExtractor = (item: CompletedWork) => item.id;
+
+// 완료 작업 카드 사이 12 (Figma 3753:4910)
+function CardGap() {
+  return <View testID="completed-work-gap" style={styles.cardGap} />;
+}
 
 const rowsSkeleton = <WorkRowsSkeleton />;
 
@@ -343,16 +362,17 @@ function EmptyMonth() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
+  // Figma 작업이력 (기본) 3753:4890: 회색 바탕(Background/3) 위에 흰 요약 카드·완료 작업 카드 (#181)
+  screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 마지막 카드 아래 24 + 바닥(Frame 40) 12
+  content: { paddingBottom: 36 },
+  cardGap: { height: 12 },
   // 상단 바를 겹쳐 그리는 자리 (안전 영역 안). 접힌 바 배경은 이 위 상태 표시줄 자리까지 덮는다
   body: { flex: 1 },
   list: { flex: 1 },
   // 요약 카드. 위 여백(월 선택과의 사이 24)은 상단 바가 갖는다
-  header: {
-    paddingBottom: 24,
-    borderBottomWidth: 12,
-    borderBottomColor: colors.background[3],
-  },
+  // Figma 3753:4896: 요약 카드 아래 24 에 완료 작업 카드 (구분선 없음)
+  header: { paddingBottom: 24 },
   summary: { flexDirection: 'row', gap: 10, paddingHorizontal: 24 },
   empty: { alignItems: 'center', gap: 24, paddingVertical: 80 },
   emptyText: { alignItems: 'center', gap: 12, maxWidth: 304 },

@@ -136,7 +136,7 @@ describe('WorkHistoryScreen — 화면 구성', () => {
 
     expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
     expect(screen.getByText('완료')).toBeOnTheScreen();
-    expect(screen.getByText('2026.09.26 (토) 08:00 - 09:00')).toBeOnTheScreen();
+    expect(screen.getByText('08:00 – 09:00 9. 26. (토)')).toBeOnTheScreen();
     expect(screen.getByText('한빛 설비')).toBeOnTheScreen();
     expect(
       screen.getByText('정다은 · 서울 용산구 이태원로 202'),
@@ -215,11 +215,11 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
     });
   });
 
-  it('바는 화면 배경과 같아 구분되지 않는다 (회색 배경·그림자는 아직 투명하다)', async () => {
+  it('바는 화면 바탕과 같아 구분되지 않는다 (회색 배경·그림자는 아직 투명하다)', async () => {
     await renderHistory();
 
     expect(part('work-history-bar-background')).toHaveStyle({
-      backgroundColor: colors.white[100],
+      backgroundColor: colors.background[3],
     });
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
   });
@@ -987,7 +987,7 @@ describe('WorkHistoryScreen — 스크린리더', () => {
   });
 });
 
-// Figma 작업이력 (기본) 2751:6982 의 패널 값
+// Figma 작업이력 (기본) 3753:4890 · (스크롤) 50833:6839 의 패널 값 (#181 전수 대조)
 describe('WorkHistoryScreen — Figma 값', () => {
   const parentOf = (element: HostElement) => element.parent as HostElement;
 
@@ -1000,12 +1000,23 @@ describe('WorkHistoryScreen — Figma 값', () => {
     expect(bar()).toHaveStyle({ paddingBottom: 24 });
   });
 
+  it('화면 바탕은 Background/3 이다', async () => {
+    await renderHistory();
+
+    expect(screen.getByTestId('work-history-screen')).toHaveStyle({
+      backgroundColor: colors.background[3],
+    });
+  });
+
   // 요약 카드는 새 Figma 작업이력 (기본) 3753:4890 › 3753:4903 기준이다 (#145)
-  it('요약 카드는 모서리 16, 카드 사이 10, 누적 완료 설명은 Gray600', async () => {
+  it('요약 카드는 모서리 16, 카드 사이 10, 누적 완료는 회색 바탕 위 흰 카드(White/100)이고 설명은 Gray600', async () => {
     await renderHistory();
 
     const card = screen.getByLabelText('누적 완료 4건');
-    expect(card).toHaveStyle({ borderRadius: 16 });
+    expect(card).toHaveStyle({
+      borderRadius: 16,
+      backgroundColor: colors.white[100],
+    });
     expect(parentOf(card)).toHaveStyle({ gap: 10 });
     expect(screen.getByText('누적 완료')).toHaveStyle({
       color: colors.gray[600],
@@ -1046,28 +1057,77 @@ describe('WorkHistoryScreen — Figma 값', () => {
     expect(sameProps).toBe(true);
   });
 
-  it('행은 줄 사이 10, 아래 구분선 Gray200, 제목 Body/M/SemiBold', async () => {
-    await renderHistory({ works: [works[0]] });
+  // Figma 3753:4896: 요약 카드 아래 24 에 완료 작업 카드 목록. 그 사이 구분선은 없다
+  it('요약 카드 아래 구분선 없이 24 뒤에 완료 작업 카드가 시작한다', async () => {
+    await renderHistory();
+
+    const header = screen.getByTestId('work-history-list-header');
+    expect(header).toHaveStyle({ paddingBottom: 24 });
+    expect(styleOf(header).borderBottomWidth).toBeUndefined();
+  });
+
+  // Figma 3753:4911: 흰(Gray0) 카드, 모서리 12, 여백 20, 줄 사이 6, 아래 테두리 1 Gray50. 카드 사이 12 (3753:4910)
+  it('완료 작업은 좌우 24 안쪽의 흰 카드이고 카드 사이는 12 다', async () => {
+    await renderHistory();
 
     expect(rows()[0]).toHaveStyle({
-      gap: 10,
-      borderBottomColor: colors.gray[200],
+      marginHorizontal: 24,
+      padding: 20,
+      gap: 6,
+      borderRadius: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.gray[50],
+      backgroundColor: colors.gray[0],
     });
-    expect(screen.getByText('세탁기 설치')).toHaveStyle({
-      ...typography['Body/M/SemiBold'],
+    const gaps = screen.getAllByTestId('completed-work-gap');
+    expect(gaps).toHaveLength(rows().length - 1);
+    expect(gaps[0]).toHaveStyle({ height: 12 });
+  });
+
+  // Figma 3753:4914·4916: 제목 Body/S/SemiBold Gray900, 그 아래 6 에 '11:00 – 12:00  오늘 · 9. 19. (토)' (Caption/M/Medium,
+  // 시간 #222 · 날짜 #767676). 칩은 제목·시간 묶음 오른쪽 위다
+  it('카드 제목은 Body/S/SemiBold Gray900, 그 아래 시간 줄은 "시작 – 끝  날짜" 이고 날짜만 Gray600 이다', async () => {
+    await renderHistory({ works: [works[0]] });
+
+    const title = screen.getByText('세탁기 설치');
+    expect(title).toHaveStyle({
+      ...typography['Body/S/SemiBold'],
       color: colors.gray[900],
+    });
+    const time = screen.getByText('08:00 – 09:00 9. 26. (토)');
+    expect(time).toHaveStyle({
+      ...typography['Caption/M/Medium'],
+      color: colors.gray[900],
+    });
+    // 시간과 날짜 사이는 두 칸이다
+    expect(time.children[0]).toBe('08:00 – 09:00  ');
+    expect(screen.getByText('9. 26. (토)')).toHaveStyle({
+      color: colors.gray[600],
+    });
+    const summary = parentOf(title);
+    expect(summary).toHaveStyle({ gap: 6 });
+    expect(parentOf(summary)).toHaveStyle({
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
     });
   });
 
-  it('날짜 줄은 달력 아이콘 24 와 글자 사이 5', async () => {
-    await renderHistory({ works: [works[0]] });
-
-    const timeRow = parentOf(screen.getByText('2026.09.26 (토) 08:00 - 09:00'));
-    expect(timeRow).toHaveStyle({ gap: 5 });
-    expect(timeRow.children[0] as HostElement).toHaveStyle({
-      width: 24,
-      height: 24,
+  it('오늘 완료한 작업은 날짜 앞에 "오늘 ·" 을 붙인다', async () => {
+    await renderHistory({
+      works: [{ ...base, id: 't1', dateKey: '2026-09-28', title: '수전 교체' }],
     });
+
+    expect(screen.getByText('오늘 · 9. 28. (월)')).toBeOnTheScreen();
+  });
+
+  // Figma 3753:4896: 마지막 카드 아래 24 에 바닥(Frame 40, 높이 12)
+  it('목록 끝에는 36(카드 아래 24 + 바닥 12)을 둔다', async () => {
+    await renderHistory();
+
+    expect(
+      StyleSheet.flatten(list().props.contentContainerStyle),
+    ).toMatchObject({ paddingBottom: 36 });
   });
 
   it('발주사 줄은 사이 8, 구분선 Gray400, 고객 · 주소는 Caption/M/Medium Gray600', async () => {
