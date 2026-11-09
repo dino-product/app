@@ -845,21 +845,18 @@ describe('WorkHomeScreen — 상단 바 자동 숨김', () => {
     expect(title).toBeOnTheScreen();
   });
 
-  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
-    jest.replaceProperty(Platform, 'OS', 'android');
-    const view = await renderHome({ onRefresh: jest.fn() });
-    expect(screen.getByTestId('work-home-list')).toHaveProp(
-      'progressViewOffset',
-      TAB_HEADER_HEIGHT,
-    );
-    await view.unmount();
-
-    jest.replaceProperty(Platform, 'OS', 'ios');
-    await renderHome({ onRefresh: jest.fn() });
-    expect(
-      screen.getByTestId('work-home-list').props.progressViewOffset,
-    ).toBeUndefined();
-  });
+  // 상단 바는 당겨도 맨 위에 붙어 있으므로(#178) 두 플랫폼 모두 표시를 상단 바 아래로 내린다
+  it.each(['ios', 'android'] as const)(
+    '당겨서 새로고침 표시는 상단 바 아래에서 나온다 (%s)',
+    async os => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderHome({ onRefresh: jest.fn() });
+      expect(screen.getByTestId('work-home-list')).toHaveProp(
+        'progressViewOffset',
+        TAB_HEADER_HEIGHT,
+      );
+    },
+  );
 
   // 숨은 채 리스트가 로딩·오류 화면으로 바뀌면 스크롤이 없어 다시 보일 길이 없다. 그 자리가 그려지면 다시 보인다
   it('상단 바가 숨은 채 불러오기 화면으로 바뀌면 다시 보인다', async () => {

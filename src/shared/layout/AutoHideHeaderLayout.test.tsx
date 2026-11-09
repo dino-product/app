@@ -73,6 +73,25 @@ const layout = (height: number) => ({
   nativeEvent: { layout: { x: 0, y: 0, width: 390, height } },
 });
 
+/**
+ * 스크롤 이벤트를 실기기처럼 보낸다. 실기기에서는 네이티브 드라이버 스크롤 이벤트(Animated.event)가 UI 스레드에서
+ * 스크롤 위치 값을 옮기지만 테스트에서는 옮기지 않는다. 렌더 전에 불러 Animated.event 를 지켜보다가 스크롤 위치를
+ * 받는 값이 있으면 같은 위치로 옮긴다 (머리가 스크롤 위치를 네이티브로 따라가는지까지 확인한다)
+ */
+function scrollLikeDevice() {
+  const event = jest.spyOn(Animated, 'event');
+  return async (y: number) => {
+    await scrollTo(y);
+    const nativeValues = event.mock.calls.flatMap(([mapping]) => {
+      const value = (
+        mapping as [{ nativeEvent?: { contentOffset?: { y?: unknown } } }]
+      )[0]?.nativeEvent?.contentOffset?.y;
+      return value instanceof Animated.Value ? [value] : [];
+    });
+    await act(() => nativeValues.forEach(value => value.setValue(y)));
+  };
+}
+
 let finishAnimations: () => Promise<void>;
 
 describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
@@ -136,21 +155,23 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       ).toBe(46);
     });
 
-    // iOS 는 상단 바가 당긴 만큼 함께 내려와 새로고침 표시가 그 위 틈에 보인다. progressViewOffset 을 주면 iOS 도
-    // 표시를 그만큼 아래로 그려 상단 바 뒤에 가려진다. Android 는 위치가 음수가 되지 않아 표시를 상단 바 아래로 내린다
-    it('Android 에서만 당겨서 새로고침 표시를 상단 바 아래로 내린다', async () => {
-      jest.replaceProperty(Platform, 'OS', 'android');
-      await render(<Harness />);
-      expect(screen.getByTestId('list')).toHaveProp('progressViewOffset', 46);
-    });
+    // 상단 바는 당겨도 맨 위에 붙어 있다(#178). 새로고침 표시는 리스트 맨 위(상단 바 뒤)에 그려지므로 두 플랫폼 모두
+    // 머리 높이만큼 아래로 내려 상단 바 바로 아래에 보이게 한다
+    it.each(['ios', 'android'] as const)(
+      '당겨서 새로고침 표시를 머리 아래로 내린다 (%s)',
+      async os => {
+        jest.replaceProperty(Platform, 'OS', os);
+        await render(<Harness />);
+        expect(screen.getByTestId('list')).toHaveProp('progressViewOffset', 46);
 
-    it('iOS 에서는 당겨서 새로고침 표시를 옮기지 않는다', async () => {
-      jest.replaceProperty(Platform, 'OS', 'ios');
-      await render(<Harness />);
-      expect(
-        screen.getByTestId('list').props.progressViewOffset,
-      ).toBeUndefined();
-    });
+        // 하위 탭처럼 늘 보이는 부분까지 머리 전체 아래로 내린다
+        await fireEvent(header(), 'layout', layout(108));
+        expect(screen.getByTestId('list')).toHaveProp(
+          'progressViewOffset',
+          108,
+        );
+      },
+    );
 
     it('스크롤 표시줄은 상단 바 아래에서 시작한다 (iOS)', async () => {
       await render(<Harness />);
@@ -174,14 +195,9 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       expect(connect).not.toHaveBeenCalled();
     });
 
-    it('스크롤 위치는 네이티브 드라이버 이벤트로 받는다', async () => {
-      const event = jest.spyOn(Animated, 'event');
+    it('스크롤 위치는 한 프레임(16ms)마다 받는다', async () => {
       await render(<Harness />);
 
-      expect(event).toHaveBeenCalledWith(
-        [{ nativeEvent: { contentOffset: { y: expect.any(Animated.Value) } } }],
-        expect.objectContaining({ useNativeDriver: true }),
-      );
       expect(screen.getByTestId('list')).toHaveProp('scrollEventThrottle', 16);
     });
   });
@@ -269,37 +285,31 @@ describe('AutoHideHeaderLayout · useAutoHideHeader (#148)', () => {
       expect(autoHideHeaderOffset()).toBe(-80);
     });
 
-    // iOS 맨 위에서 당기면(음수 위치) 상단 바가 내용과 함께 내려와 새로고침 표시를 가리지 않는다
-    it('맨 위에서 아래로 당기는 만큼 상단 바도 함께 내려온다', async () => {
-      const event = jest.spyOn(Animated, 'event');
+    // iOS 맨 위 바운스·당겨서 새로고침은 위치가 음수가 된다. 상단 바가 내용을 따라 내려오면 화면 맨 위에서
+    // 떨어져 보인다 (#178). 화면 맨 위에 붙어 있고, 새로고침 표시는 progressViewOffset 으로 그 아래에 보인다
+    it('맨 위에서 더 당겨도(음수 위치) 상단 바는 맨 위에 붙어 있다', async () => {
+      const pullTo = scrollLikeDevice();
       const view = await render(<Harness />);
-      const scrollY = (
-        event.mock.calls[0][0] as [
-          { nativeEvent: { contentOffset: { y: Animated.Value } } },
-        ]
-      )[0].nativeEvent.contentOffset.y;
 
-      await act(() => scrollY.setValue(-60));
-      await view.rerender(<Harness />);
-      expect(autoHideHeaderOffset()).toBe(60);
-
-      await act(() => scrollY.setValue(200));
-      await view.rerender(<Harness />);
-      expect(autoHideHeaderOffset()).toBe(0);
+      for (const y of [-30, -80, -120, -20, 0]) {
+        await pullTo(y);
+        await view.rerender(<Harness />);
+        expect(autoHideHeaderOffset()).toBe(0);
+      }
     });
 
-    // 리스트가 새로 자리 잡으면 앞 리스트의 마지막 위치(당기던 음수 위치)로 머리를 밀어 두지 않는다
-    it('스크롤 뷰가 새로 자리 잡으면 앞 리스트에서 당기던 만큼 밀려 있던 머리를 제자리로 돌린다', async () => {
-      const event = jest.spyOn(Animated, 'event');
+    // 숨은 채 위로 세게 밀면 관성으로 맨 위를 넘어 튕긴다. 다시 보이는 상단 바도 맨 위를 넘어 내려오지 않는다
+    it('숨은 채 맨 위를 넘어 튕겨 올라가도 다시 보인 상단 바는 맨 위에 멈춘다', async () => {
+      const scrollOnDevice = scrollLikeDevice();
       const view = await render(<Harness />);
-      const scrollY = (
-        event.mock.calls[0][0] as [
-          { nativeEvent: { contentOffset: { y: Animated.Value } } },
-        ]
-      )[0].nativeEvent.contentOffset.y;
-      await act(() => scrollY.setValue(-60));
+      await scrollDown();
+      await finishAnimations();
+      expect(autoHideHeaderOffset()).toBe(-46);
 
-      await fireEvent(list(), 'layout', layout(600));
+      for (const y of [150, 0, -50]) {
+        await scrollOnDevice(y);
+      }
+      await finishAnimations();
       await view.rerender(<Harness />);
 
       expect(autoHideHeaderOffset()).toBe(0);

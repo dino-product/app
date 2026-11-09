@@ -843,19 +843,18 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
     ).toMatchObject({ paddingTop: TITLE_BAR + UNDERLINE_TABS_HEIGHT });
   });
 
-  it('당겨서 새로고침 표시는 Android 에서 머리 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
-    jest.replaceProperty(Platform, 'OS', 'android');
-    const view = await renderSchedule();
-    expect(confirmedList()).toHaveProp(
-      'progressViewOffset',
-      TITLE_BAR + UNDERLINE_TABS_HEIGHT,
-    );
-    await view.unmount();
-
-    jest.replaceProperty(Platform, 'OS', 'ios');
-    await renderSchedule();
-    expect(confirmedList().props.progressViewOffset).toBeUndefined();
-  });
+  // 상단 바는 당겨도 맨 위에 붙어 있으므로(#178) 두 플랫폼 모두 표시를 머리(제목 줄 + 하위 탭) 아래로 내린다
+  it.each(['ios', 'android'] as const)(
+    '당겨서 새로고침 표시는 머리 아래에서 나온다 (%s)',
+    async os => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderSchedule();
+      expect(confirmedList()).toHaveProp(
+        'progressViewOffset',
+        TITLE_BAR + UNDERLINE_TABS_HEIGHT,
+      );
+    },
+  );
 
   it('아래로 스크롤하면 제목 줄만 숨고 하위 탭은 남으며, 위로 스크롤을 시작하면 다시 보인다', async () => {
     await renderSchedule();

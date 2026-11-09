@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
+import { colors } from '../../../shared/design-system';
 import { boxOf } from '../../../shared/testing/skeleton';
 import { CompletedWorkRow } from '../../history/components/CompletedWorkRow';
 import type { HostElement } from '../../../shared/testing/touchTarget';
@@ -53,6 +54,7 @@ describe('작업 스켈레톤', () => {
           start: '08:00',
           end: '09:00',
         }}
+        dayLabel="9. 26. (토)"
         onPress={noop}
       />,
     );
@@ -63,6 +65,12 @@ describe('작업 스켈레톤', () => {
     const rows = screen.getAllByTestId('work-row-skeleton');
     expect(rows).toHaveLength(3);
     expect(boxOf(rows[0])).toEqual(completed);
+    // 작업 이력 카드처럼 흰 카드가 좌우 24 안쪽에 12 사이로 놓인다 (#181)
+    expect(rows[0]).toHaveStyle({ backgroundColor: colors.gray[0] });
+    expect(screen.getByTestId('work-rows-skeleton')).toHaveStyle({
+      gap: 12,
+      paddingHorizontal: 24,
+    });
   });
 
   it('작업 상세 스켈레톤은 실제 정보 영역(WorkInfoSections)의 요약·일정 카드·고객 카드와 같은 상자다', async () => {
