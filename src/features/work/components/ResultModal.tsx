@@ -8,7 +8,9 @@ import {
 } from '../../../shared/design-system';
 import type { SubmitResult } from '../model';
 
-// 완료보고 제출 결과 모달: 제출 완료 / 작업이 취소되었습니다
+// 완료보고 제출 결과 모달: 제출 완료 / 작업이 취소되었습니다.
+// Figma 제출 완료(2741:22853)·작업 취소(2741:26603) 의 Modal: 뒤 검정 50%, 폭 262·모서리 24·좌우 20.
+// 위 24 에 아이콘 40, 16 아래 제목 → 위아래 12 안의 설명 → 요약 상자 → 위 16·아래 24 안의 버튼 (#180)
 export function ResultModal({
   visible,
   result,
@@ -43,20 +45,33 @@ export function ResultModal({
         onAccessibilityEscape={onConfirm}
         style={styles.backdrop}
       >
-        <View style={styles.card}>
-          <Icon name={submitted ? 'modal-check' : 'modal-x'} size={40} />
-          <Text accessibilityRole="header" variant="Body/S/Bold">
-            {submitted ? '제출 완료' : '작업이 취소되었습니다'}
-          </Text>
-          <Text
-            variant="Caption/M/Regular"
-            color={colors.gray[600]}
-            style={styles.description}
-          >
-            {submitted
-              ? '작업이 완료 처리되었습니다'
-              : '등록 담당자가 이 작업을 취소했습니다'}
-          </Text>
+        <View style={styles.card} testID="result-modal-card">
+          <View style={styles.head}>
+            <Icon
+              name={submitted ? 'submit-check' : 'modal-x'}
+              size={40}
+              testID="result-modal-icon"
+            />
+            <Text
+              accessibilityRole="header"
+              variant="Body/S/Bold"
+              style={styles.centered}
+            >
+              {submitted ? '제출 완료' : '작업이 취소되었습니다'}
+            </Text>
+          </View>
+          <View style={styles.description}>
+            {/* Figma 설명 글자는 라이브러리 Gray500 (#7F7F7F) */}
+            <Text
+              variant="Caption/M/Medium"
+              color={colors.libraryGray[500]}
+              style={styles.centered}
+            >
+              {submitted
+                ? '작업이 완료 처리되었습니다'
+                : '등록 담당자가 이 작업을 취소했습니다'}
+            </Text>
+          </View>
           <View style={styles.summary}>
             {rows.map(row => (
               <View key={row.label} style={styles.row}>
@@ -74,12 +89,9 @@ export function ResultModal({
               </View>
             ))}
           </View>
-          <CTA
-            type="modal"
-            label="메인 화면으로"
-            onPress={onConfirm}
-            style={styles.cta}
-          />
+          <View style={styles.footer}>
+            <CTA type="modal" label="메인 화면으로" onPress={onConfirm} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -91,25 +103,27 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: withOpacity('#000000', 0.4),
+    backgroundColor: withOpacity('#000000', 0.5),
   },
   card: {
     width: 262,
-    alignItems: 'center',
-    gap: 8,
-    padding: 20,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     backgroundColor: colors.white[100],
   },
-  description: { textAlign: 'center' },
+  // Frame 2117905339: 위 24, 아이콘 40 ↔ 제목 16
+  head: { alignItems: 'center', gap: 16, paddingTop: 24 },
+  centered: { textAlign: 'center' },
+  // Frame 14: 위아래 12
+  description: { alignItems: 'center', paddingVertical: 12 },
+  // Frame 2147239460: 모서리 8, Gray50, 안쪽 12, 줄 사이 4
   summary: {
-    alignSelf: 'stretch',
-    gap: 6,
-    marginTop: 4,
+    gap: 4,
     padding: 12,
     borderRadius: 8,
     backgroundColor: colors.gray[50],
   },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  cta: { alignSelf: 'stretch', marginTop: 8 },
+  // Frame 10: 버튼 위 16, 아래 24
+  footer: { paddingTop: 16, paddingBottom: 24 },
 });
