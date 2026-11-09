@@ -171,16 +171,8 @@ function WorkHomeScreenView({
               {weekLabel}
             </Text>
           </View>
+          {/* 기본인 블록 보기를 왼쪽, 목록 보기를 오른쪽에 둔다 (#179 사용자 결정) */}
           <View style={styles.viewToggle}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="목록 보기"
-              accessibilityState={{ selected: !block }}
-              hitSlop={LIST_HIT_SLOP}
-              onPress={() => changeView('list')}
-            >
-              <Icon name={block ? 'list' : 'list-active'} size={TOGGLE_SIZE} />
-            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="블록 보기"
@@ -189,6 +181,15 @@ function WorkHomeScreenView({
               onPress={() => changeView('block')}
             >
               <Icon name={block ? 'grid-active' : 'grid'} size={TOGGLE_SIZE} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="목록 보기"
+              accessibilityState={{ selected: !block }}
+              hitSlop={LIST_HIT_SLOP}
+              onPress={() => changeView('list')}
+            >
+              <Icon name={block ? 'list' : 'list-active'} size={TOGGLE_SIZE} />
             </Pressable>
           </View>
         </View>
@@ -304,13 +305,14 @@ const TOGGLE_OUTER_SLOP = Math.max(
   0,
   MIN_TOUCH_TARGET - TOGGLE_SIZE - TOGGLE_GAP / 2,
 );
-const LIST_HIT_SLOP = {
+// 블록 보기가 왼쪽, 목록 보기가 오른쪽이다 (#179)
+const BLOCK_HIT_SLOP = {
   top: TOGGLE_SLOP,
   bottom: TOGGLE_SLOP,
   left: TOGGLE_OUTER_SLOP,
   right: TOGGLE_GAP / 2,
 };
-const BLOCK_HIT_SLOP = {
+const LIST_HIT_SLOP = {
   top: TOGGLE_SLOP,
   bottom: TOGGLE_SLOP,
   left: TOGGLE_GAP / 2,
