@@ -82,6 +82,7 @@ import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
 import { useToday } from '../../shared/time/useToday';
 import { callPhone, openDirections, openMap } from '../externalLinks';
+import { useHoldTabSwitchWhile } from './tabSwitchLock';
 import type {
   HistoryScreenProps,
   HomeScreenProps,
@@ -210,6 +211,7 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
   const schedule = useMySchedule(week, { subscribed: useIsFocused() });
   const startWork = useStartWork().mutateAsync;
   const { refreshing, onRefresh } = useRefresh(schedule.refetch);
+  useHoldTabSwitchWhile(refreshing);
   const load = useLoadState(schedule);
 
   const works = schedule.data?.works;
@@ -430,6 +432,7 @@ export function ScheduleRoute({
       [refetchAll, refetchPending],
     ),
   );
+  useHoldTabSwitchWhile(refreshing);
 
   // 바깥에서 고른 하위 탭(탈퇴 불가 → 응답 필요). 화면이 옮긴 뒤 지워야 같은 요청이 다시 와도 옮긴다
   const requestedTab = route.params?.tab;
@@ -625,6 +628,7 @@ export function WorkHistoryRoute({
     { subscribed: useIsFocused() },
   );
   const { refreshing, onRefresh } = useRefresh(history.refetch);
+  useHoldTabSwitchWhile(refreshing);
   const historyLoad = useLoadState(history);
   // 달을 바꾸는 동안 보이는 앞 달 결과는 목록에 쓰지 않는다 (누적 완료 수만 그대로 둔다)
   const ready = !history.isPlaceholderData;

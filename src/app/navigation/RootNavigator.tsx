@@ -66,6 +66,7 @@ import {
   WorkHomeRoute,
 } from './routes';
 import { TabEnterLayout, TabEnterScope } from './TabEnterLayout';
+import { TabSwitchLockLayout, useTabSwitchLock } from './tabSwitchLock';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
@@ -113,13 +114,20 @@ function useStackOptions() {
 // (#176, TabEnterLayout·tabTransition.ts). 동작 줄이기면 내용도 옮기지 않는다
 const tabOptions: BottomTabNavigationOptions = { headerShown: false };
 
-const renderTabEnterLayout = ({
+// 탭 내비게이터 layout: 새로고침 중 탭 전환 잠금(#177)과 탭 내용이 들어오는 전환(#176)
+const renderTabLayout = ({
   state,
+  navigation,
   children,
 }: {
   state: TabNavigationState<MainTabParamList>;
+  navigation: { isFocused: () => boolean };
   children: ReactNode;
-}) => <TabEnterLayout state={state}>{children}</TabEnterLayout>;
+}) => (
+  <TabSwitchLockLayout state={state} navigation={navigation}>
+    <TabEnterLayout state={state}>{children}</TabEnterLayout>
+  </TabSwitchLockLayout>
+);
 
 // VoiceOver 두 손가락 Z(escape)로 뒤로 간다. 네이티브 헤더를 껐으니 스택 화면을 감싸 직접 받는다.
 // 스택 첫 화면은 돌아갈 곳이 없어 받지 않는다 (탭을 바꾸는 Android 뒤로가기와 달리 iOS 관례).
@@ -150,7 +158,7 @@ function stackScreenLayout({
 const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 
 // 탭 화면을 좌우로 밀면 이웃 탭으로 옮긴다 (#140, TabSwipeArea). 탭 바를 누를 때와 같은 전환으로 내용이 들어온다 (TabEnterScope).
-// 탭 안 스택이 첫 화면일 때만 받는다. 안쪽 화면은 iOS 26 화면 전체 뒤로 가기 밀기와 겹치고, 탭 메인 화면이 아니다
+// 탭 안 스택이 첫 화면일 때만, 새로고침 중이 아닐 때만(#177) 받는다. 안쪽 화면은 iOS 26 화면 전체 뒤로 가기 밀기와 겹치고, 탭 메인 화면이 아니다
 function TabSwipeLayout({
   route,
   navigation,
@@ -160,15 +168,19 @@ function TabSwipeLayout({
   navigation: BottomTabNavigationProp<MainTabParamList>;
   children: ReactNode;
 }) {
-  // 밀 때마다 지금 상태로 본다. 안쪽 스택 상태가 아직 없으면 첫 화면이다
-  const atFirstScreen = useCallback(() => {
+  // 밀 때마다 지금 상태로 본다. 안쪽 스택 상태가 아직 없으면 첫 화면이다. 새로고침 중에는 밀지 않는다 (#177)
+  const lock = useTabSwitchLock();
+  const canSwipe = useCallback(() => {
+    if (lock !== null && !lock.canSwitch()) {
+      return false;
+    }
     const nested = navigation
       .getState()
       .routes.find(item => item.key === route.key)?.state;
     return (
       nested === undefined || (nested.index ?? nested.routes.length - 1) === 0
     );
-  }, [navigation, route.key]);
+  }, [lock, navigation, route.key]);
   const onSwipe = useCallback(
     (direction: SwipeDirection) => {
       const { index, routes } = navigation.getState();
@@ -183,7 +195,7 @@ function TabSwipeLayout({
   );
   return (
     <TabSwipeArea
-      canSwipe={atFirstScreen}
+      canSwipe={canSwipe}
       onSwipe={onSwipe}
       testID={`tab-swipe-${route.name}`}
     >
@@ -404,7 +416,7 @@ function MainTabs() {
       tabBar={renderTabBar}
       screenOptions={tabOptions}
       screenLayout={tabScreenLayout}
-      layout={renderTabEnterLayout}
+      layout={renderTabLayout}
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
