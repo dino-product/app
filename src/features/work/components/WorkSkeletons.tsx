@@ -32,7 +32,7 @@ function Chip() {
 function ScheduleCardSkeleton() {
   return (
     <View style={styles.scheduleCard} testID="schedule-card-skeleton">
-      <View style={styles.titleRow}>
+      <View style={styles.scheduleTitleRow}>
         <View style={styles.summary}>
           <SkeletonLine variant="Body/S/SemiBold" width="60%" />
           <SkeletonLine variant="Caption/M/Medium" width="45%" />
@@ -225,11 +225,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[50],
     backgroundColor: colors.gray[0],
   },
-  titleRow: {
+  // ScheduleCard 의 제목 줄: Figma 메인화면 사이 21 (#180)
+  scheduleTitleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 21,
+  },
+  // CompletedWorkRow 의 제목 줄: Figma 작업이력 사이 8 (#181)
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   summary: { flex: 1, gap: 6 },
   // 작업 이력 카드 목록: 좌우 24 안쪽, 카드 사이 12 (Figma 작업이력 3753:4910)

@@ -29,6 +29,43 @@ describe('작업 스켈레톤', () => {
     expect(boxOf(cards[0])).toEqual(real);
   });
 
+  // 제목 줄(제목·시간 묶음과 칩)도 실제 카드와 같다. 일정 카드는 Figma 메인화면 21 (#180),
+  // 완료 작업 카드는 Figma 작업이력 8 (#181) 로 서로 다르다
+  it('일정 카드·완료 작업 카드 스켈레톤의 제목 줄은 각 실제 카드의 제목 줄과 같은 상자다', async () => {
+    const titleRowOf = (card: HostElement) => card.children[0] as HostElement;
+
+    await render(<ScheduleCard item={weeklySchedule[0]} onPress={noop} />);
+    const scheduleTitle = boxOf(titleRowOf(screen.getByRole('button')));
+    await render(
+      <CompletedWorkRow
+        item={{
+          id: 'w1',
+          title: '세탁기 설치',
+          company: '한빛 설비',
+          customerName: '정다은',
+          address: '서울 용산구 이태원로 202',
+          dateKey: '2026-09-26',
+          start: '08:00',
+          end: '09:00',
+        }}
+        dayLabel="9. 26. (토)"
+        onPress={noop}
+      />,
+    );
+    const completedTitle = boxOf(titleRowOf(screen.getByRole('button')));
+    expect(scheduleTitle).not.toEqual(completedTitle);
+
+    await render(<WorkHomeSkeleton block={false} />);
+    expect(
+      boxOf(titleRowOf(screen.getAllByTestId('schedule-card-skeleton')[0])),
+    ).toEqual(scheduleTitle);
+
+    await render(<WorkRowsSkeleton />);
+    expect(
+      boxOf(titleRowOf(screen.getAllByTestId('work-row-skeleton')[0])),
+    ).toEqual(completedTitle);
+  });
+
   // #180: 실제 '일정' 줄처럼 카드와 같은 폭이다 (안쪽 6 들여쓰기 없음)
   it('메인화면 스켈레톤의 일정 줄은 카드와 같은 폭이다', async () => {
     await render(<WorkHomeSkeleton block={false} />);
