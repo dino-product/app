@@ -15,7 +15,8 @@ import {
 import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
 import type { ScheduleItem } from '../model';
 
-// 메인화면 주간 일정 카드. 칩은 제목·시간 묶음 오른쪽 위에 붙는다
+// 메인화면 주간 일정 카드. 칩은 제목·시간 묶음 오른쪽 위에 붙는다.
+// Figma 메인화면(2428:13005·3463:17452): 흰 채움(Gray0)에 아래쪽만 Gray50 1 테두리, 여백 20, 줄 사이 6, 모서리 16
 export const ScheduleCard = memo(function ScheduleCardView({
   item,
   onPress,
@@ -42,8 +43,10 @@ export const ScheduleCard = memo(function ScheduleCardView({
           <Text variant="Body/S/SemiBold" numberOfLines={1}>
             {item.title}
           </Text>
+          {/* Figma 는 시간과 날짜 사이에 공백 두 칸이다 (3463:17452) */}
           <Text variant="Caption/M/Medium">
-            {item.timeRange}{' '}
+            {item.timeRange}
+            {'  '}
             <Text variant="Caption/M/Medium" color={colors.gray[600]}>
               {item.dayLabel}
             </Text>
@@ -80,14 +83,17 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: colors.white[100],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[50],
+    backgroundColor: colors.gray[0],
   },
   pressed: { backgroundColor: pressedBackground.onWhite },
+  // Figma Frame 2147238735: 양 끝 정렬, 사이 21
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 21,
   },
   summary: { flexShrink: 1, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { boxOf } from '../../../shared/testing/skeleton';
 import { CompletedWorkRow } from '../../history/components/CompletedWorkRow';
 import type { HostElement } from '../../../shared/testing/touchTarget';
@@ -25,6 +26,18 @@ describe('작업 스켈레톤', () => {
     const cards = screen.getAllByTestId('schedule-card-skeleton');
     expect(cards).toHaveLength(3);
     expect(boxOf(cards[0])).toEqual(real);
+  });
+
+  // #180: 실제 '일정' 줄처럼 카드와 같은 폭이다 (안쪽 6 들여쓰기 없음)
+  it('메인화면 스켈레톤의 일정 줄은 카드와 같은 폭이다', async () => {
+    await render(<WorkHomeSkeleton block={false} />);
+
+    const row = screen.getByTestId('work-home-skeleton-section-row');
+    expect(row).toHaveStyle({
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    });
+    expect(StyleSheet.flatten(row.props.style).marginLeft ?? 0).toBe(0);
   });
 
   it('작업 행 스켈레톤은 완료 작업 행(CompletedWorkRow)과 같은 상자다', async () => {

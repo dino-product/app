@@ -63,6 +63,22 @@ describe('CurrentWorkCard', () => {
     ).toEqual(pathsOf(iconSvgs['chevron-right'].xml));
   });
 
+  // #180: Figma 메인화면(2428:13005·3463:17452) Frame 2147238731 은 가로, 양 끝 정렬, 사이 22 다
+  it('카드 머리는 작업명 묶음과 > 를 양 끝에 두고 사이를 22 띄운다', async () => {
+    await render(
+      <CurrentWorkCard
+        work={currentWork}
+        started={false}
+        onStart={jest.fn()}
+        onOpen={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: '보일러 점검 상세 보기' }),
+    ).toHaveStyle({ flexDirection: 'row', gap: 22 });
+  });
+
   it('고객·주소 줄은 Figma 대로 14pt 행간 140% 이고 고객은 Medium, 주소는 Regular, 사이 구분선은 Gray400 이다', async () => {
     await render(
       <CurrentWorkCard

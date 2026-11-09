@@ -71,7 +71,10 @@ export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView({
           <SkeletonBlock height={CARD_CTA_HEIGHT} radius={CTA_RADIUS} />
         </View>
         <View style={styles.schedule}>
-          <View style={styles.sectionRow}>
+          <View
+            style={styles.sectionRow}
+            testID="work-home-skeleton-section-row"
+          >
             <SkeletonLine variant="Body/M/SemiBold" width={120} />
             <SkeletonBlock width={56} height={26} radius={6} />
           </View>
@@ -207,11 +210,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white[100],
   },
   currentInfo: { gap: 6 },
+  // WorkHomeScreen 의 일정 줄과 같다: 카드와 같은 폭 (#180)
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginLeft: 6,
   },
   scheduleList: { gap: 12 },
   // ScheduleCard 와 같은 카드
@@ -219,13 +222,15 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: colors.white[100],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[50],
+    backgroundColor: colors.gray[0],
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 21,
   },
   summary: { flex: 1, gap: 6 },
   // CompletedWorkRow 와 같은 행

@@ -100,7 +100,8 @@ const styles = StyleSheet.create({
   frame: { paddingVertical: 24, paddingHorizontal: 20, borderRadius: 18 },
   card: { gap: 22, backgroundColor: colors.white[100] },
   empty: { backgroundColor: colors.primary },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  // Figma Frame 2147238731: 작업명 묶음과 > 를 양 끝에, 사이 22
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 22 },
   info: { flex: 1, gap: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   divider: { width: 1, height: 12, backgroundColor: colors.gray[400] },

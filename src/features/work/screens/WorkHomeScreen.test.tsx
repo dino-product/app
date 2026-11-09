@@ -240,13 +240,16 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     );
   });
 
-  // Figma 3463:17452: 일정 줄(3463:17526)은 폭 339 로 카드(345)보다 6 좁고 오른쪽 끝은 카드와 같다
-  it('일정 줄은 카드보다 6 안쪽에서 시작하고, 첫 일정 카드는 그 아래 12 에서 시작한다', async () => {
+  // #180: Figma 메인화면(2428:13005 Frame 2147238739 · 3463:17452 3463:17526)의 일정 줄은 이제 x 0, 폭 345 로
+  // 카드와 같은 폭이다 (예전 339·안쪽 6 이 아님)
+  it('일정 줄은 카드와 같은 폭(안쪽 들여쓰기 없음)이고, 첫 일정 카드는 그 아래 12 에서 시작한다', async () => {
     await renderHome();
 
     const sectionRow = screen.getByRole('header', { name: '일정' }).parent
       ?.parent;
-    expect(sectionRow).toHaveStyle({ marginLeft: 6 });
+    const style = StyleSheet.flatten(sectionRow?.props.style);
+    expect(style.marginLeft ?? 0).toBe(0);
+    expect(style.marginHorizontal ?? 0).toBe(0);
     expect(sectionRow?.parent?.parent).toHaveStyle({ paddingBottom: 12 });
   });
 
@@ -272,7 +275,8 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     ).toHaveLength(0);
   });
 
-  it('일정 빈 상태는 일정 줄 아래 118 에서 시작한다 (메인화면 - 일정(무) 3278:23276)', async () => {
+  // #180: 3278:23276 에서 일정 줄 아래 끝(246)과 빈 상태 묶음(354) 사이는 108 이다
+  it('일정 빈 상태는 일정 줄 아래 108 에서 시작한다 (메인화면 - 일정(무) 3278:23276)', async () => {
     await renderHome({ currentWork: null, schedule: [] });
 
     const header = screen.getByRole('header', { name: '일정' }).parent?.parent
@@ -283,7 +287,86 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     expect(
       Number(StyleSheet.flatten(header?.props.style).paddingBottom) +
         Number(StyleSheet.flatten(empty?.props.style).paddingTop),
-    ).toBe(118);
+    ).toBe(108);
+  });
+});
+
+// #180: Figma 메인화면 5개 프레임(3255:17530·2428:13005·3463:17452·3255:17670·3278:23276) 바탕은 모두 Background/3 다.
+// 흰 카드(진행 작업·일정)만 흰색이고, 상단 바·목록·빈 상태·불러오는 중 자리는 화면 바탕이 그대로 보인다
+describe('WorkHomeScreen 바탕색 (Figma Background/3)', () => {
+  // 위로 올라가며 처음 만나는 칠해진 바탕. 투명이면 그 뒤가 보인다
+  const backgroundBehind = (node: HostElement | null | undefined) => {
+    let current = node;
+    while (current) {
+      const color = StyleSheet.flatten(current.props.style)?.backgroundColor;
+      if (color != null && color !== 'transparent') {
+        return color;
+      }
+      current = current.parent;
+    }
+    return undefined;
+  };
+
+  it('화면 바탕은 Background/3 이다', async () => {
+    await renderHome();
+
+    expect(screen.root).toHaveStyle({
+      backgroundColor: colors.background[3],
+    });
+  });
+
+  it('상단 바 뒤도 Background/3 이다', async () => {
+    await renderHome();
+
+    expect(
+      backgroundBehind(screen.getByRole('header', { name: '내 작업' })),
+    ).toBe(colors.background[3]);
+  });
+
+  it.each(['list', 'block'] as const)(
+    '%s 보기의 목록 뒤(일정 줄·카드 사이)는 Background/3 이다',
+    async view => {
+      saveHomeView(view);
+      await renderHome();
+
+      expect(backgroundBehind(screen.getByTestId('work-home-list'))).toBe(
+        colors.background[3],
+      );
+      expect(
+        backgroundBehind(screen.getByRole('header', { name: '일정' })),
+      ).toBe(colors.background[3]);
+    },
+  );
+
+  it.each([
+    ['list', '이번 주 일정이 없어요'],
+    ['block', '이 날은 일정이 없어요'],
+  ] as const)(
+    '%s 보기의 일정 빈 상태 뒤는 Background/3 이다',
+    async (view, text) => {
+      saveHomeView(view);
+      await renderHome({ currentWork: null, schedule: [] });
+
+      expect(backgroundBehind(screen.getByText(text))).toBe(
+        colors.background[3],
+      );
+    },
+  );
+
+  it('불러오는 중에도 바탕은 Background/3 이다', async () => {
+    await renderHome({ load: { status: 'loading' } });
+
+    expect(
+      backgroundBehind(screen.getByTestId('work-home-skeleton').parent),
+    ).toBe(colors.background[3]);
+  });
+
+  it('일정 카드는 그 위에 흰 카드로 놓인다', async () => {
+    await renderHome();
+
+    expect(
+      screen.getAllByRole('button', { name: /세탁기 설치/ })[0],
+    ).toHaveStyle({ backgroundColor: colors.gray[0] });
   });
 });
 
