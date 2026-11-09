@@ -6,7 +6,8 @@ import { ENTER_MS, enterEasing } from '../../shared/gesture/enterTransition';
 //
 // 좌우의 차이는 시작 값의 부호뿐이다. 시작 지연·시간·곡선은 TAB_ENTER_TIMING 하나를 같이 쓴다.
 // 들어오는 값은 탭이 바뀌는 렌더에서 만들고 그 커밋 직후(layout effect)에 시작한다 (TabEnterLayout.tsx). 움직이는 쪽은
-// 탭 첫 화면의 머리 내용·본문 내용이다 (AutoHideHeaderLayout). 애니메이션은 네이티브 드라이버로 UI 스레드에서 돈다
+// 탭 첫 화면의 머리 내용·본문 내용이다 (shared/layout/tabEnter.tsx 의 TabEnterView: AutoHideHeaderLayout, 작업 이력 상단 바·목록).
+// 애니메이션은 네이티브 드라이버로 UI 스레드에서 돈다
 
 /** 내용이 들어오기 시작하는 거리 (pt). #140 의 화면 전환 거리(24)의 절반 */
 export const TAB_ENTER_OFFSET = 12;

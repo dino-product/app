@@ -28,6 +28,7 @@ import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { scrollListTo } from '../../../shared/testing/autoHideHeader';
+import { TabEnterContext } from '../../../shared/layout/tabEnter';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import type { HostElement } from '../../../shared/testing/touchTarget';
@@ -997,7 +998,9 @@ describe('WorkHistoryScreen — Figma 값', () => {
 
     const monthRow = parentOf(prevMonth());
     expect(monthRow).toHaveStyle({ gap: 6, marginTop: 14 });
-    expect(bar()).toHaveStyle({ paddingBottom: 24 });
+    // 월 선택 아래 24 는 바 안의 내용(탭을 옮길 때 들어오는 쪽, #176)이 갖는다. 화살표가 아래로 넓힌 터치 영역이 그 안에 든다
+    expect(parentOf(monthRow)).toHaveStyle({ paddingBottom: 24 });
+    expect(bar()).toContainElement(parentOf(monthRow));
   });
 
   it('화면 바탕은 Background/3 이다', async () => {
@@ -1323,5 +1326,71 @@ describe('WorkHistoryScreen — 날짜가 바뀌면', () => {
     );
 
     expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+  });
+});
+
+// 탭을 옮길 때 탭 화면 안의 내용만 옆에서 들어온다 (#176). 바 바탕(접히는 회색 바 포함)·화면 바탕은 제자리다
+describe('WorkHistoryScreen — 탭 전환 때 내용만 옮긴다 (#176)', () => {
+  beforeEach(() => {
+    holdNativeAnimations();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const translateXIn = (element: HostElement) =>
+    (
+      StyleSheet.flatten(element.props.style)?.transform as
+        | Array<{ translateX?: number }>
+        | undefined
+    )?.find(item => item.translateX !== undefined)?.translateX;
+
+  it('제목·월 선택과 목록만 들어오는 값만큼 옮기고, 바 바탕·화면 바탕은 제자리다', async () => {
+    await render(
+      <TabEnterContext.Provider value={new Animated.Value(-12)}>
+        <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />
+      </TabEnterContext.Provider>,
+    );
+
+    const headerContent = screen.getByTestId('tab-enter-header');
+    const bodyContent = screen.getByTestId('tab-enter-body');
+    expect(translateXIn(headerContent)).toBe(-12);
+    expect(translateXIn(bodyContent)).toBe(-12);
+    expect(headerContent).toContainElement(
+      screen.getByTestId('work-history-title'),
+    );
+    expect(headerContent).toContainElement(
+      screen.getByTestId('work-history-month'),
+    );
+    expect(bodyContent).toContainElement(
+      screen.getByTestId('work-history-list'),
+    );
+    // 바 바탕은 내용 밖에 있고 가로로 옮기지 않는다
+    const barBackground = screen.getByTestId('work-history-bar-background');
+    expect(headerContent).not.toContainElement(barBackground);
+    for (
+      let node: HostElement | null = headerContent.parent;
+      node;
+      node = node.parent
+    ) {
+      expect(translateXIn(node)).toBeUndefined();
+    }
+    for (
+      let node: HostElement | null = bodyContent.parent;
+      node;
+      node = node.parent
+    ) {
+      expect(translateXIn(node)).toBeUndefined();
+    }
+  });
+
+  it('들어오는 값이 없으면 옮기지 않는다', async () => {
+    await renderHistory();
+
+    expect(
+      translateXIn(screen.getByTestId('tab-enter-header')),
+    ).toBeUndefined();
+    expect(translateXIn(screen.getByTestId('tab-enter-body'))).toBeUndefined();
   });
 });

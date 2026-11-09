@@ -379,6 +379,11 @@ describe('탭 전환 — 내용이 들어온다', () => {
     // 처음 여는 탭 (오른쪽)
     await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
     expect(enters()).toHaveLength(1);
+    expect(enterXOf('history')).toEqual({
+      header: TAB_ENTER_OFFSET,
+      body: TAB_ENTER_OFFSET,
+    });
+    expect(backgroundTranslateX('history')).toEqual([]);
     await animations.finish();
     // 이미 연 탭 (왼쪽)
     await userEvent.press(screen.getByRole('tab', { name: '홈' }));

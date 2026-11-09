@@ -39,6 +39,7 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabEnterView } from '../../../shared/layout/tabEnter';
 import {
   addMonths,
   formatCardDay,
@@ -283,40 +284,43 @@ function WorkHistoryScreenView({
           onPrev={() => moveMonth(-1)}
           onNext={() => moveMonth(1)}
         />
-        <View
-          style={styles.list}
-          onTouchStartCapture={monthSwipe.onTouchStartCapture}
-          onTouchStart={listRegion.onTouchStart}
-          {...monthSwipe.panHandlers}
-        >
-          <MonthShiftContext.Provider value={monthShift}>
-            <Animated.FlatList
-              ref={listRef}
-              testID="work-history-list"
-              {...collapse.scrollProps}
-              data={monthWorks}
-              keyExtractor={keyExtractor}
-              renderItem={renderItem}
-              ItemSeparatorComponent={CardGap}
-              CellRendererComponent={MonthShiftCell}
-              ListHeaderComponent={header}
-              ListEmptyComponent={
-                <MonthShiftEmpty>
-                  {load.status === 'ready' ? (
-                    <EmptyMonth />
-                  ) : (
-                    <LoadStateView state={load} skeleton={rowsSkeleton} />
-                  )}
-                </MonthShiftEmpty>
-              }
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              progressViewOffset={collapse.progressViewOffset}
-              style={styles.list}
-              contentContainerStyle={contentStyle}
-            />
-          </MonthShiftContext.Provider>
-        </View>
+        {/* 탭을 옮길 때 목록만 옆에서 들어오고 화면 바탕은 제자리다 (#176) */}
+        <TabEnterView part="body" style={styles.list}>
+          <View
+            style={styles.list}
+            onTouchStartCapture={monthSwipe.onTouchStartCapture}
+            onTouchStart={listRegion.onTouchStart}
+            {...monthSwipe.panHandlers}
+          >
+            <MonthShiftContext.Provider value={monthShift}>
+              <Animated.FlatList
+                ref={listRef}
+                testID="work-history-list"
+                {...collapse.scrollProps}
+                data={monthWorks}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                ItemSeparatorComponent={CardGap}
+                CellRendererComponent={MonthShiftCell}
+                ListHeaderComponent={header}
+                ListEmptyComponent={
+                  <MonthShiftEmpty>
+                    {load.status === 'ready' ? (
+                      <EmptyMonth />
+                    ) : (
+                      <LoadStateView state={load} skeleton={rowsSkeleton} />
+                    )}
+                  </MonthShiftEmpty>
+                }
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                progressViewOffset={collapse.progressViewOffset}
+                style={styles.list}
+                contentContainerStyle={contentStyle}
+              />
+            </MonthShiftContext.Provider>
+          </View>
+        </TabEnterView>
       </View>
     </SafeAreaView>
   );

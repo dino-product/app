@@ -6,7 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { useTabEnterStyle } from './tabEnter';
+import { TabEnterView } from './tabEnter';
 import type { AutoHideHeader } from './useAutoHideHeader';
 
 // 탭 첫 화면의 머리(상단 바 + 늘 보이는 부분)를 스크롤 뷰 위에 겹쳐 그리고 스크롤에 따라 숨긴다 (#148).
@@ -47,15 +47,6 @@ export function AutoHideHeaderLayout({
     () => [styles.header, style, { transform: [{ translateY }] }],
     [style, translateY],
   );
-  const enterStyle = useTabEnterStyle();
-  const headerContentStyle = useMemo(
-    () => [styles.passThrough, enterStyle],
-    [enterStyle],
-  );
-  const bodyContentStyle = useMemo(
-    () => [styles.bodyContent, enterStyle],
-    [enterStyle],
-  );
   return (
     <View style={[styles.body, bodyStyle]}>
       <Animated.View
@@ -63,24 +54,20 @@ export function AutoHideHeaderLayout({
         onLayout={onHeaderLayout}
         style={headerStyle}
       >
-        <Animated.View testID="tab-enter-header" style={headerContentStyle}>
-          {/* 자식을 요소 하나(Fragment)로 넘긴다. Animated.View 는 배열 props(여러 자식)를 참조로 비교해,
-              화면이 다시 그려질 때마다 네이티브 애니메이션 연결을 새로 만든다 */}
-          <>
-            <View
-              testID="auto-hide-header-collapsible"
-              onLayout={onCollapsibleLayout}
-              style={styles.passThrough}
-            >
-              {header}
-            </View>
-            {sticky}
-          </>
-        </Animated.View>
+        <TabEnterView part="header" style={styles.passThrough}>
+          <View
+            testID="auto-hide-header-collapsible"
+            onLayout={onCollapsibleLayout}
+            style={styles.passThrough}
+          >
+            {header}
+          </View>
+          {sticky}
+        </TabEnterView>
       </Animated.View>
-      <Animated.View testID="tab-enter-body" style={bodyContentStyle}>
-        <>{children}</>
-      </Animated.View>
+      <TabEnterView part="body" style={styles.bodyContent}>
+        {children}
+      </TabEnterView>
     </View>
   );
 }

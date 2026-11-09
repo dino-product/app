@@ -3,6 +3,7 @@ import { Animated, StyleSheet, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { TabEnterView } from '../../../shared/layout/tabEnter';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { collapseKeyframes } from '../headerCollapse';
 import type { HeaderCollapse } from '../useHeaderCollapse';
@@ -94,26 +95,31 @@ export function HistoryHeaderBar({
         >
           <Animated.View testID="work-history-bar-tint" style={animated.tint} />
         </Animated.View>
-        {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다) */}
-        <Animated.View
-          testID="work-history-title"
-          style={animated.title}
-          accessibilityElementsHidden={collapsed}
-          importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
-        >
-          <TabHeader title="작업 이력" style={styles.title} />
-        </Animated.View>
-        <MonthSwitcher
-          testID="work-history-month"
-          title={monthTitle}
-          canGoNext={canGoNext}
-          onPrev={onPrev}
-          onNext={onNext}
-          progress={progress}
-          collapsed={collapsed}
-          style={animated.month}
-          onLayout={collapse.onMonthLayout}
-        />
+        {/* 탭을 옮길 때 제목·월 선택만 옆에서 들어오고 바 바탕은 제자리다 (#176) */}
+        <TabEnterView part="header" style={styles.content}>
+          {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다) */}
+          <Animated.View
+            testID="work-history-title"
+            style={animated.title}
+            accessibilityElementsHidden={collapsed}
+            importantForAccessibility={
+              collapsed ? 'no-hide-descendants' : 'auto'
+            }
+          >
+            <TabHeader title="작업 이력" style={styles.title} />
+          </Animated.View>
+          <MonthSwitcher
+            testID="work-history-month"
+            title={monthTitle}
+            canGoNext={canGoNext}
+            onPrev={onPrev}
+            onNext={onNext}
+            progress={progress}
+            collapsed={collapsed}
+            style={animated.month}
+            onLayout={collapse.onMonthLayout}
+          />
+        </TabEnterView>
       </>
     </Animated.View>
   );
@@ -126,10 +132,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
-    // Figma: 월 선택 아래 24 에서 요약 카드가 시작한다
-    paddingBottom: 24,
     pointerEvents: 'box-none',
   },
+  // 제목·월 선택 (탭을 옮길 때 들어오는 내용, #176). Figma: 월 선택 아래 24 에서 요약 카드가 시작한다.
+  // 그 여백을 이 안에 두어 화살표가 아래로 넓힌 터치 영역이 부모 경계 안에 든다 (경계 밖 터치는 자식에게 가지 않는다)
+  content: { paddingBottom: 24, pointerEvents: 'box-none' },
   // 바 배경. 펼친 동안은 화면 바탕(Background/3, #181)과 같고, 접히면 아래 끝이 접힌 바 높이로 올라간다
   background: {
     position: 'absolute',
