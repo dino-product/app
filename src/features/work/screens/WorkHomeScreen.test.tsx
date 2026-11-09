@@ -175,12 +175,12 @@ describe('WorkHomeScreen', () => {
     ]) {
       expect(screen.getByText(text)).toBeOnTheScreen();
     }
-    // 버튼은 상단 바의 종과 보기 전환뿐이다
+    // 버튼은 상단 바의 종과 보기 전환뿐이다. 스크린리더도 블록 보기를 먼저 읽는다 (#179)
     expect(
       screen
         .queryAllByRole('button')
         .map(button => button.props.accessibilityLabel),
-    ).toEqual(['알림센터', '목록 보기', '블록 보기']);
+    ).toEqual(['알림센터', '블록 보기', '목록 보기']);
   });
 
   it('일정 카드는 상태와 주소까지 스크린리더에 읽힌다', async () => {
@@ -326,16 +326,20 @@ describe('WorkHomeScreen 블록 보기', () => {
       expect(cardTitles()).toEqual(['세탁기 설치', '보일러 점검']);
     });
 
-    // Figma 메인화면 (목록 보기 3278:23342 등 · 블록 보기 3463:17530): 목록 아이콘이 왼쪽, 블록 아이콘이 오른쪽이다
-    it('전환 버튼은 목록 보기, 블록 보기 순서로 놓인다', async () => {
+    // #179 사용자 결정: 기본인 블록 보기를 왼쪽, 목록 보기를 오른쪽에 둔다.
+    // Figma 메인화면(3255:17608·3463:17530 등)은 아직 목록 아이콘이 왼쪽이지만 순서는 사용자 지시를 따른다.
+    // 크기 26·간격 4·선택 표시(Primary 바탕 흰 그림 / Gray100 바탕 Gray700 그림)는 Figma 그대로다
+    it('전환 버튼은 블록 보기, 목록 보기 순서로 놓인다 (블록 왼쪽, 목록 오른쪽)', async () => {
       await renderHome();
 
-      expect(toggle('목록 보기').parent).toBe(toggle('블록 보기').parent);
+      expect(toggle('블록 보기').parent).toBe(toggle('목록 보기').parent);
+      const row = toggle('블록 보기').parent;
+      expect(row).toHaveStyle({ flexDirection: 'row' });
       expect(
-        toggle('목록 보기')
-          .parent?.children.filter(child => typeof child !== 'string')
+        row?.children
+          .filter(child => typeof child !== 'string')
           .map(child => child.props.accessibilityLabel),
-      ).toEqual(['목록 보기', '블록 보기']);
+      ).toEqual(['블록 보기', '목록 보기']);
     });
 
     it('목록 아이콘을 누르면 목록 보기가 되고, 블록 아이콘을 누르면 되돌아간다', async () => {

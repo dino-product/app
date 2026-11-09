@@ -52,14 +52,24 @@ describe('WorkHomeScreen 터치 영역', () => {
     },
   );
 
+  // #179: 블록 보기가 왼쪽, 목록 보기가 오른쪽이다. 맞닿는 쪽(블록 오른쪽·목록 왼쪽)은 간격을 반씩 나눈다
   it('보기 전환 버튼끼리 넓힌 영역이 겹치지 않는다', async () => {
     await renderHome();
 
-    const list = button('목록 보기');
-    const gap = stylePt(list.parent as HostElement, 'gap');
-    expect(hitSlopOf(list).right + hitSlopOf(button('블록 보기')).left).toBe(
+    const block = button('블록 보기');
+    const gap = stylePt(block.parent as HostElement, 'gap');
+    expect(hitSlopOf(block).right + hitSlopOf(button('목록 보기')).left).toBe(
       gap,
     );
+  });
+
+  it('보기 전환 버튼은 바깥쪽(블록 왼쪽·목록 오른쪽)으로 더 넓힌다', async () => {
+    await renderHome();
+
+    const block = hitSlopOf(button('블록 보기'));
+    const list = hitSlopOf(button('목록 보기'));
+    expect(block.left).toBeGreaterThan(block.right);
+    expect(list.right).toBeGreaterThan(list.left);
   });
 
   // 일정 줄 위는 진행 중 작업 카드와 24, 아래는 첫 일정 카드·날짜 줄과 12 떨어져 있다
