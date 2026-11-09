@@ -1,10 +1,10 @@
 import {
   completedInMonth,
   completedWorkA11yLabel,
-  formatWorkTime,
   isBeforeMonth,
   monthOf,
   spokenTimeRange,
+  workTimeRange,
   type CompletedWork,
 } from './model';
 
@@ -68,9 +68,10 @@ describe('달 비교', () => {
 });
 
 describe('표기', () => {
-  it('formatWorkTime 은 "YYYY.MM.DD (요일) HH:mm - HH:mm" 이다', () => {
-    expect(formatWorkTime({ ...base, id: 'x', dateKey: '2026-09-26' })).toBe(
-      '2026.09.26 (토) 08:00 - 09:00',
+  // Figma 작업이력 (기본) 3753:4916: '11:00 – 12:00' (가운데는 en dash)
+  it('workTimeRange 는 "HH:mm – HH:mm" 이다', () => {
+    expect(workTimeRange({ ...base, id: 'x', dateKey: '2026-09-26' })).toBe(
+      '08:00 – 09:00',
     );
   });
 

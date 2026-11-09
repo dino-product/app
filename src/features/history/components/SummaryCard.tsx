@@ -64,7 +64,7 @@ export const SummaryCard = memo(function SummaryCardView({
 });
 
 const styles = StyleSheet.create({
-  // Figma 는 회색 화면 위 흰 카드지만 지금 작업 이력 화면은 흰 배경이라 기본 카드는 Background/3 로 둔다
+  // Figma 3753:4904: 회색(Background/3) 화면 위 흰 카드 (White/100)
   card: {
     flex: 1,
     gap: 4,
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     paddingRight: 46,
     paddingVertical: 20,
     borderRadius: 16,
-    backgroundColor: colors.background[3],
+    backgroundColor: colors.white[100],
   },
   emphasis: { backgroundColor: colors.primary },
 });

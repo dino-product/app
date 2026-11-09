@@ -10,7 +10,7 @@ import { MonthSwitcher } from './MonthSwitcher';
 
 // 작업 이력 상단 바 (#175). 리스트 위에 겹쳐 그린다 (화면이 리스트 앞에 두어 읽는 순서를 지키고 zIndex 로 위에 쌓는다).
 // 펼침 — Figma 작업이력 (기본) 3753:4890: 제목 '작업 이력'(상태 표시줄 아래 8) 아래 14 에 ◀ 월 ▶, 그 아래 24 까지가 바다.
-//        바 배경은 화면 배경과 같아 구분되지 않는다.
+//        바 배경은 화면 바탕(Background/3)과 같아 구분되지 않는다.
 // 접힘 — Figma 작업이력 (스크롤) 50833:6839: 제목이 없고, 월 글자(18)가 상태 표시줄 아래 19 에 가운데로 온다.
 //        바는 높이 68(상태 표시줄 포함 128)로 줄어든 회색(Background/3) 바이고 그림자 0 4 8 4% 가 진다. 리스트가 그 아래로 지나간다.
 // 바 뷰 자체는 펼친 크기 그대로 두고 그리는 것만 옮긴다 (레이아웃이 바뀌지 않아 스크롤 중·전환 중에 다시 그리지 않는다).
@@ -130,16 +130,16 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     pointerEvents: 'box-none',
   },
-  // 바 배경. 펼친 동안은 화면 배경과 같고, 접히면 아래 끝이 접힌 바 높이로 올라간다
+  // 바 배경. 펼친 동안은 화면 바탕(Background/3, #181)과 같고, 접히면 아래 끝이 접힌 바 높이로 올라간다
   background: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.white[100],
+    backgroundColor: colors.background[3],
     pointerEvents: 'none',
   },
-  // 접힌 바의 회색 배경·그림자 (Figma 50833:6842). 접히는 동안 나타난다
+  // 접힌 바의 회색 배경·그림자 (Figma 50833:6842). 접히는 동안 나타난다. 화면 바탕과 같은 색이라 실제로는 그림자가 나타난다
   tint: {
     position: 'absolute',
     top: 0,

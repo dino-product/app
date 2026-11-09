@@ -99,27 +99,26 @@ export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView({
   );
 });
 
-// 완료 작업 행 (CompletedWorkRow) 자리: 제목과 칩, 날짜·시간, 업체 | 고객 · 주소
+// 완료 작업 카드 (CompletedWorkRow) 자리: 제목·시간과 칩, 업체 | 고객 · 주소
 function WorkRowSkeleton() {
   return (
     <View style={styles.row} testID="work-row-skeleton">
-      <View style={styles.rowTitle}>
-        <SkeletonLine variant="Body/M/SemiBold" width="50%" />
+      <View style={styles.titleRow}>
+        <View style={styles.summary}>
+          <SkeletonLine variant="Body/S/SemiBold" width="50%" />
+          <SkeletonLine variant="Caption/M/Medium" width="45%" />
+        </View>
         <Chip />
-      </View>
-      <View style={styles.rowTime}>
-        <SkeletonBlock width={24} height={24} radius={6} />
-        <SkeletonLine variant="Body/XS/Medium" width="45%" />
       </View>
       <SkeletonLine variant="Caption/M/Medium" width="70%" />
     </View>
   );
 }
 
-/** 작업 이력의 완료 작업 행 목록을 받는 동안. 리스트의 빈 자리(머리 아래)에 그린다 */
+/** 작업 이력의 완료 작업 카드 목록을 받는 동안. 리스트의 빈 자리(머리 아래)에 그린다 */
 export const WorkRowsSkeleton = memo(function WorkRowsSkeletonView() {
   return (
-    <Skeleton testID="work-rows-skeleton">
+    <Skeleton style={styles.rows} testID="work-rows-skeleton">
       <WorkRowSkeleton />
       <WorkRowSkeleton />
       <WorkRowSkeleton />
@@ -228,20 +227,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summary: { flex: 1, gap: 6 },
-  // CompletedWorkRow 와 같은 행
+  // 작업 이력 카드 목록: 좌우 24 안쪽, 카드 사이 12 (Figma 작업이력 3753:4910)
+  rows: { gap: 12, paddingHorizontal: 24 },
+  // CompletedWorkRow 와 같은 카드
   row: {
-    gap: 10,
-    padding: 24,
+    gap: 6,
+    padding: 20,
+    borderRadius: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
+    borderBottomColor: colors.gray[50],
+    backgroundColor: colors.gray[0],
   },
-  rowTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  rowTime: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   // WorkInfoSections 의 요약과 같은 여백
   detailSummary: { gap: 12, paddingHorizontal: 24, paddingTop: 24 },
   detailTitle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
