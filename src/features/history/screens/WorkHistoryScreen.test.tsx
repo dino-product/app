@@ -167,14 +167,6 @@ function transformOf(element: HostElement, key: string): number | undefined {
 const layout = (height: number, y = 0) => ({
   nativeEvent: { layout: { x: 0, y, width: 390, height } },
 });
-/** 스크롤 위치 값(네이티브 드라이버 이벤트가 옮기는 값)을 찾는다 */
-function scrollValue(event: jest.SpyInstance) {
-  return (
-    event.mock.calls[0][0] as [
-      { nativeEvent: { contentOffset: { y: Animated.Value } } },
-    ]
-  )[0].nativeEvent.contentOffset.y;
-}
 const COLLAPSE_TIMING = (toValue: number) => ({
   toValue,
   duration: COLLAPSE_MS,
@@ -272,17 +264,11 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
     connect.mockRestore();
   });
 
-  it('스크롤 위치는 네이티브 드라이버 이벤트로 받고, 스크롤 표시줄은 접힌 바(68) 아래에서 시작한다', async () => {
-    const event = jest.spyOn(Animated, 'event');
+  it('스크롤 이벤트는 16ms 마다 받고, 스크롤 표시줄은 접힌 바(68) 아래에서 시작한다', async () => {
     await renderHistory();
 
-    expect(event).toHaveBeenCalledWith(
-      [{ nativeEvent: { contentOffset: { y: expect.any(Animated.Value) } } }],
-      expect.objectContaining({ useNativeDriver: true }),
-    );
     expect(list()).toHaveProp('scrollEventThrottle', 16);
     expect(list()).toHaveProp('scrollIndicatorInsets', { top: 68 });
-    event.mockRestore();
   });
 });
 
@@ -531,41 +517,51 @@ describe('WorkHistoryScreen — 접힌 상단 바의 접근성 (#175)', () => {
   });
 });
 
-describe('WorkHistoryScreen — 당겨서 새로고침 (#175)', () => {
+// #178: 맨 위에서 더 당겨도(iOS 바운스·당겨서 새로고침의 음수 위치) 상단 바는 최상단에 붙어 있고 내용만 그 아래로 내려온다.
+// 새로고침 표시는 리스트 맨 위(바 뒤)에 그려지므로 두 플랫폼 모두 펼친 바 아래로 내린다 (홈·내 일정·마이와 같은 결, #186)
+describe('WorkHistoryScreen — 맨 위에서 더 당길 때 (#178)', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('Android 는 새로고침 표시를 펼친 바 아래(108)에서 내린다 (당길 수 있는 맨 위는 늘 펼친 상태다)', async () => {
-    jest.replaceProperty(Platform, 'OS', 'android');
+  it.each(['ios', 'android'] as const)(
+    '%s: 새로고침 표시를 펼친 바 아래(108)에 그린다 (당길 수 있는 맨 위는 늘 펼친 상태다)',
+    async os => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderHistory({ onRefresh: jest.fn() });
+
+      expect(list()).toHaveProp('progressViewOffset', 108);
+    },
+  );
+
+  it('큰 글자로 펼친 바가 높아지면 새로고침 표시도 잰 높이 아래로 내린다', async () => {
     await renderHistory({ onRefresh: jest.fn() });
 
-    expect(list()).toHaveProp('progressViewOffset', 108);
+    await fireEvent(bar(), 'layout', layout(150));
+
+    expect(list()).toHaveProp('progressViewOffset', 150);
   });
 
-  // iOS 는 표시를 리스트 맨 위에 그린다. 바가 당긴 만큼 함께 내려와 그 위에 드러난 자리에 표시가 보인다
-  it('iOS 는 표시를 옮기지 않고, 맨 위에서 당긴 만큼 바가 함께 내려온다', async () => {
-    jest.replaceProperty(Platform, 'OS', 'ios');
-    const event = jest.spyOn(Animated, 'event');
-    const view = await renderHistory({ onRefresh: jest.fn() });
-    expect(list().props.progressViewOffset).toBeUndefined();
+  // 바는 스크롤 위치를 따라 옮기지 않는다. 접힘·펼침만 바 안의 부분(배경·제목·월 선택)을 옮긴다
+  it('맨 위에서 더 당겨도 바는 최상단에 붙어 있다 — 펼친 채 당길 때, 접힌 채 맨 위를 넘어 튕길 때 모두', async () => {
+    await renderHistory({ onRefresh: jest.fn() });
 
-    await act(() => scrollValue(event).setValue(-60));
-    await view.rerender(
-      <WorkHistoryScreen
-        today={today}
-        works={works}
-        onOpenWork={jest.fn()}
-        onRefresh={jest.fn()}
-      />,
-    );
-    expect(transformOf(bar(), 'translateY')).toBe(60);
+    expect(styleOf(bar()).transform).toBeUndefined();
+    await scrollListTo(list(), -60);
+    expect(styleOf(bar()).transform).toBeUndefined();
+    expect(styleOf(bar())).toMatchObject({ position: 'absolute', top: 0 });
 
-    await act(() => scrollValue(event).setValue(200));
-    await view.rerender(
-      <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />,
-    );
-    expect(transformOf(bar(), 'translateY')).toBe(0);
+    // 접힌 채 빠르게 맨 위로 올려 음수 위치까지 튕기면 펼치기 시작하고, 바는 그대로 붙어 있다
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+    await scrollListTo(list(), -40);
+    await finishAnimations();
+    expect(styleOf(bar()).transform).toBeUndefined();
+    expect(styleOf(part('work-history-title')).opacity).toBe(1);
   });
 });
 
