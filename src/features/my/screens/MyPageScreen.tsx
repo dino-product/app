@@ -169,15 +169,11 @@ function MyPageScreenView({
               {memberships.status !== 'ready' ? (
                 <LoadStateView
                   state={memberships}
-                  style={styles.cardLoad}
+                  style={styles.membershipLoad}
                   skeleton={<MembershipsSkeleton />}
                 />
               ) : memberships.data.length === 0 ? (
-                <Text
-                  variant="Caption/M/Medium"
-                  color={colors.gray[600]}
-                  style={styles.membershipEmpty}
-                >
+                <Text variant="Caption/M/Medium" color={colors.gray[600]}>
                   아직 소속된 발주사가 없어요
                 </Text>
               ) : (
@@ -288,8 +284,8 @@ function ProfileCard({
   );
 }
 
-// Figma 에 누르는 동작이 없어 정보 행이다. 스크린리더는 한 줄로 읽는다.
-// 누르고 있는 동안에는 다른 리스트 행처럼 회색 배경을 보인다 (#102). 동작은 없어 버튼으로 읽히지 않는다
+// 누르는 동작이 없는 정보 행이다 (Figma 3235:17146 에도 화살표가 없다). 누를 수 있는 것처럼 보이지 않게
+// 터치를 받지 않는 View 로 두어 눌림 회색·버튼 역할이 없다 (#182). 스크린리더는 이름, 역할, 상태를 한 줄로 읽는다
 const MembershipRow = memo(function MyMembershipRow({
   membership,
 }: {
@@ -299,17 +295,15 @@ const MembershipRow = memo(function MyMembershipRow({
   const spec = statusSpec[status];
   const roleLabel = memberRoleLabels[role];
   return (
-    <Pressable
+    <View
       accessible
       accessibilityLabel={`${organizationName}, ${roleLabel}, ${spec.label}`}
-      // 누를 동작이 없으니 Android 에서 클릭할 수 있는 뷰로 만들지 않는다 (TalkBack 이 활성화하라고 읽지 않게)
-      focusable={false}
-      style={membershipRowStyle}
+      style={styles.membershipRow}
       testID={`membership-${organizationId}`}
     >
       <View style={styles.membershipText}>
         <Text variant="Body/XS/SemiBold">{organizationName}</Text>
-        <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+        <Text variant="Caption/M/Medium" color={colors.libraryGray[500]}>
           {roleLabel}
         </Text>
       </View>
@@ -321,7 +315,7 @@ const MembershipRow = memo(function MyMembershipRow({
           {spec.label}
         </Text>
       </View>
-    </Pressable>
+    </View>
   );
 });
 
@@ -353,10 +347,6 @@ const profileCardStyle = ({ pressed }: PressableStateCallbackType) => [
   styles.profileCard,
   pressed && styles.rowPressed,
 ];
-const membershipRowStyle = ({ pressed }: PressableStateCallbackType) => [
-  styles.membershipRow,
-  pressed && styles.rowPressed,
-];
 const settingRowStyle = ({ pressed }: PressableStateCallbackType) => [
   styles.settingRow,
   pressed && styles.rowPressed,
@@ -374,12 +364,12 @@ const ACTION_HIT_SLOP = {
   top: touchSlop(ACTION_HEIGHT),
   bottom: touchSlop(ACTION_HEIGHT),
 };
-/** 소속·설정 카드 안에서 눌림 회색이 카드 가장자리와 떨어지는 거리. 글자는 지금처럼 카드 안 20 에서 시작한다 */
+/** 설정 카드 안에서 눌림 회색이 카드 가장자리와 떨어지는 거리. 글자는 지금처럼 카드 안 20 에서 시작한다 */
 const CARD_INSET = 8;
 /** 카드 모서리(16)와 같은 중심이 되는 눌림 회색의 모서리 */
 const ROW_RADIUS = 16 - CARD_INSET;
-/** 소속 행 위아래 여백. 행 사이 간격(13 · 선 · 13)을 행 안으로 옮겼다 */
-const MEMBERSHIP_ROW_PADDING = 13;
+/** 소속 행 위·아래 여백 (Figma 3235:17146 의 행 py 12) */
+const MEMBERSHIP_ROW_GAP = 12;
 /** 설정 행 높이. Figma 의 글자 줄(22)과 행 사이 간격(24)을 행 안 여백으로 옮겼다 */
 const SETTING_ROW_HEIGHT = 46;
 const SETTING_ROW_HIT_SLOP = {
@@ -461,31 +451,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.primary,
   },
-  // 카드 안 여백 20 중 일부(가로 12, 세로 13)를 행 안으로 옮겨, 눌림 회색이 글자 둘레에 둥글게 칠해진다 (#102)
+  // Figma 소속 카드(3235:17146): 안 여백 20. 행은 누를 수 없어 눌림 회색 자리를 두지 않는다 (#182)
   membershipCard: {
-    paddingHorizontal: CARD_INSET,
-    paddingVertical: 20 - MEMBERSHIP_ROW_PADDING,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     boxShadow: '0px 1px 18px rgba(119, 107, 168, 0.08)',
   },
+  // 받는 중·실패 자리도 카드 안 여백 20 에서 시작한다 (프로필 카드의 자리와 같다)
+  membershipLoad: { paddingHorizontal: 0, paddingVertical: 0 },
   membershipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    paddingHorizontal: 20 - CARD_INSET,
-    paddingVertical: MEMBERSHIP_ROW_PADDING,
-    borderRadius: ROW_RADIUS,
   },
-  membershipEmpty: {
-    paddingHorizontal: 20 - CARD_INSET,
-    paddingVertical: MEMBERSHIP_ROW_PADDING,
-  },
-  membershipText: { flex: 1 },
-  // 행 사이는 지금처럼 13 · 선 · 13 이고 선은 카드 안 20 에서 시작한다
+  // Figma 3235:17148: 이름과 역할 사이 2
+  membershipText: { flex: 1, gap: 2 },
+  // Figma 는 행 위·아래 여백 12 와 행 아래 선(Gray50 1)이다. 선은 행 높이에 들어가지 않고 아래 여백의 끝 1 에
+  // 그려지므로(행 57 = 글자 45 + 12) 글자–선 11, 선–다음 글자 12 다
   divider: {
     height: 1,
-    marginHorizontal: 20 - CARD_INSET,
-    backgroundColor: colors.gray[100],
+    marginTop: MEMBERSHIP_ROW_GAP - 1,
+    marginBottom: MEMBERSHIP_ROW_GAP,
+    backgroundColor: colors.gray[50],
   },
   // 글꼴 확대 시 잘리지 않도록 Figma 높이(21)는 최소값으로만 건다
   chip: {
