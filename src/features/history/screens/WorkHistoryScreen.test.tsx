@@ -426,6 +426,23 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
   });
 
   // 내용이 줄면 스크롤 이벤트 없이 맨 위로 돌아갈 수 있다 (달을 바꿔 행이 적은 달·빈 달이 됨)
+  // 회전·창 크기 변경으로 리스트가 커져 내용이 거의 다 들어오면 스크롤 이벤트가 오지 않을 수 있다
+  it('접힌 동안 리스트가 커져 기준값 넘게 스크롤할 수 없게 되면 펼친다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    // 내용 2000 에 리스트 1000: 아직 접힌 채다
+    await fireEvent(list(), 'layout', layout(1000));
+    expect(timing).toHaveBeenCalledTimes(1);
+
+    // 리스트 1995: 5 만큼만 스크롤할 수 있다
+    await fireEvent(list(), 'layout', layout(1995));
+    expect(timing).toHaveBeenCalledTimes(2);
+    expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
+  });
+
   it('접힌 동안 내용이 짧아져 기준값 넘게 스크롤할 수 없게 되면 펼친다', async () => {
     const timing = jest.spyOn(Animated, 'timing');
     await renderHistory();
