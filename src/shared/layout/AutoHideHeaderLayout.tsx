@@ -9,8 +9,7 @@ import {
 import type { AutoHideHeader } from './useAutoHideHeader';
 
 // 탭 첫 화면의 머리(상단 바 + 늘 보이는 부분)를 스크롤 뷰 위에 겹쳐 그리고 스크롤에 따라 숨긴다 (#148).
-// 쓰는 법: SafeAreaView(edges top) 안에 두고, children 으로 스크롤 뷰 하나(또는 그것만 감싼 뷰 하나, 예: 작업 이력의
-// 월 넘김 목록 영역 #153)를 넘긴다. 스크롤 뷰에는
+// 쓰는 법: SafeAreaView(edges top) 안에 두고, children 으로 스크롤 뷰 하나(또는 그것만 감싼 뷰 하나)를 넘긴다. 스크롤 뷰에는
 // autoHide.scrollProps 를 펼쳐 넣고 내용 위 여백에 autoHide.height 를 더한다 (useAutoHideHeader 참고).
 //
 // 머리는 읽는 순서를 위해 스크롤 뷰 앞에 두고 zIndex 로 위에 그린다. 바깥 영역이 잘라 내므로 숨은 상단 바가

@@ -12,7 +12,8 @@ import { readableColumn } from './readableColumn';
 // Figma 작업 수행 › 메인화면 - 시작 가능 (3463:17452) 의 제목 줄 3463:17455: 가로·양끝 정렬, 좌우 24,
 // 높이 34, 프레임 위 72 (상태 표시줄 60 아래 12). 제목은 Body/XL/Semibold #000000.
 // 스크롤 영역 밖에 두어 내용과 함께 스크롤되지 않는다. 탭 첫 화면은 AutoHideHeaderLayout 으로 리스트 위에 겹쳐
-// 아래로 스크롤하면 숨기고 위로 스크롤하면 다시 보인다 (#148)
+// 아래로 스크롤하면 숨기고 위로 스크롤하면 다시 보인다 (#148). 작업 이력은 스크롤하면 제목이 사라지고 월 선택이
+// 바에 흡수되는 접히는 상단 바다 (#175, features/history/components/HistoryHeaderBar)
 
 const BAR_PADDING_TOP = 12;
 const ROW_MIN_HEIGHT = 34;
