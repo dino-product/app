@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore, type Ref } from 'react';
-import { Animated, StyleSheet, type ViewInstance } from 'react-native';
+import { Animated, StyleSheet, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -40,11 +40,10 @@ export function HistoryHeaderBar({
   );
   // 접힌 바 배경은 상태 표시줄 자리까지 덮는다 (Figma 바 높이 128 은 상태 표시줄 60 을 포함한다)
   const { top: statusBar } = useSafeAreaInsets();
-  const { progress, pull, barShift, monthShift } = collapse;
+  const { progress, barShift, monthShift } = collapse;
   // 화면이 다시 그려져도 같은 스타일을 넘겨 애니메이션 값의 연결을 다시 만들지 않는다
   const animated = useMemo(
     () => ({
-      bar: [styles.bar, { transform: [{ translateY: pull }] }],
       tint: [
         styles.tint,
         { opacity: progress.interpolate(collapseKeyframes.barTintOpacity) },
@@ -69,7 +68,7 @@ export function HistoryHeaderBar({
         { transform: [{ translateY: monthShift }] },
       ],
     }),
-    [progress, pull, monthShift],
+    [progress, monthShift],
   );
   const backgroundStyle = useMemo(
     () => [
@@ -80,48 +79,43 @@ export function HistoryHeaderBar({
   );
 
   return (
-    <Animated.View
+    // 바는 스크롤 위치를 따라 옮기지 않는다. 맨 위에서 더 당겨도 최상단에 붙어 있다 (#178)
+    <View
       ref={ref}
       testID="work-history-bar"
       onLayout={collapse.onBarLayout}
-      style={animated.bar}
+      style={styles.bar}
     >
-      {/* 자식을 요소 하나(Fragment)로 넘긴다. Animated.View 는 배열 props(여러 자식)를 참조로 비교해,
-          다시 그려질 때마다 네이티브 애니메이션 연결을 새로 만든다 */}
-      <>
+      <Animated.View
+        testID="work-history-bar-background"
+        style={backgroundStyle}
+      >
+        <Animated.View testID="work-history-bar-tint" style={animated.tint} />
+      </Animated.View>
+      {/* 탭을 옮길 때 제목·월 선택만 옆에서 들어오고 바 바탕은 제자리다 (#176) */}
+      <TabEnterView part="header" style={styles.content}>
+        {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다) */}
         <Animated.View
-          testID="work-history-bar-background"
-          style={backgroundStyle}
+          testID="work-history-title"
+          style={animated.title}
+          accessibilityElementsHidden={collapsed}
+          importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
         >
-          <Animated.View testID="work-history-bar-tint" style={animated.tint} />
+          <TabHeader title="작업 이력" style={styles.title} />
         </Animated.View>
-        {/* 탭을 옮길 때 제목·월 선택만 옆에서 들어오고 바 바탕은 제자리다 (#176) */}
-        <TabEnterView part="header" style={styles.content}>
-          {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다) */}
-          <Animated.View
-            testID="work-history-title"
-            style={animated.title}
-            accessibilityElementsHidden={collapsed}
-            importantForAccessibility={
-              collapsed ? 'no-hide-descendants' : 'auto'
-            }
-          >
-            <TabHeader title="작업 이력" style={styles.title} />
-          </Animated.View>
-          <MonthSwitcher
-            testID="work-history-month"
-            title={monthTitle}
-            canGoNext={canGoNext}
-            onPrev={onPrev}
-            onNext={onNext}
-            progress={progress}
-            collapsed={collapsed}
-            style={animated.month}
-            onLayout={collapse.onMonthLayout}
-          />
-        </TabEnterView>
-      </>
-    </Animated.View>
+        <MonthSwitcher
+          testID="work-history-month"
+          title={monthTitle}
+          canGoNext={canGoNext}
+          onPrev={onPrev}
+          onNext={onNext}
+          progress={progress}
+          collapsed={collapsed}
+          style={animated.month}
+          onLayout={collapse.onMonthLayout}
+        />
+      </TabEnterView>
+    </View>
   );
 }
 

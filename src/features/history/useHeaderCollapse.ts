@@ -7,7 +7,6 @@ import {
 } from 'react';
 import {
   Animated,
-  Platform,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -30,13 +29,15 @@ import {
 // 작업 이력 상단 바 접힘 (#175). HistoryHeaderBar 와 함께 쓴다. 판단·키프레임은 headerCollapse.ts.
 //
 // 바는 리스트 위에 겹쳐 그리고, 리스트 내용 위에 펼친 바 높이만큼 여백(height)을 둔다. 접힌 바는 더 짧아 내용을 더 가리지 않는다.
-// - 스크롤 위치는 네이티브 드라이버 이벤트로 받는다. 맨 위에서 당기면(iOS 바운스·당겨서 새로고침) 바가 내용과 함께 내려와
-//   새로고침 표시를 가리지 않는다. Android 는 위치가 음수가 되지 않아 progressViewOffset 으로 표시를 바 아래로 내린다.
-// - 접을지는 같은 이벤트를 JS 로 받아 순수 함수로 정하고, 바뀔 때만 진행도 하나를 UI 스레드 애니메이션으로 끝까지 돌린다.
+// - 바는 스크롤 위치를 따라가지 않는다. 맨 위에서 더 당겨도(iOS 바운스·당겨서 새로고침의 음수 위치) 화면 맨 위에 붙어 있고
+//   내용만 그 아래로 내려온다 (#178, 홈·내 일정·마이의 useAutoHideHeader 와 같은 결). 새로고침 표시는 리스트 맨 위(바 뒤)에
+//   그려지므로 두 플랫폼 모두 progressViewOffset(펼친 바 높이)으로 바 바로 아래에 내린다. 당길 수 있는 맨 위는 늘 펼친 상태다.
+// - 접을지는 스크롤 이벤트를 JS 로 받아 순수 함수로 정하고, 바뀔 때만 진행도 하나를 UI 스레드 애니메이션으로 끝까지 돌린다.
 //   전환 중에는 판단을 미루고, 끝난 뒤 마지막 위치로 다시 판단해 반대로 돌아간다. 동작 줄이기면 애니메이션 없이 바로 바꾼다.
 // - 화면은 접힘 상태가 바뀔 때만 다시 그린다 (바만: 화살표·제목을 스크린리더에서 빼고 누를 수 없게 한다). 스크롤 중에는 그리지 않는다.
 //
 // 스크롤 뷰는 Animated.FlatList 다. 배열·객체 props 를 참조로 비교하므로 scrollProps 는 한 번 만든 것을 그대로 넘긴다.
+// 스크롤 이벤트는 JS 로만 받고, 16ms 마다 온다.
 
 /** 잰 높이가 이보다 적게 다르면(픽셀 반올림) 내용 위 여백을 다시 그리지 않는다 (pt) */
 const HEIGHT_TOLERANCE = 1;
@@ -46,16 +47,14 @@ const SCROLL_INDICATOR_INSETS = { top: COLLAPSED_BAR_HEIGHT };
 export type HeaderCollapse = {
   /** 접힘 진행도 (네이티브 값). 0 펼침, 1 접힘. 각 부분은 headerCollapse 의 키프레임으로 보간한다 */
   progress: Animated.Value;
-  /** 맨 위에서 당긴 만큼 바를 내리는 거리 */
-  pull: Animated.AnimatedNode;
   /** 바 배경을 올리는 거리 (아래 끝이 펼친 바에서 접힌 바로) */
   barShift: Animated.AnimatedNode;
   /** 월 줄을 올리는 거리 (가운데가 접힌 월 글자 자리로) */
   monthShift: Animated.AnimatedNode;
   /** 펼친 바 높이. 스크롤 내용 위 여백으로 쓴다 */
   height: number;
-  /** 당겨서 새로고침이 있는 리스트의 progressViewOffset. Android 는 펼친 바 높이, iOS 는 없음(바가 함께 내려온다) */
-  progressViewOffset: number | undefined;
+  /** 당겨서 새로고침이 있는 리스트의 progressViewOffset. 펼친 바 높이 (표시를 맨 위에 붙어 있는 바 아래에 그린다) */
+  progressViewOffset: number;
   /** 바의 onLayout */
   onBarLayout: (event: LayoutChangeEvent) => void;
   /** 바 안 월 줄의 onLayout */
@@ -95,11 +94,10 @@ export function useHeaderCollapse(): HeaderCollapse {
   return useMemo(
     () => ({
       progress: model.progress,
-      pull: model.pull,
       barShift: model.barShift,
       monthShift: model.monthShift,
       height,
-      progressViewOffset: Platform.OS === 'android' ? height : undefined,
+      progressViewOffset: height,
       onBarLayout,
       onMonthLayout: model.onMonthLayout,
       subscribe: model.subscribe,
@@ -113,7 +111,6 @@ export function useHeaderCollapse(): HeaderCollapse {
 // 애니메이션 값과 핸들러는 한 번만 만든다. 이벤트가 읽는 상태는 렌더와 따로 둔다
 function createCollapse(reduceMotion: RefObject<boolean>) {
   const progress = new Animated.Value(0, { useNativeDriver: true });
-  const scrollY = new Animated.Value(0, { useNativeDriver: true });
   const barDistance = new Animated.Value(barTravel(EXPANDED_BAR_HEIGHT), {
     useNativeDriver: true,
   });
@@ -164,7 +161,7 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
     }
   }
 
-  const onScrollEvent = ({
+  const onScroll = ({
     nativeEvent,
   }: NativeSyntheticEvent<NativeScrollEvent>) => {
     metrics = {
@@ -177,12 +174,6 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
 
   return {
     progress,
-    // 맨 위에서 당긴 만큼(음수 위치) 내려온다
-    pull: scrollY.interpolate({
-      inputRange: [-1, 0],
-      outputRange: [1, 0],
-      extrapolateRight: 'clamp',
-    }),
     barShift: Animated.multiply(progress, barDistance),
     monthShift: Animated.multiply(progress, monthDistance),
     setBarHeight: (height: number) => {
@@ -199,10 +190,7 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
     },
     isCollapsed: () => state.collapsed,
     scrollProps: {
-      onScroll: Animated.event<NativeScrollEvent>(
-        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-        { useNativeDriver: true, listener: onScrollEvent },
-      ),
+      onScroll,
       scrollEventThrottle: 16,
       onLayout: (event: LayoutChangeEvent) => {
         metrics = {
