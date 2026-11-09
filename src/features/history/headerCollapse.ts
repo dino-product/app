@@ -19,6 +19,8 @@ export const collapseEasing = Easing.bezier(0.2, 0, 0, 1);
 // Figma 값 (상태 표시줄 60 아래 기준). 펼친 바: 제목 위 8 · 높이 34, 사이 14, 월 줄 높이 28, 요약 카드까지 24
 /** 기본 글자 크기에서 펼친 바 높이 (요약 카드 위 끝). 큰 글자에서는 잰 높이를 쓴다 */
 export const EXPANDED_BAR_HEIGHT = 108;
+/** 기본 글자 크기에서 펼친 바 안의 월 줄 자리 (Figma 위 116 - 60, 높이 28). 큰 글자에서는 잰 자리를 쓴다 */
+export const EXPANDED_MONTH_ROW = { y: 56, height: 28 };
 /** 접힌 바 높이 (Figma 128 - 상태 표시줄 60) */
 export const COLLAPSED_BAR_HEIGHT = 68;
 /** 접힌 월 글자(Body/S/SemiBold 18 / 1.4)의 가운데: 위 19 + 25.2 / 2 */

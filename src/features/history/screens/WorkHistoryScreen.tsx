@@ -24,7 +24,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import { colors, Icon, Text } from '../../../shared/design-system';
-import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import {
   ENTER_MS,
   ENTER_OFFSET,
@@ -40,14 +39,14 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
-import { TabHeader } from '../../../shared/layout/TabHeader';
-import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import { addMonths, formatMonthTitle } from '../../schedule/model';
 import { WorkRowsSkeleton } from '../../work/components/WorkSkeletons';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
-import { MonthSwitcher } from '../components/MonthSwitcher';
+import { HistoryHeaderBar } from '../components/HistoryHeaderBar';
 import { SummaryCard } from '../components/SummaryCard';
+import { visibleBar } from '../headerCollapse';
 import { monthStep, rowsArea } from '../monthSwipe';
+import { useHeaderCollapse } from '../useHeaderCollapse';
 import {
   completedInMonth,
   isBeforeMonth,
@@ -56,7 +55,7 @@ import {
   type YearMonth,
 } from '../model';
 
-// Figma 작업이력 (기본). 고른 달에 완료한 작업을 최근 순으로 보여준다
+// Figma 작업이력 (기본)·(스크롤). 고른 달에 완료한 작업을 최근 순으로 보여준다
 export type WorkHistoryScreenProps = {
   /** 처음 보여줄 달이자 ▶ 로 갈 수 있는 마지막 달 (미래 달에는 완료 작업이 없다) */
   today: Date;
@@ -78,7 +77,7 @@ export type WorkHistoryScreenProps = {
 
 const READY: LoadState = { status: 'ready' };
 
-// 달을 옮길 때 목록(행·빈 상태·불러오기)이 들어오는 거리 (#153). 머리(월 선택·요약 카드)는 옮기지 않는다
+// 달을 옮길 때 목록(행·빈 상태·불러오기)이 들어오는 거리 (#153). 상단 바(월 선택)·머리(요약 카드)는 옮기지 않는다
 const MonthShiftContext = createContext<Animated.Value | null>(null);
 
 function useMonthShiftStyle() {
@@ -185,15 +184,19 @@ function WorkHistoryScreenView({
   };
   const canGoNext = isBeforeMonth(viewMonth, monthOf(today));
 
+  // 스크롤하면 상단 바가 접히고(제목이 사라지고 월 선택이 바에 흡수됨), 맨 위로 돌아오면 펼친다 (#175)
+  const collapse = useHeaderCollapse();
+
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
   // 목록 영역(리스트에서 보이는 상단 바·머리를 뺀 아래쪽, monthSwipe.ts rowsArea) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
-  // 머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다. 세로 우세면 리스트가 스크롤한다
+  // 머리·상단 바에서 시작한 밀기는 탭 전환에 맡긴다. 세로 우세면 리스트가 스크롤한다.
+  // 상단 바는 펼친 크기 그대로 두고 그리는 것만 줄이므로, 접힌 동안은 접힌 바 자리만 뺀다 (#175)
   const barRef = useRef<ViewInstance>(null);
   const headerRef = useRef<ViewInstance>(null);
   const listRegion = useTabSwipeRegion({
     measure: target =>
       rowsArea(measureElement(target), [
-        measureElement(barRef.current),
+        visibleBar(measureElement(barRef.current), collapse.isCollapsed()),
         measureElement(headerRef.current),
       ]),
   });
@@ -225,27 +228,19 @@ function WorkHistoryScreenView({
     [onOpenWork],
   );
 
-  // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
-  const autoHide = useAutoHideHeader();
+  // 리스트 내용은 펼친 상단 바 아래에서 시작한다. 접힌 바는 더 짧아 그보다 더 가리지 않는다 (#175)
   const contentStyle = useMemo(
-    () => [readableColumn, { paddingTop: autoHide.height }],
-    [autoHide.height],
+    () => [readableColumn, { paddingTop: collapse.height }],
+    [collapse.height],
   );
 
   const loading = load.status === 'loading';
-  // 화살표가 위아래로 넓힌 터치 영역이 리스트 밖으로 나가지 않도록 월 선택도 리스트 머리에 둔다
   const header = (
     <View
       ref={headerRef}
       testID="work-history-list-header"
       style={styles.header}
     >
-      <MonthSwitcher
-        title={formatMonthTitle(viewMonth.year, viewMonth.month)}
-        canGoNext={canGoNext}
-        onPrev={() => moveMonth(-1)}
-        onNext={() => moveMonth(1)}
-      />
       {/* Figma 3753:4903: 이번 달 완료(Primary 강조)가 왼쪽, 누적 완료가 오른쪽 (#145). '이번 달 완료' 는 고른 달 기준이다 (기본안) */}
       <View style={styles.summary}>
         <SummaryCard
@@ -265,17 +260,16 @@ function WorkHistoryScreenView({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 탭 첫 화면 공통 상단 바 (#103). Figma 작업이력 (기본) 2751:6982 에는 종이 없다 */}
-      <AutoHideHeaderLayout
-        autoHide={autoHide}
-        header={
-          // 겹쳐 그린 상단 바의 자리를 재려고 감싼다. 빈 곳 터치는 그대로 아래 리스트로 통과한다
-          <View ref={barRef} testID="work-history-bar" style={styles.bar}>
-            <TabHeader title="작업 이력" />
-          </View>
-        }
-        style={styles.headerBar}
-      >
+      <View style={styles.body}>
+        {/* 리스트 위에 겹쳐 그리는 상단 바 (#175). Figma 작업이력에는 종이 없다 */}
+        <HistoryHeaderBar
+          ref={barRef}
+          collapse={collapse}
+          monthTitle={formatMonthTitle(viewMonth.year, viewMonth.month)}
+          canGoNext={canGoNext}
+          onPrev={() => moveMonth(-1)}
+          onNext={() => moveMonth(1)}
+        />
         <View
           style={styles.list}
           onTouchStartCapture={monthSwipe.onTouchStartCapture}
@@ -286,7 +280,7 @@ function WorkHistoryScreenView({
             <Animated.FlatList
               ref={listRef}
               testID="work-history-list"
-              {...autoHide.scrollProps}
+              {...collapse.scrollProps}
               data={monthWorks}
               keyExtractor={keyExtractor}
               renderItem={renderItem}
@@ -303,13 +297,13 @@ function WorkHistoryScreenView({
               }
               refreshing={refreshing}
               onRefresh={onRefresh}
-              progressViewOffset={autoHide.progressViewOffset}
+              progressViewOffset={collapse.progressViewOffset}
               style={styles.list}
               contentContainerStyle={contentStyle}
             />
           </MonthShiftContext.Provider>
         </View>
-      </AutoHideHeaderLayout>
+      </View>
     </SafeAreaView>
   );
 }
@@ -350,13 +344,11 @@ function EmptyMonth() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
-  // 상단 바는 리스트 위에 겹쳐 그려 내용이 그 아래로 지나간다. 화면 배경으로 가린다 (#148)
-  headerBar: { backgroundColor: colors.white[100] },
+  // 상단 바를 겹쳐 그리는 자리 (안전 영역 안). 접힌 바 배경은 이 위 상태 표시줄 자리까지 덮는다
+  body: { flex: 1 },
   list: { flex: 1 },
-  bar: { pointerEvents: 'box-none' },
+  // 요약 카드. 위 여백(월 선택과의 사이 24)은 상단 바가 갖는다
   header: {
-    gap: 24,
-    paddingTop: 14,
     paddingBottom: 24,
     borderBottomWidth: 12,
     borderBottomColor: colors.background[3],

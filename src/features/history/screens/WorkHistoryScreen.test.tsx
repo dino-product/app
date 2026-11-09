@@ -7,7 +7,14 @@ import {
   within,
 } from '@testing-library/react-native';
 import { useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  NativeModules,
+  Platform,
+  StyleSheet,
+} from 'react-native';
 import { swipeFrom } from '../../../../jest/responder';
 import {
   colors,
@@ -15,20 +22,16 @@ import {
   typography,
 } from '../../../shared/design-system';
 import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
-import { SWITCH_DISTANCE } from '../../../shared/gesture/tabSwipe';
+import { SWITCH_DISTANCE, type Rect } from '../../../shared/gesture/tabSwipe';
+import * as tabSwipeArea from '../../../shared/gesture/TabSwipeArea';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
-import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
-import {
-  autoHideHeader,
-  autoHideHeaderOffset,
-  scrollDownFromTop,
-  scrollListTo,
-} from '../../../shared/testing/autoHideHeader';
+import { scrollListTo } from '../../../shared/testing/autoHideHeader';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import type { HostElement } from '../../../shared/testing/touchTarget';
+import { COLLAPSE_MS, collapseEasing } from '../headerCollapse';
 import type { CompletedWork } from '../model';
 import {
   WorkHistoryScreen,
@@ -141,27 +144,334 @@ describe('WorkHistoryScreen — 화면 구성', () => {
   });
 });
 
-// #103: 탭 첫 화면 공통 상단 바 (Figma 3463:17455 규격). Figma 작업이력 (기본) 2751:6982 에는 종이 없다
-describe('WorkHistoryScreen — 상단 바', () => {
-  it('제목은 스크롤 뷰 밖에 고정되고, 상태 표시줄 아래 12·좌우 24 에서 시작하며 종이 없다', async () => {
+// 상단 바 접힘 (#175) 을 보는 도우미. 바는 리스트 위에 겹쳐 그리고, 접힘은 진행도 하나로 각 부분을 옮긴다
+const list = () => screen.getByTestId('work-history-list');
+const bar = () => screen.getByTestId('work-history-bar');
+const hidden = { includeHiddenElements: true };
+/** 접힌 동안 스크린리더에서 빠지는 부분도 찾는다 */
+const part = (testID: string) => screen.getByTestId(testID, hidden);
+const monthText = () => screen.getByText(/^\d{4}년 \d{1,2}월$/);
+const arrowIcon = (name: string) =>
+  screen.getByRole('button', { name, ...hidden }).children[0] as HostElement;
+/** 스타일 (애니메이션 값은 지금 값으로 풀린다) */
+const styleOf = (element: HostElement) =>
+  StyleSheet.flatten(element.props.style);
+/** transform 의 한 값 */
+function transformOf(element: HostElement, key: string): number | undefined {
+  const transform = styleOf(element).transform as
+    | Record<string, number>[]
+    | undefined;
+  return transform?.find(item => key in item)?.[key];
+}
+const layout = (height: number, y = 0) => ({
+  nativeEvent: { layout: { x: 0, y, width: 390, height } },
+});
+/** 스크롤 위치 값(네이티브 드라이버 이벤트가 옮기는 값)을 찾는다 */
+function scrollValue(event: jest.SpyInstance) {
+  return (
+    event.mock.calls[0][0] as [
+      { nativeEvent: { contentOffset: { y: Animated.Value } } },
+    ]
+  )[0].nativeEvent.contentOffset.y;
+}
+const COLLAPSE_TIMING = (toValue: number) => ({
+  toValue,
+  duration: COLLAPSE_MS,
+  easing: collapseEasing,
+  useNativeDriver: true,
+});
+
+// #175: Figma 작업이력 (기본) 3753:4890. 맨 위에서는 제목과 ◀ 월 ▶ 이 리스트 위에 겹쳐 그린 상단 바에 있다
+describe('WorkHistoryScreen — 상단 바 (기본)', () => {
+  it('제목은 리스트 밖 상단 바에 있고, 상태 표시줄 아래 8·왼쪽 24 의 Body/XL/SemiBold #000 이며 종이 없다', async () => {
     await renderHistory();
 
-    const title = screen.getByRole('header', { name: '작업 이력' });
+    const title = within(bar()).getByRole('header', { name: '작업 이력' });
     expect(isInsideScrollView(title)).toBe(false);
     expect(title).toHaveStyle({
       ...typography['Body/XL/SemiBold'],
       color: colors.black,
     });
     expect(title.parent?.parent).toHaveStyle({
-      paddingTop: 12,
+      paddingTop: 8,
       paddingHorizontal: 24,
     });
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
   });
+
+  it('◀ 월 ▶ 도 리스트 밖 상단 바에 있고, 월 글자는 Body/M/SemiBold Gray800 이다', async () => {
+    await renderHistory();
+
+    expect(
+      within(bar()).getByRole('button', { name: '이전 달' }),
+    ).toBeOnTheScreen();
+    expect(
+      within(bar()).getByRole('button', { name: '다음 달' }),
+    ).toBeOnTheScreen();
+    expect(isInsideScrollView(monthText())).toBe(false);
+    expect(monthText()).toHaveStyle({
+      ...typography['Body/M/SemiBold'],
+      color: colors.gray[800],
+    });
+  });
+
+  it('바는 화면 배경과 같아 구분되지 않는다 (회색 배경·그림자는 아직 투명하다)', async () => {
+    await renderHistory();
+
+    expect(part('work-history-bar-background')).toHaveStyle({
+      backgroundColor: colors.white[100],
+    });
+    expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
+  });
+
+  it('요약 카드는 바 아래(108)에서 시작하는 리스트 내용이고, 바의 빈 곳 터치는 아래 리스트로 통과한다', async () => {
+    await renderHistory();
+
+    expect(
+      StyleSheet.flatten(list().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: 108 });
+    expect(isInsideScrollView(screen.getByLabelText('누적 완료 4건'))).toBe(
+      true,
+    );
+    expect(bar()).toHaveStyle({ pointerEvents: 'box-none' });
+  });
+
+  it('큰 글자로 바가 높아지면 잰 높이로 내용 위 여백을 고친다 (1 보다 적게 다르면 그대로)', async () => {
+    await renderHistory();
+
+    await fireEvent(bar(), 'layout', layout(108.4));
+    expect(
+      StyleSheet.flatten(list().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: 108 });
+
+    await fireEvent(bar(), 'layout', layout(150));
+    expect(
+      StyleSheet.flatten(list().props.contentContainerStyle),
+    ).toMatchObject({ paddingTop: 150 });
+  });
+
+  // Animated.View 는 배열·객체 props 를 참조로 비교해 바뀌면 네이티브 애니메이션 연결을 새로 만든다.
+  // 화면이 다시 그려져도(같은 달) 바의 연결은 그대로 둔다
+  it('화면이 다시 그려져도 상단 바의 애니메이션 연결을 다시 만들지 않는다', async () => {
+    const view = await renderHistory();
+    const connect = jest
+      .spyOn(NativeModules.NativeAnimatedModule, 'connectAnimatedNodeToView')
+      .mockClear();
+
+    await view.rerender(
+      <WorkHistoryScreen
+        today={today}
+        works={works}
+        onOpenWork={jest.fn()}
+        refreshing
+      />,
+    );
+
+    expect(connect).not.toHaveBeenCalled();
+    connect.mockRestore();
+  });
+
+  it('스크롤 위치는 네이티브 드라이버 이벤트로 받고, 스크롤 표시줄은 접힌 바(68) 아래에서 시작한다', async () => {
+    const event = jest.spyOn(Animated, 'event');
+    await renderHistory();
+
+    expect(event).toHaveBeenCalledWith(
+      [{ nativeEvent: { contentOffset: { y: expect.any(Animated.Value) } } }],
+      expect.objectContaining({ useNativeDriver: true }),
+    );
+    expect(list()).toHaveProp('scrollEventThrottle', 16);
+    expect(list()).toHaveProp('scrollIndicatorInsets', { top: 68 });
+    event.mockRestore();
+  });
 });
 
-// #148: 아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다 (공용 AutoHideHeaderLayout)
-describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
+// #175: Figma 작업이력 (스크롤) 50833:6839. 스크롤하면 제목이 짧은 페이드로 사라지고 월 선택이 바로 바에 흡수된다.
+// 스크롤 양에 따라 중간에 멈추지 않는다: 시작한 전환은 UI 스레드에서 끝까지 간다
+describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    // 공유 목이라 restoreAllMocks 로 돌아가지 않는다. 다른 테스트로 새지 않게 꺼진 것으로 되돌린다
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockImplementation(() => Promise.resolve(false));
+  });
+
+  it('12 까지는 그대로이고, 넘게 내리면 260ms 감속 곡선의 UI 스레드 전환 하나로 접는다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+
+    for (const y of [0, 6, 12]) {
+      await scrollListTo(list(), y);
+    }
+    expect(timing).not.toHaveBeenCalled();
+
+    await scrollListTo(list(), 13);
+    await scrollListTo(list(), 200);
+    expect(timing).toHaveBeenCalledTimes(1);
+    expect(timing.mock.calls[0][1]).toEqual(COLLAPSE_TIMING(1));
+  });
+
+  it('접히면 제목이 없고, 바는 높이 68·회색(Background/3)·그림자, 월 글자는 18 로 줄어 가운데에 오고 화살표는 없다', async () => {
+    await renderHistory();
+
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    const title = part('work-history-title');
+    expect(styleOf(title).opacity).toBe(0);
+    expect(transformOf(title, 'translateY')).toBe(-6);
+    // 바 배경은 펼친 바(108)의 아래 끝에서 40 올라가 68 에서 끝난다
+    const background = part('work-history-bar-background');
+    expect(background).toHaveStyle({ bottom: 0 });
+    expect(transformOf(background, 'translateY')).toBe(-40);
+    expect(part('work-history-bar-tint')).toHaveStyle({
+      backgroundColor: colors.background[3],
+      boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
+      opacity: 1,
+    });
+    // 월 줄 가운데(70)가 접힌 월 글자 가운데(31.6)로 올라가고, 글자는 20 → 18
+    expect(transformOf(part('work-history-month'), 'translateY')).toBeCloseTo(
+      -38.4,
+      5,
+    );
+    expect(transformOf(monthText().parent as HostElement, 'scale')).toBe(0.9);
+    // 화살표는 월 글자 쪽으로 8 들어가며 반으로 줄어 사라진다
+    for (const [name, inward] of [
+      ['이전 달', 8],
+      ['다음 달', -8],
+    ] as const) {
+      expect(styleOf(arrowIcon(name)).opacity).toBe(0);
+      expect(transformOf(arrowIcon(name), 'scale')).toBe(0.5);
+      expect(transformOf(arrowIcon(name), 'translateX')).toBe(inward);
+    }
+  });
+
+  it('접힌 채 중간까지 올리면 그대로이고, 맨 위(0)에 닿으면 같은 시간·곡선으로 펼친다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    await scrollListTo(list(), 100);
+    await scrollListTo(list(), 1);
+    expect(timing).toHaveBeenCalledTimes(1);
+
+    await scrollListTo(list(), 0);
+    expect(timing).toHaveBeenCalledTimes(2);
+    expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
+
+    await finishAnimations();
+    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
+    expect(
+      transformOf(part('work-history-bar-background'), 'translateY'),
+    ).toBeCloseTo(0, 5);
+    expect(transformOf(part('work-history-month'), 'translateY')).toBeCloseTo(
+      0,
+      5,
+    );
+    expect(transformOf(monthText().parent as HostElement, 'scale')).toBe(1);
+    expect(styleOf(arrowIcon('이전 달')).opacity).toBe(1);
+  });
+
+  it('전환 중에 반대 조건이 되면 지금 전환을 끝까지 마친 뒤 반대로 돌아간다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+
+    await scrollListTo(list(), 300);
+    await scrollListTo(list(), 0);
+    expect(timing).toHaveBeenCalledTimes(1);
+
+    await finishAnimations();
+    expect(timing).toHaveBeenCalledTimes(2);
+    expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
+
+    await finishAnimations();
+    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+  });
+
+  it('전환이 끝나기 전에 원래 조건으로 돌아오면 반대로 돌아가지 않는다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+
+    await scrollListTo(list(), 300);
+    await scrollListTo(list(), 0);
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    expect(timing).toHaveBeenCalledTimes(1);
+    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+  });
+
+  it('동작 줄이기면 애니메이션 없이 바로 접고 바로 펼친다', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(true);
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+    await act(async () => {});
+
+    await scrollListTo(list(), 300);
+    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+    expect(styleOf(part('work-history-bar-tint')).opacity).toBe(1);
+
+    await scrollListTo(list(), 0);
+    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
+    expect(timing).not.toHaveBeenCalled();
+  });
+
+  // 내용이 줄면 스크롤 이벤트 없이 맨 위로 돌아갈 수 있다 (달을 바꿔 행이 적은 달·빈 달이 됨)
+  it('접힌 동안 내용이 짧아져 기준값 넘게 스크롤할 수 없게 되면 펼친다', async () => {
+    const timing = jest.spyOn(Animated, 'timing');
+    await renderHistory();
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    // 스크롤 뷰 600 에 내용 1500: 아직 접힌 채다
+    await fireEvent(list(), 'contentSizeChange', 390, 1500);
+    expect(timing).toHaveBeenCalledTimes(1);
+
+    // 내용 610: 10 만큼만 스크롤할 수 있다
+    await fireEvent(list(), 'contentSizeChange', 390, 610);
+    expect(timing).toHaveBeenCalledTimes(2);
+    expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
+  });
+
+  // 큰 글자에서는 펼친 바와 월 줄이 높아진다. 접힌 바(68)와 접힌 월 글자 가운데(31.6)는 그대로다
+  it('잰 바 높이·월 줄 위치로 접히는 거리를 정한다', async () => {
+    await renderHistory();
+    await fireEvent(bar(), 'layout', layout(150));
+    await fireEvent(part('work-history-month'), 'layout', layout(40, 70));
+
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+
+    expect(transformOf(part('work-history-bar-background'), 'translateY')).toBe(
+      -82,
+    );
+    expect(transformOf(part('work-history-month'), 'translateY')).toBeCloseTo(
+      -58.4,
+      5,
+    );
+  });
+
+  it('화면을 닫으면 돌던 전환을 멈춘다', async () => {
+    const stop = jest.spyOn(Animated.Value.prototype, 'stopAnimation');
+    const view = await renderHistory();
+    await scrollListTo(list(), 300);
+
+    await view.unmount();
+
+    expect(stop).toHaveBeenCalled();
+  });
+});
+
+describe('WorkHistoryScreen — 접힌 상단 바의 접근성 (#175)', () => {
   let finishAnimations: () => Promise<void>;
   beforeEach(() => {
     finishAnimations = holdNativeAnimations().finish;
@@ -169,45 +479,205 @@ describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
-  const list = () => screen.getByTestId('work-history-list');
 
-  it('제목은 리스트 위에 겹쳐 그린 머리 안에 있고, 내용(월 선택)은 상단 바 아래에서 시작한다', async () => {
-    await renderHistory();
+  it('접힌 동안 화살표는 접근성 트리에서 빠지고 눌리지 않으며, 월 글자는 그대로 읽는다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
 
-    expect(
-      within(autoHideHeader()).getByRole('header', { name: '작업 이력' }),
-    ).toBeOnTheScreen();
-    expect(
-      StyleSheet.flatten(list().props.contentContainerStyle),
-    ).toMatchObject({ paddingTop: TAB_HEADER_HEIGHT });
-    // 상단 바를 잴 수 있게 감싼 뷰도 빈 곳 터치를 아래 리스트로 통과시킨다 (끌면 리스트가 스크롤된다, #153)
-    expect(screen.getByTestId('work-history-bar')).toHaveStyle({
-      pointerEvents: 'box-none',
-    });
+    await scrollListTo(list(), 300);
+
+    expect(screen.queryByRole('button', { name: '이전 달' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '다음 달' })).toBeNull();
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+    // 보이지 않는 제목도 읽지 않는다
+    expect(screen.queryByRole('header', { name: '작업 이력' })).toBeNull();
+
+    await userEvent.press(
+      screen.getByRole('button', { name: '이전 달', ...hidden }),
+    );
+    expect(onMonthChange).not.toHaveBeenCalled();
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
   });
 
-  it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다', async () => {
+  it('맨 위로 돌아와 펼치면 제목·화살표를 다시 읽고 누를 수 있다', async () => {
     await renderHistory();
-
-    await scrollDownFromTop(list());
+    await scrollListTo(list(), 300);
     await finishAnimations();
-    expect(autoHideHeaderOffset()).toBe(-TAB_HEADER_HEIGHT);
 
-    await scrollListTo(list(), 280);
+    await scrollListTo(list(), 0);
     await finishAnimations();
-    expect(autoHideHeaderOffset()).toBe(0);
+
+    expect(screen.getByRole('header', { name: '작업 이력' })).toBeOnTheScreen();
+    await userEvent.press(prevMonth());
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+  });
+});
+
+describe('WorkHistoryScreen — 당겨서 새로고침 (#175)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  it('당겨서 새로고침 표시는 Android 에서 상단 바 아래에서 나오고, iOS 에서는 옮기지 않는다', async () => {
+  it('Android 는 새로고침 표시를 펼친 바 아래(108)에서 내린다 (당길 수 있는 맨 위는 늘 펼친 상태다)', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
-    const view = await renderHistory({ onRefresh: jest.fn() });
-    expect(list()).toHaveProp('progressViewOffset', TAB_HEADER_HEIGHT);
-    await view.unmount();
-
-    jest.replaceProperty(Platform, 'OS', 'ios');
     await renderHistory({ onRefresh: jest.fn() });
-    expect(list().props.progressViewOffset).toBeUndefined();
+
+    expect(list()).toHaveProp('progressViewOffset', 108);
   });
+
+  // iOS 는 표시를 리스트 맨 위에 그린다. 바가 당긴 만큼 함께 내려와 그 위에 드러난 자리에 표시가 보인다
+  it('iOS 는 표시를 옮기지 않고, 맨 위에서 당긴 만큼 바가 함께 내려온다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    const event = jest.spyOn(Animated, 'event');
+    const view = await renderHistory({ onRefresh: jest.fn() });
+    expect(list().props.progressViewOffset).toBeUndefined();
+
+    await act(() => scrollValue(event).setValue(-60));
+    await view.rerender(
+      <WorkHistoryScreen
+        today={today}
+        works={works}
+        onOpenWork={jest.fn()}
+        onRefresh={jest.fn()}
+      />,
+    );
+    expect(transformOf(bar(), 'translateY')).toBe(60);
+
+    await act(() => scrollValue(event).setValue(200));
+    await view.rerender(
+      <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />,
+    );
+    expect(transformOf(bar(), 'translateY')).toBe(0);
+  });
+});
+
+// #175: 바(제목·월)에서 시작한 밀기는 탭 전환(#140), 목록 안쪽은 월 이동(#153). 펼침·접힘 모두
+describe('WorkHistoryScreen — 바와 목록의 밀기 판정 (#175)', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    ['펼친 바', false],
+    ['접힌 바', true],
+  ])(
+    '%s 의 월 글자에서 민 것은 탭을 바꾸고 달은 그대로, 목록 안쪽에서 민 것은 달을 옮긴다',
+    async (_state, collapse) => {
+      const onTabSwipe = jest.fn();
+      await render(
+        <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
+          <WorkHistoryScreen
+            today={today}
+            works={works}
+            onOpenWork={jest.fn()}
+          />
+        </tabSwipeArea.TabSwipeArea>,
+      );
+      if (collapse) {
+        await scrollListTo(list(), 300);
+        await finishAnimations();
+      }
+
+      await swipeFrom(monthText(), { from: { x: 200, y: 80 }, dx: FAR });
+      expect(onTabSwipe).toHaveBeenCalledWith('prev');
+      expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+
+      onTabSwipe.mockClear();
+      await swipeRows({ dx: FAR });
+      expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+      expect(onTabSwipe).not.toHaveBeenCalled();
+    },
+  );
+
+  // 바 뷰는 펼친 크기(108) 그대로이고 그리는 것만 68 로 줄인다. 그 사이(68~108)는 접힌 동안 리스트가 보이는 자리다
+  it('접힌 동안은 접힌 바(68) 아래부터 목록 영역이다 — 펼친 바 자리였던 곳에서 민 것은 펼침이면 탭, 접힘이면 달', async () => {
+    const width = Dimensions.get('window').width;
+    // 화면 위 자리: 리스트 0~700 위에 바(0~108)가 겹치고, 요약 카드는 스크롤로 올라가 보이지 않는다
+    const covers: Record<string, Rect> = {
+      'work-history-bar': { x: 0, y: 0, width, height: 108 },
+      'work-history-list-header': { x: 0, y: -300, width, height: 120 },
+    };
+    // 테스트 렌더러에는 화면 위 사각형이 없다. 목록 영역을 잴 때 쓰는 공용 함수가 덮개(testID)의 자리를 돌려주게 한다
+    const measure = tabSwipeArea.measureElement;
+    jest
+      .spyOn(tabSwipeArea, 'measureElement')
+      .mockImplementation(
+        target =>
+          covers[
+            (target as { props?: { testID?: string } } | null)?.props?.testID ??
+              ''
+          ] ?? measure(target),
+      );
+    const onTabSwipe = jest.fn();
+    await render(
+      <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
+        <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />
+      </tabSwipeArea.TabSwipeArea>,
+    );
+    const rects = new Map([
+      [monthSwipeArea(), { x: 0, y: 0, width, height: 700 }],
+    ]);
+    // 접힌 바 아래 끝(68)에서 가장자리 여유(12)보다 안쪽, 펼친 바 아래 끝(108)보다는 위
+    const swipeBelowCollapsedBar = () =>
+      swipeFrom(rows()[0], { from: { x: width / 2, y: 95 }, dx: FAR, rects });
+
+    await swipeBelowCollapsedBar();
+    expect(onTabSwipe).toHaveBeenCalledWith('prev');
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+
+    onTabSwipe.mockClear();
+    await scrollListTo(list(), 300);
+    await finishAnimations();
+    await swipeBelowCollapsedBar();
+    expect(onTabSwipe).not.toHaveBeenCalled();
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+  });
+});
+
+// #175: 내용 위 여백은 상태와 상관없이 펼친 바 높이다. 접힌 바는 더 짧아 그보다 더 가리지 않는다
+describe('WorkHistoryScreen — 두 상태의 불러오기·빈 상태 (#175)', () => {
+  let finishAnimations: () => Promise<void>;
+  beforeEach(() => {
+    finishAnimations = holdNativeAnimations().finish;
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    ['펼침', false],
+    ['접힘', true],
+  ])(
+    '%s: 스켈레톤·빈 상태가 바 아래에서 시작한다',
+    async (_state, collapse) => {
+      const view = await renderHistory({
+        works: [],
+        load: { status: 'loading' },
+      });
+      if (collapse) {
+        await scrollListTo(list(), 300);
+        await finishAnimations();
+      }
+      expectOnlySkeletons('work-rows-skeleton');
+      expect(
+        StyleSheet.flatten(list().props.contentContainerStyle),
+      ).toMatchObject({ paddingTop: 108 });
+
+      await view.rerender(
+        <WorkHistoryScreen today={today} works={[]} onOpenWork={jest.fn()} />,
+      );
+      expect(
+        screen.getByText('이 달에 완료한 작업이 없어요'),
+      ).toBeOnTheScreen();
+      expect(
+        StyleSheet.flatten(list().props.contentContainerStyle),
+      ).toMatchObject({ paddingTop: 108 });
+    },
+  );
 });
 
 describe('WorkHistoryScreen — 월 이동', () => {
@@ -408,14 +878,15 @@ describe('WorkHistoryScreen — 월 전환 애니메이션 (#153)', () => {
     ).toBe(-ENTER_OFFSET);
   });
 
-  it('머리(월 선택·요약 카드)는 달을 바꿔도 옮기지 않는다', async () => {
+  it('상단 바(월 선택)·머리(요약 카드)는 달을 바꿔도 옮기지 않는다', async () => {
     await renderHistory();
     holdNativeAnimations();
 
     await swipeRows({ dx: FAR });
 
     expect(shiftOf(screen.getByLabelText('누적 완료 4건')).translateX).toBe(0);
-    expect(shiftOf(screen.getByText('2026년 8월')).translateX).toBe(0);
+    // 월 선택은 리스트 밖 상단 바에 있어 목록 칸과 함께 옮겨지지 않는다 (#175)
+    expect(isInsideScrollView(screen.getByText('2026년 8월'))).toBe(false);
   });
 
   it('동작 줄이기면 옮기지 않고 바로 바꾼다', async () => {
@@ -503,12 +974,13 @@ describe('WorkHistoryScreen — 스크린리더', () => {
 describe('WorkHistoryScreen — Figma 값', () => {
   const parentOf = (element: HostElement) => element.parent as HostElement;
 
-  it('제목과 월 선택 사이 14, 월 제목과 화살표 사이 6', async () => {
+  // 새 Figma 작업이력 (기본) 3753:4890: 제목 아래 14 에 월 줄(높이 28), 그 아래 24 에 요약 카드 (#175)
+  it('제목과 월 선택 사이 14, 월 제목과 화살표 사이 6, 월 선택과 요약 카드 사이 24', async () => {
     await renderHistory();
 
     const monthRow = parentOf(prevMonth());
-    expect(monthRow).toHaveStyle({ gap: 6 });
-    expect(parentOf(monthRow)).toHaveStyle({ paddingTop: 14 });
+    expect(monthRow).toHaveStyle({ gap: 6, marginTop: 14 });
+    expect(bar()).toHaveStyle({ paddingBottom: 24 });
   });
 
   // 요약 카드는 새 Figma 작업이력 (기본) 3753:4890 › 3753:4903 기준이다 (#145)
@@ -734,10 +1206,9 @@ describe('WorkHistoryScreen — 불러오기', () => {
   it('당겨서 새로고침한다', async () => {
     const onRefresh = jest.fn();
     await renderHistory({ onRefresh, refreshing: true });
-    const list = screen.getByTestId('work-history-list');
 
-    expect(list.props.refreshing).toBe(true);
-    await fireEvent(list, 'refresh');
+    expect(list().props.refreshing).toBe(true);
+    await fireEvent(list(), 'refresh');
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });

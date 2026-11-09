@@ -7,6 +7,7 @@ import {
   collapseEasing,
   collapseKeyframes,
   EXPANDED_BAR_HEIGHT,
+  EXPANDED_MONTH_ROW,
   monthTravel,
   nextCollapseState,
   visibleBar,
@@ -156,7 +157,8 @@ describe('접힘 거리 (#175)', () => {
 
   // 기본 월 줄은 위 56·높이 28 (가운데 70), 접힌 월 글자(18 / 1.4)는 위 19 (가운데 31.6)
   it('월 줄은 가운데가 접힌 월 글자의 가운데(31.6)에 오도록 올라간다', () => {
-    expect(monthTravel({ y: 56, height: 28 })).toBeCloseTo(-38.4, 5);
+    expect(EXPANDED_MONTH_ROW).toEqual({ y: 56, height: 28 });
+    expect(monthTravel(EXPANDED_MONTH_ROW)).toBeCloseTo(-38.4, 5);
     expect(monthTravel({ y: 70, height: 40 })).toBeCloseTo(-58.4, 5);
   });
 });
