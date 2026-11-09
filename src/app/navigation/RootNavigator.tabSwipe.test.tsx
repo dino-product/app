@@ -1,4 +1,4 @@
-import { screen, userEvent } from '@testing-library/react-native';
+import { screen, userEvent, within } from '@testing-library/react-native';
 import {
   AccessibilityInfo,
   Animated,
@@ -20,7 +20,7 @@ import {
   openStartedWorkDetail,
   renderSignedInHome,
 } from '../testing';
-import { TAB_ENTER_MS, TAB_ENTER_OFFSET } from './tabTransition';
+import { TAB_ENTER_OFFSET, TAB_ENTER_TIMING } from './tabTransition';
 
 // 메인 탭 좌우 밀기와 방향을 반영한 전환 (#140). 탭 순서: 홈 → 내 일정 → 작업 이력 → 마이
 fixAppTestClock();
@@ -48,22 +48,35 @@ const expectSelected = (name: TabName) =>
 const swipeTab = (name: TabName, dx: number) =>
   swipeFrom(tabArea(name), { from: MIDDLE, dx });
 
-/** 탭 화면(장면)에 걸린 스타일. 탭 영역을 품은 장면 뷰가 bottom-tabs 의 전환 스타일을 받는다 */
-function sceneStyle(name: TabName) {
-  for (let node = tabArea(name).parent; node; node = node.parent) {
-    const style = StyleSheet.flatten(node.props.style);
-    if (style && 'transform' in style) {
-      return style;
+type Node = ReturnType<typeof tabArea>;
+const transformOf = (node: Node) =>
+  StyleSheet.flatten(node.props.style)?.transform as
+    | Array<{ translateX?: number; translateY?: number }>
+    | undefined;
+const translateXIn = (node: Node) =>
+  transformOf(node)?.find(item => item.translateX !== undefined)?.translateX;
+/** 탭 화면 안에서 옆으로 들어오는 내용 (머리 내용: 상단 바·하위 탭, 본문 내용: 리스트) */
+const enterContent = (name: TabName, part: 'header' | 'body') =>
+  within(tabArea(name)).getByTestId(`tab-enter-${part}`, {
+    includeHiddenElements: true,
+  });
+const enterXOf = (name: TabName) => ({
+  header: translateXIn(enterContent(name, 'header')) ?? 0,
+  body: translateXIn(enterContent(name, 'body')) ?? 0,
+});
+/** 내용을 품은 바탕들(탭 장면·탭 영역·화면 배경·머리 바탕·본문 바탕)의 가로 이동. 모두 없어야 한다 */
+function backgroundTranslateX(name: TabName) {
+  const moved: number[] = [];
+  for (const part of ['header', 'body'] as const) {
+    for (let node = enterContent(name, part).parent; node; node = node.parent) {
+      const x = translateXIn(node);
+      if (x !== undefined) {
+        moved.push(x);
+      }
     }
   }
-  return {};
+  return moved;
 }
-const translateXOf = (name: TabName) => {
-  const transform = sceneStyle(name).transform as
-    | Array<{ translateX?: number }>
-    | undefined;
-  return transform?.[0]?.translateX ?? 0;
-};
 
 describe('메인 탭 좌우 밀기', () => {
   afterEach(() => {
@@ -300,7 +313,8 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
   });
 });
 
-describe('탭 전환 애니메이션 방향', () => {
+// 탭을 옮기면 탭 화면(배경)은 바로 바뀌고, 그 안의 내용만 방향에 맞춰 들어온다 (#140 → #176)
+describe('탭 전환 — 내용이 들어온다', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     // 공유 목이라 restoreAllMocks 로 돌아가지 않는다. 다른 테스트로 새지 않게 꺼진 것으로 되돌린다
@@ -309,47 +323,66 @@ describe('탭 전환 애니메이션 방향', () => {
       .mockImplementation(() => Promise.resolve(false));
   });
 
-  it('탭 바로 오른쪽 탭에 가면 +x 에서, 왼쪽 탭에 가면 -x 에서 0 으로 들어오고 투명도는 그대로다', async () => {
+  it('탭 바로 오른쪽 탭에 가면 내용이 +12 에서, 왼쪽 탭이면 -12 에서 0 으로 들어오고 배경은 제자리다', async () => {
     await renderSignedInHome();
     const animations = holdNativeAnimations();
 
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
-    expect(translateXOf('my')).toBe(TAB_ENTER_OFFSET);
-    expect(sceneStyle('my').opacity).toBeUndefined();
+    expect(enterXOf('my')).toEqual({
+      header: TAB_ENTER_OFFSET,
+      body: TAB_ENTER_OFFSET,
+    });
+    expect(backgroundTranslateX('my')).toEqual([]);
     await animations.finish();
-    expect(translateXOf('my')).toBe(0);
+    expect(enterXOf('my')).toEqual({ header: 0, body: 0 });
 
     await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
-    expect(translateXOf('schedule')).toBe(-TAB_ENTER_OFFSET);
-    expect(sceneStyle('schedule').opacity).toBeUndefined();
+    expect(enterXOf('schedule')).toEqual({
+      header: -TAB_ENTER_OFFSET,
+      body: -TAB_ENTER_OFFSET,
+    });
+    expect(backgroundTranslateX('schedule')).toEqual([]);
     await animations.finish();
-    expect(translateXOf('schedule')).toBe(0);
+    expect(enterXOf('schedule')).toEqual({ header: 0, body: 0 });
   });
 
-  it('밀어서 옮겨도 같은 방향 규칙으로 들어온다', async () => {
+  it('밀어서 옮겨도 같은 방향 규칙으로 내용이 들어온다', async () => {
     await renderSignedInHome();
     const animations = holdNativeAnimations();
 
     await swipeTab('home', -FAR);
-    expect(translateXOf('schedule')).toBe(TAB_ENTER_OFFSET);
+    expect(enterXOf('schedule')).toEqual({
+      header: TAB_ENTER_OFFSET,
+      body: TAB_ENTER_OFFSET,
+    });
+    expect(backgroundTranslateX('schedule')).toEqual([]);
     await animations.finish();
 
     await swipeTab('schedule', FAR);
-    expect(translateXOf('home')).toBe(-TAB_ENTER_OFFSET);
+    expect(enterXOf('home')).toEqual({
+      header: -TAB_ENTER_OFFSET,
+      body: -TAB_ENTER_OFFSET,
+    });
+    expect(backgroundTranslateX('home')).toEqual([]);
     await animations.finish();
-    expect(translateXOf('home')).toBe(0);
+    expect(enterXOf('home')).toEqual({ header: 0, body: 0 });
   });
 
-  it('애니메이션은 네이티브 드라이버(UI 스레드)로 돈다', async () => {
+  // 좌우의 차이는 시작 값의 부호뿐이다. 처음 여는 탭(오른쪽)도 탭이 바뀐 그 커밋에서 바로 시작한다
+  it('좌우 모두 같은 설정 객체 하나(지연 없음·같은 시간·곡선)로, 처음 여는 탭도 탭이 바뀌자마자 시작한다', async () => {
     await renderSignedInHome();
+    const animations = holdNativeAnimations();
     const timing = jest.spyOn(Animated, 'timing');
+    const enters = () =>
+      timing.mock.calls.filter(([, config]) => config === TAB_ENTER_TIMING);
 
+    // 처음 여는 탭 (오른쪽)
     await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
-
-    const enter = timing.mock.calls.find(
-      ([, config]) => config.duration === TAB_ENTER_MS && config.toValue === 0,
-    );
-    expect(enter?.[1].useNativeDriver).toBe(true);
+    expect(enters()).toHaveLength(1);
+    await animations.finish();
+    // 이미 연 탭 (왼쪽)
+    await userEvent.press(screen.getByRole('tab', { name: '홈' }));
+    expect(enters()).toHaveLength(2);
   });
 
   it('동작 줄이기면 옮기지 않고 바로 바뀐다', async () => {
@@ -358,10 +391,15 @@ describe('탭 전환 애니메이션 방향', () => {
       .mockResolvedValue(true);
     await renderSignedInHome();
     holdNativeAnimations();
+    const timing = jest.spyOn(Animated, 'timing');
 
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
 
     expectSelected('my');
-    expect(sceneStyle('my').transform).toBeUndefined();
+    expect(enterXOf('my')).toEqual({ header: 0, body: 0 });
+    expect(backgroundTranslateX('my')).toEqual([]);
+    expect(
+      timing.mock.calls.filter(([, config]) => config === TAB_ENTER_TIMING),
+    ).toEqual([]);
   });
 });

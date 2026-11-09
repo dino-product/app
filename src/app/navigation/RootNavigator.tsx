@@ -9,6 +9,7 @@ import {
   type ParamListBase,
   type RouteProp,
   type ScreenLayoutArgs,
+  type TabNavigationState,
 } from '@react-navigation/native';
 import {
   createNativeStackNavigator,
@@ -18,7 +19,6 @@ import {
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { NextStep } from '../../features/onboarding/profileApi';
-import { useReduceMotionEnabled } from '../../shared/accessibility/useReduceMotion';
 import {
   neighborIndex,
   type SwipeDirection,
@@ -65,7 +65,7 @@ import {
   WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
-import { tabTransitionOptions } from './tabTransition';
+import { TabEnterLayout, TabEnterScope } from './TabEnterLayout';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
@@ -109,14 +109,17 @@ function useStackOptions() {
   );
 }
 
-// 탭을 옮길 때 오른쪽 탭은 오른쪽에서, 왼쪽 탭은 왼쪽에서 찰나에 들어온다 (#140, tabTransition.ts). 동작 줄이기면 바로 바꾼다
-function useTabOptions(): BottomTabNavigationOptions {
-  const reduceMotion = useReduceMotionEnabled();
-  return useMemo(
-    () => ({ headerShown: false, ...tabTransitionOptions(reduceMotion) }),
-    [reduceMotion],
-  );
-}
+// 탭 화면(배경)은 장면 애니메이션 없이 바로 바뀐다. 그 안의 내용만 오른쪽 탭은 오른쪽에서, 왼쪽 탭은 왼쪽에서 찰나에 들어온다
+// (#176, TabEnterLayout·tabTransition.ts). 동작 줄이기면 내용도 옮기지 않는다
+const tabOptions: BottomTabNavigationOptions = { headerShown: false };
+
+const renderTabEnterLayout = ({
+  state,
+  children,
+}: {
+  state: TabNavigationState<MainTabParamList>;
+  children: ReactNode;
+}) => <TabEnterLayout state={state}>{children}</TabEnterLayout>;
 
 // VoiceOver 두 손가락 Z(escape)로 뒤로 간다. 네이티브 헤더를 껐으니 스택 화면을 감싸 직접 받는다.
 // 스택 첫 화면은 돌아갈 곳이 없어 받지 않는다 (탭을 바꾸는 Android 뒤로가기와 달리 iOS 관례).
@@ -146,7 +149,7 @@ function stackScreenLayout({
 
 const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 
-// 탭 화면을 좌우로 밀면 이웃 탭으로 옮긴다 (#140, TabSwipeArea). 탭 바를 누를 때와 같은 전환으로 들어온다.
+// 탭 화면을 좌우로 밀면 이웃 탭으로 옮긴다 (#140, TabSwipeArea). 탭 바를 누를 때와 같은 전환으로 내용이 들어온다 (TabEnterScope).
 // 탭 안 스택이 첫 화면일 때만 받는다. 안쪽 화면은 iOS 26 화면 전체 뒤로 가기 밀기와 겹치고, 탭 메인 화면이 아니다
 function TabSwipeLayout({
   route,
@@ -184,7 +187,7 @@ function TabSwipeLayout({
       onSwipe={onSwipe}
       testID={`tab-swipe-${route.name}`}
     >
-      {children}
+      <TabEnterScope routeKey={route.key}>{children}</TabEnterScope>
     </TabSwipeArea>
   );
 }
@@ -395,13 +398,13 @@ const loginOptions = { animationTypeForReplace: 'pop' } as const;
 
 // Android 뒤로가기: 다른 탭 첫 화면에서는 홈 탭으로, 홈 첫 화면에서는 앱을 나간다 (Android 기본 흐름)
 function MainTabs() {
-  const tabOptions = useTabOptions();
   return (
     <Tab.Navigator
       backBehavior="firstRoute"
       tabBar={renderTabBar}
       screenOptions={tabOptions}
       screenLayout={tabScreenLayout}
+      layout={renderTabEnterLayout}
     >
       <Tab.Screen name="home" component={HomeTab} />
       <Tab.Screen name="schedule" component={ScheduleRoute} />
