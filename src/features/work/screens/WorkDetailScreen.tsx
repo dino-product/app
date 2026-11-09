@@ -48,6 +48,7 @@ import {
   PHOTO_LIMIT,
   type SubmitResult,
   type WorkDetail,
+  type WorkPlace,
   type WorkReport,
 } from '../model';
 import type { WorkStatusCode } from '../data/types';
@@ -61,7 +62,9 @@ export type WorkDetailScreenProps = {
   /** 결과 모달의 "메인 화면으로" */
   onDone: () => void;
   onCall: (phone: string) => void;
-  onNavigate: (address: string) => void;
+  onNavigate: (place: WorkPlace) => void;
+  /** 작업 위치 지도를 누르면 그 위치를 지도 앱에서 연다 */
+  onOpenMap: (place: WorkPlace) => void;
   /** 촬영·앨범. 더 붙일 수 있는 장수를 받아 고른 사진 URI 를 고른 순서대로 돌려준다. 고르지 않으면 빈 배열 */
   onPickPhoto: (remaining: number) => Promise<string[]>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
@@ -90,6 +93,7 @@ export function WorkDetailScreen({
   onDone,
   onCall,
   onNavigate,
+  onOpenMap,
   onPickPhoto,
   titleRef,
   onUnsavedReportChange,
@@ -245,6 +249,7 @@ export function WorkDetailScreen({
             work={work}
             onCall={onCall}
             onNavigate={onNavigate}
+            onOpenMap={onOpenMap}
           />
           <SectionBand />
 

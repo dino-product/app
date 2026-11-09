@@ -54,7 +54,12 @@ describe('작업 스켈레톤', () => {
 
   it('작업 상세 스켈레톤은 실제 정보 영역(WorkInfoSections)의 요약·일정 카드·고객 카드와 같은 상자다', async () => {
     await render(
-      <WorkInfoSections work={workDetail} onCall={noop} onNavigate={noop} />,
+      <WorkInfoSections
+        work={workDetail}
+        onCall={noop}
+        onNavigate={noop}
+        onOpenMap={noop}
+      />,
     );
     const titleRow = screen.getByText(workDetail.title).parent as HostElement;
     const cardOf = (section: string) =>

@@ -164,9 +164,16 @@ android {
     }
 }
 
+// 카카오맵 SDK v2 (#67). Maven Central 에 없어 카카오 저장소에서 받는다 (apis.map.kakao.com/android_v2 › 지도 시작하기)
+repositories {
+    maven { url "https://devrepo.kakao.com/nexus/repository/kakaomap-releases/" }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    // 작업 위치 지도 (#67). 앱 키는 카카오 로그인과 같은 kakao_app_key 리소스를 쓴다 (위 kakaoNativeAppKey)
+    implementation("com.kakao.maps.open:android:2.15.2")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

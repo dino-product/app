@@ -118,6 +118,7 @@ const blocked: [string, ReactElement][] = [
       onDone={noop}
       onCall={noop}
       onNavigate={noop}
+      onOpenMap={noop}
       onPickPhoto={async () => []}
     />,
   ],
@@ -130,6 +131,7 @@ const blocked: [string, ReactElement][] = [
       onReject={noop}
       onCall={noop}
       onNavigate={noop}
+      onOpenMap={noop}
     />,
   ],
   ['거절 사유', <RejectReasonScreen onBack={noop} onSubmit={noop} />],
