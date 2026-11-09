@@ -14,7 +14,11 @@ import {
   SWITCH_DISTANCE,
   type Rect,
 } from './tabSwipe';
-import { TabSwipeArea, useTabSwipeRegion } from './TabSwipeArea';
+import {
+  measureElement,
+  TabSwipeArea,
+  useTabSwipeRegion,
+} from './TabSwipeArea';
 
 const width = () => Dimensions.get('window').width;
 const MIDDLE_Y = 400;
@@ -310,6 +314,43 @@ describe('TabSwipeArea — 손바닥 오작동 방지', () => {
     await swipe('background', { from: center, dx: -FAR });
 
     expect(onSwipe).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTabSwipeRegion — 판정 영역 재기', () => {
+  it('measure 를 주면 터치한 뷰 대신 그 사각형으로 판정한다 (예: 리스트에서 머리를 뺀 목록 영역)', async () => {
+    const onSwipe = jest.fn();
+    const measure = jest.fn(() => CARD);
+    function Measured() {
+      const region = useTabSwipeRegion({ measure });
+      return <View testID="measured" onTouchStart={region.onTouchStart} />;
+    }
+    await render(
+      <TabSwipeArea canSwipe={() => true} onSwipe={onSwipe}>
+        <Measured />
+      </TabSwipeArea>,
+    );
+    const measured = screen.getByTestId('measured');
+
+    // 터치한 뷰는 잴 수 없어도(rects 없음) measure 의 사각형 안쪽 깊은 곳이면 컴포넌트 몫이다
+    await swipeFrom(measured, { from: { x: 200, y: CARD.y + 60 }, dx: -FAR });
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(measure).toHaveBeenCalled();
+
+    await swipeFrom(measured, {
+      from: { x: 200, y: CARD.y + CARD.height - COMPONENT_SLACK + 2 },
+      dx: -FAR,
+    });
+    expect(onSwipe).toHaveBeenCalledWith('next');
+  });
+
+  it('measureElement 는 잴 수 없는 뷰(테스트 렌더러·null)면 null 이다', () => {
+    expect(measureElement(null)).toBeNull();
+    expect(measureElement(3)).toBeNull();
+    expect(measureElement({})).toBeNull();
+    expect(
+      measureElement({ getBoundingClientRect: () => ({ ...CARD, top: 1 }) }),
+    ).toEqual(CARD);
   });
 });
 

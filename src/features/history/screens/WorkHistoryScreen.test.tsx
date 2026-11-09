@@ -8,11 +8,14 @@ import {
 } from '@testing-library/react-native';
 import { useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
+import { swipeFrom } from '../../../../jest/responder';
 import {
   colors,
   pressedBackground,
   typography,
 } from '../../../shared/design-system';
+import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
+import { SWITCH_DISTANCE } from '../../../shared/gesture/tabSwipe';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { TAB_HEADER_HEIGHT } from '../../../shared/layout/TabHeader';
@@ -69,6 +72,41 @@ const rows = () => screen.getAllByRole('button', { name: /, 완료, / });
 const rowTitles = () =>
   rows().map(row => row.props.accessibilityLabel.split(',')[0]);
 const prevMonth = () => screen.getByRole('button', { name: '이전 달' });
+const FAR = SWITCH_DISTANCE + 30;
+/** 목록 영역(행)에서 시작해 민다. 탭 영역 밖이라 시작 자리와 상관없이 목록이 갖는다 */
+const swipeRows = (
+  options: Omit<Parameters<typeof swipeFrom>[1], 'from'>,
+  element: HostElement = rows()[0],
+) => swipeFrom(element, { from: { x: 200, y: 500 }, ...options });
+
+/** 목록 영역을 밀어 달을 옮기는 뷰 (리스트를 감싼다) */
+function monthSwipeArea(): HostElement {
+  for (
+    let node: HostElement | null = screen.getByTestId('work-history-list');
+    node;
+    node = node.parent
+  ) {
+    if (node.props.onTouchStartCapture && node.props.onMoveShouldSetResponder) {
+      return node;
+    }
+  }
+  throw new Error('목록 영역을 찾지 못했다');
+}
+
+/** 요소를 품은 목록 칸이 옮겨진 거리. 리스트에 닿기 전까지 transform 을 찾는다 */
+function shiftOf(element: HostElement) {
+  for (let node: HostElement | null = element; node; node = node.parent) {
+    if (node.props.testID === 'work-history-list') {
+      return { translateX: 0, opacity: undefined };
+    }
+    const style = StyleSheet.flatten(node.props.style);
+    if (style && 'transform' in style && style.transform) {
+      const [{ translateX }] = style.transform as [{ translateX: number }];
+      return { translateX, opacity: style.opacity };
+    }
+  }
+  return { translateX: 0, opacity: undefined };
+}
 const nextMonth = () => screen.getByRole('button', { name: '다음 달' });
 
 describe('WorkHistoryScreen — 화면 구성', () => {
@@ -141,6 +179,10 @@ describe('WorkHistoryScreen — 상단 바 자동 숨김', () => {
     expect(
       StyleSheet.flatten(list().props.contentContainerStyle),
     ).toMatchObject({ paddingTop: TAB_HEADER_HEIGHT });
+    // 상단 바를 잴 수 있게 감싼 뷰도 빈 곳 터치를 아래 리스트로 통과시킨다 (끌면 리스트가 스크롤된다, #153)
+    expect(screen.getByTestId('work-history-bar')).toHaveStyle({
+      pointerEvents: 'box-none',
+    });
   });
 
   it('아래로 스크롤하면 상단 바가 숨고, 위로 스크롤을 시작하면 다시 보인다', async () => {
@@ -238,6 +280,155 @@ describe('WorkHistoryScreen — 월 이동', () => {
     expect(svg.props.xml).toBe(iconSvgs['history-empty'].xml);
     expect(svg.props.xml).not.toContain('M5 2.667V6.167H8.5');
     expect(svg.props.color).toBe(colors.gray[300]);
+  });
+});
+
+describe('WorkHistoryScreen — 좌우로 밀어 월 이동 (#153)', () => {
+  it('목록을 오른쪽으로 밀면 이전 달, 왼쪽으로 밀면 다음 달로 간다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
+
+    await swipeRows({ dx: FAR });
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+    expect(rowTitles()).toEqual(['도어록 교체']);
+
+    await swipeRows({ dx: -FAR });
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+    expect(onMonthChange.mock.calls).toEqual([
+      [{ year: 2026, month: 7 }],
+      [{ year: 2026, month: 8 }],
+    ]);
+  });
+
+  it('이번 달에서 왼쪽으로 밀면 그대로다 (▶ 처럼 미래 달로 가지 않는다)', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
+
+    await swipeRows({ dx: -FAR });
+
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+    expect(onMonthChange).not.toHaveBeenCalled();
+  });
+
+  it('완료 작업이 없는 달도 목록 자리(빈 상태)를 밀어 옮긴다', async () => {
+    await renderHistory();
+    await swipeRows({ dx: FAR });
+    await swipeRows({ dx: FAR });
+    const empty = screen.getByText('이 달에 완료한 작업이 없어요');
+    expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
+
+    await swipeRows({ dx: -FAR }, empty);
+
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+  });
+
+  it('세로 우세로 움직이면(목록 스크롤) 달은 그대로다', async () => {
+    await renderHistory();
+
+    // 목록 영역(월 넘김)이 응답자를 잡지 않아 리스트가 그대로 스크롤한다
+    const monthArea = monthSwipeArea();
+    expect(await swipeRows({ dx: FAR, dy: 160 })).not.toBe(monthArea.props);
+    await swipeRows({
+      path: [
+        { x: 0, y: 0 },
+        { x: 0, y: 30 },
+        { x: FAR, y: 40 },
+      ],
+    });
+
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+  });
+
+  it('짧게 밀거나 두 손가락이면 아무 일도 없다', async () => {
+    const onOpenWork = jest.fn();
+    await renderHistory({ onOpenWork });
+
+    await swipeRows({ dx: SWITCH_DISTANCE - 10 });
+    // 가로로 정해진 짧은 밀기는 목록이 응답자를 잡아 행 누르기가 되지 않는다
+    expect(onOpenWork).not.toHaveBeenCalled();
+    await swipeRows({ dx: FAR, fingers: 2 });
+
+    expect(screen.getByText('2026년 9월')).toBeOnTheScreen();
+  });
+
+  it('그 달을 불러오는 중에도 목록 자리를 밀어 옮긴다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ load: { status: 'loading' }, onMonthChange });
+
+    await swipeRows({ dx: FAR }, screen.getByTestId('work-history-list'));
+
+    expect(onMonthChange).toHaveBeenCalledWith({ year: 2026, month: 7 });
+  });
+
+  it('밀면 행이 눌리지 않고, 행을 누르면 지금처럼 그 작업 상세를 연다', async () => {
+    const onOpenWork = jest.fn();
+    await renderHistory({ onOpenWork });
+
+    await swipeRows({ dx: FAR });
+    expect(onOpenWork).not.toHaveBeenCalled();
+
+    await userEvent.press(rows()[0]);
+    expect(onOpenWork).toHaveBeenCalledWith('a1');
+  });
+});
+
+describe('WorkHistoryScreen — 월 전환 애니메이션 (#153)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    // 공유 목이라 restoreAllMocks 로 돌아가지 않는다. 다른 테스트로 새지 않게 꺼진 것으로 되돌린다
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockImplementation(() => Promise.resolve(false));
+  });
+
+  it('이전 달은 -x 에서, 다음 달은 +x 에서 0 으로 들어오고 투명도는 그대로다 (밀기·화살표 모두)', async () => {
+    await renderHistory();
+    const animations = holdNativeAnimations();
+
+    await swipeRows({ dx: FAR });
+    expect(shiftOf(rows()[0])).toEqual({
+      translateX: -ENTER_OFFSET,
+      opacity: undefined,
+    });
+    await animations.finish();
+    expect(shiftOf(rows()[0]).translateX).toBe(0);
+
+    await userEvent.press(nextMonth());
+    expect(shiftOf(rows()[0]).translateX).toBe(ENTER_OFFSET);
+    await animations.finish();
+    expect(shiftOf(rows()[0]).translateX).toBe(0);
+
+    // 빈 상태도 같은 결로 들어온다
+    await userEvent.press(prevMonth());
+    await animations.finish();
+    await userEvent.press(prevMonth());
+    expect(
+      shiftOf(screen.getByText('이 달에 완료한 작업이 없어요')).translateX,
+    ).toBe(-ENTER_OFFSET);
+  });
+
+  it('머리(월 선택·요약 카드)는 달을 바꿔도 옮기지 않는다', async () => {
+    await renderHistory();
+    holdNativeAnimations();
+
+    await swipeRows({ dx: FAR });
+
+    expect(shiftOf(screen.getByLabelText('누적 완료 4건')).translateX).toBe(0);
+    expect(shiftOf(screen.getByText('2026년 8월')).translateX).toBe(0);
+  });
+
+  it('동작 줄이기면 옮기지 않고 바로 바꾼다', async () => {
+    jest
+      .mocked(AccessibilityInfo.isReduceMotionEnabled)
+      .mockResolvedValue(true);
+    await renderHistory();
+    await act(async () => {});
+    holdNativeAnimations();
+
+    await swipeRows({ dx: FAR });
+
+    expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
+    expect(shiftOf(rows()[0]).translateX).toBe(0);
   });
 });
 
