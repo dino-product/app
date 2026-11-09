@@ -71,6 +71,15 @@ const pending: PendingRequest[] = [
   },
 ];
 
+// 머리말 아래 회색(Background/3) 바탕은 리스트가 아니라 그 뒤 본문(머리를 겹쳐 그린 영역)에 그린다.
+// 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+function expectGrayBehind(list: HostElement) {
+  const body = screen.getByTestId('auto-hide-header').parent as HostElement;
+  expect(body).toHaveStyle({ backgroundColor: colors.background[3] });
+  expect(body).toContainElement(list);
+  expect(StyleSheet.flatten(list.props.style)?.backgroundColor).toBeUndefined();
+}
+
 const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
   render(
     <ScheduleScreen
@@ -454,7 +463,10 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(bar).toHaveStyle({ paddingTop: 12, paddingHorizontal: 24 });
     expect(stylePt(bar, 'paddingBottom') + stylePt(tab, 'paddingTop')).toBe(24);
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
-    expect(bar.parent?.parent).toHaveStyle({
+    // 그림자는 겹쳐 그린 머리의 바탕에 있다 (탭을 옮길 때 움직이지 않는다, #176)
+    const headerBackground = screen.getByTestId('auto-hide-header');
+    expect(headerBackground).toContainElement(bar);
+    expect(headerBackground).toHaveStyle({
       boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
       zIndex: 1,
     });
@@ -466,7 +478,7 @@ describe('ScheduleScreen — 확정 일정', () => {
     await renderSchedule();
 
     const list = scrollViewOf(screen.getByTestId('week-strip'));
-    expect(list).toHaveStyle({ backgroundColor: colors.background[3] });
+    expectGrayBehind(list);
     expect(contentStyleOf(list)).toMatchObject({ paddingBottom: 24 });
 
     const dateArea = screen.getByTestId('week-strip').parent as HostElement;
@@ -919,7 +931,7 @@ describe('ScheduleScreen — 응답 필요', () => {
     const list = scrollViewOf(
       screen.getByText('에어컨 필터 교체') as HostElement,
     );
-    expect(list).toHaveStyle({ backgroundColor: colors.background[3] });
+    expectGrayBehind(list);
     // 겹쳐 그린 머리(제목 줄 + 하위 탭, #148) 아래 24 에서 시작한다
     expect(contentStyleOf(list)).toMatchObject({
       paddingTop: TAB_HEADER_HEIGHT + 16 + UNDERLINE_TABS_HEIGHT + 24,
