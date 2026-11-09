@@ -3,6 +3,7 @@ import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 import { BottomNavigationBar, colors } from '../../shared/design-system';
 import { mainTabs, type MainTabKey } from '../../shared/navigation/mainTabs';
+import { useTabSwitchLock } from './tabSwitchLock';
 import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
@@ -33,7 +34,12 @@ export function MainTabBar({ state, navigation }: BottomTabBarProps) {
     initialRoutes[activeKey] ??
     focused.name;
 
+  const lock = useTabSwitchLock();
   const onChange = (key: MainTabKey) => {
+    // 새로고침 중에는 어느 탭을 눌러도 아무 일도 없다 (#177). 지금 탭을 다시 눌러 맨 위로 올리는 것도 하지 않는다
+    if (lock !== null && !lock.canSwitch()) {
+      return;
+    }
     const route = state.routes.find(item => item.name === key);
     if (!route) {
       return;
