@@ -14,7 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { hideKeyboard, showKeyboard } from '../../../../jest/keyboard';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { workDetail } from '../mockData';
 import {
@@ -393,9 +393,56 @@ describe('WorkDetailScreen', () => {
     ).toBeOnTheScreen();
     const optional = screen.getAllByText('(선택)');
     expect(optional).toHaveLength(2);
+    // #180: Figma 3235:16653 은 제목(Body/S/SemiBold) 옆 4 에 "(선택)" Body/XS/Medium Gray500, 세로 가운데다
     for (const text of optional) {
-      expect(text).toHaveStyle({ color: colors.gray[500] });
+      expect(text).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[500],
+      });
+      expect(text.parent).toHaveStyle({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+      });
     }
+  });
+
+  // #180: Figma 3235:16226 결제 정보: 이름 아래 8 에 칸, 결제 금액 묶음과 결제 방식 묶음 사이 12
+  it('결제 금액·결제 방식은 이름 아래 8 에 칸이 오고, 두 묶음 사이는 12 다', async () => {
+    await renderDetail();
+
+    const amountLabel = screen.getByText('결제 금액');
+    const methodLabel = screen.getByText('결제 방식');
+    expect(amountLabel.parent).toHaveStyle({ gap: 8 });
+    expect(methodLabel.parent).toHaveStyle({ gap: 8 });
+    expect(amountLabel.parent?.parent).toBe(methodLabel.parent?.parent);
+    expect(amountLabel.parent?.parent).toHaveStyle({ gap: 12 });
+  });
+
+  // #180: Figma 3235:16453: 결제 정보 아래 20 에 Caption/M/Medium Gray500 가운데. 버튼(3235:16456)은 그 아래 24+14 = 38
+  it('"제출 후 수정 불가" 는 결제 정보 아래 20 에 Caption/M/Medium Gray500 가운데이고, 버튼은 그 아래 38 이다', async () => {
+    await renderDetail();
+
+    expect(screen.getByText('제출 후 수정 불가')).toHaveStyle({
+      ...typography['Caption/M/Medium'],
+      color: colors.gray[500],
+      textAlign: 'center',
+      marginTop: 20,
+    });
+    expect(screen.getByRole('button', { name: '완료보고 제출' })).toHaveStyle({
+      marginTop: 38,
+    });
+  });
+
+  it('제출 시각도 같은 글자·자리다 (3235:16153)', async () => {
+    await renderDetail({ work: submittedWork });
+
+    expect(screen.getByText('제출 시각 2026-12-19 11:32')).toHaveStyle({
+      ...typography['Caption/M/Medium'],
+      color: colors.gray[500],
+      textAlign: 'center',
+      marginTop: 20,
+    });
   });
 
   it('사용 부품은 한 줄 입력이고 수행 메모만 여러 줄이다', async () => {
