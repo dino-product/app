@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import {
   colors,
   fonts,
@@ -40,10 +41,33 @@ describe('ScheduleCard', () => {
     });
   });
 
-  it('시간과 날짜는 Caption/M/Medium 한 줄에 공백 하나를 두고, 날짜만 Gray600 이다', async () => {
+  // #180: Figma 메인화면(2428:13005·3463:17452) 일정 카드는 흰 채움(Gray0)에 아래쪽만 Gray50 1 테두리다
+  it('카드는 흰 채움에 아래쪽만 Gray50 1 테두리이고, 여백 20·줄 사이 6 이다', async () => {
     await render(<ScheduleCard item={item} onPress={jest.fn()} />);
 
-    expect(screen.getByText('11:00 – 12:00 오늘 · 9. 19. (토)')).toHaveStyle({
+    const card = screen.getByRole('button', { name: /세탁기 설치/ });
+    expect(card).toHaveStyle({
+      backgroundColor: colors.gray[0],
+      borderBottomWidth: 1,
+      borderBottomColor: colors.gray[50],
+      padding: 20,
+      gap: 6,
+    });
+    const style = StyleSheet.flatten(card.props.style);
+    expect(style.borderWidth).toBeUndefined();
+    expect(style.borderTopWidth).toBeUndefined();
+  });
+
+  // #180: Figma 는 시간과 날짜 사이에 공백 두 칸이다 (3463:17452 "11:00 – 12:00  오늘 · 9. 19. (토)")
+  it('시간과 날짜는 Caption/M/Medium 한 줄에 공백 두 칸을 두고, 날짜만 Gray600 이다', async () => {
+    await render(<ScheduleCard item={item} onPress={jest.fn()} />);
+
+    // 기본 비교는 공백을 하나로 줄이므로 글자 그대로 비교한다
+    expect(
+      screen.getByText('11:00 – 12:00  오늘 · 9. 19. (토)', {
+        normalizer: text => text,
+      }),
+    ).toHaveStyle({
       fontFamily: fonts.medium,
       fontSize: 14,
       lineHeight: 21,
@@ -62,10 +86,12 @@ describe('ScheduleCard', () => {
     expect(summary).toHaveStyle({ gap: 6 });
     expect(summary).toHaveTextContent(/^세탁기 설치11:00 – 12:00/);
     const top = summary?.parent;
+    // Figma 3463:17452 Frame 2147238735: 가로, 양 끝 정렬, 사이 21
     expect(top).toHaveStyle({
       flexDirection: 'row',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
+      gap: 21,
     });
     const chip = top?.children.at(-1);
     expect(chip).toHaveTextContent('작업전');

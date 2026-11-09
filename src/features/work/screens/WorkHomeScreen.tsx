@@ -334,12 +334,11 @@ const styles = StyleSheet.create({
   headerBlock: { paddingBottom: BLOCK_HEADER_PADDING_BOTTOM },
   // 일정 줄 아래 12 에 날짜 줄이 온다 (Figma 3463:17452: 일정 줄 346–374, 날짜 줄 386)
   schedule: { gap: 12, marginTop: 4 },
-  // 일정 줄(Figma 3463:17526)은 폭 339 로 카드(345)보다 6 좁고 오른쪽 끝은 카드와 같다
+  // 일정 줄(Figma 2428:13005 Frame 2147238739 · 3463:17526)은 x 0, 폭 345 로 카드와 같은 폭이다 (#180)
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginLeft: 6,
   },
   // 큰 글자에서는 줄어들고 줄바꿈되어 보기 버튼이 화면 밖으로 밀리지 않는다
   sectionTitle: {
@@ -351,11 +350,11 @@ const styles = StyleSheet.create({
   },
   viewToggle: { flexDirection: 'row', gap: TOGGLE_GAP },
   separator: { height: 12 },
-  // Figma 에서 '일정' 줄 아래 118pt
+  // Figma 메인화면 - 일정(무) 3278:23276 에서 '일정' 줄 아래 끝(246)과 빈 상태 묶음(354) 사이 108 (#180)
   emptyWeek: {
     alignItems: 'center',
     gap: 24,
-    paddingTop: 118 - HEADER_PADDING_BOTTOM,
+    paddingTop: 108 - HEADER_PADDING_BOTTOM,
   },
   // Figma 에 없어 날짜 줄 아래 40 에 둔다 (기본안)
   emptyDay: {

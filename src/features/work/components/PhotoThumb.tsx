@@ -33,7 +33,8 @@ export function PhotoThumb({
   );
 }
 
-export const THUMB_SIZE = 88;
+// 완료 보고 사진 칸: Figma 작업수행-상세/보고제출 활성 (3235:16335 등) 105×105, 모서리 8 (#180)
+export const THUMB_SIZE = 105;
 const SITE_THUMB_SIZE = 110;
 
 const styles = StyleSheet.create({

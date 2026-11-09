@@ -24,7 +24,6 @@ import {
   Icon,
   ICON_HIT_SLOP,
   Text,
-  TextArea,
 } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -34,9 +33,10 @@ import { WorkInfoSections } from '../components/WorkInfoSections';
 import { PhotoUploader } from '../components/PhotoUploader';
 import {
   AmountInput,
-  FieldLabel,
   LineInput,
+  MemoInput,
   PaymentMethodSelect,
+  ReportField,
 } from '../components/ReportFields';
 import { ReportJumpAnchor } from '../components/ReportJumpAnchor';
 import { ResultModal } from '../components/ResultModal';
@@ -282,7 +282,7 @@ export function WorkDetailScreen({
                 />
               </Section>
               <Section title="수행 메모" optional>
-                <TextArea
+                <MemoInput
                   label="수행 메모 입력"
                   placeholder="수행 메모 작성"
                   value={shown.memo}
@@ -300,25 +300,30 @@ export function WorkDetailScreen({
                 />
               </Section>
               <Section title="결제 정보">
-                <FieldLabel>결제 금액</FieldLabel>
-                <AmountInput
-                  value={shown.amount}
-                  onChange={amount => update({ amount })}
-                  readOnly={readOnly}
-                />
-                <FieldLabel>결제 방식</FieldLabel>
-                <PaymentMethodSelect
-                  value={shown.paymentMethod}
-                  onChange={paymentMethod => {
-                    haptic.selection();
-                    update({ paymentMethod });
-                  }}
-                  readOnly={readOnly}
-                />
+                {/* Figma 3235:16439: 결제 금액 묶음과 결제 방식 묶음 사이 12, 묶음 안 이름↔칸 8 */}
+                <View style={styles.paymentFields}>
+                  <ReportField label="결제 금액">
+                    <AmountInput
+                      value={shown.amount}
+                      onChange={amount => update({ amount })}
+                      readOnly={readOnly}
+                    />
+                  </ReportField>
+                  <ReportField label="결제 방식">
+                    <PaymentMethodSelect
+                      value={shown.paymentMethod}
+                      onChange={paymentMethod => {
+                        haptic.selection();
+                        update({ paymentMethod });
+                      }}
+                      readOnly={readOnly}
+                    />
+                  </ReportField>
+                </View>
               </Section>
               {/* 스크린리더가 버튼보다 먼저 읽도록 버튼 앞에 둔다 */}
               <Text
-                variant="Caption/S/Medium"
+                variant="Caption/M/Medium"
                 color={colors.gray[500]}
                 style={styles.notice}
               >
@@ -412,9 +417,12 @@ const styles = StyleSheet.create({
   },
   back: { position: 'absolute', left: 20 },
   content: { paddingBottom: 32 },
-  notice: { marginTop: 24, textAlign: 'center' },
+  // Figma 3235:16453: 결제 정보 아래 20, Caption/M/Medium Gray500 가운데
+  notice: { marginTop: 20, textAlign: 'center' },
+  paymentFields: { gap: 12 },
   locked: { gap: 16, paddingHorizontal: 24, paddingTop: 32 },
   lockedText: { textAlign: 'center' },
   lockedStart: { minHeight: 48 },
-  submit: { marginHorizontal: 24, marginTop: 40 },
+  // Figma 3235:16454: 안내 아래 24 에 흰 바(102), 그 안 위 14 에 버튼 → 38. 아래는 content 의 32
+  submit: { marginHorizontal: 24, marginTop: 38 },
 });

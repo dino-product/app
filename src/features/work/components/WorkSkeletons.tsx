@@ -32,7 +32,7 @@ function Chip() {
 function ScheduleCardSkeleton() {
   return (
     <View style={styles.scheduleCard} testID="schedule-card-skeleton">
-      <View style={styles.titleRow}>
+      <View style={styles.scheduleTitleRow}>
         <View style={styles.summary}>
           <SkeletonLine variant="Body/S/SemiBold" width="60%" />
           <SkeletonLine variant="Caption/M/Medium" width="45%" />
@@ -71,7 +71,10 @@ export const WorkHomeSkeleton = memo(function WorkHomeSkeletonView({
           <SkeletonBlock height={CARD_CTA_HEIGHT} radius={CTA_RADIUS} />
         </View>
         <View style={styles.schedule}>
-          <View style={styles.sectionRow}>
+          <View
+            style={styles.sectionRow}
+            testID="work-home-skeleton-section-row"
+          >
             <SkeletonLine variant="Body/M/SemiBold" width={120} />
             <SkeletonBlock width={56} height={26} radius={6} />
           </View>
@@ -206,11 +209,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white[100],
   },
   currentInfo: { gap: 6 },
+  // WorkHomeScreen 의 일정 줄과 같다: 카드와 같은 폭 (#180)
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginLeft: 6,
   },
   scheduleList: { gap: 12 },
   // ScheduleCard 와 같은 카드
@@ -218,8 +221,18 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: colors.white[100],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[50],
+    backgroundColor: colors.gray[0],
   },
+  // ScheduleCard 의 제목 줄: Figma 메인화면 사이 21 (#180)
+  scheduleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 21,
+  },
+  // CompletedWorkRow 의 제목 줄: Figma 작업이력 사이 8 (#181)
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

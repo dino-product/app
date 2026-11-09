@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import {
   colors,
   Icon,
   singleLineInputText,
   Text,
+  typography,
 } from '../../../shared/design-system';
 import {
   formatAmount,
@@ -12,8 +13,10 @@ import {
   type PaymentMethod,
 } from '../model';
 
-// 완료 보고 입력 필드 (결제 금액, 결제 방식, 사용 부품 같은 한 줄 입력). 여러 줄 메모는 디자인 시스템 TextArea 를 쓴다.
-// 세 칸 모두 수행 메모 TextArea 와 같은 테두리 모양이다. 지금은 완료 보고에서만 써서 기능 폴더에 둔다.
+// 완료 보고 입력 필드 (수행 메모, 사용 부품, 결제 금액, 결제 방식). 지금은 완료 보고에서만 써서 기능 폴더에 둔다.
+// Figma 작업수행-상세/보고제출 활성 (3235:16226, 제출 후 3235:15926, #180): 채움 없이 Gray100 1 테두리,
+// 글자는 테두리 안 20 에서 시작. 모서리는 수행 메모·사용 부품 16, 결제 금액·결제 방식 14.
+// 비었을 때 안내는 Gray500, 넣은 값은 Gray900.
 // 한 줄 입력은 칸 높이를 채우고 값·플레이스홀더를 그 세로 가운데에 둔다 (#151, singleLineInputText).
 // readOnly 는 제출을 마친 보고다. 값은 그대로 보이고 고칠 수 없다.
 
@@ -22,6 +25,51 @@ export function FieldLabel({ children }: { children: string }) {
     <Text variant="Caption/M/Medium" color={colors.gray[600]}>
       {children}
     </Text>
+  );
+}
+
+// 이름 아래 8 에 칸이 오는 묶음 (Figma 결제 금액 3235:16440 · 결제 방식 3235:16446)
+export function ReportField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.field}>
+      <FieldLabel>{label}</FieldLabel>
+      {children}
+    </View>
+  );
+}
+
+// 여러 줄 입력 (수행 메모, Figma 3235:16430): 안쪽 위아래 16·좌우 20, 높이 113, 14 Regular
+export function MemoInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  readOnly = false,
+}: {
+  /** 스크린리더 이름. 화면의 제목과 겹치지 않게 "… 입력" 처럼 쓴다 */
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <TextInput
+      accessibilityLabel={label}
+      editable={!readOnly}
+      multiline
+      placeholder={placeholder}
+      placeholderTextColor={colors.gray[500]}
+      value={value}
+      onChangeText={onChangeText}
+      style={styles.memo}
+    />
   );
 }
 
@@ -45,7 +93,7 @@ export function LineInput({
         accessibilityLabel={label}
         editable={!readOnly}
         placeholder={placeholder}
-        placeholderTextColor={colors.gray[400]}
+        placeholderTextColor={colors.gray[500]}
         value={value}
         onChangeText={onChangeText}
         style={[styles.boxInput, styles.lineText]}
@@ -90,18 +138,18 @@ export function AmountInput({
   readOnly?: boolean;
 }) {
   return (
-    <View style={[styles.box, styles.amountBox]}>
+    <View style={[styles.box, styles.pickBox, styles.amountBox]}>
       <TextInput
         accessibilityLabel="결제 금액 입력"
         editable={!readOnly}
         keyboardType="number-pad"
         placeholder="0"
-        placeholderTextColor={colors.gray[400]}
+        placeholderTextColor={colors.gray[500]}
         value={formatAmount(value)}
         onChangeText={text => onChange(nextAmount(value, text))}
         style={[styles.boxInput, styles.amountText]}
       />
-      <Text variant="Body/XS/Medium" color={colors.gray[500]}>
+      <Text variant="Body/XS/Medium" color={colors.gray[700]}>
         원
       </Text>
     </View>
@@ -121,11 +169,15 @@ export function PaymentMethodSelect({
 }) {
   const [open, setOpen] = useState(false);
 
-  // Figma 제출 후 화면은 펼침 화살표 없이 고른 값만 보인다
+  // Figma 제출 후 화면(3235:16148)은 펼침 화살표 없이 고른 값만 보인다
   if (readOnly) {
     return (
-      <View style={styles.box}>
-        <Text variant="Body/XS/Regular" style={styles.grow}>
+      <View style={[styles.box, styles.pickBox, styles.selectBox]}>
+        <Text
+          variant="Body/XS/Medium"
+          color={colors.gray[900]}
+          style={styles.grow}
+        >
           {value ? paymentMethodLabels[value] : ''}
         </Text>
       </View>
@@ -142,36 +194,48 @@ export function PaymentMethodSelect({
           value ? { text: paymentMethodLabels[value] } : undefined
         }
         onPress={() => setOpen(prev => !prev)}
-        style={styles.box}
+        style={[styles.box, styles.pickBox, styles.selectBox]}
       >
         <Text
-          variant="Body/XS/Regular"
-          color={value ? colors.gray[900] : colors.gray[400]}
+          variant="Body/XS/Medium"
+          color={value ? colors.gray[900] : colors.gray[500]}
           style={styles.grow}
         >
           {value ? paymentMethodLabels[value] : '결제 방식 선택'}
         </Text>
-        <Icon name="chevron-down" size={20} color={colors.gray[500]} />
+        <Icon
+          name="chevron-down"
+          size={24}
+          color={colors.gray[700]}
+          testID="payment-method-arrow"
+        />
       </Pressable>
+      {/* Figma 작업이력- 작업상세 (선택중) 3463:16846 의 선택창. 칸 아래 12 에 펼친다 */}
       {open && (
         <View style={styles.options}>
-          {paymentMethods.map(method => (
-            <Pressable
-              key={method}
-              accessibilityRole="button"
-              accessibilityLabel={paymentMethodLabels[method]}
-              accessibilityState={{ selected: method === value }}
-              onPress={() => {
-                onChange(method);
-                setOpen(false);
-              }}
-              style={styles.option}
-            >
-              <Text variant="Body/XS/Regular">
-                {paymentMethodLabels[method]}
-              </Text>
-            </Pressable>
-          ))}
+          {paymentMethods.map(method => {
+            const picked = method === value;
+            return (
+              <Pressable
+                key={method}
+                accessibilityRole="button"
+                accessibilityLabel={paymentMethodLabels[method]}
+                accessibilityState={{ selected: picked }}
+                onPress={() => {
+                  onChange(method);
+                  setOpen(false);
+                }}
+                style={[styles.option, picked && styles.optionPicked]}
+              >
+                <Text
+                  variant="Body/XS/Medium"
+                  color={picked ? colors.gray[800] : colors.gray[600]}
+                >
+                  {paymentMethodLabels[method]}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       )}
     </View>
@@ -179,18 +243,34 @@ export function PaymentMethodSelect({
 }
 
 const styles = StyleSheet.create({
-  // Figma 세 칸 모두 글자가 테두리 안 20 에서 시작한다 (3235:16434 / 16442 / 16448)
+  field: { gap: 8 },
+  // Figma 3235:16430: 채움 없이 Gray100 테두리, 모서리 16, 안쪽 위아래 16·좌우 20, 높이 113
+  memo: {
+    ...typography['Caption/M/Regular'],
+    minHeight: 113,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.gray[100],
+    color: colors.gray[900],
+    textAlignVertical: 'top',
+  },
+  // Figma 세 칸 모두 채움 없이 Gray100 테두리, 글자가 테두리 안 20 에서 시작한다 (3235:16434 / 16442 / 16448).
+  // 모서리는 사용 부품 16, 결제 금액·결제 방식은 pickBox 로 14
   box: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 52,
     gap: 8,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.gray[200],
-    backgroundColor: colors.white[100],
+    borderColor: colors.gray[100],
   },
+  pickBox: { borderRadius: 14 },
+  // Figma 결제 방식 (3235:16448): 여백 세로 16 + 24 아이콘 줄 + 테두리 = 58
+  selectBox: { minHeight: 58 },
   // 칸 높이를 채워 칸 어디를 눌러도 입력이 포커스되고, 글자는 그 세로 가운데에 온다.
   // 가로 여백은 칸이 준다. 입력에 0 을 두지 않으면 Android 는 EditText 테마 여백을 넣어 글자가 안쪽으로 밀린다
   boxInput: {
@@ -207,12 +287,17 @@ const styles = StyleSheet.create({
   amountText: singleLineInputText('Body/XS/Medium'),
   // Text 는 글자색을 color prop 으로 정한다. 스타일에 색을 넣으면 prop 을 덮어쓴다
   grow: { flex: 1 },
-  select: { gap: 8 },
+  select: { gap: 12 },
+  // 선택창 (3463:16846): 흰 채움, Gray100 테두리, 모서리 14, 안쪽 6, 항목 사이 2
   options: {
-    overflow: 'hidden',
-    borderRadius: 12,
+    gap: 2,
+    padding: 6,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.gray[200],
+    borderColor: colors.gray[100],
+    backgroundColor: colors.white[100],
   },
-  option: { paddingHorizontal: 16, paddingVertical: 14 },
+  // 항목 (3463:16847 Inactive · 16849 Active): 안쪽 12, 모서리 8. 고른 항목은 Gray50 채움
+  option: { padding: 12, borderRadius: 8 },
+  optionPicked: { backgroundColor: colors.gray[50] },
 });
