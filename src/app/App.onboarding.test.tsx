@@ -1114,8 +1114,9 @@ describe('App — 온보딩', () => {
       expect(header('QR 코드 인식')).toBeNull();
     });
 
-    // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 확인한다. 결과 안내는 카메라가 아니라 회사 찾기 위에 뜬다 (#195)
-    it('폐기된 이전 코드의 QR 이면 카메라를 닫고 회사 찾기 위에 유효하지 않은 코드 안내를 띄우고, 닫으면 회사 찾기가 ⑥ 으로 바뀌어 있다', async () => {
+    // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 확인한다 (#195).
+    // 이전 코드는 Figma ⑥(이전 코드 차단) 화면이라 회사 코드 입력처럼 모달 없이 제목·설명이 바뀐다
+    it('폐기된 이전 코드의 QR 이면 카메라를 닫고 회사 찾기가 유효하지 않은 코드(⑥)로 바뀐다', async () => {
       mockAppState('active');
       const app = await launch();
       await login('카카오로 시작하기');
@@ -1126,12 +1127,13 @@ describe('App — 온보딩', () => {
       await scanQr('https://orbit.example/join/PRV014');
 
       expect(
-        await screen.findByRole('button', { name: '확인' }),
+        await screen.findByRole('header', {
+          name: '유효하지 않은 회사 코드입니다',
+        }),
       ).toBeOnTheScreen();
-      expect(header('QR 코드 인식')).toBeNull();
-      await userEvent.press(button('확인'));
-      expect(header('유효하지 않은 회사 코드입니다')).toBeOnTheScreen();
       expect(header('회사 참여')).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+      expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
       expect(button('QR 코드 인식')).toBeOnTheScreen();
       expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
     });

@@ -388,27 +388,50 @@ describe('OrgJoinScreen', () => {
     );
 
     // Figma Spec_회사 참여 요청 플로우: 이전 코드·링크·QR 로 접근하면 최신 정보를 다시 확인하도록 안내(⑥ 이전 코드 차단).
-    // 회사 코드 입력처럼 제목·설명이 ⑥ 으로 바뀌고, 카메라에서 돌아온 결과라 같은 문구의 안내 모달도 띄운다
+    // ⑥ 은 화면이고 모달이 아니다. 회사 코드 입력처럼 제목·설명만 바뀐다
     it.each([
       ['없는 코드(ORGANIZATION-011)', 'WRNG99'],
       ['회사가 바꿔 폐기된 이전 코드(ORGANIZATION-012)', 'PRV014'],
     ])(
-      '%s 면 이 화면 위에 유효하지 않은 코드 안내 모달을 띄우고, 닫으면 화면이 유효하지 않은 코드(⑥)로 바뀌어 있다',
+      '%s 면 안내 모달 없이 화면이 유효하지 않은 코드(⑥)로 바뀐다',
       async (_, code) => {
         const view = await renderJoin();
 
         await receive(view, code);
 
         expect(
-          await screen.findByRole('button', { name: '확인' }),
+          await screen.findByRole('header', { name: INVALID_TITLE }),
         ).toBeOnTheScreen();
-        expect(screen.getAllByText(INVALID_MESSAGE).length).toBeGreaterThan(0);
-        await userEvent.press(screen.getByRole('button', { name: '확인' }));
-        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
-        expect(header(INVALID_TITLE)).toBeOnTheScreen();
         expect(screen.getByText(INVALID_MESSAGE)).toBeOnTheScreen();
         expect(header('회사 참여')).toBeOnTheScreen();
+        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+        expect(qrButton()).toBeEnabled();
         expect(view.props.onFound).not.toHaveBeenCalled();
+      },
+    );
+
+    // 회사 코드 입력과 같다. Android 는 바뀐 소개의 live region 이 읽는다
+    it.each([
+      ['ios', 1],
+      ['android', 0],
+    ] as const)(
+      '%s: 유효하지 않은 코드면 바뀐 제목·설명을 스크린리더로 %i번 따로 알린다',
+      async (os, times) => {
+        jest.replaceProperty(Platform, 'OS', os);
+        const announce = jest
+          .spyOn(AccessibilityInfo, 'announceForAccessibility')
+          .mockClear();
+        const view = await renderJoin();
+
+        await receive(view, 'PRV014');
+        await screen.findByRole('header', { name: INVALID_TITLE });
+
+        expect(announce).toHaveBeenCalledTimes(times);
+        if (times > 0) {
+          expect(announce).toHaveBeenCalledWith(
+            `${INVALID_TITLE}. ${INVALID_MESSAGE.replace('\n', ' ')}`,
+          );
+        }
       },
     );
 
@@ -452,14 +475,14 @@ describe('OrgJoinScreen', () => {
     // 바깥은 받은 코드를 넘긴 뒤 지운다. 같은 QR 을 다시 인식해 오면 다시 확인한다
     it('지워졌다가 같은 코드를 다시 받으면 다시 확인한다. 지우는 것만으로는 확인하지 않는다', async () => {
       const view = await renderJoin();
-      await receive(view, 'PRV014');
+      await receive(view, 'BS0001');
       await userEvent.press(
         await screen.findByRole('button', { name: '확인' }),
       );
 
       await receive(view, undefined);
       expect(lookups(view.server)).toHaveLength(1);
-      await receive(view, 'PRV014');
+      await receive(view, 'BS0001');
 
       await waitFor(() => expect(lookups(view.server)).toHaveLength(2));
     });

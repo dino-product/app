@@ -288,11 +288,6 @@ describe('App — 조직 참여', () => {
 
     // 결과 안내는 카메라 위가 아니라 돌아온 회사 찾기 위에 뜬다 (#195)
     it.each([
-      [
-        '폐기된 이전 코드',
-        'https://orbit.example/join/PRV014',
-        '유효하지 않은 회사 코드입니다',
-      ],
       ['이미 소속된 회사', 'BS0001', '이미 참여 중인 회사예요'],
       ['승인 대기 요청이 있는 회사', 'HB0010', '이미 참여를 요청한 회사예요'],
     ])(
@@ -304,20 +299,35 @@ describe('App — 조직 참여', () => {
         await scanQr(value);
 
         expect(
-          await screen.findByRole('button', { name: '확인' }),
+          await screen.findByRole('header', { name: title }),
         ).toBeOnTheScreen();
-        expect(
-          screen.getAllByRole('header', { name: title }).length,
-        ).toBeGreaterThan(0);
         expect(camera()).toBeNull();
         expect(header('QR 코드 인식')).toBeNull();
 
         await userEvent.press(button('확인'));
-        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
-        expect(button('QR 코드 인식')).toBeOnTheScreen();
+        expect(header(title)).toBeNull();
+        expect(header('회사 찾기')).toBeOnTheScreen();
         expect(tab('마이')).toBeSelected();
       },
     );
+
+    // Figma ⑥(이전 코드 차단)은 화면이다. 회사 코드 입력처럼 모달 없이 제목·설명이 바뀐다
+    it('폐기된 이전 코드의 QR 이면 카메라를 닫고 회사 찾기가 유효하지 않은 코드(⑥)로 바뀐다', async () => {
+      await openQrScan();
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+
+      await scanQr('https://orbit.example/join/PRV014');
+
+      expect(
+        await screen.findByRole('header', {
+          name: '유효하지 않은 회사 코드입니다',
+        }),
+      ).toBeOnTheScreen();
+      expect(header('회사 참여')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+      expect(camera()).toBeNull();
+      expect(button('QR 코드 인식')).toBeEnabled();
+    });
 
     it('회사를 확인하지 못하면(네트워크) 카메라를 닫고 회사 찾기 위에 안내를 띄운다', async () => {
       const app = await openQrScan();
@@ -337,14 +347,14 @@ describe('App — 조직 참여', () => {
     it('한 번 인식한 뒤 다시 QR 코드 인식을 열어 같은 QR 을 비추면 다시 확인한다', async () => {
       const app = await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
-      await scanQr('PRV014');
+      await scanQr('BS0001');
       await userEvent.press(
         await screen.findByRole('button', { name: '확인' }),
       );
 
       await userEvent.press(button('QR 코드 인식'));
       await screen.findByRole('header', { name: 'QR 코드 인식' });
-      await scanQr('PRV014');
+      await scanQr('BS0001');
 
       expect(
         await screen.findByRole('button', { name: '확인' }),
