@@ -5,7 +5,7 @@ import {
   useIsFocused,
 } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Alert, BackHandler, Platform } from 'react-native';
 import {
   PROFILE_RULE_MESSAGE,
@@ -24,7 +24,10 @@ import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen
 import type { CompanyCheckHandlers } from '../../features/my/org/useCompanyCheck';
 import {
   loginMethodsFor,
+  termsDetailTitle,
+  termsList,
   type TermsAgreement,
+  type TermsType,
 } from '../../features/onboarding/model';
 import {
   agreeToTerms,
@@ -38,6 +41,15 @@ import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprov
 import { LoginScreen } from '../../features/onboarding/screens/LoginScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
+import {
+  TermsAgreementProvider,
+  useTermsAgreement,
+} from '../../features/onboarding/termsAgreementState';
+import { signUpTermsDocuments } from '../../features/terms/documents';
+import {
+  TermsDetailScreen,
+  type TermsDetailSection,
+} from '../../features/terms/screens/TermsDetailScreen';
 import { isApiError, useApiClient } from '../../shared/api';
 import { useLightStatusBar } from '../../shared/layout/useLightStatusBar';
 import { useAccountProfile, useAuth } from '../AuthProvider';
@@ -167,6 +179,21 @@ export function ProfileRegisterRoute({
   );
 }
 
+/**
+ * 가입 단계의 약관 동의 상태 (#193). 가입 약관과 약관 상세(다른 경로)가 같이 쓴다.
+ * 재동의면 서버에 남은 마케팅 동의로 미리 켜 둔다. 건드리지 않으면 그 값을 보낸다 (#113)
+ */
+export function OnboardingTermsProvider({ children }: { children: ReactNode }) {
+  const profile = useAccountProfile();
+  return (
+    <TermsAgreementProvider
+      initialMarketing={profile?.marketingAgreed ?? undefined}
+    >
+      {children}
+    </TermsAgreementProvider>
+  );
+}
+
 export function TermsAgreementRoute({
   navigation,
 }: OnboardingScreenProps<'TermsAgreement'>) {
@@ -174,6 +201,13 @@ export function TermsAgreementRoute({
   const { agreedToTerms } = useAuth();
   const profile = useAccountProfile();
   const titleRef = useFocusTitleOnOpen(navigation);
+  // 동의 상태는 가입 단계 묶음(OnboardingTermsProvider)에 있다. 약관 상세에서 고른 라디오가 여기로 돌아온다 (#193)
+  const terms = useTermsAgreement();
+  const openTerms = useCallback(
+    (types: readonly TermsType[]) =>
+      navigation.navigate('TermsDetail', { types }),
+    [navigation],
+  );
   useStepChanged(
     useCallback(
       (previous, next) => {
@@ -202,8 +236,9 @@ export function TermsAgreementRoute({
   return (
     <TermsAgreementScreen
       titleRef={titleRef}
-      // 재동의면 서버에 남은 마케팅 동의로 미리 켜 둔다. 건드리지 않으면 그 값을 보낸다
-      initialMarketing={profile?.marketingAgreed ?? undefined}
+      agreement={terms.agreement}
+      onChangeAgreement={terms.setAgreement}
+      onOpenTerms={openTerms}
       submitting={agree.isPending}
       onBack={() => navigation.goBack()}
       onSignUp={agreement =>
@@ -219,6 +254,45 @@ export function TermsAgreementRoute({
             Alert.alert('가입하지 못했어요', '잠시 후 다시 시도해 주세요.'),
         })
       }
+    />
+  );
+}
+
+// 가입 약관 상세 (#193, Figma 약관 상세 페이지 51019:16927). 전문 아래 라디오로 고른 동의가 가입 약관의 체크가 된다.
+// 여러 약관이면('모든 약관에 동의합니다') 행 순서로 한 페이지에 차례로 보인다
+export function SignUpTermsDetailRoute({
+  navigation,
+  route,
+}: OnboardingScreenProps<'TermsDetail'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const { agreement, setAgreement } = useTermsAgreement();
+  const { types } = route.params;
+  const sections = useMemo<readonly TermsDetailSection[]>(
+    () =>
+      termsList
+        .filter(terms => types.includes(terms.type))
+        .map(terms => ({
+          key: terms.type,
+          title: termsDetailTitle(terms),
+          document: signUpTermsDocuments[terms.type],
+          intro: terms.intro,
+        })),
+    [types],
+  );
+  const choose = useCallback(
+    (key: string, agreed: boolean) =>
+      setAgreement(current => ({ ...current, [key]: agreed })),
+    [setAgreement],
+  );
+
+  return (
+    <TermsDetailScreen
+      sections={sections}
+      agreement={agreement}
+      onAgreeChange={choose}
+      standalone
+      titleRef={titleRef}
+      onBack={() => navigation.goBack()}
     />
   );
 }

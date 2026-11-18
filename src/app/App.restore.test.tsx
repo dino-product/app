@@ -162,10 +162,11 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       await screen.findByRole('header', {
         name: '서비스 이용을 위해 동의가 필요해요',
       });
-      // 약관 시트를 열어 둔 채 종료된다
+      // 약관 상세를 열어 둔 채 종료된다 (#193)
       await userEvent.press(
-        screen.getByRole('button', { name: '서비스 이용약관 (필수) 보기' }),
+        screen.getByRole('button', { name: '서비스 이용약관 (필수)' }),
       );
+      await screen.findByRole('header', { name: '(필수) 서비스 이용약관' });
 
       await relaunchApp(app);
 

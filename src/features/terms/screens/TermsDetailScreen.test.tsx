@@ -1,4 +1,9 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  screen,
+  userEvent,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import {
   createFakeServer,
   rawResponse,
@@ -102,5 +107,102 @@ describe('TermsDetailScreen', () => {
 
     expect(onBack).toHaveBeenCalledTimes(1);
     await screen.findByText('제1조(목적)');
+  });
+
+  it('동의 상태를 주지 않으면(마이 › 약관) 라디오 없이 읽기만 한다', async () => {
+    await renderDetail();
+
+    await screen.findByText('제1조(목적)');
+    expect(screen.queryByRole('radio')).not.toBeOnTheScreen();
+  });
+
+  // 가입 약관 상세 (#193). 전문 아래에 디자인 시스템 라디오로 동의·비동의를 고른다
+  describe('동의 라디오', () => {
+    const marketing: TermsDetailSection = {
+      key: 'MARKETING',
+      title: '(선택) 혜택 이벤트 알림 수신동의',
+      document: 'marketing',
+    };
+    // 라디오 묶음(radiogroup)은 스크린리더가 한 요소로 읽지 않는 View 라 testID 로 찾고 이름은 props 로 본다
+    const radiosOf = (key: string) =>
+      within(screen.getByTestId(`terms-agreement-${key}`));
+
+    async function renderAgreement(
+      agreement: Readonly<Record<string, boolean>>,
+      sections: readonly TermsDetailSection[] = [service],
+    ) {
+      const onAgreeChange = jest.fn();
+      await renderWithApi(
+        <TermsDetailScreen
+          sections={sections}
+          agreement={agreement}
+          onAgreeChange={onAgreeChange}
+          onBack={jest.fn()}
+        />,
+        { server: withTermsDocuments(createFakeServer()) },
+      );
+      return onAgreeChange;
+    }
+
+    it('전문 아래에 동의합니다·동의하지 않습니다 라디오가 있고, 동의하지 않은 약관은 동의하지 않습니다가 골라져 있다', async () => {
+      await renderAgreement({ service: false });
+
+      const radios = radiosOf('service');
+      expect(
+        screen.getByTestId('terms-agreement-service').props.accessibilityLabel,
+      ).toBe('서비스 이용약관 동의 여부');
+      expect(
+        radios.getByRole('radio', { name: '동의합니다' }),
+      ).not.toBeChecked();
+      expect(
+        radios.getByRole('radio', { name: '동의하지 않습니다' }),
+      ).toBeChecked();
+      await screen.findByText('제1조(service 목적)');
+    });
+
+    it('동의한 약관은 동의합니다가 골라져 있다', async () => {
+      await renderAgreement({ service: true });
+
+      expect(
+        radiosOf('service').getByRole('radio', { name: '동의합니다' }),
+      ).toBeChecked();
+      await screen.findByText('제1조(service 목적)');
+    });
+
+    it('라디오를 고르면 그 약관의 동의 상태를 알린다', async () => {
+      const onAgreeChange = await renderAgreement({ service: false });
+      const radios = radiosOf('service');
+
+      await userEvent.press(radios.getByRole('radio', { name: '동의합니다' }));
+      expect(onAgreeChange).toHaveBeenLastCalledWith('service', true);
+
+      await userEvent.press(
+        radios.getByRole('radio', { name: '동의하지 않습니다' }),
+      );
+      expect(onAgreeChange).toHaveBeenLastCalledWith('service', false);
+      await screen.findByText('제1조(service 목적)');
+    });
+
+    it('여러 약관이면 약관마다 제목·전문·라디오를 차례로 보인다', async () => {
+      const onAgreeChange = await renderAgreement(
+        { service: true, MARKETING: true },
+        [service, marketing],
+      );
+
+      expect(
+        screen.getAllByRole('header').map(header => header.props.children),
+      ).toEqual(['서비스 이용약관', '(선택) 혜택 이벤트 알림 수신동의']);
+      expect(
+        await screen.findByText('제1조(marketing 목적)'),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('제1조(service 목적)')).toBeOnTheScreen();
+
+      await userEvent.press(
+        radiosOf('MARKETING').getByRole('radio', {
+          name: '동의하지 않습니다',
+        }),
+      );
+      expect(onAgreeChange).toHaveBeenLastCalledWith('MARKETING', false);
+    });
   });
 });

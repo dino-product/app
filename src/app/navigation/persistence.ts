@@ -5,6 +5,7 @@ import {
 } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { requestChannelLabels } from '../../features/my/org/model';
+import { ALL_TERMS_TYPES } from '../../features/onboarding/model';
 import { myPageTermsTitles } from '../../features/terms/documents';
 import {
   appStorage,
@@ -144,6 +145,12 @@ const mainTabs = {
 const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
+  TermsDetail: {
+    params: params =>
+      isRecord(params) &&
+      Array.isArray(params.types) &&
+      params.types.every(type => ALL_TERMS_TYPES.includes(type)),
+  },
   CompanyFind: once,
   CompanyQrScan: once,
   JoinRoleSelect: joinTarget,

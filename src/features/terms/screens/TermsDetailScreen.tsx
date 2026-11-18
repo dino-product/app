@@ -13,6 +13,7 @@ import {
 } from 'react-native-safe-area-context';
 import {
   colors,
+  Radio,
   Skeleton,
   SkeletonLine,
   Text,
@@ -27,7 +28,8 @@ import type { TermsBlock } from '../termsText';
 
 // Figma 약관 상세 페이지 (51019:16927). 뒤로 가기만 있는 머리 아래에 큰 제목, (있으면) 안내, 원격 전문을 보인다 (#192).
 // 전문은 '제N조' 를 글머리표 줄로, 그 아래 글을 18 들여 쓴다. 받는 동안은 본문 자리에 스켈레톤, 실패하면 다시 시도.
-// 여러 약관을 한 페이지에 차례로 보일 수 있다 (가입 약관 '모두 동의', #193). 본문 덩어리는 길이가 가변이라 SectionList 로 그린다
+// 여러 약관을 한 페이지에 차례로 보일 수 있다 (가입 약관 '모두 동의', #193). 본문 덩어리는 길이가 가변이라 SectionList 로 그린다.
+// 가입 약관은 전문 아래에 '동의합니다'·'동의하지 않습니다' 라디오(디자인 시스템)를 둔다 (#193, Figma 에 없는 자리라 기본안)
 
 export type TermsDetailSection = {
   /** 약관을 가리키는 키 (가입: TermsType, 마이: MyPageTerms) */
@@ -46,14 +48,23 @@ type PendingState = Exclude<TermsDocumentState, { status: 'ready' }>;
 type Item = TermsBlock | { kind: 'state'; state: PendingState };
 type Section = TermsDetailSection & { index: number; data: readonly Item[] };
 
+export const AGREE_LABEL = '동의합니다';
+export const DISAGREE_LABEL = '동의하지 않습니다';
+
 export function TermsDetailScreen({
   sections,
+  agreement,
+  onAgreeChange,
   standalone = false,
   onBack,
   titleRef,
 }: {
   /** 보일 약관. 같은 배열을 주어야(상수·useMemo) 전문 상태를 다시 만들지 않는다 */
   sections: readonly TermsDetailSection[];
+  /** 약관(key)마다 동의 상태. 주면 전문 아래에 동의 라디오를 둔다 (가입 약관). 없으면 읽기만 한다 (마이 › 약관) */
+  agreement?: Readonly<Record<string, boolean>>;
+  /** 라디오로 고른 동의 상태 */
+  onAgreeChange?: (key: string, agreed: boolean) => void;
   /** 하단 탭 없이 열리면(온보딩) 아래 안전 영역만큼 본문 끝을 띄운다 */
   standalone?: boolean;
   onBack: () => void;
@@ -91,6 +102,19 @@ export function TermsDetailScreen({
     [titleRef],
   );
 
+  const renderSectionFooter = useCallback(
+    ({ section }: { section: SectionListData<Item, Section> }) =>
+      agreement === undefined || onAgreeChange === undefined ? null : (
+        <AgreementRadios
+          termsKey={section.key}
+          title={section.title}
+          agreed={agreement[section.key] ?? false}
+          onChange={onAgreeChange}
+        />
+      ),
+    [agreement, onAgreeChange],
+  );
+
   const insets = useSafeAreaInsets();
   const bottom = standalone ? insets.bottom : 0;
 
@@ -103,6 +127,7 @@ export function TermsDetailScreen({
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
+        renderSectionFooter={renderSectionFooter}
         stickySectionHeadersEnabled={false}
         contentContainerStyle={[
           readableColumn,
@@ -158,6 +183,39 @@ function SectionHeader({
     </View>
   );
 }
+
+/** 전문 아래 동의 라디오. 동의하지 않았으면 '동의하지 않습니다' 가 골라져 있다 */
+const AgreementRadios = memo(function TermsAgreementRadios({
+  termsKey,
+  title,
+  agreed,
+  onChange,
+}: {
+  termsKey: string;
+  title: string;
+  agreed: boolean;
+  onChange: (key: string, agreed: boolean) => void;
+}) {
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={`${title} 동의 여부`}
+      style={styles.radios}
+      testID={`terms-agreement-${termsKey}`}
+    >
+      <Radio
+        label={AGREE_LABEL}
+        checked={agreed}
+        onPress={() => onChange(termsKey, true)}
+      />
+      <Radio
+        label={DISAGREE_LABEL}
+        checked={!agreed}
+        onPress={() => onChange(termsKey, false)}
+      />
+    </View>
+  );
+});
 
 /** 전문 덩어리 하나. 조 제목은 글머리표 줄, 조 아래 글은 18 들여 쓴다 */
 const BlockRow = memo(function TermsBlockRow({
@@ -289,6 +347,8 @@ const styles = StyleSheet.create({
   indented: { marginLeft: 1 + 18 },
   skeletonIndented: { marginLeft: 18 },
   failed: { paddingHorizontal: 0, paddingVertical: 40 },
+  // 본문 아래 32 에 라디오 두 개를 가로로 (본문 시작과 같은 25)
+  radios: { flexDirection: 'row', gap: 24, marginTop: 32, marginLeft: 1 },
   // 여러 약관이면 앞 약관 끝 아래 40 에 구분선, 그 아래 40 에 다음 제목
   divider: {
     height: 1,

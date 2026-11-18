@@ -32,6 +32,7 @@ import {
   type FakeDecision,
 } from '../features/my/org/testing';
 import type { NextStep } from '../features/onboarding/profileApi';
+import { termsDocumentUrl } from '../features/terms/documents';
 import {
   fail,
   networkError,
@@ -113,11 +114,29 @@ async function registerProfile() {
   await userEvent.press(button('완료'));
 }
 
+// '모든 약관에 동의합니다' 는 모두 동의한 채로 약관 상세를 연다 (#193). 돌아와서 가입한다
 async function agreeTerms() {
   await userEvent.press(
     await screen.findByRole('checkbox', { name: '모든 약관에 동의합니다.' }),
   );
+  await screen.findByRole('header', { name: '(필수) 서비스 이용약관' });
+  await userEvent.press(button('뒤로 가기'));
   await userEvent.press(button('가입하기'));
+}
+
+// 약관 행을 눌러 그 약관 상세를 열고, 라디오로 고른 뒤 돌아온다 (#193)
+async function chooseInDetail(
+  row: string,
+  title: string,
+  choice: '동의합니다' | '동의하지 않습니다',
+) {
+  await userEvent.press(button(row));
+  await screen.findByRole('header', { name: title });
+  await userEvent.press(screen.getByRole('radio', { name: choice }));
+  await userEvent.press(button('뒤로 가기'));
+  await screen.findByRole('header', {
+    name: '서비스 이용을 위해 동의가 필요해요',
+  });
 }
 
 // 회사 찾기로 돌아오면 앞서 넣은 코드가 입력칸에 남아 있어 값을 바꿔 넣는다
@@ -752,14 +771,14 @@ describe('App — 온보딩', () => {
         name: '서비스 이용을 위해 동의가 필요해요',
       });
 
-      // 필수 넷만 켜고 마케팅(선택)은 끈다
-      for (const name of [
-        '서비스 이용약관 (필수)',
-        '개인정보 처리방침 (필수)',
-        '제3자 제공 동의 (필수)',
-        '위치기반 서비스 이용약관 (필수)',
+      // 필수 넷만 상세에서 동의하고 마케팅(선택)은 두지 않는다
+      for (const [row, title] of [
+        ['서비스 이용약관 (필수)', '(필수) 서비스 이용약관'],
+        ['개인정보 처리방침 (필수)', '(필수) 개인정보 처리방침'],
+        ['제3자 제공 동의 (필수)', '(필수) 제3자 제공 동의'],
+        ['위치기반 서비스 이용약관 (필수)', '(필수) 위치기반 서비스 이용약관'],
       ]) {
-        await userEvent.press(screen.getByRole('checkbox', { name }));
+        await chooseInDetail(row, title, '동의합니다');
       }
       await userEvent.press(button('가입하기'));
 
@@ -806,6 +825,125 @@ describe('App — 온보딩', () => {
       await relaunch(app);
 
       expect(header('내 작업')).toBeOnTheScreen();
+    });
+  });
+
+  // #193: 가입 약관 상세 페이지. 항목은 동의하지 않은 채로, 전체 동의는 모두 동의한 채로 열고 라디오로 고른다
+  describe('약관 상세 (#193)', () => {
+    const TERMS_TITLE = '서비스 이용을 위해 동의가 필요해요';
+    const row = (name: string) => button(name);
+
+    async function openTerms() {
+      const app = await launch('TERMS');
+      await login('카카오로 시작하기');
+      await screen.findByRole('header', { name: TERMS_TITLE });
+      return app;
+    }
+
+    it("'서비스 이용약관 (필수)'를 누르면 동의하지 않은 채로 그 상세가 열리고, 원격 전문을 보인다", async () => {
+      const app = await openTerms();
+
+      await userEvent.press(row('서비스 이용약관 (필수)'));
+
+      expect(
+        await screen.findByRole('header', { name: '(필수) 서비스 이용약관' }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByRole('radio', { name: '동의합니다' }),
+      ).not.toBeChecked();
+      expect(
+        screen.getByRole('radio', { name: '동의하지 않습니다' }),
+      ).toBeChecked();
+      expect(await screen.findByText('제1조(service 목적)')).toBeOnTheScreen();
+      expect(
+        app.server.callsTo('GET', termsDocumentUrl('service')),
+      ).toHaveLength(1);
+    });
+
+    it('상세에서 동의합니다를 고르고 돌아오면 그 행이 동의돼 있다', async () => {
+      await openTerms();
+
+      await chooseInDetail(
+        '서비스 이용약관 (필수)',
+        '(필수) 서비스 이용약관',
+        '동의합니다',
+      );
+
+      expect(row('서비스 이용약관 (필수)')).toHaveAccessibilityValue({
+        text: '동의함',
+      });
+      expect(row('개인정보 처리방침 (필수)')).toHaveAccessibilityValue({
+        text: '동의 안 함',
+      });
+      expect(button('가입하기')).toBeDisabled();
+    });
+
+    it('개인정보 처리방침(필수)은 개인정보 수집·이용 동의 전문을, 제3자 제공은 준비 중 안내를 보인다', async () => {
+      await openTerms();
+
+      await userEvent.press(row('개인정보 처리방침 (필수)'));
+      expect(
+        await screen.findByText('제1조(privacy-consent 목적)'),
+      ).toBeOnTheScreen();
+      await userEvent.press(button('뒤로 가기'));
+
+      await userEvent.press(row('제3자 제공 동의 (필수)'));
+      expect(
+        await screen.findByRole('header', { name: '(필수) 제3자 제공 동의' }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByText('약관 전문을 준비하고 있어요.'),
+      ).toBeOnTheScreen();
+    });
+
+    it("'모든 약관에 동의합니다'를 누르면 모두 동의한 채로 상세 페이지로 넘어가고, 거기서 필수 약관을 동의하지 않으면 가입하기가 비활성이다", async () => {
+      await openTerms();
+
+      await userEvent.press(
+        screen.getByRole('checkbox', { name: '모든 약관에 동의합니다.' }),
+      );
+
+      // 모든 약관이 행 순서로 한 페이지에 있고 첫 약관부터 보인다
+      expect(
+        await screen.findByRole('header', { name: '(필수) 서비스 이용약관' }),
+      ).toBeOnTheScreen();
+      const [serviceAgree] = screen.getAllByRole('radio', {
+        name: '동의합니다',
+      });
+      expect(serviceAgree).toBeChecked();
+      for (const radio of screen.getAllByRole('radio', {
+        name: '동의하지 않습니다',
+      })) {
+        expect(radio).not.toBeChecked();
+      }
+
+      await userEvent.press(
+        screen.getAllByRole('radio', { name: '동의하지 않습니다' })[0],
+      );
+      await userEvent.press(button('뒤로 가기'));
+      await screen.findByRole('header', { name: TERMS_TITLE });
+
+      expect(row('서비스 이용약관 (필수)')).toHaveAccessibilityValue({
+        text: '동의 안 함',
+      });
+      expect(row('개인정보 처리방침 (필수)')).toHaveAccessibilityValue({
+        text: '동의함',
+      });
+      expect(
+        screen.getByRole('checkbox', { name: '모든 약관에 동의합니다.' }),
+      ).not.toBeChecked();
+      expect(button('가입하기')).toBeDisabled();
+    });
+
+    it('약관 상세에서 Android 뒤로가기를 누르면 가입 약관으로 돌아온다', async () => {
+      await openTerms();
+      await userEvent.press(row('서비스 이용약관 (필수)'));
+      await screen.findByRole('header', { name: '(필수) 서비스 이용약관' });
+
+      expect(await pressBack()).toBe(true);
+
+      expect(header(TERMS_TITLE)).toBeOnTheScreen();
+      expect(header('(필수) 서비스 이용약관')).not.toBeOnTheScreen();
     });
   });
 

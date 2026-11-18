@@ -26,6 +26,7 @@ import {
 } from '../../features/my/profileTesting';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
+import { noTermsAgreed } from '../../features/onboarding/model';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
 import { TermsDetailScreen } from '../../features/terms/screens/TermsDetailScreen';
 import { withTermsDocuments } from '../../features/terms/testing';
@@ -186,7 +187,16 @@ const blocked: [string, ReactElement][] = [
     '온보딩 프로필 등록',
     <ProfileRegisterScreen onBack={noop} onSubmit={noop} />,
   ],
-  ['온보딩 약관 동의', <TermsAgreementScreen onBack={noop} onSignUp={noop} />],
+  [
+    '온보딩 약관 동의',
+    <TermsAgreementScreen
+      agreement={noTermsAgreed}
+      onChangeAgreement={noop}
+      onOpenTerms={noop}
+      onBack={noop}
+      onSignUp={noop}
+    />,
+  ],
   [
     '온보딩 참여 완료',
     <JoinApprovedScreen

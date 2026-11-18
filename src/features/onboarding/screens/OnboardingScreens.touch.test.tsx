@@ -1,15 +1,6 @@
-import {
-  act,
-  render,
-  screen,
-  userEvent,
-  within,
-} from '@testing-library/react-native';
-import { NativeModules } from 'react-native';
-import {
-  expectIconButtonTouchTarget,
-  expectMinTouchTarget,
-} from '../../../shared/testing/touchTarget';
+import { render, screen } from '@testing-library/react-native';
+import { expectMinTouchTarget } from '../../../shared/testing/touchTarget';
+import { noTermsAgreed } from '../model';
 import { LoginScreen } from './LoginScreen';
 import { TermsAgreementScreen } from './TermsAgreementScreen';
 
@@ -32,22 +23,16 @@ describe('온보딩 터치 영역', () => {
   });
 
   describe('약관 동의', () => {
-    beforeEach(() => {
-      // 바텀시트 애니메이션은 바로 끝낸다
-      jest
-        .spyOn(NativeModules.NativeAnimatedModule, 'startAnimatingNode')
-        .mockImplementation((...args: unknown[]) =>
-          (args[3] as (result: { finished: boolean }) => void)({
-            finished: true,
-          }),
-        );
-    });
-    afterEach(() => {
-      jest.restoreAllMocks();
-    });
-
     const renderTerms = () =>
-      render(<TermsAgreementScreen onBack={jest.fn()} onSignUp={jest.fn()} />);
+      render(
+        <TermsAgreementScreen
+          agreement={noTermsAgreed}
+          onChangeAgreement={jest.fn()}
+          onOpenTerms={jest.fn()}
+          onBack={jest.fn()}
+          onSignUp={jest.fn()}
+        />,
+      );
 
     // 상자(22)·체크 표시(24)가 글자 줄보다 높아 보이는 높이가 된다
     it('전체 동의 체크박스는 상자 22 를 위아래로 넓힌다', async () => {
@@ -59,34 +44,15 @@ describe('온보딩 터치 영역', () => {
       );
     });
 
-    it('약관 행의 체크는 체크 표시 24 를 위아래로 넓히고, > 는 아이콘 버튼 기준을 따른다', async () => {
+    // 행 전체가 약관 상세를 여는 버튼이다 (#193). 높이는 체크 표시·> 아이콘(24)이 정한다
+    it('약관 행은 체크 표시 24 높이를 위아래로 넓힌다', async () => {
       await renderTerms();
 
-      for (const checkbox of screen
-        .getAllByRole('checkbox')
-        .filter(item => item.props.accessibilityLabel !== undefined)) {
-        expectMinTouchTarget(checkbox, { height: 24 });
+      const rows = screen.getAllByRole('button', { name: /\((필수|선택)\)$/ });
+      expect(rows).toHaveLength(5);
+      for (const row of rows) {
+        expectMinTouchTarget(row, { height: 24 });
       }
-      for (const more of screen.getAllByRole('button', { name: / 보기$/ })) {
-        expectIconButtonTouchTarget(more);
-      }
-    });
-
-    it('약관 시트의 체크박스도 같은 기준이다', async () => {
-      await renderTerms();
-      await userEvent.press(
-        screen.getByRole('button', { name: '서비스 이용약관 (필수) 보기' }),
-      );
-      await act(async () => {});
-      const sheet = within(screen.getByTestId('terms-sheet'));
-
-      expectMinTouchTarget(sheet.getByRole('checkbox', { name: '전체 동의' }), {
-        height: 22,
-      });
-      expectMinTouchTarget(
-        sheet.getByRole('checkbox', { name: '서비스 이용약관 동의 (필수)' }),
-        { height: 24 },
-      );
     });
   });
 });

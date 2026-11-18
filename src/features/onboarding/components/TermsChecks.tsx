@@ -1,30 +1,17 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import {
-  colors,
-  Icon,
-  Text,
-  touchSlop,
-  type TypographyVariant,
-} from '../../../shared/design-system';
+import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
 import { requiredLabel, type Terms } from '../model';
 
-// 약관 동의 화면과 약관 시트의 체크. 스크린리더는 "서비스 이용약관 (필수), 체크박스, 선택됨" 처럼 읽는다.
-// Figma Check Box(22, 전체 동의)와 Check(24, 약관 하나). 켜지면 Secondary, 꺼지면 Gray300 이다
+// 가입 약관 화면의 체크 (Figma 3284:22327). Check Box(22, 전체 동의)와 Check(24, 약관 하나). 켜지면 Secondary, 꺼지면 Gray300 이다
 
-/** 전체 동의: 네모 체크박스 + 글자 (Figma 3284:22327 '모든 약관에 동의합니다.', 3569:7702 '전체 동의') */
+/** 전체 동의: 네모 체크박스 + 글자 (Figma 3284:22327 '모든 약관에 동의합니다.') */
 export const AgreeAllCheckbox = memo(function OnboardingAgreeAllCheckbox({
-  label,
   checked,
   onPress,
-  variant,
-  color,
 }: {
-  label: string;
   checked: boolean;
   onPress: () => void;
-  variant: TypographyVariant;
-  color: string;
 }) {
   return (
     <Pressable
@@ -38,54 +25,62 @@ export const AgreeAllCheckbox = memo(function OnboardingAgreeAllCheckbox({
         name="check-box"
         color={checked ? colors.secondary : colors.gray[300]}
       />
-      <Text variant={variant} color={color}>
-        {label}
+      <Text variant="Body/S/SemiBold" color={colors.gray[800]}>
+        모든 약관에 동의합니다.
       </Text>
     </Pressable>
   );
 });
 
-/** 약관 하나: 체크 표시 + 이름 + (필수)·(선택). (필수) 만 Secondary 다 */
-export const TermsCheck = memo(function OnboardingTermsCheck({
+export const TERMS_AGREED = '동의함';
+export const TERMS_NOT_AGREED = '동의 안 함';
+
+/**
+ * 약관 행: 체크 표시 + 이름 + (필수)·(선택), 오른쪽 끝에 >. (필수) 만 Secondary 다.
+ * 행 전체가 그 약관 상세를 여는 버튼이고(#193), 체크 표시는 동의 상태를 보인다 (동의는 상세의 라디오로 한다).
+ * 스크린리더는 "서비스 이용약관 (필수), 동의 안 함, 버튼" 처럼 읽는다
+ */
+export const TermsRow = memo(function OnboardingTermsRow({
   terms,
-  title,
-  checked,
-  onToggle,
-  color,
-  gap,
+  agreed,
+  onOpen,
 }: {
   terms: Terms;
-  /** 화면은 terms.title, 시트는 terms.sheetTitle */
-  title: string;
-  checked: boolean;
-  onToggle: (terms: Terms) => void;
-  color: string;
-  /** 체크 표시와 이름 사이 (화면 4, 시트 8) */
-  gap: number;
+  agreed: boolean;
+  onOpen: (terms: Terms) => void;
 }) {
   const tag = requiredLabel(terms);
   return (
     <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={`${title} ${tag}`}
-      accessibilityState={{ checked }}
+      accessibilityRole="button"
+      accessibilityLabel={`${terms.title} ${tag}`}
+      accessibilityValue={{ text: agreed ? TERMS_AGREED : TERMS_NOT_AGREED }}
       hitSlop={CHECK_MARK_SLOP}
-      onPress={() => onToggle(terms)}
-      style={[styles.row, { gap }]}
+      onPress={() => onOpen(terms)}
+      style={styles.row}
     >
       <Icon
         name="check-mark"
-        color={checked ? colors.secondary : colors.gray[300]}
+        color={agreed ? colors.secondary : colors.gray[300]}
       />
-      <Text variant="Caption/M/Medium" color={color} style={styles.label}>
-        {`${title} `}
+      <Text
+        variant="Caption/M/Medium"
+        color={colors.gray[600]}
+        style={styles.label}
+      >
+        {`${terms.title} `}
         <Text
           variant="Caption/M/Medium"
-          color={terms.required ? colors.secondary : color}
+          color={terms.required ? colors.secondary : colors.gray[600]}
         >
           {tag}
         </Text>
       </Text>
+      <Icon
+        name="chevron-right-line"
+        color={colors.inputDisabled}
+        style={styles.more}
+      />
     </Pressable>
   );
 });
@@ -96,6 +91,9 @@ const CHECK_MARK_SLOP = { top: touchSlop(24), bottom: touchSlop(24) };
 
 const styles = StyleSheet.create({
   allRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-  label: { flexShrink: 1 },
+  // 체크 표시와 이름 사이 4 (Figma Frame 2147239647: 체크 24, 글자 x 28)
+  row: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  label: { flex: 1 },
+  // 화살표 선이 행 오른쪽 끝에서 5 안쪽에 오도록 아이콘 틀(24)을 바깥으로 민다
+  more: { marginRight: -4 },
 });
