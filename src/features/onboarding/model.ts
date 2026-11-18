@@ -83,6 +83,20 @@ export function allTermsAgreed(agreement: TermsAgreement): boolean {
   return termsList.every(terms => agreement[terms.type]);
 }
 
+/** 모든 약관을 같은 값으로 ('모든 약관에 동의합니다' 의 모두 동의·모두 끄기) */
+export function allTermsAgreedWith(agreed: boolean): TermsAgreement {
+  return {
+    SERVICE: agreed,
+    PRIVACY: agreed,
+    THIRD_PARTY: agreed,
+    LOCATION: agreed,
+    MARKETING: agreed,
+  };
+}
+
+export const isTermsType = (value: string): value is TermsType =>
+  (ALL_TERMS_TYPES as readonly string[]).includes(value);
+
 /** 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끈다 */
 export function toggleAllTerms(agreement: TermsAgreement): TermsAgreement {
   const next = !allTermsAgreed(agreement);

@@ -2,6 +2,7 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import { useState } from 'react';
 import {
   ALL_TERMS_TYPES,
+  allTermsAgreedWith,
   noTermsAgreed,
   type TermsAgreement,
   type TermsType,
@@ -24,7 +25,7 @@ async function renderTerms({
     return (
       <TermsAgreementScreen
         agreement={agreement}
-        onChangeAgreement={setAgreement}
+        onAgreeAll={agreed => setAgreement(allTermsAgreedWith(agreed))}
         submitting={submitting}
         {...props}
       />

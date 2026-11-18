@@ -23,6 +23,7 @@ import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
 import type { CompanyCheckHandlers } from '../../features/my/org/useCompanyCheck';
 import {
+  isTermsType,
   loginMethodsFor,
   termsDetailTitle,
   termsList,
@@ -241,7 +242,7 @@ export function TermsAgreementRoute({
     <TermsAgreementScreen
       titleRef={titleRef}
       agreement={terms.agreement}
-      onChangeAgreement={terms.setAgreement}
+      onAgreeAll={terms.agreeAll}
       onOpenTerms={openTerms}
       submitting={agree.isPending}
       onBack={() => navigation.goBack()}
@@ -269,7 +270,7 @@ export function SignUpTermsDetailRoute({
   route,
 }: OnboardingScreenProps<'TermsDetail'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
-  const { agreement, setAgreement } = useTermsAgreement();
+  const { agreement, choose } = useTermsAgreement();
   const { types } = route.params;
   const sections = useMemo<readonly TermsDetailSection[]>(
     () =>
@@ -283,17 +284,21 @@ export function SignUpTermsDetailRoute({
         })),
     [types],
   );
-  const choose = useCallback(
-    (key: string, agreed: boolean) =>
-      setAgreement(current => ({ ...current, [key]: agreed })),
-    [setAgreement],
+  // 상세는 약관을 문자열 키로 알린다. 가입 약관 종류만 받는다
+  const chooseTerms = useCallback(
+    (key: string, agreed: boolean) => {
+      if (isTermsType(key)) {
+        choose(key, agreed);
+      }
+    },
+    [choose],
   );
 
   return (
     <TermsDetailScreen
       sections={sections}
       agreement={agreement}
-      onAgreeChange={choose}
+      onAgreeChange={chooseTerms}
       standalone
       titleRef={titleRef}
       onBack={() => navigation.goBack()}

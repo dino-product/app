@@ -118,7 +118,7 @@ describe('TermsDetailScreen', () => {
     await render(
       <TermsAgreementScreen
         agreement={noTermsAgreed}
-        onChangeAgreement={jest.fn()}
+        onAgreeAll={jest.fn()}
         onOpenTerms={jest.fn()}
         onBack={jest.fn()}
         onSignUp={jest.fn()}

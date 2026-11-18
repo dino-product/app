@@ -27,7 +27,7 @@ describe('온보딩 터치 영역', () => {
       render(
         <TermsAgreementScreen
           agreement={noTermsAgreed}
-          onChangeAgreement={jest.fn()}
+          onAgreeAll={jest.fn()}
           onOpenTerms={jest.fn()}
           onBack={jest.fn()}
           onSignUp={jest.fn()}

@@ -191,7 +191,7 @@ const blocked: [string, ReactElement][] = [
     '온보딩 약관 동의',
     <TermsAgreementScreen
       agreement={noTermsAgreed}
-      onChangeAgreement={noop}
+      onAgreeAll={noop}
       onOpenTerms={noop}
       onBack={noop}
       onSignUp={noop}

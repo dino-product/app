@@ -1,7 +1,9 @@
 import {
   allTermsAgreed,
+  allTermsAgreedWith,
   canRegisterProfile,
   canSignUp,
+  isTermsType,
   loginMethodsFor,
   noTermsAgreed,
   termsList,
@@ -81,6 +83,18 @@ describe('약관', () => {
     expect(allTermsAgreed(all)).toBe(true);
     expect(canSignUp(all)).toBe(true);
     expect(toggleAllTerms(all)).toEqual(noTermsAgreed);
+  });
+});
+
+describe('약관 모두 같은 값으로 (#193)', () => {
+  it('모두 동의·모두 끄기', () => {
+    expect(allTermsAgreed(allTermsAgreedWith(true))).toBe(true);
+    expect(allTermsAgreedWith(false)).toEqual(noTermsAgreed);
+  });
+
+  it('약관 종류인지', () => {
+    expect(isTermsType('MARKETING')).toBe(true);
+    expect(isTermsType('service')).toBe(false);
   });
 });
 

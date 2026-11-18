@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  type Dispatch,
-  type Ref,
-  type SetStateAction,
-} from 'react';
+import { useCallback, type Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Text } from '../../../shared/design-system';
@@ -19,7 +14,6 @@ import {
   ALL_TERMS_TYPES,
   allTermsAgreed,
   canSignUp,
-  noTermsAgreed,
   termsList,
   type Terms,
   type TermsAgreement,
@@ -32,7 +26,7 @@ import {
 // 동의 상태는 경로가 들고 있다: 약관 상세(다른 경로)에서 고른 라디오가 이 화면의 체크가 된다
 export function TermsAgreementScreen({
   agreement,
-  onChangeAgreement,
+  onAgreeAll,
   onOpenTerms,
   submitting = false,
   onBack,
@@ -40,7 +34,8 @@ export function TermsAgreementScreen({
   titleRef,
 }: {
   agreement: TermsAgreement;
-  onChangeAgreement: Dispatch<SetStateAction<TermsAgreement>>;
+  /** 모든 약관을 동의(true)·비동의(false)로 바꾼다 */
+  onAgreeAll: (agreed: boolean) => void;
   /** 약관 상세를 연다. 행은 그 약관 하나, 전체 동의는 모든 약관 (행 순서) */
   onOpenTerms: (types: readonly TermsType[]) => void;
   /** 서버에 동의를 보내는 동안 '가입하기' 를 끈다 */
@@ -59,10 +54,10 @@ export function TermsAgreementScreen({
   );
   const agreeAll = () => {
     if (allAgreed) {
-      onChangeAgreement(noTermsAgreed);
+      onAgreeAll(false);
       return;
     }
-    onChangeAgreement(everyTermsAgreed);
+    onAgreeAll(true);
     onOpenTerms(ALL_TERMS_TYPES);
   };
 
@@ -114,14 +109,6 @@ export function TermsAgreementScreen({
     </SafeAreaView>
   );
 }
-
-const everyTermsAgreed: TermsAgreement = {
-  SERVICE: true,
-  PRIVACY: true,
-  THIRD_PARTY: true,
-  LOCATION: true,
-  MARKETING: true,
-};
 
 const styles = StyleSheet.create({
   // 머리 아래 22 에 제목, 제목 아래 54 에 약관 (Figma 위치 132·248)

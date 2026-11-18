@@ -8,7 +8,7 @@ describe('TermsAgreementScreen 렌더 예산', () => {
     const result = await measureRenders(
       <TermsAgreementScreen
         agreement={noTermsAgreed}
-        onChangeAgreement={() => {}}
+        onAgreeAll={() => {}}
         onOpenTerms={() => {}}
         onBack={() => {}}
         onSignUp={() => {}}
