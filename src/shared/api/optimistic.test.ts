@@ -132,4 +132,21 @@ describe('applyOptimistic', () => {
       items: ['a', 'b', 'c'],
     });
   });
+
+  // 같은 접두어라도 키(구간 등)에 따라 다르게 바꿀 수 있다
+  it('바꿀 때 그 조회의 키를 같이 받는다', async () => {
+    queryClient.setQueryData<List>(['list', 'keep'], { items: ['b'] });
+    queryClient.setQueryData<List>(['list', 'drop'], { items: ['b'] });
+
+    await applyOptimistic(queryClient, [
+      optimisticChange<List>({ queryKey: ['list'] }, (data, queryKey) =>
+        queryKey[1] === 'drop' ? { items: [] } : data,
+      ),
+    ]);
+
+    expect(queryClient.getQueryData(['list', 'keep'])).toEqual({
+      items: ['b'],
+    });
+    expect(queryClient.getQueryData(['list', 'drop'])).toEqual({ items: [] });
+  });
 });

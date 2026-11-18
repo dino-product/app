@@ -15,18 +15,24 @@ import type {
 /** 낙관 반영 하나: filters 에 맞는 조회의 값을 update 로 바꾼다 */
 export type OptimisticChange = {
   filters: QueryFilters;
-  update: (data: unknown) => unknown;
+  update: (data: unknown, queryKey: QueryKey) => unknown;
 };
 
 /** 되돌리기. 부르면 바꾸기 전 값으로 돌린다 */
 export type Rollback = () => void;
 
-/** 조회 값의 타입을 정해 쓰는 낙관 반영. update 가 같은 값을 돌려주면 그 조회는 건드리지 않는다 */
+/**
+ * 조회 값의 타입을 정해 쓰는 낙관 반영. update 는 그 조회의 키(구간 등)도 받는다.
+ * 같은 값을 돌려주면 그 조회는 건드리지 않는다
+ */
 export function optimisticChange<TData>(
   filters: QueryFilters,
-  update: (data: TData) => TData,
+  update: (data: TData, queryKey: QueryKey) => TData,
 ): OptimisticChange {
-  return { filters, update: update as (data: unknown) => unknown };
+  return {
+    filters,
+    update: update as (data: unknown, queryKey: QueryKey) => unknown,
+  };
 }
 
 // 받은 값이 있는 조회만 다룬다. 처음 받는 중인 조회는 취소하면 다시 받을 계기가 없고, 바꿀 값도 없다
@@ -61,7 +67,7 @@ export async function applyOptimistic(
   for (const { filters, update } of targets) {
     for (const query of cache.findAll(filters)) {
       const { data, dataUpdatedAt } = query.state;
-      const next = update(data);
+      const next = update(data, query.queryKey);
       if (next !== data) {
         snapshots.push({ queryKey: query.queryKey, data, dataUpdatedAt });
         queryClient.setQueryData(query.queryKey, next, {
