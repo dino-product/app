@@ -4,8 +4,9 @@ import {
   screen,
   userEvent,
   waitFor,
+  within,
 } from '@testing-library/react-native';
-import { Alert, type AlertButton } from 'react-native';
+import { Alert, StyleSheet, type AlertButton } from 'react-native';
 import { escapeFrom } from '../../../../../jest/voiceOver';
 import {
   colors,
@@ -20,6 +21,10 @@ import {
 } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
+import {
+  stylePt,
+  type HostElement,
+} from '../../../../shared/testing/touchTarget';
 import type { ParticipationRequest } from '../model';
 import { cancelRequestPath, OrganizationErrorCode } from '../participationApi';
 import { participationRequestsKey } from '../participationQueries';
@@ -56,6 +61,8 @@ const openCancel = () =>
 const confirmCancel = () =>
   userEvent.press(screen.getByRole('button', { name: '취소' }));
 const spyAlert = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+/** 진행 표시의 n 번째 단계 원 */
+const circle = (step: number) => screen.getByTestId(`join-step-${step}-circle`);
 
 function renderRequested(
   extra: Partial<Parameters<typeof JoinRequestedScreen>[0]> = {},
@@ -103,9 +110,10 @@ describe('JoinRequestedScreen', () => {
     expect(
       screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
     ).toBeOnTheScreen();
+    // 마이 Figma(3235:14886)의 첫 단계 이름은 '검토 중' 이다 (온보딩 3227:8824 는 '요청 완료')
     expect(
       screen.getByLabelText(
-        '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
+        '진행 단계: 검토 중, 다음은 사무실 검토 중, 참여 완료',
       ),
     ).toBeOnTheScreen();
   });
@@ -466,6 +474,212 @@ describe('JoinRequestedScreen', () => {
       expect(
         screen.getByText('이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다.'),
       ).toBeOnTheScreen();
+    });
+
+    // 온보딩 모양은 이 작업(#199)에서 바꾸지 않는다: 진행 표시 원 36 · 숫자 Body/XS/SemiBold · 단계 폭 88 · 첫 단계 '요청 완료'
+    it('온보딩 진행 표시는 지금 모양 그대로다', async () => {
+      await renderRequested({ flow: 'onboarding' });
+
+      expect(
+        screen.getByLabelText(
+          '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
+        ),
+      ).toBeOnTheScreen();
+      expect(circle(2)).toHaveStyle({
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: colors.gray[200],
+      });
+      expect(stylePt(circle(2), 'borderWidth')).toBe(0);
+      expect(within(circle(2)).getByText('2')).toHaveStyle(
+        typography['Body/XS/SemiBold'],
+      );
+      expect(circle(2).parent).toHaveStyle({ width: 88, gap: 8 });
+      expect(screen.getByText('요청 완료')).toHaveStyle({
+        ...typography['Caption/M/SemiBold'],
+        color: colors.gray[700],
+      });
+      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
+      expect(screen.queryByLabelText(/^상태,/)).toBeNull();
+    });
+  });
+
+  // 마이 › 조직 참여에서 보낸 요청과 마이페이지 검토 줄에서 연 요청은 Figma 회사찾기-요청완료 (3235:14886) 의 패널 값이다
+  describe('마이 모양 (Figma 3235:14886)', () => {
+    it('아이콘 40 아래 24 에 제목, 제목–설명 6, 설명은 Body/XS/Medium Gray600 이다', async () => {
+      await renderRequested();
+
+      const title = screen.getByRole('header', {
+        name: '참여 요청을 보냈어요',
+      });
+      expect(title).toHaveStyle({
+        ...typography['Body/L/Bold'],
+        color: colors.gray[900],
+      });
+      const texts = title.parent as HostElement;
+      expect(texts).toHaveStyle({ gap: 6 });
+      expect(texts.parent).toHaveStyle({ gap: 24 });
+      const [icon] = (texts.parent as HostElement).children as HostElement[];
+      expect(icon).toHaveStyle({ width: 40, height: 40 });
+      expect(
+        screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
+      ).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[600],
+      });
+    });
+
+    // 머리 아래 36 에서 시작 (Figma 152 − 머리 116), 안내–진행 24, 진행–요약 42, 요약–아래 문구 12
+    it('세로 간격은 머리 아래 36, 안내–진행 24, 진행–요약 42, 요약–아래 문구 12 다', async () => {
+      await renderRequested();
+
+      const steps = screen.getByTestId('join-steps');
+      expect(steps.parent).toHaveStyle({ gap: 24 });
+      const footnote = screen.getByText(
+        '승인 전까지 회사의 일정과 작업은 표시되지 않습니다.',
+      );
+      expect(footnote.parent).toHaveStyle({ gap: 12 });
+      expect(footnote).toHaveStyle({
+        ...typography['Caption/S/Medium'],
+        color: colors.libraryGray[500],
+      });
+      let scroll = steps.parent;
+      while (scroll && scroll.type !== 'RCTScrollView') {
+        scroll = scroll.parent;
+      }
+      expect(
+        StyleSheet.flatten(scroll?.props.contentContainerStyle),
+      ).toMatchObject({ paddingTop: 36, paddingHorizontal: 24, gap: 42 });
+    });
+
+    // 원은 40 이고 바깥 흰 테 6 이 뒤의 선을 가린다. 숫자 Body/S/SemiBold 흰색, 단계 이름 Caption/M/SemiBold 위 10
+    it('진행 표시 원은 40 에 흰 테 6, 숫자는 Body/S/SemiBold, 이름은 원 아래 10 이다', async () => {
+      await renderRequested();
+
+      for (const step of [1, 2, 3]) {
+        const node = circle(step);
+        expect(stylePt(node, 'width') - 2 * stylePt(node, 'borderWidth')).toBe(
+          40,
+        );
+        expect(node).toHaveStyle({
+          height: 52,
+          borderRadius: 26,
+          borderWidth: 6,
+          borderColor: colors.white[100],
+          margin: -6,
+        });
+        expect(node.parent).toHaveStyle({ gap: 10 });
+      }
+      expect(circle(1)).toHaveStyle({ backgroundColor: colors.secondary });
+      expect(circle(2)).toHaveStyle({ backgroundColor: colors.gray[200] });
+      expect(within(circle(2)).getByText('2')).toHaveStyle({
+        ...typography['Body/S/SemiBold'],
+        color: colors.white[100],
+      });
+      expect(screen.getByText('검토 중')).toHaveStyle({
+        ...typography['Caption/M/SemiBold'],
+        color: colors.gray[700],
+      });
+      expect(screen.getByText('참여 완료')).toHaveStyle({
+        ...typography['Caption/M/SemiBold'],
+        color: colors.gray[500],
+      });
+    });
+
+    // Figma Line 67: 1 두께 Gray200(#DEDEDE), 첫 원 가운데에서 마지막 원 가운데까지. 단계 가운데 사이 117
+    it('단계 사이 선은 1 두께 Gray200 이고, 단계 가운데 사이는 117 이다', async () => {
+      await renderRequested();
+
+      expect(screen.getByTestId('join-steps-line')).toHaveStyle({
+        height: 1,
+        top: 19.5,
+        backgroundColor: colors.gray[200],
+      });
+      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
+      expect(circle(1).parent).toHaveStyle({ flex: 1 });
+      const row = circle(1).parent?.parent as HostElement;
+      expect(row).toHaveStyle({ maxWidth: 117 * 3 });
+      // 콘텐츠 폭 345 보다 6 넓은 351 을 세 칸으로 나눈다
+      expect(row.parent).toHaveStyle({ marginHorizontal: -3 });
+    });
+
+    it('버튼 사이는 10 이다', async () => {
+      await renderRequested();
+
+      expect(screen.getByRole('button', { name: '확인' }).parent).toHaveStyle({
+        gap: 10,
+      });
+    });
+  });
+
+  // #199: 마이페이지 소속 카드의 검토 줄에서 연 요청. 맥락에 맞는 제목, 사무실 검토 중까지 채운 진행 표시, 상태 칩
+  describe('마이페이지 검토 줄에서 연 경우 (#199)', () => {
+    const renderReviewing = () =>
+      renderRequested({
+        stage: 'reviewing',
+        request: { ...request, requestChannel: undefined },
+      });
+
+    it('머리 제목은 조직 참여하기 대신 참여 요청 현황이다', async () => {
+      await renderReviewing();
+
+      expect(
+        screen.getByRole('header', { name: '참여 요청 현황' }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.queryByRole('header', { name: '조직 참여하기' }),
+      ).toBeNull();
+    });
+
+    it('진행 표시는 사무실 검토 중 단계까지 채워져 있다', async () => {
+      await renderReviewing();
+
+      expect(
+        screen.getByLabelText(
+          '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
+        ),
+      ).toBeOnTheScreen();
+      expect(circle(2)).toHaveStyle({ backgroundColor: colors.secondary });
+      expect(circle(3)).toHaveStyle({ backgroundColor: colors.gray[200] });
+      expect(screen.getByText('사무실 검토 중')).toHaveStyle({
+        color: colors.gray[700],
+      });
+      // 첫 원 가운데에서 둘째 원 가운데까지 (세 칸 중 한 칸) Secondary
+      expect(screen.getByTestId('join-steps-fill')).toHaveStyle({
+        height: 1,
+        top: 19.5,
+        left: `${100 / 6}%`,
+        width: `${100 / 3}%`,
+        backgroundColor: colors.secondary,
+      });
+    });
+
+    // 칩 값은 마이페이지 소속 카드의 검토 칩(Figma 3235:17157)과 같다. 요약 카드 첫 줄 '상태' 오른쪽에 둔다
+    it('요약 첫 줄에 상태 칩(검토)을 보인다', async () => {
+      await renderReviewing();
+
+      const row = screen.getByLabelText('상태, 검토');
+      const chip = within(row).getByTestId('join-request-status');
+      expect(chip).toHaveStyle({
+        backgroundColor: colors.registered[2],
+        minHeight: 21,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+      });
+      expect(within(chip).getByText('검토')).toHaveStyle({
+        ...typography['Caption/S/Medium'],
+        color: colors.registered[1],
+      });
+      const card = row.parent as HostElement;
+      expect(card.children[0]).toBe(row);
+    });
+
+    it('보낸 직후의 요청 완료에는 상태 칩이 없고 진행 표시는 첫 단계까지다', async () => {
+      await renderRequested();
+
+      expect(screen.queryByLabelText(/^상태,/)).toBeNull();
+      expect(circle(2)).toHaveStyle({ backgroundColor: colors.gray[200] });
     });
   });
 });

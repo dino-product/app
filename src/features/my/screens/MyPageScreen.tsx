@@ -26,6 +26,11 @@ import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
 import {
+  MembershipChip,
+  membershipChipLabels,
+  type MembershipChipStatus,
+} from '../components/MembershipChip';
+import {
   MembershipsSkeleton,
   ProfileCardSkeleton,
 } from '../components/MySkeletons';
@@ -36,17 +41,27 @@ import {
   memberRoleLabels,
   type Profile,
 } from '../model';
+import {
+  participationTypeLabels,
+  type ParticipationRequest,
+} from '../org/model';
 import type { QueryState } from '../queryState';
 
 // Figma 마이페이지 (3235:17104). 프로필은 GET /profiles/{accountId}, 소속 발주사는 GET /memberships 결과다 (#115).
 // 경로가 조회(useMyProfile·useMyMemberships)해 넘기고, 받은 값·상태가 같으면 다시 그리지 않는다(memo, 탭 전환 렌더 0).
 // 받는 중·실패(다시 시도)는 카드마다 따로 보이고, 설정 행(로그아웃 등)은 그동안에도 쓸 수 있다.
 // 로딩·오류 자리는 Figma 에 없어 공용 자리(LoadStateView)로 둔다 (Figma 미확인)
+// 소속 카드에는 소속(승인·비활성) 줄 아래에 사무실이 검토 중인 참여 요청(검토) 줄이 이어진다 (#199).
+// 검토 줄만 눌러 그 요청의 진행 상황을 연다. 승인 줄의 참여 완료 화면은 참여 승인 알림으로만 연다
 export type MyPageScreenProps = {
   profile: QueryState<Profile>;
   memberships: QueryState<readonly MembershipResponse[]>;
   /** 아직 결과가 나오지 않은 조직 참여 신청 수 */
   pendingRequestCount: number;
+  /** 사무실이 검토 중인 참여 요청 (신청 현황의 승인 대기). 소속 카드에 검토 줄로 보인다. 받기 전이면 비워 둔다 */
+  reviewRequests?: readonly ParticipationRequest[];
+  /** 검토 줄을 눌렀다: 그 참여 요청의 진행 상황 (#199) */
+  onOpenReviewRequest?: (requestId: string) => void;
   onOpenNotifications: () => void;
   onEditProfile: () => void;
   /** 참여 신청 현황 (#73) */
@@ -64,6 +79,8 @@ function MyPageScreenView({
   profile,
   memberships,
   pendingRequestCount,
+  reviewRequests = NO_REVIEW_REQUESTS,
+  onOpenReviewRequest = ignoreReviewRequest,
   onOpenNotifications,
   onEditProfile,
   onOpenRequestStatus,
@@ -172,17 +189,31 @@ function MyPageScreenView({
                   style={styles.membershipLoad}
                   skeleton={<MembershipsSkeleton />}
                 />
-              ) : memberships.data.length === 0 ? (
+              ) : memberships.data.length === 0 &&
+                reviewRequests.length === 0 ? (
                 <Text variant="Caption/M/Medium" color={colors.gray[600]}>
                   아직 소속된 발주사가 없어요
                 </Text>
               ) : (
-                memberships.data.map((membership, index) => (
-                  <Fragment key={membership.organizationId}>
-                    {index > 0 && <View style={styles.divider} />}
-                    <MembershipRow membership={membership} />
-                  </Fragment>
-                ))
+                <>
+                  {memberships.data.map((membership, index) => (
+                    <Fragment key={membership.organizationId}>
+                      {index > 0 && <View style={styles.divider} />}
+                      <MembershipRow membership={membership} />
+                    </Fragment>
+                  ))}
+                  {reviewRequests.map((request, index) => (
+                    <Fragment key={`review-${request.requestId}`}>
+                      {(memberships.data.length > 0 || index > 0) && (
+                        <View style={styles.divider} />
+                      )}
+                      <ReviewRequestRow
+                        request={request}
+                        onPress={onOpenReviewRequest}
+                      />
+                    </Fragment>
+                  ))}
+                </>
               )}
             </View>
           </View>
@@ -220,23 +251,17 @@ function MyPageScreenView({
 
 export const MyPageScreen = memo(MyPageScreenView);
 
-const statusSpec = {
-  ACTIVE: {
-    label: '활성',
-    background: colors.completed[2],
-    foreground: colors.completed[1],
-  },
-  DEACTIVATED: {
-    label: '비활성',
-    background: colors.registered[2],
-    foreground: colors.registered[1],
-  },
-} as const;
+const NO_REVIEW_REQUESTS: readonly ParticipationRequest[] = [];
+const ignoreReviewRequest = () => {};
 
-const chipBackgrounds = StyleSheet.create({
-  ACTIVE: { backgroundColor: statusSpec.ACTIVE.background },
-  DEACTIVATED: { backgroundColor: statusSpec.DEACTIVATED.background },
-});
+// 소속 상태별 칩. Figma 소속 카드는 활성 소속을 '승인' 으로 보인다 (3235:17151)
+const membershipChipStatus: Record<
+  MembershipResponse['status'],
+  MembershipChipStatus
+> = {
+  ACTIVE: 'approved',
+  DEACTIVATED: 'deactivated',
+};
 
 // 누르면 프로필 수정으로 간다. 가입 시각이 아직 없으면(가입을 마치기 전) 가입일 줄을 비운다
 function ProfileCard({
@@ -292,12 +317,12 @@ const MembershipRow = memo(function MyMembershipRow({
   membership: MembershipResponse;
 }) {
   const { organizationId, organizationName, role, status } = membership;
-  const spec = statusSpec[status];
+  const chip = membershipChipStatus[status];
   const roleLabel = memberRoleLabels[role];
   return (
     <View
       accessible
-      accessibilityLabel={`${organizationName}, ${roleLabel}, ${spec.label}`}
+      accessibilityLabel={`${organizationName}, ${roleLabel}, ${membershipChipLabels[chip]}`}
       style={styles.membershipRow}
       testID={`membership-${organizationId}`}
     >
@@ -307,15 +332,45 @@ const MembershipRow = memo(function MyMembershipRow({
           {roleLabel}
         </Text>
       </View>
-      <View
-        style={[styles.chip, chipBackgrounds[status]]}
+      <MembershipChip
+        status={chip}
         testID={`membership-${organizationId}-status`}
-      >
-        <Text variant="Caption/S/Medium" color={spec.foreground}>
-          {spec.label}
+      />
+    </View>
+  );
+});
+
+// 사무실이 검토 중인 참여 요청 줄 (Figma 3235:17153 '검토'). 소속 줄과 같은 글자·칩에 역할 대신 희망 유형을 보이고,
+// 누르면 그 요청의 진행 상황(참여 요청 현황)을 연다 (#199). 화살표는 Figma 에 없어 두지 않는다
+const ReviewRequestRow = memo(function MyReviewRequestRow({
+  request,
+  onPress,
+}: {
+  request: ParticipationRequest;
+  onPress: (requestId: string) => void;
+}) {
+  const { requestId, organizationName, desiredType } = request;
+  const typeLabel = participationTypeLabels[desiredType];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${organizationName}, ${typeLabel}, ${membershipChipLabels.review}`}
+      accessibilityHint="참여 요청 진행 상황을 엽니다"
+      onPress={() => onPress(requestId)}
+      style={reviewRowStyle}
+      testID={`review-request-${requestId}`}
+    >
+      <View style={styles.membershipText}>
+        <Text variant="Body/XS/SemiBold">{organizationName}</Text>
+        <Text variant="Caption/M/Medium" color={colors.libraryGray[500]}>
+          {typeLabel}
         </Text>
       </View>
-    </View>
+      <MembershipChip
+        status="review"
+        testID={`review-request-${requestId}-status`}
+      />
+    </Pressable>
   );
 });
 
@@ -351,6 +406,11 @@ const settingRowStyle = ({ pressed }: PressableStateCallbackType) => [
   styles.settingRow,
   pressed && styles.rowPressed,
 ];
+const reviewRowStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.membershipRow,
+  styles.reviewRow,
+  pressed && styles.rowPressed,
+];
 
 // Figma 에만 있는 색 (컬렉션 밖 값)
 const CHEVRON_COLOR = '#A1A1AA';
@@ -370,6 +430,8 @@ const CARD_INSET = 8;
 const ROW_RADIUS = 16 - CARD_INSET;
 /** 소속 행 위·아래 여백 (Figma 3235:17146 의 행 py 12) */
 const MEMBERSHIP_ROW_GAP = 12;
+/** 소속 카드 안 여백(20)에서 눌림 회색이 카드 가장자리와 떨어지는 거리(CARD_INSET)를 뺀 값 */
+const REVIEW_ROW_INSET = 20 - CARD_INSET;
 /** 설정 행 높이. Figma 의 글자 줄(22)과 행 사이 간격(24)을 행 안 여백으로 옮겼다 */
 const SETTING_ROW_HEIGHT = 46;
 const SETTING_ROW_HIT_SLOP = {
@@ -465,6 +527,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  // 검토 줄의 눌림 회색은 글자 자리를 그대로 두고 줄 밖으로 넓힌다: 좌우는 카드 가장자리 8 까지(설정 행과 같은 모서리 8),
+  // 위는 앞 선 바로 아래(선–글자 12), 아래는 다음 선 바로 위(글자–선 11)까지. 터치 영역도 이만큼 넓어진다 (#199)
+  reviewRow: {
+    marginHorizontal: -REVIEW_ROW_INSET,
+    paddingHorizontal: REVIEW_ROW_INSET,
+    marginTop: -MEMBERSHIP_ROW_GAP,
+    paddingTop: MEMBERSHIP_ROW_GAP,
+    marginBottom: -(MEMBERSHIP_ROW_GAP - 1),
+    paddingBottom: MEMBERSHIP_ROW_GAP - 1,
+    borderRadius: ROW_RADIUS,
+  },
   // Figma 3235:17148: 이름과 역할 사이 2
   membershipText: { flex: 1, gap: 2 },
   // Figma 는 행 위·아래 여백 12 와 행 아래 선(Gray50 1)이다. 선은 행 높이에 들어가지 않고 아래 여백의 끝 1 에
@@ -474,14 +547,6 @@ const styles = StyleSheet.create({
     marginTop: MEMBERSHIP_ROW_GAP - 1,
     marginBottom: MEMBERSHIP_ROW_GAP,
     backgroundColor: colors.gray[50],
-  },
-  // 글꼴 확대 시 잘리지 않도록 Figma 높이(21)는 최소값으로만 건다
-  chip: {
-    minHeight: 21,
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
   },
   settingsCard: {
     paddingHorizontal: CARD_INSET,

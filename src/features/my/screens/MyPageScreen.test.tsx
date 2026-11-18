@@ -7,7 +7,11 @@ import {
   within,
 } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
-import { colors, pressedBackground } from '../../../shared/design-system';
+import {
+  colors,
+  pressedBackground,
+  typography,
+} from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import {
   fail,
@@ -37,6 +41,7 @@ import { testSession } from '../../../shared/testing/session';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { MEMBERSHIPS_PATH } from '../memberships';
 import { useMyMemberships, useMyProfile } from '../myQueries';
+import type { ParticipationRequest } from '../org/model';
 import {
   MY_PROFILE_PATH,
   myMemberships,
@@ -56,6 +61,26 @@ const callbacks = () => ({
   onOpenTerms: jest.fn(),
   onOpenAccount: jest.fn(),
 });
+
+/** 사무실이 검토 중인 참여 요청 (신청 현황의 승인 대기). 소속 카드에 '검토' 줄로 보인다 (#199) */
+const reviewRequests: readonly ParticipationRequest[] = [
+  {
+    requestId: '21',
+    organizationId: '21',
+    organizationName: '한빛 설비',
+    desiredType: 'TECHNICIAN',
+    status: 'PENDING',
+    requestedAt: '2026-09-23T01:24:00Z',
+  },
+  {
+    requestId: '22',
+    organizationId: '22',
+    organizationName: '그린 테크',
+    desiredType: 'STAFF',
+    status: 'PENDING',
+    requestedAt: '2026-09-23T03:10:00Z',
+  },
+];
 
 /** 받아 둔 프로필(김현진)·소속(발주사 셋)으로 그린다 */
 async function renderLoadedMyPage(overrides: Partial<MyPageScreenProps> = {}) {
@@ -106,7 +131,8 @@ describe('MyPageScreen', () => {
     expect(within(card).getByText('가입일 2024.03.15')).toBeOnTheScreen();
   });
 
-  it('소속 발주사마다 이름, 역할, 활성/비활성 칩을 받은 순서대로 보여준다', async () => {
+  // Figma 마이페이지 3235:17104 › 소속 카드 3235:17146: 소속(활성)은 '승인' 칩이다. 비활성은 Figma 에 없어 그대로 둔다 (#199)
+  it('소속 발주사마다 이름, 역할, 승인/비활성 칩을 받은 순서대로 보여준다', async () => {
     await renderLoadedMyPage();
 
     expect(
@@ -114,19 +140,19 @@ describe('MyPageScreen', () => {
     ).toBeOnTheScreen();
     const rows = screen.getAllByTestId(/^membership-\d+$/);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveAccessibleName('오빗 서비스, 총관리자, 활성');
+    expect(rows[0]).toHaveAccessibleName('오빗 서비스, 총관리자, 승인');
     expect(rows[1]).toHaveAccessibleName('현장 파트너스, 기사, 비활성');
-    expect(rows[2]).toHaveAccessibleName('테크 솔루션, 총관리자, 활성');
+    expect(rows[2]).toHaveAccessibleName('테크 솔루션, 총관리자, 승인');
   });
 
-  it('활성 칩은 초록, 비활성 칩은 회색이다', async () => {
+  it('승인 칩은 초록, 비활성 칩은 회색이다', async () => {
     await renderLoadedMyPage();
 
     expect(screen.getByTestId('membership-1-status')).toHaveStyle({
       backgroundColor: colors.completed[2],
     });
     expect(
-      within(screen.getByTestId('membership-1-status')).getByText('활성'),
+      within(screen.getByTestId('membership-1-status')).getByText('승인'),
     ).toHaveStyle({ color: colors.completed[1] });
     expect(screen.getByTestId('membership-2-status')).toHaveStyle({
       backgroundColor: colors.registered[2],
@@ -542,7 +568,7 @@ describe('MyPageScreen', () => {
 
       const row = screen.getByTestId('membership-1');
       expect(row).toHaveProp('accessible', true);
-      expect(row).toHaveAccessibleName('오빗 서비스, 총관리자, 활성');
+      expect(row).toHaveAccessibleName('오빗 서비스, 총관리자, 승인');
       expect(row).not.toHaveProp('accessibilityRole');
       expect(row).not.toHaveProp('role');
       expect(
@@ -614,6 +640,125 @@ describe('MyPageScreen', () => {
       expect(
         StyleSheet.flatten((skeleton.children[1] as HostElement).props.style),
       ).toEqual(real.divider);
+    });
+  });
+
+  // #199: 사무실이 검토 중인 참여 요청은 소속 카드에 '검토' 줄로 보이고, 누르면 그 요청의 진행 상황을 연다.
+  // 승인된 소속 줄은 그대로 누를 수 없다 (참여 완료 화면은 참여 승인 알림으로만 연다)
+  describe('검토 중 줄 (#199)', () => {
+    const reviewRow = (requestId: string) =>
+      screen.getByTestId(`review-request-${requestId}`);
+    const renderWithReviews = (overrides: Partial<MyPageScreenProps> = {}) =>
+      renderLoadedMyPage({
+        reviewRequests,
+        onOpenReviewRequest: jest.fn(),
+        ...overrides,
+      });
+
+    it('검토 중인 요청은 소속 줄 아래에 이름, 희망 유형, 검토 칩으로 보인다', async () => {
+      await renderWithReviews();
+
+      const card = screen.getByTestId('membership-1').parent as HostElement;
+      const rows = card.children.filter(
+        (_, index) => index % 2 === 0,
+      ) as HostElement[];
+      expect(rows.map(row => row.props.testID)).toEqual([
+        'membership-1',
+        'membership-2',
+        'membership-3',
+        'review-request-21',
+        'review-request-22',
+      ]);
+      expect(within(reviewRow('21')).getByText('한빛 설비')).toBeOnTheScreen();
+      expect(within(reviewRow('21')).getByText('기사')).toBeOnTheScreen();
+      expect(within(reviewRow('22')).getByText('직원')).toBeOnTheScreen();
+    });
+
+    // Figma 3235:17157: 배경 Registered/2 · 글자 Registered/1 Caption/S/Medium. 크기(높이 21 · 좌우 8 · 모서리 8)는 승인 칩과 같다
+    it('검토 칩은 Figma 의 회색 칩(Registered)이고 승인 칩과 같은 크기다', async () => {
+      await renderWithReviews();
+
+      const chip = screen.getByTestId('review-request-21-status');
+      expect(within(chip).getByText('검토')).toHaveStyle({
+        ...typography['Caption/S/Medium'],
+        color: colors.registered[1],
+      });
+      const approved = StyleSheet.flatten(
+        screen.getByTestId('membership-1-status').props.style,
+      );
+      expect(StyleSheet.flatten(chip.props.style)).toEqual({
+        ...approved,
+        backgroundColor: colors.registered[2],
+      });
+      expect(approved).toMatchObject({
+        minHeight: 21,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+      });
+    });
+
+    it('검토 줄은 버튼이고 스크린리더는 이름, 희망 유형, 검토로 읽는다', async () => {
+      await renderWithReviews();
+
+      expect(
+        screen.getByRole('button', { name: '한빛 설비, 기사, 검토' }),
+      ).toBe(reviewRow('21'));
+      expect(reviewRow('21')).toHaveProp(
+        'accessibilityHint',
+        '참여 요청 진행 상황을 엽니다',
+      );
+    });
+
+    it('검토 줄을 누르면 그 요청의 진행 상황을 연다', async () => {
+      const props = await renderWithReviews();
+
+      await userEvent.press(reviewRow('22'));
+
+      expect(props.onOpenReviewRequest).toHaveBeenCalledTimes(1);
+      expect(props.onOpenReviewRequest).toHaveBeenCalledWith('22');
+    });
+
+    it('승인된 소속 줄은 눌러도 아무 데도 가지 않는다', async () => {
+      const props = await renderWithReviews();
+
+      await userEvent.press(screen.getByTestId('membership-1'));
+
+      for (const callback of Object.values(props)) {
+        if (jest.isMockFunction(callback)) {
+          expect(callback).not.toHaveBeenCalled();
+        }
+      }
+    });
+
+    // 글자는 소속 줄과 같은 자리(카드 안 20, 줄 사이 글자–선 11 · 선–글자 12)에 두고, 눌림 회색만 줄 밖으로 넓힌다:
+    // 좌우는 카드 가장자리 8 까지(설정 행과 같다), 위아래는 줄 사이 선까지
+    it('검토 줄을 누르는 동안 회색 배경이 되고, 글자 자리는 소속 줄과 같다', async () => {
+      await renderWithReviews();
+
+      const row = reviewRow('21');
+      await expectPressedBackground(row, pressedBackground.onWhite);
+      expect(stylePt(row, 'marginHorizontal')).toBe(-12);
+      expect(stylePt(row, 'paddingHorizontal')).toBe(12);
+      expect(stylePt(row, 'marginTop')).toBe(-12);
+      expect(stylePt(row, 'paddingTop')).toBe(12);
+      expect(stylePt(row, 'marginBottom')).toBe(-11);
+      expect(stylePt(row, 'paddingBottom')).toBe(11);
+      expect(stylePt(row, 'borderRadius')).toBe(8);
+    });
+
+    it('소속이 없어도 검토 중인 요청이 있으면 빈 안내 대신 검토 줄을 보인다', async () => {
+      await renderWithReviews({ memberships: { status: 'ready', data: [] } });
+
+      expect(screen.queryByText('아직 소속된 발주사가 없어요')).toBeNull();
+      expect(reviewRow('21')).toBeOnTheScreen();
+      expect(reviewRow('22')).toBeOnTheScreen();
+    });
+
+    it('소속을 받는 동안에는 검토 줄도 보이지 않는다 (스켈레톤만)', async () => {
+      await renderWithReviews({ memberships: { status: 'loading' } });
+
+      expect(screen.getByTestId('memberships-skeleton')).toBeOnTheScreen();
+      expect(screen.queryByTestId('review-request-21')).toBeNull();
     });
   });
 });

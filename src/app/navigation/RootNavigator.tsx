@@ -52,6 +52,7 @@ import {
   JoinRejectedRoute,
   JoinRequestedRoute,
   JoinRequestsRoute,
+  JoinReviewRoute,
   OrgJoinRoute,
   OrgQrScanRoute,
   RoleSelectRoute,
@@ -328,6 +329,11 @@ function MyTab() {
         name="OrgJoinRequests"
         component={JoinRequestsRoute}
         getId={once}
+      />
+      <MyStack.Screen
+        name="OrgJoinReview"
+        component={JoinReviewRoute}
+        getId={byRequest}
       />
     </MyStack.Navigator>
   );

@@ -13,7 +13,10 @@ import type {
   WithdrawalBlockReason,
 } from '../../features/my/model';
 import { useMyMemberships, useMyProfile } from '../../features/my/myQueries';
-import { countPendingRequests } from '../../features/my/org/model';
+import {
+  pendingRequests,
+  type ParticipationRequest,
+} from '../../features/my/org/model';
 import { useParticipationRequests } from '../../features/my/org/participationQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
 import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
@@ -44,13 +47,17 @@ import {
   type MyScreenProps,
 } from './types';
 
+const NO_REVIEW_REQUESTS: readonly ParticipationRequest[] = [];
+
 // 마이 탭 스택에 올리는 화면들 (#72). 앱 상태를 화면 props 로 이어 준다.
 // 프로필·소속 발주사·탈퇴는 서버 API 다 (#115). 마이페이지는 경로가 조회해 넘기고, 하위 화면은 화면이 직접 받는다
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
-  // '신청 현황' 배지는 서버 신청 현황의 승인 대기 건수다 (#116). 받기 전·받지 못했으면 배지를 두지 않는다
-  const { data: pendingRequestCount = 0 } =
-    useParticipationRequests(countPendingRequests);
+  // '신청 현황' 배지는 서버 신청 현황의 승인 대기 건수다 (#116). 받기 전·받지 못했으면 배지를 두지 않는다.
+  // 같은 승인 대기 요청이 소속 카드의 검토 줄이다 (#199). select 는 받은 목록이 같으면 같은 배열을 돌려준다
+  const { data: reviewRequests = NO_REVIEW_REQUESTS } =
+    useParticipationRequests(pendingRequests);
+  const pendingRequestCount = reviewRequests.length;
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
@@ -64,6 +71,8 @@ export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
       onOpenNotifications: () => navigation.navigate('NotificationCenter'),
       onEditProfile: () => navigation.navigate('ProfileEdit'),
       onOpenRequestStatus: () => navigation.navigate('OrgJoinRequests'),
+      onOpenReviewRequest: (requestId: string) =>
+        navigation.navigate('OrgJoinReview', { requestId }),
       onJoinOrganization: () => navigation.navigate('OrgJoin'),
       onOpenNotificationSettings: () =>
         navigation.navigate('NotificationSettings'),
@@ -78,6 +87,7 @@ export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
       profile={profile}
       memberships={memberships}
       pendingRequestCount={pendingRequestCount}
+      reviewRequests={reviewRequests}
       {...open}
       scrollRef={scrollRef}
     />

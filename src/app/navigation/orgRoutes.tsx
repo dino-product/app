@@ -11,7 +11,10 @@ import type {
 } from '../../features/my/org/model';
 import { useParticipationRequest } from '../../features/my/org/participationQueries';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
-import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
+import {
+  joinRequestedTitle,
+  JoinRequestedScreen,
+} from '../../features/my/org/screens/JoinRequestedScreen';
 import { JoinRequestsScreen } from '../../features/my/org/screens/JoinRequestsScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
 import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
@@ -211,7 +214,7 @@ export function RoleSelectRoute({
 // 없는 요청(이미 처리됐거나 서버에서 사라짐)으로 열렸으면 빈 화면 대신 이전 화면으로 돌아간다
 function useLeaveRequest(
   navigation: MyScreenProps<
-    'OrgJoinRequested' | 'OrgJoinRejected'
+    'OrgJoinRequested' | 'OrgJoinRejected' | 'OrgJoinReview'
   >['navigation'],
 ) {
   return useCallback(() => {
@@ -236,7 +239,7 @@ export function JoinRequestedRoute({
   return (
     <ParticipationRequestGate
       requestId={requestId}
-      title="조직 참여하기"
+      title={joinRequestedTitle('my')}
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
       onMissing={leave}
@@ -245,6 +248,40 @@ export function JoinRequestedRoute({
         <JoinRequestedScreen
           // 서버는 요청 경로를 돌려주지 않아 보낸 화면이 넘긴 값을 쓴다
           request={{ ...request, requestChannel }}
+          titleRef={titleRef}
+          onConfirm={backToMyPage}
+          onCanceled={backToMyPage}
+          onAlreadyDecided={backToMyPage}
+          onBack={() => navigation.goBack()}
+        />
+      )}
+    </ParticipationRequestGate>
+  );
+}
+
+// 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199). 요청 완료 화면에 맥락 제목·사무실 검토 중 진행·상태 칩을 더한다.
+// 그사이 사무실이 결정했으면(승인 대기가 아님) 빈 화면 대신 마이페이지로 돌아간다. 참여 완료 화면은 참여 승인 알림으로만 연다
+export function JoinReviewRoute({
+  navigation,
+  route,
+}: MyScreenProps<'OrgJoinReview'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const leave = useLeaveRequest(navigation);
+  const backToMyPage = () => navigation.popTo(MY_INITIAL_ROUTE);
+
+  return (
+    <ParticipationRequestGate
+      requestId={route.params.requestId}
+      status="PENDING"
+      title={joinRequestedTitle('my', 'reviewing')}
+      titleRef={titleRef}
+      onBack={() => navigation.goBack()}
+      onMissing={leave}
+    >
+      {request => (
+        <JoinRequestedScreen
+          stage="reviewing"
+          request={request}
           titleRef={titleRef}
           onConfirm={backToMyPage}
           onCanceled={backToMyPage}

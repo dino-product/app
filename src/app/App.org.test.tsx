@@ -84,6 +84,50 @@ describe('App — 조직 참여', () => {
     expect(tab('마이')).toBeSelected();
   });
 
+  // #199: 소속 카드의 검토 줄(승인 대기 요청)을 누르면 그 요청의 진행 상황이 열린다. 승인된 소속 줄은 눌러도 그대로다
+  describe('마이페이지 소속 카드의 검토 줄 (#199)', () => {
+    it('검토 줄을 누르면 참여 요청 현황이 사무실 검토 중 단계로 열리고, 뒤로 가면 마이페이지다', async () => {
+      await openMyPage();
+
+      await userEvent.press(button('그린 테크, 기사, 검토'));
+
+      expect(header('참여 요청 현황')).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText(
+          '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.getByLabelText('회사, 그린 테크')).toBeOnTheScreen();
+      expect(screen.getByLabelText('상태, 검토')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('마이페이지')).toBeOnTheScreen();
+    });
+
+    it('승인된 소속 줄은 눌러도 마이페이지에 머문다', async () => {
+      await openMyPage();
+
+      await userEvent.press(
+        await screen.findByLabelText('오르빗 설비, 기사, 승인'),
+      );
+
+      expect(header('마이페이지')).toBeOnTheScreen();
+      expect(header('참여 요청 현황')).toBeNull();
+      expect(header('참여 완료')).toBeNull();
+    });
+
+    it('연 사이 사무실이 결정한 요청이면(승인 대기가 아님) 진행 상황 대신 마이페이지로 돌아간다', async () => {
+      const app = await openMyPage();
+      participationOf(app.server).decide({ status: 'APPROVED' }, 2);
+
+      await userEvent.press(button('그린 테크, 기사, 검토'));
+
+      await waitFor(() => expect(header('마이페이지')).toBeOnTheScreen());
+      expect(header('참여 요청 현황')).toBeNull();
+    });
+  });
+
   it('마이페이지의 조직 참여와 신청 현황의 조직 참여하기로 회사 찾기가 열린다', async () => {
     await openMyPage();
 
