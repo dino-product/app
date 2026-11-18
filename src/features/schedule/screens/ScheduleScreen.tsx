@@ -20,10 +20,13 @@ import {
   colors,
   Icon,
   ICON_HIT_SLOP,
+  MIN_TOUCH_TARGET,
   Text,
+  touchSlop,
   UNDERLINE_TABS_HEIGHT,
   UnderlineTabs,
 } from '../../../shared/design-system';
+import { smallestLineHeight } from '../../../shared/design-system/tokens/touchTarget';
 import { haptic } from '../../../shared/haptics';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import {
@@ -166,6 +169,9 @@ function ScheduleScreenView({
     followToday(today);
   }, [today]);
 
+  // 오늘 버튼: 주간 보기는 오늘이 있는 주, 달력은 이번 달로 돌아오고 오늘을 고른다 (#202)
+  const goToday = useCallback(() => selectDate(today), [selectDate, today]);
+
   // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
   const toggleCalendar = useCallback(() => {
     setCalendarOpen(open => !open);
@@ -277,19 +283,37 @@ function ScheduleScreenView({
     () => (
       <View style={styles.dateArea}>
         <View style={styles.dateRow}>
-          <Text variant="Body/M/SemiBold">{formatDateHeader(selected)}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
-            hitSlop={ICON_HIT_SLOP}
-            onPress={toggleCalendar}
+          <Text variant="Body/M/SemiBold" style={styles.dateText}>
+            {formatDateHeader(selected)}
+          </Text>
+          {/* Figma 51030:18440(주간)·51030:18444(달력): 오늘 알약, 그 오른쪽에 달력 전환 버튼 */}
+          <View
+            style={[styles.dateActions, calendarOpen && styles.dateActionsOpen]}
           >
-            {/* Figma Web Icon Calender/ Weekly · Monthly: 펼침은 모양이 좌우로 뒤집히고 색은 둘 다 Gray500 */}
-            <Icon
-              name={calendarOpen ? 'calendar-switch-open' : 'calendar-switch'}
-              color={colors.gray[500]}
-            />
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="오늘"
+              hitSlop={TODAY_HIT_SLOP}
+              onPress={goToday}
+              style={styles.todayButton}
+            >
+              <Text variant="Caption/M/SemiBold" color={colors.gray[900]}>
+                오늘
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
+              hitSlop={ICON_HIT_SLOP}
+              onPress={toggleCalendar}
+            >
+              {/* Figma Web Icon Calender/ Weekly · Monthly: 펼침은 모양이 좌우로 뒤집히고 색은 둘 다 Gray500 */}
+              <Icon
+                name={calendarOpen ? 'calendar-switch-open' : 'calendar-switch'}
+                color={colors.gray[500]}
+              />
+            </Pressable>
+          </View>
         </View>
         {/* Figma 3754:6269·3754:6457: 날짜 줄 아래 16 에 주간 줄 또는 달력 카드 */}
         {calendarOpen ? (
@@ -324,6 +348,7 @@ function ScheduleScreenView({
       week,
       eventCounts,
       selectDate,
+      goToday,
       toggleCalendar,
       moveMonth,
       moveWeek,
@@ -451,6 +476,22 @@ const HEADER_ESTIMATE = {
 const LIST_INSET = 24;
 const PENDING_TOP = 24;
 
+// Figma 51030:18439·51030:18441 오늘 알약: 좌우 12·위아래 4 안에 Caption/M/Semibold 글자
+const TODAY_PADDING_HORIZONTAL = 12;
+const TODAY_PADDING_VERTICAL = 4;
+// 알약(48×28)을 최소 터치 영역으로 넓힌다. 폭은 글자 폭과 관계없이 좌우 여백만으로도 채우도록 왼쪽(날짜 글자 쪽 빈자리)으로
+// 넓힌다. 오른쪽은 달력 버튼(뒤 형제)이 왼쪽으로 넓힌 영역이 간격(달력 12)을 채우므로 넓히지 않는다.
+// 위·아래는 날짜 블록 위 여백(24)과 주간 줄·달력과의 간격(16) 안에 든다
+const TODAY_VERTICAL_SLOP = touchSlop(
+  TODAY_PADDING_VERTICAL * 2 + smallestLineHeight('Caption/M/SemiBold'),
+);
+const TODAY_HIT_SLOP = {
+  top: TODAY_VERTICAL_SLOP,
+  bottom: TODAY_VERTICAL_SLOP,
+  left: MIN_TOUCH_TARGET - TODAY_PADDING_HORIZONTAL * 2,
+  right: 0,
+};
+
 const styles = StyleSheet.create({
   // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다.
   // 바탕은 화면에 그려 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
@@ -476,6 +517,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  // 큰 글자·좁은 화면에서 날짜가 길면 오른쪽 버튼을 밀어내지 않고 날짜가 줄을 바꾼다
+  dateText: { flexShrink: 1 },
+  // 오늘 알약과 달력 전환 버튼 사이: 주간 16(51030:18440), 달력 12(51030:18444)
+  dateActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  dateActionsOpen: { gap: 12 },
+  todayButton: {
+    paddingHorizontal: TODAY_PADDING_HORIZONTAL,
+    paddingVertical: TODAY_PADDING_VERTICAL,
+    borderRadius: 54,
+    backgroundColor: colors.gray[100],
   },
   cardGap: { height: 12 },
   empty: { textAlign: 'center', paddingVertical: 40 },

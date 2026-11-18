@@ -9,7 +9,7 @@ import {
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 
 jest.mock('../../../shared/haptics', () => ({
@@ -564,6 +564,133 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(
       screen.getByRole('button', { name: '12월 15일 화요일' }),
     ).toBeOnTheScreen();
+  });
+});
+
+// #202: Figma 3754:6269(주간)·3754:6457(월간) 날짜 줄 오른쪽에 '오늘' 버튼이 있다.
+// 주간 보기는 오늘이 있는 주, 월간 보기는 이번 달로 돌아오고 오늘을 고른다
+describe('ScheduleScreen — 오늘 버튼 (#202)', () => {
+  const pressToday = () =>
+    userEvent.press(screen.getByRole('button', { name: '오늘' }));
+
+  it('주간 보기에서 다른 주의 날을 고르고 있다가 오늘을 누르면 오늘이 있는 주와 오늘 날짜로 돌아온다', async () => {
+    const onVisibleMonthsChange = jest.fn();
+    await renderSchedule({ onVisibleMonthsChange });
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+    await drag(weekStrip(), { dx: -80 });
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    );
+    expect(screen.getByText('2027년 1월 4일 (월)')).toBeOnTheScreen();
+
+    await pressToday();
+
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: '1월 4일 월요일' }),
+    ).not.toBeOnTheScreen();
+    expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+    expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2026, month: 11 },
+    ]);
+    // 주간 보기 그대로다
+    expect(screen.getByTestId('week-strip')).toBeOnTheScreen();
+  });
+
+  it('주간 보기에서 다른 주를 넘겨 보기만 하다가 오늘을 누르면 오늘이 있는 주로 돌아온다', async () => {
+    await renderSchedule();
+    await drag(weekStrip(), { dx: 80 });
+    await drag(weekStrip(), { dx: 80 });
+    expect(visibleSelectedDays()).toEqual([]);
+
+    await pressToday();
+
+    expect(
+      screen.getByRole('button', { name: '12월 13일 일요일' }),
+    ).toBeOnTheScreen();
+    expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+  });
+
+  it('월간 보기에서 다른 달의 날을 고르고 또 다른 달을 보다가 오늘을 누르면 이번 달과 오늘 날짜로 돌아온다', async () => {
+    const onVisibleMonthsChange = jest.fn();
+    await renderSchedule({ onVisibleMonthsChange });
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    expect(screen.getByText('2027년 2월')).toBeOnTheScreen();
+
+    await pressToday();
+
+    expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+    expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+    expect(screen.getByText('세탁기 설치')).toBeOnTheScreen();
+    expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
+      { year: 2026, month: 11 },
+    ]);
+    // 월간 보기 그대로다
+    expect(screen.getByTestId('month-calendar')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '달력 접기' })).toBeOnTheScreen();
+  });
+
+  // Figma 51030:18439·51030:18441: Gray100 알약(좌우 12·위아래 4, 모서리 54), 글자 Caption/M/Semibold Gray900.
+  // 날짜 줄 오른쪽에서 달력 전환 버튼 왼쪽에 놓이고, 둘 사이는 주간 16(51030:18440)·월간 12(51030:18444)다
+  it('오늘 버튼은 날짜 줄 오른쪽 달력 버튼 앞의 Gray100 알약이고, 달력 버튼과의 간격은 주간 16·월간 12 다', async () => {
+    await renderSchedule();
+
+    const todayButton = screen.getByRole('button', { name: '오늘' });
+    expect(todayButton).toHaveStyle({
+      backgroundColor: colors.gray[100],
+      borderRadius: 54,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+    });
+    expect(within(todayButton).getByText('오늘')).toHaveStyle({
+      color: colors.gray[900],
+      fontSize: typography['Caption/M/SemiBold'].fontSize,
+      fontFamily: typography['Caption/M/SemiBold'].fontFamily,
+      lineHeight: typography['Caption/M/SemiBold'].lineHeight,
+    });
+    const actions = todayButton.parent as HostElement;
+    expect(actions.children).toEqual([
+      todayButton,
+      screen.getByRole('button', { name: '달력 펼치기' }),
+    ]);
+    expect(actions).toHaveStyle({
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    });
+    // 날짜 줄의 오른쪽 끝이다
+    const dateRow = actions.parent as HostElement;
+    expect(dateRow.children[dateRow.children.length - 1]).toBe(actions);
+    expect(dateRow).toHaveStyle({ justifyContent: 'space-between' });
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    expect(
+      screen.getByRole('button', { name: '오늘' }).parent as HostElement,
+    ).toHaveStyle({ gap: 12 });
+  });
+
+  // 오늘 알약이 더해져 날짜 줄 오른쪽이 넓어졌다. 큰 글자·좁은 화면에서 날짜가 길어도 버튼을 화면 밖으로 밀지 않고 날짜가 줄을 바꾼다
+  it('날짜가 길면 오늘·달력 버튼을 밀어내지 않고 날짜 글자가 줄어든다', async () => {
+    await renderSchedule();
+
+    expect(screen.getByText('2026년 12월 15일 (화)')).toHaveStyle({
+      flexShrink: 1,
+    });
+    expect(
+      StyleSheet.flatten(
+        (screen.getByRole('button', { name: '오늘' }).parent as HostElement)
+          .props.style,
+      ).flexShrink,
+    ).toBeUndefined();
   });
 });
 

@@ -5,6 +5,7 @@ import {
   expectMinTouchTarget,
   hitSlopOf,
   LAYOUT_BASE_WIDTH,
+  minLineHeight,
   stylePt,
   type HostElement,
 } from '../../../shared/testing/touchTarget';
@@ -109,8 +110,8 @@ describe('ScheduleScreen — 달력 펼치기·접기 버튼 터치 영역', () 
     await renderSchedule();
 
     const toggle = getToggle();
-    const dateRow = toggle.parent as HostElement;
-    const dateArea = dateRow.parent as HostElement;
+    // 버튼 › 오른쪽 버튼 묶음 › 날짜 줄 › 날짜 블록
+    const dateArea = toggle.parent?.parent?.parent as HostElement;
     const slop = hitSlopOf(toggle);
     expect(slop.top).toBeLessThanOrEqual(stylePt(dateArea, 'paddingTop'));
     expect(slop.right).toBeLessThanOrEqual(
@@ -123,4 +124,48 @@ describe('ScheduleScreen — 달력 펼치기·접기 버튼 터치 영역', () 
       .parent as HostElement;
     expect(slop.bottom).toBeLessThanOrEqual(stylePt(monthDateArea, 'gap'));
   });
+});
+
+// #202: 오늘 버튼은 Figma 알약(48×28)을 그대로 두고 hitSlop 으로 넓힌다
+describe('ScheduleScreen — 오늘 버튼 터치 영역', () => {
+  const getToday = () => screen.getByRole('button', { name: '오늘' });
+  const getToggle = (name = '달력 펼치기') =>
+    screen.getByRole('button', { name });
+
+  // 폭은 글자 폭에 따라 정해져 좌우 여백만으로 계산한다 (글자 폭이 0 이어도 채운다)
+  it('알약 크기 그대로 최소 터치 영역으로 넓힌다', async () => {
+    await renderSchedule();
+
+    const today = getToday();
+    const label = screen.getByText('오늘');
+    expectMinTouchTarget(today, {
+      width: stylePt(today, 'paddingHorizontal') * 2,
+      height: stylePt(today, 'paddingVertical') * 2 + minLineHeight(label),
+    });
+  });
+
+  // 오른쪽은 달력 버튼(뒤 형제)이 넓힌 영역과 겹치지 않게 둘 사이 간격 안에서만 넓힌다.
+  // 위·아래는 날짜 블록 위 여백과 주간 줄·달력과의 간격 안에 든다 (네이티브 조상 경계 밖으로 나가지 않는다)
+  it.each([
+    ['주간', '달력 펼치기'],
+    ['월간', '달력 접기'],
+  ] as const)(
+    '%s: 넓힌 영역이 달력 버튼이 넓힌 영역과 겹치지 않고, 날짜 블록 안에 든다',
+    async (_view, toggleName) => {
+      await renderSchedule();
+      if (toggleName === '달력 접기') {
+        await userEvent.press(getToggle());
+      }
+
+      const today = getToday();
+      const actions = today.parent as HostElement;
+      const dateArea = actions.parent?.parent as HostElement;
+      const slop = hitSlopOf(today);
+      expect(
+        slop.right + hitSlopOf(getToggle(toggleName)).left,
+      ).toBeLessThanOrEqual(stylePt(actions, 'gap'));
+      expect(slop.top).toBeLessThanOrEqual(stylePt(dateArea, 'paddingTop'));
+      expect(slop.bottom).toBeLessThanOrEqual(stylePt(dateArea, 'gap'));
+    },
+  );
 });
