@@ -974,7 +974,10 @@ describe('ScheduleScreen — 응답 필요', () => {
     expect(haptic.success).not.toHaveBeenCalled();
   });
 
-  it('수락하는 동안 그 요청의 수락·거절이 잠기고, 다시 눌러도 한 번만 보낸다', async () => {
+  // #197: 수락(POST)은 낙관적으로 반영한다(목록에서 곧바로 빠지는 것은 경로·조회 훅이 한다). 보내는 동안
+  // 카드 버튼을 비활성(Disabled 채움)으로 바꾸지 않는다. Figma 3754:6858 거절은 Gray500 테두리·Gray700 글자,
+  // 3754:6859 수락은 Primary 채움·흰 글자 그대로다
+  it('수락을 보내는 동안에도 그 요청의 거절·수락 모양이 그대로이고, 다시 눌러도 한 번만 보낸다', async () => {
     let finish: (accepted: boolean) => void = () => {};
     const onAccept = jest.fn(
       () =>
@@ -982,25 +985,47 @@ describe('ScheduleScreen — 응답 필요', () => {
           finish = resolve;
         }),
     );
-    await renderSchedule({ onAccept });
+    const onReject = jest.fn();
+    await renderSchedule({ onAccept, onReject });
     await userEvent.press(screen.getByRole('tab', { name: '응답 필요 2건' }));
     const acceptButton = () =>
       screen.getByRole('button', { name: '에어컨 필터 교체 수락' });
+    const rejectButton = () =>
+      screen.getByRole('button', { name: '에어컨 필터 교체 거절' });
 
     await userEvent.press(acceptButton());
     await userEvent.press(acceptButton());
+    // 수락을 보낸 요청은 거절 사유로 가지 않는다
+    await userEvent.press(rejectButton());
 
     expect(onAccept).toHaveBeenCalledTimes(1);
-    expect(acceptButton()).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: '에어컨 필터 교체 거절' }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: '수전 교체 수락' }),
-    ).toBeEnabled();
-
-    await act(async () => finish(false));
+    expect(onReject).not.toHaveBeenCalled();
     expect(acceptButton()).toBeEnabled();
+    expect(rejectButton()).toBeEnabled();
+    expect(rejectButton()).toHaveStyle({
+      borderWidth: 1,
+      borderColor: colors.gray[500],
+    });
+    expect(rejectButton()).not.toHaveStyle({
+      backgroundColor: colors.disabled,
+    });
+    expect(within(rejectButton()).getByText('거절')).toHaveStyle({
+      color: colors.gray[700],
+    });
+    expect(acceptButton()).toHaveStyle({ backgroundColor: colors.primary });
+    expect(within(acceptButton()).getByText('수락')).toHaveStyle({
+      color: colors.white[100],
+    });
+    // 다른 요청은 그대로 누를 수 있다
+    await userEvent.press(
+      screen.getByRole('button', { name: '수전 교체 거절' }),
+    );
+    expect(onReject).toHaveBeenCalledWith('p2');
+
+    // 실패해 돌아오면 다시 보낼 수 있다
+    await act(async () => finish(false));
+    await userEvent.press(acceptButton());
+    expect(onAccept).toHaveBeenCalledTimes(2);
   });
 
   it('요청 카드를 보여주고 수락·거절·상세 콜백을 부른다', async () => {

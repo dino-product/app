@@ -77,7 +77,9 @@ describe('RequestDetailScreen', () => {
     expect(haptic.success).not.toHaveBeenCalled();
   });
 
-  it('수락하는 동안 수락·거절이 잠기고, 끝나면 풀린다 (다시 눌러도 한 번만 보낸다)', async () => {
+  // #197: 수락(POST)은 낙관적으로 반영하므로 보내는 동안 버튼을 비활성(Disabled 채움)으로 바꾸지 않는다.
+  // Figma 2904:4357 거절은 Gray500 테두리·Gray700 글자, 2904:4358 수락은 Primary 채움·흰 글자 그대로다
+  it('수락을 보내는 동안에도 거절·수락 모양이 그대로이고, 다시 눌러도 한 번만 보낸다', async () => {
     let finish: (accepted: boolean) => void = () => {};
     const onAccept = jest.fn(
       () =>
@@ -85,17 +87,37 @@ describe('RequestDetailScreen', () => {
           finish = resolve;
         }),
     );
-    await renderRequest({ onAccept });
+    const onReject = jest.fn();
+    await renderRequest({ onAccept, onReject });
 
     await userEvent.press(screen.getByRole('button', { name: '수락' }));
     await userEvent.press(screen.getByRole('button', { name: '수락' }));
+    // 수락을 보낸 요청은 거절 사유로 가지 않는다 (서버는 이미 수락으로 바꾸는 중이다)
+    await userEvent.press(screen.getByRole('button', { name: '거절' }));
 
     expect(onAccept).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: '수락' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '거절' })).toBeDisabled();
+    expect(onReject).not.toHaveBeenCalled();
+    const reject = screen.getByRole('button', { name: '거절' });
+    const accept = screen.getByRole('button', { name: '수락' });
+    expect(reject).toBeEnabled();
+    expect(accept).toBeEnabled();
+    expect(reject).toHaveStyle({
+      borderWidth: 1,
+      borderColor: colors.gray[500],
+    });
+    expect(reject).not.toHaveStyle({ backgroundColor: colors.disabled });
+    expect(within(reject).getByText('거절')).toHaveStyle({
+      color: colors.gray[700],
+    });
+    expect(accept).toHaveStyle({ backgroundColor: colors.primary });
+    expect(within(accept).getByText('수락')).toHaveStyle({
+      color: colors.white[100],
+    });
 
+    // 실패해 돌아오면 다시 보낼 수 있다
     await act(async () => finish(false));
-    expect(screen.getByRole('button', { name: '수락' })).toBeEnabled();
+    await userEvent.press(screen.getByRole('button', { name: '수락' }));
+    expect(onAccept).toHaveBeenCalledTimes(2);
   });
 
   it('작업 정보를 보여주고 하단의 거절·수락·뒤로가 콜백을 부른다', async () => {
