@@ -81,7 +81,9 @@ import {
 } from '../../features/work/screens/WorkDetailStatusScreen';
 import { WorkDetailScreen } from '../../features/work/screens/WorkDetailScreen';
 import { WorkHomeScreen } from '../../features/work/screens/WorkHomeScreen';
+import { ApiErrorCode, isApiError } from '../../shared/api';
 import { useToday } from '../../shared/time/useToday';
+import { useAuth } from '../AuthProvider';
 import { callPhone, openDirections, openMap } from '../externalLinks';
 import { useHoldTabSwitchWhile } from './tabSwitchLock';
 import type {
@@ -144,6 +146,30 @@ function alertWorkError(
   Alert.alert(
     failureTitles[command],
     workName ? `${workName}\n${message}` : message,
+  );
+}
+
+/**
+ * 응답(수락·거절)의 실패 알림. 보낼 때 respondAlert(command) 로 세션을 기억해 두고, 실패하면 돌려받은 함수로 알린다.
+ * 화면을 떠난 뒤 오는 알림이라 그사이 로그아웃·탈퇴·만료로 세션이 끝났으면(만료 오류 포함) 알리지 않는다.
+ * 공용 기기의 로그인 화면에 앞 계정의 작업 이름이 보이지 않게 한다 (#197)
+ */
+function useRespondAlert() {
+  const { currentSession } = useAuth();
+  return useCallback(
+    (command: 'accept' | 'reject') => {
+      const sentIn = currentSession();
+      return (error: unknown, workName?: string) => {
+        if (
+          currentSession() !== sentIn ||
+          isApiError(error, ApiErrorCode.refreshRejected)
+        ) {
+          return;
+        }
+        alertWorkError(command, error, workName);
+      };
+    },
+    [currentSession],
   );
 }
 
@@ -465,8 +491,10 @@ export function ScheduleRoute({
       setMonths(prev => (sameMonths(prev, next) ? prev : next)),
     [],
   );
+  const respondAlert = useRespondAlert();
   const accept = useCallback(
     async (id: string) => {
+      const alertFailure = respondAlert('accept');
       try {
         await acceptWork(acceptCommandOf(pendingWorks, id));
         return true;
@@ -475,15 +503,14 @@ export function ScheduleRoute({
         if (error instanceof MissingAssignmentError) {
           refetchPending();
         }
-        alertWorkError(
-          'accept',
+        alertFailure(
           error,
           pendingWorks.find(work => String(work.workId) === id)?.name,
         );
         return false;
       }
     },
-    [pendingWorks, acceptWork, refetchPending],
+    [pendingWorks, acceptWork, refetchPending, respondAlert],
   );
 
   return (
@@ -522,6 +549,7 @@ export function RequestDetailRoute({
 }: RootScreenProps<'RequestDetail'>) {
   const { workId, detail, status } = useRouteWorkDetail(route.params.id);
   const acceptWork = useAcceptWork().mutateAsync;
+  const respondAlert = useRespondAlert();
   const titleRef = useFocusTitleOnOpen(navigation);
   const work = detail.data;
   if (workId === null || !work) {
@@ -540,6 +568,7 @@ export function RequestDetailRoute({
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
       onAccept={async () => {
+        const alertFailure = respondAlert('accept');
         let accepted: Promise<void>;
         try {
           accepted = acceptWork({
@@ -547,7 +576,7 @@ export function RequestDetailRoute({
             assignmentNumber: requireAssignment(work, detail.refetch),
           });
         } catch (error) {
-          alertWorkError('accept', error, work.title);
+          alertFailure(error, work.title);
           return false;
         }
         // 낙관 반영 (#197): 서버 답을 기다리지 않고 떠난다(돌아갈 화면이 없으면 메인). 요청은 곧바로 응답 필요에서
@@ -556,7 +585,7 @@ export function RequestDetailRoute({
         try {
           await accepted;
         } catch (error) {
-          alertWorkError('accept', error, work.title);
+          alertFailure(error, work.title);
           return false;
         }
         return true;
@@ -579,6 +608,7 @@ export function RejectReasonRoute({
   const repository = useWorkRepository();
   const queryClient = useQueryClient();
   const rejectWork = useRejectWork().mutateAsync;
+  const respondAlert = useRespondAlert();
   // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
   // 제출로 나갈 때는 서버가 받을 때까지 남긴다 (일시 오류로 실패하면 다시 거절할 때 이어 고른다, #197).
   // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다.
@@ -620,6 +650,7 @@ export function RejectReasonRoute({
       onDraftChange={value => saveRejectDraft(requestId, value)}
       onBack={() => navigation.goBack()}
       onSubmit={async ({ key, note }) => {
+        const alertFailure = respondAlert('reject');
         let rejected: Promise<void>;
         let workName: string | undefined;
         try {
@@ -635,7 +666,7 @@ export function RejectReasonRoute({
             note,
           });
         } catch (error) {
-          alertWorkError('reject', error, workName);
+          alertFailure(error, workName);
           throw error;
         }
         // 낙관 반영 (#197): 서버 답을 기다리지 않고 내 일정까지 돌아간다(요청 상세에서 왔어도). 요청은 곧바로
@@ -649,7 +680,7 @@ export function RejectReasonRoute({
           if (shouldRefetchAfter(error)) {
             clearRejectDraft(requestId);
           }
-          alertWorkError('reject', error, workName);
+          alertFailure(error, workName);
           throw error;
         }
         clearRejectDraft(requestId);

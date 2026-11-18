@@ -369,6 +369,38 @@ describe('App — 작업 데이터 (#114)', () => {
       });
 
       // 돌아갈 화면이 없는 요청 상세(복원·딥링크)에서도 수락하면 화면을 떠난다
+      // 공용 기기에서 다음 사람이 로그인 화면에서 앞 계정의 작업 이름을 보지 않게 한다 (PR #209 재리뷰)
+      it('화면을 떠난 뒤 로그아웃했으면 늦게 온 수락 실패를 알리지 않는다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        const answer = later();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(answer.send);
+        await openRequestDetail(render);
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+        await screen.findByRole('header', { name: '내 일정' });
+
+        await userEvent.press(tab('마이'));
+        await userEvent.press(
+          screen.getByRole('button', { name: '계정 관리' }),
+        );
+        await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+        await userEvent.press(screen.getByRole('button', { name: '확인' }));
+        expect(
+          await screen.findByRole('header', {
+            name: '오늘의 현장, 한눈에. Orbit',
+          }),
+        ).toBeOnTheScreen();
+        await act(async () => {
+          answer.fail(networkError());
+          await new Promise<void>(resolve => setTimeout(resolve, 50));
+        });
+
+        expect(alert).not.toHaveBeenCalledWith(
+          '수락하지 못했어요',
+          expect.anything(),
+        );
+      });
+
       it('돌아갈 화면이 없는 요청 상세에서 수락하면 메인으로 간다', async () => {
         const { repository, render } = setup();
         jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
