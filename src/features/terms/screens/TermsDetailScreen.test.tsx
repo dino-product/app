@@ -110,7 +110,7 @@ describe('TermsDetailScreen', () => {
   it('큰 제목은 가입 약관 제목과 같은 자리(머리 아래 22)다', async () => {
     const titleTop = () => {
       // jest 목은 안쪽 View 에 스타일을 넘기지 않아 스크롤 뷰의 contentContainerStyle 을 읽는다
-      const [scroll] = screen.root.queryAll(
+      const [scroll] = screen.container.queryAll(
         node => node.type === 'RCTScrollView',
       );
       return StyleSheet.flatten(scroll.props.contentContainerStyle).paddingTop;
