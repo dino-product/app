@@ -56,11 +56,18 @@ const callbacks = () => ({
   onOpenNotifications: jest.fn(),
   onEditProfile: jest.fn(),
   onOpenRequestStatus: jest.fn(),
+  onOpenReviewRequest: jest.fn(),
   onJoinOrganization: jest.fn(),
   onOpenNotificationSettings: jest.fn(),
   onOpenTerms: jest.fn(),
   onOpenAccount: jest.fn(),
 });
+
+/** 검토 중인 요청이 없는 신청 현황 (받아 둠) */
+const NO_REVIEWS: MyPageScreenProps['reviewRequests'] = {
+  status: 'ready',
+  data: [],
+};
 
 /** 사무실이 검토 중인 참여 요청 (신청 현황의 승인 대기). 소속 카드에 '검토' 줄로 보인다 (#199) */
 const reviewRequests: readonly ParticipationRequest[] = [
@@ -88,6 +95,7 @@ async function renderLoadedMyPage(overrides: Partial<MyPageScreenProps> = {}) {
     profile: { status: 'ready', data: myProfile },
     memberships: { status: 'ready', data: myMemberships },
     pendingRequestCount: 3,
+    reviewRequests: NO_REVIEWS,
     ...callbacks(),
     ...overrides,
   };
@@ -108,7 +116,11 @@ function ConnectedMyPage(props: ScreenCallbacks) {
 
 /** 가짜 서버로 받아 그린다. 기본은 프로필·소속 셋을 주는 서버 */
 async function renderMyPage(server: FakeServer = myServer()) {
-  const props: ScreenCallbacks = { pendingRequestCount: 3, ...callbacks() };
+  const props: ScreenCallbacks = {
+    pendingRequestCount: 3,
+    reviewRequests: NO_REVIEWS,
+    ...callbacks(),
+  };
   const view = await renderWithApi(<ConnectedMyPage {...props} />, {
     server,
     session: testSession(),
@@ -277,7 +289,11 @@ describe('MyPageScreen', () => {
       seedMyCache(api.queryClient);
 
       await render(
-        <ConnectedMyPage pendingRequestCount={0} {...callbacks()} />,
+        <ConnectedMyPage
+          pendingRequestCount={0}
+          reviewRequests={NO_REVIEWS}
+          {...callbacks()}
+        />,
         { wrapper: api.wrapper },
       );
 
@@ -292,7 +308,11 @@ describe('MyPageScreen', () => {
       });
       seedMyCache(api.queryClient);
       await render(
-        <ConnectedMyPage pendingRequestCount={0} {...callbacks()} />,
+        <ConnectedMyPage
+          pendingRequestCount={0}
+          reviewRequests={NO_REVIEWS}
+          {...callbacks()}
+        />,
         { wrapper: api.wrapper },
       );
 
@@ -690,12 +710,99 @@ describe('MyPageScreen', () => {
   describe('검토 중 줄 (#199)', () => {
     const reviewRow = (requestId: string) =>
       screen.getByTestId(`review-request-${requestId}`);
+    const reviews: MyPageScreenProps['reviewRequests'] = {
+      status: 'ready',
+      data: reviewRequests,
+    };
     const renderWithReviews = (overrides: Partial<MyPageScreenProps> = {}) =>
-      renderLoadedMyPage({
-        reviewRequests,
-        onOpenReviewRequest: jest.fn(),
-        ...overrides,
+      renderLoadedMyPage({ reviewRequests: reviews, ...overrides });
+    const emptyText = () => screen.queryByText('아직 소속된 발주사가 없어요');
+    const reviewRows = () => screen.queryAllByTestId(/^review-request-\d+$/);
+    const membershipRows = () => screen.queryAllByTestId(/^membership-\d+$/);
+
+    // 리뷰(#210): 소속을 다시 받아 승인으로 바뀐 회사의 요청이 신청 현황에 아직 승인 대기로 남아 있어도
+    // 같은 회사를 승인 줄과 검토 줄로 함께 보이지 않는다. 비활성 소속의 회사에 다시 보낸 요청은 검토 줄로 보인다
+    it('활성 소속 회사의 검토 줄은 그리지 않는다', async () => {
+      await renderWithReviews({
+        memberships: {
+          status: 'ready',
+          data: [
+            {
+              organizationId: 21,
+              organizationName: '한빛 설비',
+              role: 'TECHNICIAN',
+              status: 'ACTIVE',
+            },
+            {
+              organizationId: 22,
+              organizationName: '그린 테크',
+              role: 'STAFF',
+              status: 'DEACTIVATED',
+            },
+          ],
+        },
       });
+
+      expect(screen.queryByTestId('review-request-21')).toBeNull();
+      expect(screen.getByLabelText('한빛 설비, 기사, 승인')).toBeOnTheScreen();
+      expect(reviewRow('22')).toBeOnTheScreen();
+    });
+
+    // 리뷰(#210): 소속이 비어 있으면 신청 현황이 정해질 때까지 스켈레톤을 둔다 ('없어요' 가 잠깐 보였다 바뀌지 않게)
+    describe('소속 카드의 받는 중·실패 (소속 × 신청 현황)', () => {
+      const loading = { status: 'loading' } as const;
+      const failed = (message: string) =>
+        ({ status: 'error', message, onRetry: jest.fn() } as const);
+
+      it('소속이 비었는데 신청 현황을 받는 중이면 빈 안내 대신 스켈레톤이다', async () => {
+        await renderWithReviews({
+          memberships: { status: 'ready', data: [] },
+          reviewRequests: loading,
+        });
+
+        expect(screen.getByTestId('memberships-skeleton')).toBeOnTheScreen();
+        expect(emptyText()).toBeNull();
+      });
+
+      it('소속이 있으면 신청 현황을 받는 동안 소속 줄만 먼저 보인다', async () => {
+        await renderWithReviews({ reviewRequests: loading });
+
+        expect(membershipRows()).toHaveLength(3);
+        expect(reviewRows()).toHaveLength(0);
+        expect(screen.queryByTestId('memberships-skeleton')).toBeNull();
+      });
+
+      // 신청 현황 실패는 소속 카드를 막지 않는다 (배지도 두지 않는다, #116). 다시 시도는 신청 현황 화면이 맡는다
+      it('신청 현황을 받지 못하면 소속 줄만 보이고, 소속도 없으면 빈 안내다', async () => {
+        await renderWithReviews({
+          reviewRequests: failed('신청 현황을 불러오지 못했어요.'),
+        });
+        expect(membershipRows()).toHaveLength(3);
+        expect(reviewRows()).toHaveLength(0);
+        expect(screen.queryByText('신청 현황을 불러오지 못했어요.')).toBeNull();
+
+        await renderWithReviews({
+          memberships: { status: 'ready', data: [] },
+          reviewRequests: failed('신청 현황을 불러오지 못했어요.'),
+        });
+        expect(emptyText()).toBeOnTheScreen();
+      });
+
+      // 소속을 받지 못하면 신청 현황과 상관없이 소속 실패 안내와 다시 시도다 (검토 줄만 따로 보이지 않는다)
+      it('소속을 받지 못하면 신청 현황이 있어도 소속 실패 안내와 다시 시도만 보인다', async () => {
+        const memberships = failed('소속 발주사를 불러오지 못했어요.');
+        await renderWithReviews({ memberships });
+
+        expect(
+          screen.getByText('소속 발주사를 불러오지 못했어요.'),
+        ).toBeOnTheScreen();
+        expect(reviewRows()).toHaveLength(0);
+        await userEvent.press(
+          screen.getByRole('button', { name: '다시 시도' }),
+        );
+        expect(memberships.onRetry).toHaveBeenCalledTimes(1);
+      });
+    });
 
     it('검토 중인 요청은 소속 줄 아래에 이름, 희망 유형, 검토 칩으로 보인다', async () => {
       await renderWithReviews();

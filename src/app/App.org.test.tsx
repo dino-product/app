@@ -20,7 +20,10 @@ import {
   OrganizationErrorCode,
   PARTICIPATION_REQUESTS_PATH,
 } from '../features/my/org/participationApi';
-import { membershipsQueryKey } from '../features/my/memberships';
+import {
+  MEMBERSHIPS_PATH,
+  membershipsQueryKey,
+} from '../features/my/memberships';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
 import {
   EXISTING_REQUESTS,
@@ -143,6 +146,94 @@ describe('App — 조직 참여', () => {
       expect(header('마이페이지')).toBeOnTheScreen();
       expect(header('승인 대기')).toBeNull();
       expect(tab('마이')).toBeSelected();
+      expect(screen.queryByLabelText('그린 테크, 기사, 검토')).toBeNull();
+    });
+
+    // 리뷰(#210) 재현: 검토 화면을 연 채 사무실이 거절하고, 홈의 알림센터에서 거절 알림을 누르면 마이 스택은
+    // [마이페이지, 검토 화면, 거절 화면] 이다. 아래 검토 화면이 '승인 대기 아님' 으로 떠날 때 위의 거절 화면까지 지우면 안 된다
+    it('검토 화면을 연 채 거절 알림으로 연 거절 화면은 아래 검토 화면이 떠나도 남는다', async () => {
+      const app = await renderSignedInApp({
+        requests: EXISTING_REQUESTS.map(item =>
+          item.requestId === 3
+            ? {
+                ...item,
+                status: 'PENDING',
+                rejectReason: null,
+                decidedAt: null,
+              }
+            : item,
+        ),
+      });
+      await userEvent.press(tab('마이'));
+      await userEvent.press(
+        await screen.findByRole('button', {
+          name: '스마트 홈케어, 직원, 검토',
+        }),
+      );
+      expect(header('승인 대기')).toBeOnTheScreen();
+      participationOf(app.server).decide(
+        { status: 'REJECTED', rejectReason: '이번 달 채용이 마감되었습니다' },
+        3,
+      );
+
+      await userEvent.press(tab('홈'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: '알림센터' }),
+      );
+      await userEvent.press(
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
+      );
+
+      expect(
+        await screen.findByText('이번 달 채용이 마감되었습니다'),
+      ).toBeOnTheScreen();
+      // 거절 화면이 받은 새 목록으로 아래 검토 화면의 문지기가 판단할 때까지 기다린다
+      await act(() => new Promise<void>(resolve => setTimeout(resolve, 200)));
+      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+      expect(header('마이페이지')).toBeNull();
+      expect(tab('마이')).toBeSelected();
+      // 거절 화면에서 뒤로 가면 검토 화면이 아니라 마이페이지다
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('마이페이지')).toBeOnTheScreen();
+      expect(header('승인 대기')).toBeNull();
+    });
+
+    // 리뷰(#210) 재현: 마이페이지를 본 뒤 사무실이 승인하고 다른 탭에 갔다 오면, 소속과 함께 신청 현황도 다시 받는다.
+    // 같은 회사가 승인 줄과 검토 줄로 함께 보이지 않는다
+    it('마이 탭에 돌아오면 신청 현황도 다시 받아, 승인된 회사는 승인 줄로만 보인다', async () => {
+      const app = await openMyPage();
+      expect(button('그린 테크, 기사, 검토')).toBeOnTheScreen();
+      participationOf(app.server).decide({ status: 'APPROVED' }, 2);
+      app.server.on(
+        'GET',
+        MEMBERSHIPS_PATH,
+        ok({
+          memberships: [
+            {
+              organizationId: 1,
+              organizationName: '오르빗 설비',
+              role: 'TECHNICIAN',
+              status: 'ACTIVE',
+            },
+            {
+              organizationId: 11,
+              organizationName: '그린 테크',
+              role: 'TECHNICIAN',
+              status: 'ACTIVE',
+            },
+          ],
+        }),
+      );
+
+      await userEvent.press(tab('홈'));
+      await userEvent.press(tab('마이'));
+
+      expect(
+        await screen.findByLabelText('그린 테크, 기사, 승인'),
+      ).toBeOnTheScreen();
+      await waitFor(() => expect(button('신청 현황, 1건')).toBeOnTheScreen());
       expect(screen.queryByLabelText('그린 테크, 기사, 검토')).toBeNull();
     });
   });

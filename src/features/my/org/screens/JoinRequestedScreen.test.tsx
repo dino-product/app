@@ -503,6 +503,25 @@ describe('JoinRequestedScreen', () => {
       expect(screen.queryByTestId('join-steps-fill')).toBeNull();
       expect(screen.queryByLabelText(/^상태,/)).toBeNull();
     });
+
+    // 세로 간격도 #85 그대로다: 머리 아래 42, 안내–진행 32, 진행–요약 24, 요약–아래 문구 24 (리뷰 #210)
+    it('온보딩 세로 간격은 지금 그대로다', async () => {
+      await renderRequested({ flow: 'onboarding' });
+
+      const steps = screen.getByTestId('join-steps');
+      expect(steps.parent).toHaveStyle({ gap: 32 });
+      let scroll = steps.parent;
+      while (scroll && scroll.type !== 'RCTScrollView') {
+        scroll = scroll.parent;
+      }
+      expect(
+        StyleSheet.flatten(scroll?.props.contentContainerStyle),
+      ).toMatchObject({ paddingTop: 42, gap: 24 });
+      expect(
+        screen.getByText('승인 전까지 회사의 일정과 작업은 표시되지 않습니다.')
+          .parent,
+      ).toHaveStyle({ gap: 24 });
+    });
   });
 
   // 마이 › 조직 참여에서 보낸 요청과 마이페이지 검토 줄에서 연 요청은 Figma 회사찾기-요청완료 (3235:14886) 의 패널 값이다

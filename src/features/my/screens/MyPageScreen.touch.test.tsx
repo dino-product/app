@@ -15,6 +15,8 @@ const renderMyPage = () =>
       profile={{ status: 'ready', data: myProfile }}
       memberships={{ status: 'ready', data: myMemberships }}
       pendingRequestCount={3}
+      reviewRequests={{ status: 'ready', data: [] }}
+      onOpenReviewRequest={jest.fn()}
       onOpenNotifications={jest.fn()}
       onEditProfile={jest.fn()}
       onOpenRequestStatus={jest.fn()}
@@ -52,16 +54,19 @@ describe('MyPageScreen 터치 영역', () => {
         profile={{ status: 'ready', data: myProfile }}
         memberships={{ status: 'ready', data: myMemberships }}
         pendingRequestCount={1}
-        reviewRequests={[
-          {
-            requestId: '21',
-            organizationId: '21',
-            organizationName: '한빛 설비',
-            desiredType: 'TECHNICIAN',
-            status: 'PENDING',
-            requestedAt: '2026-09-23T01:24:00Z',
-          },
-        ]}
+        reviewRequests={{
+          status: 'ready',
+          data: [
+            {
+              requestId: '21',
+              organizationId: '21',
+              organizationName: '한빛 설비',
+              desiredType: 'TECHNICIAN',
+              status: 'PENDING',
+              requestedAt: '2026-09-23T01:24:00Z',
+            },
+          ],
+        }}
         onOpenReviewRequest={jest.fn()}
         onOpenNotifications={jest.fn()}
         onEditProfile={jest.fn()}

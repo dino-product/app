@@ -7,7 +7,7 @@ import {
 } from '../../../shared/testing/fakeServer';
 import { createTestApi } from '../../../shared/testing/renderWithApi';
 import { testSession } from '../../../shared/testing/session';
-import { countPendingRequests } from './model';
+import { pendingRequests, type ParticipationRequest } from './model';
 import { OrganizationErrorCode } from './participationApi';
 import { membershipsQueryKey } from '../memberships';
 import {
@@ -23,6 +23,10 @@ import {
   EXISTING_REQUESTS,
   type ParticipationFake,
 } from './testing';
+
+/** 승인 대기 건수 (select 로 고른 값만 받는지 본다) */
+const countPending = (requests: ParticipationRequest[]) =>
+  pendingRequests(requests).length;
 
 function setup(requests = EXISTING_REQUESTS) {
   const participation = createParticipationServer({ requests });
@@ -41,7 +45,7 @@ describe('useParticipationRequests', () => {
     const { wrapper } = setup();
 
     const { result } = await renderHook(
-      () => useParticipationRequests(countPendingRequests),
+      () => useParticipationRequests(countPending),
       { wrapper },
     );
 
@@ -132,7 +136,7 @@ describe('useRequestParticipation', () => {
     const { wrapper, queryClient, server, participation } = setup();
     const { result } = await renderHook(
       () => ({
-        list: useParticipationRequests(countPendingRequests),
+        list: useParticipationRequests(countPending),
         request: useRequestParticipation(),
       }),
       { wrapper },
@@ -223,7 +227,7 @@ describe('useCancelParticipationRequest', () => {
     const { wrapper, participation } = setup();
     const { result } = await renderHook(
       () => ({
-        pending: useParticipationRequests(countPendingRequests),
+        pending: useParticipationRequests(countPending),
         cancel: useCancelParticipationRequest(),
       }),
       { wrapper },

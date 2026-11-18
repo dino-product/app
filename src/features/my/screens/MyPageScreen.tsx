@@ -52,16 +52,17 @@ import type { QueryState } from '../queryState';
 // 받는 중·실패(다시 시도)는 카드마다 따로 보이고, 설정 행(로그아웃 등)은 그동안에도 쓸 수 있다.
 // 로딩·오류 자리는 Figma 에 없어 공용 자리(LoadStateView)로 둔다 (Figma 미확인)
 // 소속 카드에는 소속(승인·비활성) 줄 아래에 사무실이 검토 중인 참여 요청(검토) 줄이 이어진다 (#199).
-// 검토 줄만 눌러 그 요청의 진행 상황을 연다. 승인 줄의 참여 완료 화면은 참여 승인 알림으로만 연다
+// 검토 줄만 눌러 그 요청의 진행 상황을 연다. 승인 줄의 참여 완료 화면은 참여 승인 알림으로만 연다.
+// 소속 카드의 받는 중·실패는 소속이 정하고, 신청 현황은 검토 줄만 더한다 (membershipCardOf)
 export type MyPageScreenProps = {
   profile: QueryState<Profile>;
   memberships: QueryState<readonly MembershipResponse[]>;
   /** 아직 결과가 나오지 않은 조직 참여 신청 수 */
   pendingRequestCount: number;
-  /** 사무실이 검토 중인 참여 요청 (신청 현황의 승인 대기). 소속 카드에 검토 줄로 보인다. 받기 전이면 비워 둔다 */
-  reviewRequests?: readonly ParticipationRequest[];
+  /** 사무실이 검토 중인 참여 요청 (신청 현황의 승인 대기). 소속 카드에 검토 줄로 보인다 */
+  reviewRequests: QueryState<readonly ParticipationRequest[]>;
   /** 검토 줄을 눌렀다: 그 참여 요청의 진행 상황 (#199) */
-  onOpenReviewRequest?: (requestId: string) => void;
+  onOpenReviewRequest: (requestId: string) => void;
   onOpenNotifications: () => void;
   onEditProfile: () => void;
   /** 참여 신청 현황 (#73) */
@@ -79,8 +80,8 @@ function MyPageScreenView({
   profile,
   memberships,
   pendingRequestCount,
-  reviewRequests = NO_REVIEW_REQUESTS,
-  onOpenReviewRequest = ignoreReviewRequest,
+  reviewRequests,
+  onOpenReviewRequest,
   onOpenNotifications,
   onEditProfile,
   onOpenRequestStatus,
@@ -101,6 +102,10 @@ function MyPageScreenView({
       { paddingTop: autoHide.height + CONTENT_TOP },
     ],
     [autoHide.height],
+  );
+  const membershipCard = useMemo(
+    () => membershipCardOf(memberships, reviewRequests),
+    [memberships, reviewRequests],
   );
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -185,28 +190,27 @@ function MyPageScreenView({
               </View>
             </View>
             <View style={[styles.card, styles.membershipCard]}>
-              {memberships.status !== 'ready' ? (
+              {membershipCard.kind === 'load' ? (
                 <LoadStateView
-                  state={memberships}
+                  state={membershipCard.state}
                   style={styles.membershipLoad}
                   skeleton={<MembershipsSkeleton />}
                 />
-              ) : memberships.data.length === 0 &&
-                reviewRequests.length === 0 ? (
+              ) : membershipCard.kind === 'empty' ? (
                 <Text variant="Caption/M/Medium" color={colors.gray[600]}>
                   아직 소속된 발주사가 없어요
                 </Text>
               ) : (
                 <>
-                  {memberships.data.map((membership, index) => (
+                  {membershipCard.memberships.map((membership, index) => (
                     <Fragment key={membership.organizationId}>
                       {index > 0 && <View style={styles.divider} />}
                       <MembershipRow membership={membership} />
                     </Fragment>
                   ))}
-                  {reviewRequests.map((request, index) => (
+                  {membershipCard.reviews.map((request, index) => (
                     <Fragment key={`review-${request.requestId}`}>
-                      {(memberships.data.length > 0 || index > 0) && (
+                      {(membershipCard.memberships.length > 0 || index > 0) && (
                         <View style={styles.divider} />
                       )}
                       <ReviewRequestRow
@@ -254,7 +258,46 @@ function MyPageScreenView({
 export const MyPageScreen = memo(MyPageScreenView);
 
 const NO_REVIEW_REQUESTS: readonly ParticipationRequest[] = [];
-const ignoreReviewRequest = () => {};
+const LOADING = { status: 'loading' } as const;
+
+type MembershipCard =
+  | { kind: 'load'; state: Exclude<QueryState<unknown>, { status: 'ready' }> }
+  | { kind: 'empty' }
+  | {
+      kind: 'rows';
+      memberships: readonly MembershipResponse[];
+      reviews: readonly ParticipationRequest[];
+    };
+
+/**
+ * 소속 카드에 그릴 것. 받는 중·실패는 소속이 정한다 (소속 실패면 검토 줄도 두지 않고 소속 다시 시도만).
+ * 신청 현황은 검토 줄만 더한다: 받는 중이면 소속 줄만 먼저 보이되, 소속이 비어 있으면 '없어요' 가 잠깐 보였다
+ * 바뀌지 않게 정해질 때까지 스켈레톤을 둔다. 받지 못하면 검토 줄 없이 그린다 (배지도 두지 않고, 다시 시도는 신청 현황 화면이 맡는다).
+ * 활성 소속 회사의 검토 줄은 빼고 그린다 — 소속을 먼저 다시 받아 승인이 보이는데 신청 현황이 아직 옛 목록일 때 (리뷰 #210)
+ */
+function membershipCardOf(
+  memberships: QueryState<readonly MembershipResponse[]>,
+  reviewRequests: QueryState<readonly ParticipationRequest[]>,
+): MembershipCard {
+  if (memberships.status !== 'ready') {
+    return { kind: 'load', state: memberships };
+  }
+  const active = new Set(
+    memberships.data
+      .filter(item => item.status === 'ACTIVE')
+      .map(item => String(item.organizationId)),
+  );
+  const reviews =
+    reviewRequests.status === 'ready'
+      ? reviewRequests.data.filter(item => !active.has(item.organizationId))
+      : NO_REVIEW_REQUESTS;
+  if (memberships.data.length === 0 && reviews.length === 0) {
+    return reviewRequests.status === 'loading'
+      ? { kind: 'load', state: LOADING }
+      : { kind: 'empty' };
+  }
+  return { kind: 'rows', memberships: memberships.data, reviews };
+}
 
 // 소속 상태별 칩. Figma 소속 카드는 활성 소속을 '승인' 으로 보인다 (3235:17151)
 const membershipChipStatus: Record<

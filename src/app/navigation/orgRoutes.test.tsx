@@ -198,6 +198,7 @@ describe('JoinReviewRoute', () => {
       goBack: jest.fn(),
       navigate: jest.fn(),
       popTo: jest.fn(),
+      dispatch: jest.fn(),
       isFocused: jest.fn(() => true),
     };
     const route = {
@@ -214,7 +215,27 @@ describe('JoinReviewRoute', () => {
     ).then(() => ({ navigation }));
   }
 
-  it('신청을 취소하면 마이페이지로 한 번만 돌아가고 뒤로 가기는 보내지 않는다', async () => {
+  /** 떠나기로 보낸 스택 바꾸기를 이 스택 상태에 적용한 결과 */
+  const leaveFrom = (
+    navigation: { dispatch: jest.Mock },
+    routes: { key: string; name: string }[],
+  ) => {
+    const [[toAction]] = navigation.dispatch.mock.calls as [
+      [(state: object) => { payload: { routes: unknown[]; index: number } }],
+    ];
+    return toAction({
+      key: 'my-stack',
+      type: 'stack',
+      stale: false,
+      routeNames: ['MyPage', 'OrgJoinReview', 'OrgJoinRejected'],
+      index: routes.length - 1,
+      routes,
+    }).payload;
+  };
+  const myPage = { key: 'MyPage-0', name: 'MyPage' };
+  const review = { key: 'OrgJoinReview-1', name: 'OrgJoinReview' };
+
+  it('신청을 취소하면 이 화면만 스택에서 한 번 빼고, 뒤로 가기·popTo 는 보내지 않는다', async () => {
     const { navigation } = await renderReview();
 
     await userEvent.press(
@@ -222,14 +243,39 @@ describe('JoinReviewRoute', () => {
     );
     await userEvent.press(screen.getByRole('button', { name: '취소' }));
 
-    await waitFor(() => expect(navigation.popTo).toHaveBeenCalled());
+    await waitFor(() => expect(navigation.dispatch).toHaveBeenCalled());
     // 취소 결과와 '승인 대기가 아님' 이 모두 처리될 때까지 기다린다
     await waitFor(() =>
       expect(screen.queryByText('한빛 설비')).not.toBeOnTheScreen(),
     );
-    expect(navigation.popTo).toHaveBeenCalledTimes(1);
-    expect(navigation.popTo).toHaveBeenCalledWith('MyPage');
+    expect(navigation.dispatch).toHaveBeenCalledTimes(1);
     expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(navigation.popTo).not.toHaveBeenCalled();
     expect(navigation.navigate).not.toHaveBeenCalled();
+    expect(leaveFrom(navigation, [myPage, review])).toMatchObject({
+      routes: [myPage],
+      index: 0,
+    });
+  });
+
+  // 리뷰(#210): 위에 쌓인 화면(알림으로 연 같은 요청의 거절 화면 등)은 그대로 둔다
+  it('위에 다른 화면이 쌓여 있으면 그 화면은 남기고 이 화면만 뺀다', async () => {
+    const { navigation } = await renderReview();
+    await userEvent.press(
+      await screen.findByRole('button', { name: '신청 취소' }),
+    );
+    await userEvent.press(screen.getByRole('button', { name: '취소' }));
+    await waitFor(() => expect(navigation.dispatch).toHaveBeenCalled());
+
+    const rejectedRoute = {
+      key: 'OrgJoinRejected-1',
+      name: 'OrgJoinRejected',
+    };
+    expect(
+      leaveFrom(navigation, [myPage, review, rejectedRoute]),
+    ).toMatchObject({
+      routes: [myPage, rejectedRoute],
+      index: 1,
+    });
   });
 });
