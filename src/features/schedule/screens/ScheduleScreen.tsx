@@ -334,7 +334,7 @@ function ScheduleScreenView({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 머리말은 리스트 위에 겹쳐 그리고 그림자가 리스트 위로 드리운다.
+      {/* 머리말은 리스트 위에 겹쳐 그린다 (화면 바탕과 같은 색, 그림자 없음 #201).
           탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(3754:6269)에는 종이 없다 */}
       <AutoHideHeaderLayout
         autoHide={autoHide}
@@ -356,7 +356,6 @@ function ScheduleScreenView({
           </View>
         }
         style={styles.header}
-        bodyStyle={styles.listBackground}
       >
         {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
         {tab === 'confirmed' ? (
@@ -453,16 +452,13 @@ const LIST_INSET = 24;
 const PENDING_TOP = 24;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
-  // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). 내용이 아래로 지나가므로 화면 배경으로 가린다
-  header: {
-    backgroundColor: colors.white[100],
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
-  },
+  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다.
+  // 바탕은 화면에 그려 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+  screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). Figma 탑 내비는 바탕색·그림자가 없다 (#201).
+  // 내용이 아래로 지나가므로 화면 배경과 같은 색으로 가린다
+  header: { backgroundColor: colors.background[3] },
   titleBar: { paddingBottom: TITLE_BAR_PADDING_BOTTOM },
-  // 머리말 아래는 회색 바탕에 흰 카드가 놓인다 (Figma Background/3). 바탕은 리스트 뒤 본문에 그려
-  // 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
-  listBackground: { backgroundColor: colors.background[3] },
   list: { flex: 1 },
   // 날짜 블록은 화면 폭을 차지하고(넓힌 터치 영역·가장자리 밀기 제외 영역이 그 안에 든다) 안쪽 여백으로 24 를 들인다
   confirmedContent: { paddingBottom: 24 },

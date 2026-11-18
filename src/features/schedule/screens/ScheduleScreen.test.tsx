@@ -71,12 +71,23 @@ const pending: PendingRequest[] = [
   },
 ];
 
-// 머리말 아래 회색(Background/3) 바탕은 리스트가 아니라 그 뒤 본문(머리를 겹쳐 그린 영역)에 그린다.
+/** 위로 올라가며 처음 만나는 칠해진 바탕. 투명이면 그 뒤가 보인다 */
+const backgroundBehind = (node: HostElement | null | undefined) => {
+  let current = node;
+  while (current) {
+    const color = StyleSheet.flatten(current.props.style)?.backgroundColor;
+    if (color != null && color !== 'transparent') {
+      return color;
+    }
+    current = current.parent;
+  }
+  return undefined;
+};
+
+// 회색(Background/3) 바탕은 리스트가 아니라 그 뒤 화면 배경이다.
 // 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
 function expectGrayBehind(list: HostElement) {
-  const body = screen.getByTestId('auto-hide-header').parent as HostElement;
-  expect(body).toHaveStyle({ backgroundColor: colors.background[3] });
-  expect(body).toContainElement(list);
+  expect(backgroundBehind(list)).toBe(colors.background[3]);
   expect(StyleSheet.flatten(list.props.style)?.backgroundColor).toBeUndefined();
 }
 
@@ -452,8 +463,8 @@ describe('ScheduleScreen — 확정 일정', () => {
   });
 
   // 제목 줄은 탭 첫 화면 공통 상단 바다 (#103, Figma 3463:17455: 상태 표시줄 아래 12, 종 없음 3754:6269).
-  // Figma 내 일정: 제목과 탭 사이 24. 머리말 아래에 그림자가 리스트 위로 드리운다
-  it('머리말은 공통 상단 바(종 없음) 아래 24 에 탭이 있고, 아래에 그림자가 있다', async () => {
+  // Figma 내 일정: 제목과 탭 사이 24
+  it('머리말은 공통 상단 바(종 없음) 아래 24 에 탭이 있다', async () => {
     await renderSchedule();
 
     const title = screen.getByRole('header', { name: '내 일정' });
@@ -463,13 +474,7 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(bar).toHaveStyle({ paddingTop: 12, paddingHorizontal: 24 });
     expect(stylePt(bar, 'paddingBottom') + stylePt(tab, 'paddingTop')).toBe(24);
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
-    // 그림자는 겹쳐 그린 머리의 바탕에 있다 (탭을 옮길 때 움직이지 않는다, #176)
-    const headerBackground = screen.getByTestId('auto-hide-header');
-    expect(headerBackground).toContainElement(bar);
-    expect(headerBackground).toHaveStyle({
-      boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
-      zIndex: 1,
-    });
+    expect(screen.getByTestId('auto-hide-header')).toContainElement(bar);
   });
 
   // Figma 3754:6269: 머리말 아래 회색(Background/3) 위에 날짜 블록(날짜 줄 → 16 → 주간 줄)과 카드 목록이 24 간격으로 놓인다.
@@ -824,6 +829,54 @@ describe('ScheduleScreen — 달력을 만지는 동안 리스트 고정', () =>
     }
     expect(node.props.scrollEnabled).not.toBe(false);
   });
+});
+
+// #201: Figma 내 일정(3754:6269·3754:6457·3754:6804)은 화면 바탕이 Background/3 이고 탑 내비(3754:6270·3754:6458·3754:6940)는
+// 바탕색·그림자가 없다. 머리는 리스트 위에 겹쳐 그려 내용이 그 아래로 지나가므로 화면 배경과 같은 Background/3 으로 가린다
+describe('ScheduleScreen — 탑 내비 색 (#201)', () => {
+  beforeEach(() => {
+    holdNativeAnimations();
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const expectNavColors = () => {
+    // 상태 표시줄 뒤(안전 영역)도 화면 배경이다
+    expect(screen.root).toHaveStyle({ backgroundColor: colors.background[3] });
+    expect(autoHideHeader()).toHaveStyle({
+      backgroundColor: colors.background[3],
+    });
+    expect(
+      StyleSheet.flatten(autoHideHeader().props.style).boxShadow,
+    ).toBeUndefined();
+    expect(
+      backgroundBehind(screen.getByRole('header', { name: '내 일정' })),
+    ).toBe(colors.background[3]);
+    // 제목 Body/XL/Semibold #000000 (3754:6273)
+    expect(screen.getByRole('header', { name: '내 일정' })).toHaveStyle({
+      color: colors.black,
+    });
+  };
+
+  it.each([
+    ['확정 일정', 'schedule-confirmed-list'],
+    ['응답 필요', 'schedule-pending-list'],
+  ] as const)(
+    '%s: 탑 내비는 스크롤 전·후 모두 화면 바탕(Background/3)과 같고 그림자가 없다',
+    async (tabLabel, listTestID) => {
+      await renderSchedule();
+      if (tabLabel === '응답 필요') {
+        await userEvent.press(
+          screen.getByRole('tab', { name: '응답 필요 2건' }),
+        );
+      }
+      expectNavColors();
+
+      await scrollDownFromTop(screen.getByTestId(listTestID));
+      expectNavColors();
+    },
+  );
 });
 
 // #148: 아래로 스크롤하면 제목 줄(상단 바)이 숨고 하위 탭은 화면 맨 위에 남는다. 위로 스크롤을 시작하면 다시 보인다
