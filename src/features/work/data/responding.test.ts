@@ -102,6 +102,23 @@ describe('내 일정에 얹기', () => {
     ]);
   });
 
+  // PR #209 확인: 수락 뒤 사무실이 취소해, 취소를 담은 조회가 수락 답보다 먼저 왔다. 서버 값이 이미 수락 대기를 지났으면 덮지 않는다
+  it('수락을 보낸 요청이라도 이미 수락 대기를 지난 행(취소·작업중 등)은 그대로 둔다', () => {
+    const moved: MySchedule = {
+      works: [
+        row(10, '2026-10-21T00:00:00Z', { status: 'CANCELED' }),
+        row(11, '2026-10-21T00:00:00Z', { status: 'IN_PROGRESS' }),
+      ],
+    };
+
+    expect(
+      scheduleWithResponses(moved, week, [
+        { kind: 'accept', workId: 10 },
+        { kind: 'accept', workId: 11 },
+      ]),
+    ).toBe(moved);
+  });
+
   it('거절을 보낸 요청은 빠진다', () => {
     expect(
       ids(
@@ -131,6 +148,33 @@ describe('상세에 얹기', () => {
         { kind: 'accept', workId: 10 },
       ]),
     ).toMatchObject({ status: 'delayed', workStatus: 'ACCEPTED' });
+  });
+
+  it('이미 수락 대기를 지난 상세(취소 등)는 그대로 둔다', () => {
+    const canceled = {
+      ...assigned,
+      status: 'rejected' as const,
+      statusLabel: '취소',
+      workStatus: 'CANCELED' as const,
+    };
+
+    expect(
+      detailWithResponses(canceled, 10, [{ kind: 'accept', workId: 10 }]),
+    ).toBe(canceled);
+  });
+
+  it('작업전으로 바꿀 때 앞 상태의 칩 이름은 남기지 않는다', () => {
+    const result = detailWithResponses(
+      { ...assigned, statusLabel: '배정됨' },
+      10,
+      [{ kind: 'accept', workId: 10 }],
+    );
+
+    expect(result).toMatchObject({
+      status: 'beforeWork',
+      workStatus: 'ACCEPTED',
+    });
+    expect(result.statusLabel).toBeUndefined();
   });
 
   it('다른 작업의 응답이나 거절이면 받은 값 그대로다', () => {

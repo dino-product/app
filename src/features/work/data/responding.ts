@@ -33,7 +33,10 @@ export function pendingWithResponses(
     : schedule;
 }
 
-/** 그 구간의 내 일정: 거절한 요청은 빠지고, 수락한 요청은 작업전이다 (없으면 겹칠 때 끼워 넣는다) */
+/**
+ * 그 구간의 내 일정: 거절한 요청은 빠지고, 수락한 요청은 작업전이다 (없으면 겹칠 때 끼워 넣는다).
+ * 수락 대기인 행만 바꾼다. 서버 값이 이미 수락 대기를 지났으면(취소·재배정·작업중 등) 그 값이 맞다
+ */
 export function scheduleWithResponses(
   schedule: MySchedule,
   period: Period,
@@ -54,7 +57,7 @@ export function scheduleWithResponses(
       changed = true;
       return [];
     }
-    if (accepted.has(work.workId) && work.status !== 'ACCEPTED') {
+    if (accepted.has(work.workId) && work.status === 'PENDING_ACCEPT') {
       changed = true;
       return [{ ...work, status: 'ACCEPTED' as const }];
     }
@@ -75,7 +78,10 @@ export function scheduleWithResponses(
   return changed ? { works } : schedule;
 }
 
-/** 작업 상세: 수락을 보낸 작업은 작업전이다. 상세는 지연 여부를 칩으로만 들고 있어 지연이면 그대로 둔다 */
+/**
+ * 작업 상세: 수락을 보낸 작업은 작업전이다. 수락 대기인 상세만 바꾸고(이미 지난 서버 값은 그대로), 앞 상태의 칩 이름은 지운다.
+ * 상세는 지연 여부를 칩으로만 들고 있어 지연이면 그대로 둔다
+ */
 export function detailWithResponses(
   detail: WorkDetail,
   workId: number,
@@ -84,15 +90,15 @@ export function detailWithResponses(
   const accepting = responses.some(
     response => response.kind === 'accept' && response.workId === workId,
   );
-  if (!accepting || detail.workStatus === 'ACCEPTED') {
+  if (!accepting || detail.workStatus !== 'PENDING_ACCEPT') {
     return detail;
   }
+  const chip = workStatusChip('ACCEPTED', detail.status === 'delayed');
   return {
     ...detail,
     workStatus: 'ACCEPTED',
-    status:
-      detail.status === 'delayed'
-        ? 'delayed'
-        : workStatusChip('ACCEPTED', false).status,
+    status: chip.status,
+    // 칩 이름은 새 상태를 따른다 (작업전·지연은 이름을 따로 두지 않는다)
+    statusLabel: chip.label,
   };
 }
