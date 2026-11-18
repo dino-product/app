@@ -65,7 +65,8 @@ describe('TermsDetailScreen', () => {
 
     expect(await screen.findByText('제1조(목적)')).toBeOnTheScreen();
     expect(screen.getByText('이 약관은 목적을 규정합니다.')).toBeOnTheScreen();
-    expect(screen.getByText('Orbit 서비스 이용약관')).toBeOnTheScreen();
+    // 전문 첫머리의 문서 이름은 큰 제목과 겹쳐 보이지 않는다 (Figma 본문은 제1조부터)
+    expect(screen.queryByText('Orbit 서비스 이용약관')).not.toBeOnTheScreen();
     expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen();
   });
 
