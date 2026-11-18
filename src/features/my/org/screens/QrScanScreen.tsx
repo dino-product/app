@@ -127,8 +127,9 @@ export function QrScanScreen({
           <View style={styles.dim} />
         </View>
         <View pointerEvents="box-none" style={[styles.dim, styles.below]}>
+          {/* 회사 QR 을 읽으면 화면이 닫히므로, 그사이 바뀐 안내를 TalkBack 이 읽지 않게 끈다 */}
           <Text
-            accessibilityLiveRegion="polite"
+            accessibilityLiveRegion={scanned ? 'none' : 'polite'}
             variant="Body/XS/Medium"
             color={colors.white[100]}
             style={styles.message}

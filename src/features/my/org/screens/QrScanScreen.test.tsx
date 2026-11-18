@@ -231,6 +231,23 @@ describe('QrScanScreen', () => {
       expect(screen.getByText(GUIDE)).toBeOnTheScreen();
     });
 
+    // 화면이 닫히는 동안 TalkBack 이 바뀐 안내를 읽지 않게 한다
+    it('회사 QR 을 읽은 뒤에는 안내의 live region 을 끈다', async () => {
+      await renderScan();
+      await scanQr('WIFI:S:office;;');
+      expect(screen.getByText(UNRECOGNIZED)).toHaveProp(
+        'accessibilityLiveRegion',
+        'polite',
+      );
+
+      await scanQr(JOIN_LINK);
+
+      expect(screen.getByText(GUIDE)).toHaveProp(
+        'accessibilityLiveRegion',
+        'none',
+      );
+    });
+
     // Android 는 live region 이 읽으므로 한 번 더 알리면 두 번 읽는다
     it('Android 는 live region 만으로 읽고 따로 알리지 않는다', async () => {
       jest.replaceProperty(Platform, 'OS', 'android');
