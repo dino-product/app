@@ -218,6 +218,19 @@ describe('QrScanScreen', () => {
       expect(props.onScanned).toHaveBeenCalledWith('RBT124');
     });
 
+    // 화면이 닫히는 동안 방금 비춘 회사 QR 을 두고 '인식할 수 없다' 고 보이지 않게 한다
+    it('일반 QR 다음 회사 QR 을 읽으면 인식할 수 없다는 안내를 거두고 기본 안내로 돌아간다', async () => {
+      const { props } = await renderScan();
+      await scanQr('WIFI:S:office;;');
+      expect(screen.getByText(UNRECOGNIZED)).toBeOnTheScreen();
+
+      await scanQr(JOIN_LINK);
+
+      expect(props.onScanned).toHaveBeenCalledWith('RBT124');
+      expect(screen.queryByText(UNRECOGNIZED)).toBeNull();
+      expect(screen.getByText(GUIDE)).toBeOnTheScreen();
+    });
+
     // Android 는 live region 이 읽으므로 한 번 더 알리면 두 번 읽는다
     it('Android 는 live region 만으로 읽고 따로 알리지 않는다', async () => {
       jest.replaceProperty(Platform, 'OS', 'android');

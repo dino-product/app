@@ -88,7 +88,9 @@ export function QrScanScreen({
       }
       return;
     }
+    // 닫히는 동안 방금 비춘 일반 QR 의 '인식할 수 없다' 가 남지 않게 기본 안내로 돌린다
     scannedRef.current = true;
+    setUnrecognized(false);
     setScanned(true);
     onScanned(code);
   };
