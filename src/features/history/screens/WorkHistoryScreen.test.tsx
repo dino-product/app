@@ -166,6 +166,21 @@ function transformOf(element: HostElement, key: string): number | undefined {
 }
 /** 제목이 접힌 정도 (세로 배율, 1 펼침 · 0 다 접힘) */
 const titleFold = () => transformOf(part('work-history-title'), 'scaleY');
+/** 요소 안의 아이콘 SVG */
+function iconSvgIn(element: HostElement): HostElement {
+  const queue: HostElement[] = [element];
+  for (let node = queue.shift(); node; node = queue.shift()) {
+    if (node.props.xml !== undefined) {
+      return node;
+    }
+    for (const child of node.children) {
+      if (typeof child !== 'string') {
+        queue.push(child);
+      }
+    }
+  }
+  throw new Error('아이콘이 없습니다');
+}
 const layout = (height: number, y = 0) => ({
   nativeEvent: { layout: { x: 0, y, width: 390, height } },
 });
@@ -212,6 +227,23 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
       ...typography['Body/M/SemiBold'],
       color: colors.gray[800],
     });
+  });
+
+  // Figma 작업이력 (기본) 50929:14830 · 50929:14833: 채운 삼각형 Gray400 #AAAAAA (#204 에서 함께 맞춤)
+  it('◀ ▶ 는 Figma 의 Gray400 채운 삼각형이고, 이번 달에서 ▶ 는 흐린 Gray100 이다', async () => {
+    await renderHistory();
+
+    const prev = iconSvgIn(prevMonth());
+    expect(prev.props.xml).toBe(iconSvgs['triangle-left'].xml);
+    expect(prev.props.color).toBe(colors.gray[400]);
+    expect(colors.gray[400]).toBe('#AAAAAA');
+    // 오늘이 속한 달이라 다음 달로 갈 수 없다
+    expect(iconSvgIn(nextMonth()).props.color).toBe(colors.gray[100]);
+
+    await userEvent.press(prevMonth());
+    const next = iconSvgIn(nextMonth());
+    expect(next.props.xml).toBe(iconSvgs['triangle-right'].xml);
+    expect(next.props.color).toBe(colors.gray[400]);
   });
 
   it('바는 화면 바탕과 같아 구분되지 않는다 (회색 배경·그림자는 아직 투명하다)', async () => {
