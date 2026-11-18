@@ -565,7 +565,8 @@ export function RejectReasonRoute({
   const repository = useWorkRepository();
   const queryClient = useQueryClient();
   const rejectWork = useRejectWork().mutateAsync;
-  // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(제출·취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
+  // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
+  // 제출로 나갈 때는 서버가 받을 때까지 남긴다 (실패하면 다시 거절할 때 이어 고른다, #197).
   // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다.
   // 볼 수 없는 요청이면 아래 effect 가 닫으므로 그보다 먼저 듣는다 (effect 는 선언 순서대로 돈다).
   // 그렇게 닫을 때 요청이 확실히 없지 않으면(소속 문제) 잠시일 수 있어 고르던 사유를 남긴다 (#136, 작업 상세의 보고 초안과 같다)

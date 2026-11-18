@@ -15,6 +15,7 @@ import {
   makeLocalSeed,
 } from '../features/work/data/localSeedTesting';
 import { ApiError, ApiErrorMessage } from '../shared/api';
+import { SKELETON_LABEL } from '../shared/design-system';
 import { appStorage } from '../shared/storage/appStorage';
 import {
   APP_TEST_NOW,
@@ -160,6 +161,11 @@ describe('App — 작업 데이터 (#114)', () => {
         screen.queryAllByRole('button', { name: /수락$/ });
       const rejectButtons = () =>
         screen.queryAllByRole('button', { name: /거절$/ });
+      // 스켈레톤은 불러오기(GET)에만 쓴다. 변경(POST)을 기다리는 동안에는 보이지 않는다
+      const skeletons = () =>
+        screen.queryAllByLabelText(SKELETON_LABEL, {
+          includeHiddenElements: true,
+        });
 
       async function openRequestDetail(render: () => Promise<unknown>) {
         const before = (await openPending(render)).length;
@@ -187,6 +193,7 @@ describe('App — 작업 데이터 (#114)', () => {
         await userEvent.press(acceptButtons()[0]);
 
         expect(acceptButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
       });
 
       it('요청 상세에서 수락하면 서버 답을 기다리지 않고 내 일정으로 돌아가며 요청이 빠진다', async () => {
@@ -203,6 +210,7 @@ describe('App — 작업 데이터 (#114)', () => {
           screen.queryByRole('header', { name: '작업 상세' }),
         ).not.toBeOnTheScreen();
         expect(acceptButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
       });
 
       it('요청 상세에서 보낸 수락이 실패하면 응답 필요에 요청이 돌아오고 문구로 알린다', async () => {
@@ -242,6 +250,7 @@ describe('App — 작업 데이터 (#114)', () => {
           screen.queryByRole('header', { name: '거절 사유' }),
         ).not.toBeOnTheScreen();
         expect(rejectButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
       });
 
       // 고른 사유는 서버가 거절을 받을 때까지 남겨 두어, 다시 거절하면 이어 고른다
