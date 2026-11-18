@@ -78,7 +78,7 @@ export const UNDERLINE_TABS_HEIGHT =
   typography['Body/XS/SemiBold'].lineHeight +
   LABEL_GAP +
   INDICATOR_HEIGHT;
-// 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 38.4, Android 39.0)
+// 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 40.4, Android 41.0)
 const MIN_TAB_HEIGHT =
   TAB_PADDING_TOP +
   smallestLineHeight('Body/XS/SemiBold') +

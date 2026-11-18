@@ -373,7 +373,7 @@ function ScheduleScreenView({
         autoHide={autoHide}
         header={<TabHeader title="내 일정" style={styles.titleBar} />}
         sticky={
-          <View style={readableColumn}>
+          <View style={[readableColumn, styles.tabsBar]}>
             <UnderlineTabs
               items={[
                 {
@@ -474,10 +474,17 @@ function Empty({ text }: { text: string }) {
 
 // 제목 줄 아래 여백. 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
 const TITLE_BAR_PADDING_BOTTOM = 16;
-// 기본 글자 크기에서 숨는 제목 줄과 머리 전체(제목 줄 + 하위 탭)의 높이. 그린 뒤 잰 높이로 고친다
+// Figma 머리(3754:6458·3754:6940, 167)는 하위 탭 아래 끝(166)보다 1 길다. 내용은 그 아래 24 에서 시작해
+// 하위 탭 아래 끝에서 내용까지 25 다 (탭 줄 아래 선을 뺀 뒤에도, #201)
+const TABS_BAR_PADDING_BOTTOM = 1;
+// 기본 글자 크기에서 숨는 제목 줄과 머리 전체(제목 줄 + 하위 탭 + 아래 1)의 높이. 그린 뒤 잰 높이로 고친다
 const HEADER_ESTIMATE = {
   collapsible: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM,
-  total: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM + UNDERLINE_TABS_HEIGHT,
+  total:
+    TAB_HEADER_HEIGHT +
+    TITLE_BAR_PADDING_BOTTOM +
+    UNDERLINE_TABS_HEIGHT +
+    TABS_BAR_PADDING_BOTTOM,
 };
 
 // Figma: 날짜 블록·카드는 화면 가장자리에서 24 안쪽이고, 응답 필요 카드는 머리 아래 24 에서 시작한다
@@ -508,6 +515,7 @@ const styles = StyleSheet.create({
   // 내용이 아래로 지나가므로 화면 배경과 같은 색으로 가린다
   header: { backgroundColor: colors.background[3] },
   titleBar: { paddingBottom: TITLE_BAR_PADDING_BOTTOM },
+  tabsBar: { paddingBottom: TABS_BAR_PADDING_BOTTOM },
   list: { flex: 1 },
   // 날짜 블록은 화면 폭을 차지하고(넓힌 터치 영역·가장자리 밀기 제외 영역이 그 안에 든다) 안쪽 여백으로 24 를 들인다
   confirmedContent: { paddingBottom: 24 },

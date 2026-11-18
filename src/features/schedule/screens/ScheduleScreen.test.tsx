@@ -477,6 +477,23 @@ describe('ScheduleScreen — 확정 일정', () => {
     expect(screen.getByTestId('auto-hide-header')).toContainElement(bar);
   });
 
+  // Figma 3754:6458·3754:6940: 머리(167)는 하위 탭 아래 끝(166)보다 1 길고, 날짜 블록·요청 카드는 머리 아래 24(191)에서 시작한다.
+  // 탭 줄 아래 선을 빼도(#201) 하위 탭 아래 끝에서 내용까지는 25 다
+  it('하위 탭 아래 끝에서 내용까지 Figma 대로 25 다 (머리 아래 여백 1 + 날짜 블록 위 24)', async () => {
+    await renderSchedule();
+
+    const tabsBar = screen.getByRole('tab', { name: '확정 일정 2건' }).parent
+      ?.parent as HostElement;
+    const dateArea = screen.getByTestId('week-strip').parent as HostElement;
+    expect(
+      stylePt(tabsBar, 'paddingBottom') + stylePt(dateArea, 'paddingTop'),
+    ).toBe(25);
+    // 머리 높이(내용 위 여백)에 그 1 이 든다
+    expect(
+      contentStyleOf(screen.getByTestId('schedule-confirmed-list')).paddingTop,
+    ).toBe(TAB_HEADER_HEIGHT + 16 + UNDERLINE_TABS_HEIGHT + 1);
+  });
+
   // Figma 3754:6269: 머리말 아래 회색(Background/3) 위에 날짜 블록(날짜 줄 → 16 → 주간 줄)과 카드 목록이 24 간격으로 놓인다.
   // 날짜 블록 아래 12 띠와 주간 줄 위 구분선은 없어졌다
   it('확정 일정 리스트는 회색 배경 위에 좌우 24 로 날짜 블록·카드를 놓고, 띠·구분선이 없다', async () => {
@@ -1086,6 +1103,8 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
 
   /** 제목 줄과 그 아래 여백(탭과의 간격). 숨는 거리다 */
   const TITLE_BAR = TAB_HEADER_HEIGHT + 16;
+  /** 머리 전체: 제목 줄 + 하위 탭 + 그 아래 1 (Figma 머리 167, 탭 아래 끝 166) */
+  const HEADER = TITLE_BAR + UNDERLINE_TABS_HEIGHT + 1;
   const confirmedList = () => screen.getByTestId('schedule-confirmed-list');
   const pendingList = () => screen.getByTestId('schedule-pending-list');
 
@@ -1100,7 +1119,7 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
     ).toBeOnTheScreen();
     expect(
       StyleSheet.flatten(confirmedList().props.contentContainerStyle),
-    ).toMatchObject({ paddingTop: TITLE_BAR + UNDERLINE_TABS_HEIGHT });
+    ).toMatchObject({ paddingTop: HEADER });
   });
 
   // 상단 바는 당겨도 맨 위에 붙어 있으므로(#178) 두 플랫폼 모두 표시를 머리(제목 줄 + 하위 탭) 아래로 내린다
@@ -1109,10 +1128,7 @@ describe('ScheduleScreen — 상단 바 자동 숨김', () => {
     async os => {
       jest.replaceProperty(Platform, 'OS', os);
       await renderSchedule();
-      expect(confirmedList()).toHaveProp(
-        'progressViewOffset',
-        TITLE_BAR + UNDERLINE_TABS_HEIGHT,
-      );
+      expect(confirmedList()).toHaveProp('progressViewOffset', HEADER);
     },
   );
 
@@ -1182,7 +1198,7 @@ describe('ScheduleScreen — 응답 필요', () => {
     expectGrayBehind(list);
     // 겹쳐 그린 머리(제목 줄 + 하위 탭, #148) 아래 24 에서 시작한다
     expect(contentStyleOf(list)).toMatchObject({
-      paddingTop: TAB_HEADER_HEIGHT + 16 + UNDERLINE_TABS_HEIGHT + 24,
+      paddingTop: TAB_HEADER_HEIGHT + 16 + UNDERLINE_TABS_HEIGHT + 1 + 24,
       paddingHorizontal: 24,
       paddingBottom: 24,
     });
