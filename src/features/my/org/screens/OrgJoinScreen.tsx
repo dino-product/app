@@ -275,7 +275,6 @@ const styles = StyleSheet.create({
   input: {
     ...singleLineInputText('Body/XS/Medium'),
     flex: 1,
-    borderRadius: 12,
     borderWidth: 1,
     color: colors.gray[900],
   },
@@ -284,25 +283,32 @@ const styles = StyleSheet.create({
 });
 
 // 마이(3235:17242 외)와 온보딩(3205:6299 / 3278:23116)의 Figma 값이 자리마다 다르다
+// 마이는 회사찾기 3255:18315 의 본문(3255:18323): 소개·입력·구분선·QR 사이 24, 소개 안 6, 라벨 아래 8, 입력줄 아래 12
 const myStyles = StyleSheet.create({
   content: {
-    gap: 28,
+    gap: 24,
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 24,
   },
-  intro: { gap: 8 },
-  field: { gap: 10 },
-  inputGroup: { gap: 10 },
-  // 글자는 칸 왼쪽 16 에서 시작한다 (3255:18332)
+  intro: { gap: 6 },
+  field: { gap: 8 },
+  inputGroup: { gap: 12 },
+  // 3255:18332: 높이 56, 모서리 14, 테두리 Gray100, 글자는 칸 왼쪽 16 에서 시작한다. 회사 확인과 사이 10
   input: {
     minHeight: 56,
-    marginRight: 12,
+    marginRight: 10,
     paddingHorizontal: 16,
-    borderColor: colors.gray[200],
+    borderRadius: 14,
+    borderColor: colors.gray[100],
   },
-  checkButton: { paddingHorizontal: 20 },
-  orLine: { flex: 1, height: 1, backgroundColor: colors.gray[100] },
+  // 3255:18334: 좌우 16(CTA L 기본), 393 폭에서 102
+  checkButton: { minWidth: 102 },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: withOpacity(colors.gray[400], 0.3),
+  },
 });
 
 const onboardingStyles = StyleSheet.create({
@@ -322,6 +328,7 @@ const onboardingStyles = StyleSheet.create({
     minHeight: Math.max(46, MIN_TOUCH_TARGET),
     marginRight: 10,
     paddingHorizontal: 16,
+    borderRadius: 12,
     borderColor: colors.gray[100],
   },
   checkButton: { minWidth: 102 },
@@ -335,14 +342,15 @@ const onboardingStyles = StyleSheet.create({
 const looks = {
   my: {
     styles: myStyles,
-    title: 'Body/XL/Bold',
-    description: 'Caption/M/Medium',
-    label: 'Caption/M/SemiBold',
-    labelColor: colors.gray[800],
-    placeholderColor: colors.gray[400],
+    title: 'Body/L/Bold',
+    description: 'Body/XS/Medium',
+    label: 'Caption/M/Medium',
+    labelColor: colors.gray[700],
+    placeholderColor: colors.gray[500],
     checkSize: 'L',
-    hintColor: colors.gray[600],
-    or: 'Caption/M/Medium',
+    // 라이브러리 Gray500 (#7F7F7F)
+    hintColor: colors.libraryGray[500],
+    or: 'Caption/M/Regular',
   },
   onboarding: {
     styles: onboardingStyles,

@@ -12,9 +12,15 @@ import {
   Linking,
   PermissionsAndroid,
   Platform,
+  StyleSheet,
   type AlertButton,
 } from 'react-native';
-import { MIN_TOUCH_TARGET } from '../../../../shared/design-system';
+import {
+  colors,
+  MIN_TOUCH_TARGET,
+  typography,
+  withOpacity,
+} from '../../../../shared/design-system';
 import * as cameraPermissionModule from '../../../../shared/native/NativeCameraPermissionIOS';
 import {
   fail,
@@ -120,6 +126,94 @@ describe('OrgJoinScreen', () => {
       });
     },
   );
+
+  // 마이 › 조직 참여하기의 회사 찾기. Figma 회사찾기 3255:18315 의 본문(3255:18323), 3235:17242·51028:17074·3255:18149 도 같은 값.
+  // 이 화면 위에 QR 결과를 띄운다 (#195)
+  describe('마이 Figma 값 (3255:18323)', () => {
+    const hidden = (text: string) =>
+      screen.getByText(text, { includeHiddenElements: true });
+
+    it('소개: 제목 Body/L/Bold Gray900, 설명 Body/XS/Medium Gray600, 사이 6. 소개·입력·구분선·QR 사이 24', async () => {
+      await renderJoin();
+
+      const title = screen.getByRole('header', { name: '회사 찾기' });
+      expect(title).toHaveStyle({
+        ...typography['Body/L/Bold'],
+        color: colors.gray[900],
+      });
+      expect(
+        screen.getByText('회사 코드·참여 링크·QR로 회사를 찾을 수 있습니다.'),
+      ).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[600],
+      });
+      expect(title.parent).toHaveStyle({ gap: 6 });
+      // 소개·입력·구분선·QR 은 스크롤 내용 칸에 나란히 있다
+      const scroll = title.parent?.parent?.parent;
+      expect(scroll?.type).toBe('RCTScrollView');
+      expect(StyleSheet.flatten(scroll?.props.contentContainerStyle)).toEqual(
+        expect.objectContaining({ gap: 24 }),
+      );
+    });
+
+    it('회사 코드 입력: 라벨 Caption/M/Medium Gray700 아래 8, 입력줄 아래 12 에 도움말 Caption/S/Medium 라이브러리 Gray500', async () => {
+      await renderJoin();
+
+      const label = hidden('회사 코드 입력');
+      expect(label).toHaveStyle({
+        ...typography['Caption/M/Medium'],
+        color: colors.gray[700],
+      });
+      expect(label.parent).toHaveStyle({ gap: 8 });
+      const help = screen.getByText(
+        '회사 관리자에게 받은 코드를 입력해 주세요.',
+      );
+      expect(help).toHaveStyle({
+        ...typography['Caption/S/Medium'],
+        color: colors.libraryGray[500],
+      });
+      expect(help.parent).toHaveStyle({ gap: 12 });
+    });
+
+    // 3255:18332 입력칸 모서리 14·테두리 Gray100·플레이스홀더 Gray500, 회사 확인(3255:18334)과 사이 10, 버튼 좌우 16·폭 102
+    it('입력칸은 모서리 14·테두리 Gray100·플레이스홀더 Gray500 이고, 회사 확인과 10 떨어진다. 회사 확인은 좌우 16·폭 102', async () => {
+      await renderJoin();
+
+      expect(codeInput()).toHaveStyle({
+        borderRadius: 14,
+        borderColor: colors.gray[100],
+        marginRight: 10,
+      });
+      expect(codeInput().props.placeholderTextColor).toBe(colors.gray[500]);
+      expect(checkButton()).toHaveStyle({
+        paddingHorizontal: 16,
+        minWidth: 102,
+      });
+    });
+
+    // 3255:18336 Alternative divider: 선 Gray400 30%, '또는' Caption/M/Regular Gray400
+    it("구분선은 Gray400 30% 이고 '또는' 은 Caption/M/Regular Gray400 이다", async () => {
+      await renderJoin();
+
+      const or = hidden('또는');
+      expect(or).toHaveStyle({
+        ...typography['Caption/M/Regular'],
+        color: colors.gray[400],
+      });
+      const [line] = or.parent?.children ?? [];
+      expect(line).toHaveStyle({
+        height: 1,
+        backgroundColor: withOpacity(colors.gray[400], 0.3),
+      });
+    });
+
+    // 온보딩 회사 찾기(3205:6299 · 3278:23116)는 입력칸 46·모서리 12 로 따로다
+    it('온보딩 입력칸 모서리는 12 그대로다', async () => {
+      await renderJoin({ flow: 'onboarding' });
+
+      expect(codeInput()).toHaveStyle({ borderRadius: 12 });
+    });
+  });
 
   // 서버 규칙 (Dino CompanyCode): Crockford Base32 대문자 6자 (#97)
   describe('회사 코드 규칙', () => {
