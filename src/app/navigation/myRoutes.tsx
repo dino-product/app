@@ -25,6 +25,14 @@ import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlo
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
 import { termsLinks } from '../../features/my/termsLinks';
 import {
+  myPageTermsDocuments,
+  myPageTermsTitles,
+} from '../../features/terms/documents';
+import {
+  TermsDetailScreen,
+  type TermsDetailSection,
+} from '../../features/terms/screens/TermsDetailScreen';
+import {
   withdrawalEligibilityQuery,
   withdrawalMutationKey,
 } from '../../features/my/withdrawalApi';
@@ -273,6 +281,34 @@ export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {
       appVersion={APP_VERSION}
       titleRef={titleRef}
       onOpenLink={openWebPage}
+      onOpenTerms={terms => navigation.navigate('TermsDetail', { terms })}
+      onBack={() => navigation.goBack()}
+    />
+  );
+}
+
+// 마이 › 약관 상세 (#192). 원격 전문(서비스→service, 개인정보 처리방침→privacy-policy)을 읽기만 한다
+export function MyTermsDetailRoute({
+  navigation,
+  route,
+}: MyScreenProps<'TermsDetail'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const { terms } = route.params;
+  const sections = useMemo<readonly TermsDetailSection[]>(
+    () => [
+      {
+        key: terms,
+        title: myPageTermsTitles[terms],
+        document: myPageTermsDocuments[terms],
+      },
+    ],
+    [terms],
+  );
+
+  return (
+    <TermsDetailScreen
+      sections={sections}
+      titleRef={titleRef}
       onBack={() => navigation.goBack()}
     />
   );

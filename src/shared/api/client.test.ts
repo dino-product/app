@@ -9,7 +9,7 @@ import {
   type FakeServer,
 } from '../testing/fakeServer';
 import { createMemoryTokenStore, testSession } from '../testing/session';
-import { ApiError, ApiErrorCode } from './ApiError';
+import { ApiError, ApiErrorCode, ApiErrorMessage } from './ApiError';
 import {
   createApiClient,
   LOGOUT_PATH,
@@ -545,6 +545,84 @@ describe('떼어 둔 토큰으로 보내기', () => {
     );
     await jest.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS);
     expect(await result).toMatchObject({ error: { kind: 'timeout' } });
+  });
+});
+
+// 웹 버킷의 텍스트 파일(약관 전문, #192). 서버 API 가 아니라 봉투·토큰이 없다
+describe('웹 텍스트 (getPlainText)', () => {
+  const url = 'https://web.example.test/terms/service/2026-10-10.txt';
+  const plain = (text: string) =>
+    rawResponse(200, text, { 'Content-Type': 'text/plain; charset=utf-8' });
+
+  it('text/plain 본문을 그대로 돌려주고 토큰은 붙이지 않는다', async () => {
+    server.on('GET', url, plain('제1조(목적)\n\n본문'));
+
+    await expect(clientFor().getPlainText(url)).resolves.toBe(
+      '제1조(목적)\n\n본문',
+    );
+    const [call] = server.callsTo('GET', url);
+    expect(call.headers.Authorization).toBeUndefined();
+    expect(call.headers.Accept).toBe('text/plain');
+  });
+
+  it('API 주소가 없어도(Release 에 값 없음) 받는다', async () => {
+    server.on('GET', url, plain('본문'));
+    const client = createApiClient({
+      baseUrl: undefined,
+      fetch: server.fetch,
+      tokenStore: createMemoryTokenStore(null),
+    });
+
+    await expect(client.getPlainText(url)).resolves.toBe('본문');
+  });
+
+  it('성공 상태가 아니면 status 를 담은 ApiError 로 던진다', async () => {
+    server.on('GET', url, rawResponse(404, 'NoSuchKey'));
+
+    await expect(clientFor().getPlainText(url)).rejects.toMatchObject({
+      kind: 'http',
+      status: 404,
+    });
+  });
+
+  it('200 이어도 text/plain 이 아니면(없는 경로에 웹 페이지 HTML 이 옴) ApiError 로 던진다', async () => {
+    server.on(
+      'GET',
+      url,
+      rawResponse(200, '<!doctype html><html></html>', {
+        'Content-Type': 'text/html; charset=utf-8',
+      }),
+    );
+
+    const error = await rejection(clientFor().getPlainText(url));
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      kind: 'http',
+      status: 200,
+      message: ApiErrorMessage.invalidResponse,
+    });
+  });
+
+  it('fetch 가 실패하면 kind network 로 던진다', async () => {
+    server.on('GET', url, networkError());
+
+    await expect(clientFor().getPlainText(url)).rejects.toMatchObject({
+      kind: 'network',
+    });
+  });
+
+  it('부른 쪽이 취소하면(React Query signal) 요청을 끊는다', async () => {
+    server.on('GET', url, hang());
+    const controller = new AbortController();
+
+    const result = settle(
+      clientFor().getPlainText(url, { signal: controller.signal }),
+    );
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    controller.abort();
+
+    expect(await result).toMatchObject({ error: { name: 'AbortError' } });
   });
 });
 

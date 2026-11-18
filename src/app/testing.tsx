@@ -9,6 +9,7 @@ import {
 } from '../features/my/org/testing';
 import { saveSignedInStep } from '../features/onboarding/login';
 import type { NextStep } from '../features/onboarding/profileApi';
+import { withTermsDocuments } from '../features/terms/testing';
 import { createLocalWorkRepository } from '../features/work/data/LocalWorkRepository';
 import {
   LOCAL_ORGANIZATION_NAME,
@@ -99,6 +100,7 @@ export const accountMemberships = () => [
  * 알림센터·알림 설정(#117)도 서버처럼 이어진다(features/my/notificationTesting). 알림은 notifications 로 바꿀 수 있다.
  * 기사 작업 API(#155)의 조회(내 일정·응답 필요·이력)는 기사 발주사(1)에 작업이 없는 빈 목록이다. 작업 저장소를 주입하지 않고 켠 앱
  * (운영과 같은 HTTP 저장소)이 부른다.
+ * 약관 전문(#192, 웹 버킷 txt)은 종류마다 짧은 예시 본문이다(features/terms/testing).
  * server 를 주면 그 서버에 더한다(계정·회사 참여·알림·작업 조회 경로는 덮어쓴다). 이 경로들의 응답을 바꾸려면 렌더한 뒤 app.server.on 으로 정한다
  */
 export function accountServer({
@@ -117,6 +119,7 @@ export function accountServer({
   createParticipationServer({ server, requests });
   notificationServer({ server, notifications });
   workApiRoutes(server, accountMemberships()[0].organizationId);
+  withTermsDocuments(server);
   let profile = accountProfile(nextStep);
   let nonce = 0;
   const issueNonce = () => {

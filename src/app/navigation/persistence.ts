@@ -5,6 +5,7 @@ import {
 } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { requestChannelLabels } from '../../features/my/org/model';
+import { myPageTermsTitles } from '../../features/terms/documents';
 import {
   appStorage,
   isRecord,
@@ -111,6 +112,12 @@ const myStack = {
   NotificationSettings: once,
   NotificationCenter: once,
   Terms: once,
+  TermsDetail: {
+    params: params =>
+      isRecord(params) &&
+      typeof params.terms === 'string' &&
+      Object.prototype.hasOwnProperty.call(myPageTermsTitles, params.terms),
+  },
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,

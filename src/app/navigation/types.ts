@@ -5,6 +5,7 @@ import type {
 } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JoinTarget, RequestChannel } from '../../features/my/org/model';
+import type { MyPageTerms } from '../../features/terms/documents';
 
 /** 참여 요청 화면(요청 완료·승인 대기). 요청 경로는 서버가 돌려주지 않아 이 앱이 방금 보낸 요청에만 있다 (#116) */
 type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
@@ -72,6 +73,8 @@ export type MyStackParamList = {
   NotificationSettings: undefined;
   NotificationCenter: undefined;
   Terms: undefined;
+  /** 약관 상세 (#192). 원격 전문을 앱 안에서 보인다 */
+  TermsDetail: { terms: MyPageTerms };
   Account: undefined;
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;

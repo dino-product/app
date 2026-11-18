@@ -57,7 +57,15 @@ type Envelope = {
   message?: unknown;
   result?: unknown;
 };
-type RawResponse = { status: number; retryAfter: string | null; text: string };
+type RawResponse = {
+  status: number;
+  retryAfter: string | null;
+  contentType: string | null;
+  text: string;
+};
+
+/** 웹 텍스트(getPlainText)가 받는 본문 종류 */
+const PLAIN_TEXT = 'text/plain';
 
 const isEnvelope = (body: unknown): body is Envelope =>
   isRecord(body) &&
@@ -173,6 +181,7 @@ export function createApiClient({
       return {
         status: response.status,
         retryAfter: response.headers.get('Retry-After'),
+        contentType: response.headers.get('Content-Type'),
         text: response.status === 204 ? '' : await response.text(),
       };
     } catch (error) {
@@ -279,8 +288,37 @@ export function createApiClient({
     }
   }
 
+  /**
+   * 서버 API 밖(웹 버킷)의 텍스트 파일을 받는다 (약관 전문, #192). 전체 주소로 부르고 토큰·봉투가 없다.
+   * 타임아웃·네트워크 실패·취소는 API 요청과 같다. 2xx 의 text/plain 만 받는다:
+   * 없는 경로에 웹 페이지(HTML)가 200 으로 오기도 해서 그 본문을 약관으로 보이지 않게 한다
+   */
+  async function getPlainText(
+    url: string,
+    { signal }: { signal?: AbortSignal } = {},
+  ): Promise<string> {
+    const { status, contentType, text } = await exchange(
+      url,
+      { method: 'GET', headers: { Accept: PLAIN_TEXT } },
+      signal,
+      REQUEST_TIMEOUT_MS,
+    );
+    const ok = status >= 200 && status < 300;
+    const plain =
+      contentType?.split(';')[0].trim().toLowerCase() === PLAIN_TEXT;
+    if (!ok || !plain) {
+      throw new ApiError({
+        kind: 'http',
+        status,
+        message: ApiErrorMessage.invalidResponse,
+      });
+    }
+    return text;
+  }
+
   return {
     request,
+    getPlainText,
     get: <T = unknown>(path: string, options?: ReadOptions) =>
       request<T>('GET', path, options),
     post: <T = unknown>(path: string, body?: unknown, options?: ReadOptions) =>

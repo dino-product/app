@@ -32,6 +32,7 @@ import {
   MyPageRoute,
   NotificationCenterRoute,
   NotificationSettingsRoute,
+  MyTermsDetailRoute,
   ProfileEditRoute,
   TermsRoute,
   WithdrawalBlockedRoute,
@@ -229,6 +230,7 @@ const byOrganization = ({ params }: { params: { organizationId: string } }) =>
   params.organizationId;
 const byRequest = ({ params }: { params: { requestId: string } }) =>
   params.requestId;
+const byTerms = ({ params }: { params: { terms: string } }) => params.terms;
 
 function HomeTab() {
   const stackOptions = useStackOptions();
@@ -296,6 +298,11 @@ function MyTab() {
         getId={once}
       />
       <MyStack.Screen name="Terms" component={TermsRoute} getId={once} />
+      <MyStack.Screen
+        name="TermsDetail"
+        component={MyTermsDetailRoute}
+        getId={byTerms}
+      />
       <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
       <MyStack.Screen
         name="Withdrawal"

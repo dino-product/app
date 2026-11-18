@@ -4,13 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
+import { myPageTermsTitles, type MyPageTerms } from '../../terms/documents';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 
-// Figma 마이페이지-약관 (2889:13917)
+// Figma 마이페이지-약관 (2889:13917). 서비스 이용약관·개인정보 처리방침은 원격 전문을 앱 안 약관 상세로 연다 (#192)
 export type TermsLinks = {
-  terms: string;
-  privacy: string;
   openSource: string;
 };
 
@@ -18,6 +17,7 @@ export function TermsScreen({
   links,
   appVersion,
   onOpenLink,
+  onOpenTerms,
   onBack,
   titleRef,
 }: {
@@ -25,6 +25,8 @@ export function TermsScreen({
   links: TermsLinks;
   appVersion: string;
   onOpenLink: (url: string) => void;
+  /** 약관 상세를 연다 */
+  onOpenTerms: (terms: MyPageTerms) => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
@@ -41,16 +43,8 @@ export function TermsScreen({
           <Text accessibilityRole="header" variant="Body/S/SemiBold">
             약관 및 정책
           </Text>
-          <LinkRow
-            label="서비스 이용약관"
-            url={links.terms}
-            onOpenLink={onOpenLink}
-          />
-          <LinkRow
-            label="개인정보 처리방침"
-            url={links.privacy}
-            onOpenLink={onOpenLink}
-          />
+          <TermsRow terms="service" onOpenTerms={onOpenTerms} />
+          <TermsRow terms="privacy" onOpenTerms={onOpenTerms} />
           <LinkRow
             label="오픈소스 라이선스"
             url={links.openSource}
@@ -78,6 +72,22 @@ export function TermsScreen({
     </SafeAreaView>
   );
 }
+
+const TermsRow = memo(function MyTermsRow({
+  terms,
+  onOpenTerms,
+}: {
+  terms: MyPageTerms;
+  onOpenTerms: (terms: MyPageTerms) => void;
+}) {
+  return (
+    <MenuRow
+      label={myPageTermsTitles[terms]}
+      tone="muted"
+      onPress={() => onOpenTerms(terms)}
+    />
+  );
+});
 
 // 주소가 비어 있으면(아직 정해지지 않음) 비활성 행이다
 const LinkRow = memo(function MyLinkRow({
