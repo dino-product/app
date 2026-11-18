@@ -176,6 +176,59 @@ describe('toTermsBlocks', () => {
     ]);
   });
 
+  it("조 중간의 짧은 한 줄('1. 필수 항목')은 꼬리 제목이 아니라 그 조의 본문이다", () => {
+    expect(
+      toTermsBlocks(
+        [
+          '제5조(수집 항목)',
+          '',
+          '회사는 다음 항목을 수집합니다.',
+          '',
+          '1. 필수 항목',
+          '',
+          '이름, 휴대전화번호.',
+          '',
+          '2. 선택 항목',
+          '',
+          '프로필 사진.',
+          '',
+          '제6조(보유)',
+          '',
+          '본문.',
+        ].join('\n'),
+      ),
+    ).toEqual([
+      { kind: 'article', text: '제5조(수집 항목)' },
+      {
+        kind: 'paragraph',
+        text: '회사는 다음 항목을 수집합니다.',
+        indented: true,
+      },
+      { kind: 'paragraph', text: '1. 필수 항목', indented: true },
+      { kind: 'paragraph', text: '이름, 휴대전화번호.', indented: true },
+      { kind: 'paragraph', text: '2. 선택 항목', indented: true },
+      { kind: 'paragraph', text: '프로필 사진.', indented: true },
+      { kind: 'article', text: '제6조(보유)' },
+      { kind: 'paragraph', text: '본문.', indented: true },
+    ]);
+  });
+
+  it('제목 줄 없이 한 줄 서문 문장으로 시작하면 그 서문은 남긴다', () => {
+    expect(
+      toTermsBlocks(
+        '[상호](이하 "회사")은 다음과 같이 개인정보 처리방침을 수립·공개합니다.\n\n제1조(목적)\n\n본문.',
+      ),
+    ).toEqual([
+      {
+        kind: 'paragraph',
+        text: '[상호](이하 "회사")은 다음과 같이 개인정보 처리방침을 수립·공개합니다.',
+        indented: false,
+      },
+      { kind: 'article', text: '제1조(목적)' },
+      { kind: 'paragraph', text: '본문.', indented: true },
+    ]);
+  });
+
   it('조가 없는 문서(동의서)는 머리말도 그대로 둔다', () => {
     expect(toTermsBlocks('동의서 이름\n\n버전 1\n\n본문입니다.')).toEqual([
       { kind: 'paragraph', text: '동의서 이름', indented: false },
