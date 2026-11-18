@@ -123,7 +123,7 @@ export function JoinRequestedScreen({
         contentContainerStyle={[readableColumn, styles.content, look.content]}
       >
         <View style={[styles.intro, look.intro]}>
-          <Icon name="modal-check" size={onboarding ? 40 : 48} />
+          <Icon name="modal-check" size={40} />
           <View style={look.texts}>
             <Text
               accessibilityRole="header"

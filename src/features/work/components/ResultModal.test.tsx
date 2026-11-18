@@ -225,8 +225,9 @@ describe('ResultModal', () => {
       ).toHaveStyle({ paddingTop: 16, paddingBottom: 24 });
     });
 
-    // App Icon(3166:3162)은 Select/1 단색 원에 Secondary 체크다. 온보딩의 modal-check(그라데이션 원)와 다르다
-    it('제출 완료 아이콘은 Figma 에서 내보낸 Select/1 원 체크다', async () => {
+    // App Icon(3166:3162)은 DesignSystem App Icon · Modal-check(2791:27085)의 인스턴스다.
+    // 승인 대기·요청완료·참여 완료와 같은 원본이라 같은 아이콘을 그린다 (#194)
+    it('제출 완료 아이콘은 App Icon · Modal-check(Select/1 원에 Secondary 체크)다', async () => {
       await render(
         <ResultModal visible result={submitted} onConfirm={jest.fn()} />,
       );
@@ -236,12 +237,9 @@ describe('ResultModal', () => {
       });
       expect(icon).toHaveStyle({ width: 40, height: 40 });
       const [svg] = icon.children;
-      expect(typeof svg === 'string' ? svg : svg.props.xml).toBe(
-        iconSvgs['submit-check'].xml,
-      );
-      expect(iconSvgs['submit-check'].xml).toContain(
-        'fill="#4F3BFE" fill-opacity="0.06"',
-      );
+      const xml = typeof svg === 'string' ? svg : svg.props.xml;
+      expect(xml).toBe(iconSvgs['modal-check'].xml);
+      expect(xml).toContain('fill="#4F3BFE" fill-opacity="0.06"');
     });
 
     it('취소 아이콘은 Warning/2 원에 Warning/1 × 다', async () => {

@@ -1,4 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { svgViewsDrawing } from '../../../shared/testing/icon';
 import type { ParticipationRequest } from '../../my/org/model';
 import { JoinApprovedScreen } from './JoinApprovedScreen';
 
@@ -72,6 +74,24 @@ describe('JoinApprovedScreen', () => {
       ),
     ).toBeOnTheScreen();
   });
+
+  // Figma 참여 완료 (3227:8525) · 유형 변경 (3239:9100) 의 App Icon 은 Modal-check(2791:27085) 인스턴스 40 이다 (#194)
+  it.each([
+    ['요청한 유형으로 승인', approved],
+    ['다른 유형으로 확정', { ...approved, approvedType: 'STAFF' as const }],
+  ])(
+    '%s: 맨 위 아이콘은 App Icon · Modal-check(Select/1 6% 원에 Secondary 체크, 40)다',
+    async (_, request) => {
+      await renderApproved(request);
+
+      const icons = svgViewsDrawing(screen.root, iconSvgs['modal-check'].xml);
+      expect(icons).toHaveLength(1);
+      expect(icons[0].props).toMatchObject({ width: 40, height: 40 });
+      expect(icons[0].props.xml).toContain(
+        'fill="#4F3BFE" fill-opacity="0.06"',
+      );
+    },
+  );
 
   it('시작하기를 누르면 알린다', async () => {
     const { onStart } = await renderApproved();
