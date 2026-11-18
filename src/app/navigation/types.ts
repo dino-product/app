@@ -92,8 +92,11 @@ export type MyStackParamList = {
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;
 
+/** 루트 스택 내비게이터 id. 하위 화면이 navigation.getParent(ROOT_NAVIGATOR_ID) 로 루트 스택의 자기 자리를 찾는다 (#195) */
+export const ROOT_NAVIGATOR_ID = 'root';
+
 export type RootScreenProps<T extends keyof RootStackParamList> =
-  NativeStackScreenProps<RootStackParamList, T>;
+  NativeStackScreenProps<RootStackParamList, T, typeof ROOT_NAVIGATOR_ID>;
 
 export type MainTabScreenProps<T extends keyof MainTabParamList> =
   CompositeScreenProps<

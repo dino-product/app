@@ -27,6 +27,7 @@ import { readableColumn } from '../../shared/layout/readableColumn';
 import { useFocusTitleOnOpen } from './routes';
 import {
   MY_INITIAL_ROUTE,
+  ROOT_NAVIGATOR_ID,
   type MyScreenProps,
   type MyStackParamList,
   type RootScreenProps,
@@ -113,7 +114,7 @@ export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
   const scannedCode = useScannedCode(navigation, route.params?.qrCode);
   // QR 코드 인식은 루트 스택 화면이라, 닫히면 루트 스택에서 메인(하단 탭)이 다시 보인다
   const waitForReturn = useAwaitReturnTransition(
-    navigation.getParent()?.getParent<TransitionSource>(),
+    navigation.getParent<TransitionSource>(ROOT_NAVIGATOR_ID),
   );
 
   return (
