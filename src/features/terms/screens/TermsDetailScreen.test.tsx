@@ -1,9 +1,13 @@
 import {
+  render,
   screen,
   userEvent,
   waitFor,
   within,
 } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { noTermsAgreed } from '../../onboarding/model';
+import { TermsAgreementScreen } from '../../onboarding/screens/TermsAgreementScreen';
 import {
   createFakeServer,
   rawResponse,
@@ -98,6 +102,35 @@ describe('TermsDetailScreen', () => {
     expect(screen.getByText('약관 전문을 준비하고 있어요.')).toBeOnTheScreen();
     expect(screen.queryByLabelText('불러오는 중')).not.toBeOnTheScreen();
     await waitFor(() => expect(server.calls).toHaveLength(0));
+  });
+
+  // Figma 약관 상세 제목(51019:16932)과 가입 약관 제목(3284:22332)은 둘 다 y132 다. 오갈 때 제목이 튀지 않게
+  // 가입 단계 화면 관례(머리 아래 22, TermsAgreementScreen·OrgJoinScreen)와 같은 자리에 둔다 (#193)
+  it('큰 제목은 가입 약관 제목과 같은 자리(머리 아래 22)다', async () => {
+    const titleTop = () => {
+      // jest 목은 안쪽 View 에 스타일을 넘기지 않아 스크롤 뷰의 contentContainerStyle 을 읽는다
+      const [scroll] = screen.root.queryAll(
+        node => node.type === 'RCTScrollView',
+      );
+      return StyleSheet.flatten(scroll.props.contentContainerStyle).paddingTop;
+    };
+    await render(
+      <TermsAgreementScreen
+        agreement={noTermsAgreed}
+        onChangeAgreement={jest.fn()}
+        onOpenTerms={jest.fn()}
+        onBack={jest.fn()}
+        onSignUp={jest.fn()}
+      />,
+    );
+    const agreementTop = titleTop();
+    await screen.unmount();
+
+    await renderDetail();
+
+    expect(agreementTop).toBe(22);
+    expect(titleTop()).toBe(agreementTop);
+    await screen.findByText('제1조(목적)');
   });
 
   it('뒤로 가기를 누르면 알린다', async () => {

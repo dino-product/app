@@ -330,8 +330,9 @@ const CONTENT_BOTTOM = 40;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.gray[0] },
-  // 머리(116) 아래 16 에 제목 (Figma 위치 132). 제목은 24, 안내·본문은 25 에서 시작해 오른쪽 24 에서 끝난다
-  content: { paddingTop: 16, paddingHorizontal: 24 },
+  // 머리 아래 22 에 제목 (Figma 위치 132). 가입 약관 제목(3284:22332, 같은 y132)과 같은 자리라 오갈 때 튀지 않는다
+  // (가입 단계 화면 관례: TermsAgreementScreen·OrgJoinScreen). 제목은 24, 안내·본문은 25 에서 시작해 오른쪽 24 에서 끝난다
+  content: { paddingTop: 22, paddingHorizontal: 24 },
   // 제목 아래 81 에 안내 (Figma 제목 132+34 → 안내 247), 폭 309
   intro: { marginTop: 81, marginLeft: 1, maxWidth: 309 },
   body: { marginLeft: 1 },
