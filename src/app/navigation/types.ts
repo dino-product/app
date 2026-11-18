@@ -6,6 +6,12 @@ import type {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JoinTarget, RequestChannel } from '../../features/my/org/model';
 
+/**
+ * 회사 찾기(마이 조직 참여·온보딩). qrCode: QR 코드 인식이 읽어 온 회사 코드 (#195).
+ * QR 화면이 닫히며 넘기고, 회사 찾기가 받아 QR 경로로 확인한 뒤 지운다
+ */
+type CompanyFindParams = { qrCode?: string } | undefined;
+
 /** 참여 요청 화면(요청 완료·승인 대기). 요청 경로는 서버가 돌려주지 않아 이 앱이 방금 보낸 요청에만 있다 (#116) */
 type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
 
@@ -26,7 +32,7 @@ export type RootStackParamList = {
 export type OnboardingStackParamList = {
   ProfileRegister: undefined;
   TermsAgreement: undefined;
-  CompanyFind: undefined;
+  CompanyFind: CompanyFindParams;
   /** 회사 찾기 › QR 코드 인식 (#108) */
   CompanyQrScan: undefined;
   /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
@@ -76,7 +82,7 @@ export type MyStackParamList = {
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;
   // 조직 참여 (#73)
-  OrgJoin: undefined;
+  OrgJoin: CompanyFindParams;
   /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
   OrgRoleSelect: JoinTarget;
   OrgJoinRequested: JoinRequestParams;

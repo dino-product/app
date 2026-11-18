@@ -25,7 +25,10 @@ import {
 import { mockAppState } from '../../jest/appState';
 import { scanQr } from '../../jest/qrCamera';
 import { escapeFrom } from '../../jest/voiceOver';
-import { PARTICIPATION_REQUESTS_PATH } from '../features/my/org/participationApi';
+import {
+  COMPANY_LOOKUP_PATH,
+  PARTICIPATION_REQUESTS_PATH,
+} from '../features/my/org/participationApi';
 import {
   participationOf,
   REJECT_REASON,
@@ -1075,6 +1078,10 @@ describe('App — 온보딩', () => {
       await openQrScan();
 
       await scanQr('https://orbit.example/join/123456');
+      expect(
+        await screen.findByRole('header', { name: '역할을 선택해주세요' }),
+      ).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
       await requestAs('기사');
 
       expect(
@@ -1105,6 +1112,47 @@ describe('App — 온보딩', () => {
       await escapeFrom('승인 대기');
       expect(header('회사 찾기')).toBeOnTheScreen();
       expect(header('QR 코드 인식')).toBeNull();
+    });
+
+    // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 확인한다. 결과 안내는 카메라가 아니라 회사 찾기 위에 뜬다 (#195)
+    it('폐기된 이전 코드의 QR 이면 카메라를 닫고 회사 찾기 위에 유효하지 않은 코드 안내를 띄우고, 닫으면 회사 찾기가 ⑥ 으로 바뀌어 있다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+
+      await scanQr('https://orbit.example/join/PRV014');
+
+      expect(
+        await screen.findByRole('button', { name: '확인' }),
+      ).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+      await userEvent.press(button('확인'));
+      expect(header('유효하지 않은 회사 코드입니다')).toBeOnTheScreen();
+      expect(header('회사 참여')).toBeOnTheScreen();
+      expect(button('QR 코드 인식')).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
+    });
+
+    it('회사를 확인하지 못하면(네트워크) 카메라를 닫고 회사 찾기 위에 안내를 띄운다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+      app.server.on('GET', COMPANY_LOOKUP_PATH, networkError());
+
+      await scanQr('123456');
+
+      expect(
+        await screen.findByRole('header', { name: '회사를 확인하지 못했어요' }),
+      ).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+      await userEvent.press(button('확인'));
+      expect(header('회사 찾기')).toBeOnTheScreen();
     });
 
     it('닫으면 회사 찾기로 돌아온다', async () => {

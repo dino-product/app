@@ -105,7 +105,7 @@ describe('조직 참여 터치 영역', () => {
   // QR 코드 인식(#108)의 닫기는 아이콘(24)만 보이는 버튼이라 hitSlop 으로 넓힌다
   it('QR 코드 인식의 닫기는 최소 터치 영역 이상이다', async () => {
     await renderOrg(
-      <QrScanScreen focused onClose={jest.fn()} onFound={jest.fn()} />,
+      <QrScanScreen focused onClose={jest.fn()} onScanned={jest.fn()} />,
     );
 
     expectIconButtonTouchTarget(screen.getByRole('button', { name: '닫기' }));

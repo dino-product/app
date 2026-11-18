@@ -182,6 +182,13 @@ describe('내비게이션 상태 저장', () => {
         'QR 코드 인식 화면이 든 상태',
         withRoot([{ name: 'Main' }, { name: 'OrgQrScan' }]),
       ],
+      [
+        'QR 로 읽은 회사 코드가 글자가 아닌 회사 찾기',
+        withMyRoutes([
+          { name: 'MyPage' },
+          { name: 'OrgJoin', params: { qrCode: 7 } },
+        ]),
+      ],
       ['범위 밖 index', withHomeRoutes([{ name: 'WorkHome' }], 3)],
       ['빈 routes', withHomeRoutes([])],
       ['routes 가 배열이 아님', { routes: 'Main' }],
@@ -244,6 +251,28 @@ describe('내비게이션 상태 저장', () => {
       delete restored.routes[0].params;
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
+    });
+
+    // QR 코드 인식(#195)은 읽은 회사 코드를 회사 찾기 파라미터로 넘기며 닫히고(마이는 Main 을 거쳐), 회사 찾기는 받은 뒤 지운다
+    it('QR 로 읽은 회사 코드를 넘긴 회사 찾기는 받기 전·지운 뒤 모두 연다', () => {
+      for (const params of [{ qrCode: 'RBT124' }, {}]) {
+        const state = withMyRoutes([
+          { name: 'MyPage' },
+          { name: 'OrgJoin', params },
+        ]);
+
+        expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+      }
+      const passed = withRoot([
+        {
+          name: 'Main',
+          params: {
+            screen: 'my',
+            params: { screen: 'OrgJoin', params: { qrCode: 'RBT124' } },
+          },
+        },
+      ]);
+      expect(parseSavedNavigation(saved(passed), NOW)).toEqual(passed);
     });
 
     it('요청 완료는 요청 경로가 있어도 없어도 연다 (경로는 이 앱이 보낸 요청에만 있다)', () => {

@@ -1,4 +1,4 @@
-import { useRef, useState, type Ref } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Keyboard,
@@ -37,10 +37,13 @@ import {
 import { invalidCodeNotice } from '../notices';
 import { useCompanyCheck, type CompanyCheckHandlers } from '../useCompanyCheck';
 
-// Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 3159:13440).
+// Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 51028:17074).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
 // 회사 확인은 서버(GET /api/v1/organizations/lookup)에 묻는다 (#116). 실패 안내는 Figma 에 없어 기본안이다 (notices).
-// QR 코드 인식(#108)은 카메라 권한을 받은 뒤 QR 스캔 화면(QrScanScreen)을 연다. 권한 안내는 Figma 에 없어 시스템 대화상자다
+// QR 코드 인식(#108)은 카메라 권한을 받은 뒤 QR 스캔 화면(QrScanScreen)을 연다. 권한 안내는 Figma 에 없어 시스템 대화상자다.
+// QR 스캔 화면은 회사 코드만 읽고 닫힌다. 읽어 온 코드(scannedCode)는 이 화면이 QR 경로로 확인하고, 결과는 카메라가 아니라
+// 이 화면 위에 보인다 (#195): 찾음 → 역할 선택, 그 밖은 회사 코드 입력과 같은 안내 모달. 유효하지 않은 코드는 회사 코드 입력처럼
+// 제목·설명도 바뀐다 (Figma Spec_회사 참여 요청 플로우: 이전 코드·링크·QR → ⑥ 이전 코드 차단)
 const intro = {
   title: '회사 찾기',
   description: '회사 코드·참여 링크·QR로 회사를 찾을 수 있습니다.',
@@ -58,6 +61,7 @@ export function OrgJoinScreen({
   onAlreadyMember,
   screenFocused = true,
   onScanQr,
+  scannedCode,
   titleRef,
 }: CompanyCheckHandlers & {
   flow?: JoinFlow;
@@ -66,11 +70,16 @@ export function OrgJoinScreen({
   screenFocused?: boolean;
   /** 카메라 권한을 받았다. QR 스캔 화면을 연다 */
   onScanQr: () => void;
+  /**
+   * QR 스캔 화면에서 읽어 온 회사 코드. 바뀌어 들어오면 QR 경로로 회사를 확인한다.
+   * 바깥은 넘긴 뒤 지운다 (같은 QR 을 다시 읽어 오면 다시 확인하게)
+   */
+  scannedCode?: string;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
   const [invalid, setInvalid] = useState(false);
-  const { check, checking, notice, closeNotice } = useCompanyCheck({
+  const { check, checking, notice, showNotice, closeNotice } = useCompanyCheck({
     onFound,
     onPending,
     onAlreadyMember,
@@ -100,6 +109,19 @@ export function OrgJoinScreen({
       );
     }
   };
+
+  // 카메라에서 돌아와 보는 결과라 유효하지 않은 코드도 바뀐 제목만으로 두지 않고 같은 문구의 안내 모달을 띄운다.
+  // 모달이 뜨면 스크린리더가 그 제목을 읽어 따로 알리지 않는다
+  const checkScanned = useEffectEvent(async (companyCode: string) => {
+    if ((await check(companyCode, 'QR_CODE')) === 'invalid') {
+      showNotice(invalidCodeNotice);
+    }
+  });
+  useEffect(() => {
+    if (scannedCode) {
+      checkScanned(scannedCode);
+    }
+  }, [scannedCode]);
 
   // 거부했거나 '다시 묻지 않음'(iOS 는 거부·제한)이면 열지 않고 설정으로 가는 안내를 띄운다
   const scanQr = async () => {
@@ -218,10 +240,12 @@ export function OrgJoinScreen({
             <View style={look.styles.orLine} />
           </View>
 
+          {/* 확인하는 동안 카메라를 다시 열면 읽어 온 코드가 확인 중이라 버려진다 */}
           <CTA
             label="QR 코드 인식"
             icon={<Icon name="qr" color={colors.white[100]} />}
             onPress={scanQr}
+            disabled={checking}
           />
         </ScrollView>
       </KeyboardAvoidingArea>

@@ -105,6 +105,13 @@ const joinRequest = {
     (params.requestChannel === undefined ||
       isRequestChannel(params.requestChannel)),
 };
+// 회사 찾기 (#195). QR 코드 인식이 닫히며 읽어 온 회사 코드를 넘기고, 회사 찾기는 받은 뒤 지워 빈 객체로 남는다
+const companyFind = {
+  params: (params: unknown) =>
+    params === undefined ||
+    (isRecord(params) &&
+      (params.qrCode === undefined || typeof params.qrCode === 'string')),
+};
 const myStack = {
   MyPage: once,
   ProfileEdit: once,
@@ -114,7 +121,7 @@ const myStack = {
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,
-  OrgJoin: once,
+  OrgJoin: companyFind,
   OrgRoleSelect: joinTarget,
   OrgJoinRequested: joinRequest,
   OrgJoinRejected: byRequest,
@@ -137,7 +144,7 @@ const mainTabs = {
 const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
-  CompanyFind: once,
+  CompanyFind: companyFind,
   CompanyQrScan: once,
   JoinRoleSelect: joinTarget,
   JoinPending: joinRequest,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Notice } from './components/NoticeModal';
 import type {
   JoinTarget,
@@ -27,7 +27,7 @@ export type CompanyCheckHandlers = {
 
 /**
  * 회사 확인(GET /api/v1/organizations/lookup, #116)을 보내고 결과를 네 갈래로 나눈다.
- * 회사 코드 입력(회사 찾기)과 QR 인식(#108)이 같이 쓴다.
+ * 회사 찾기의 회사 코드 입력과 QR 인식(#108)이 같이 쓴다. QR 은 스캔 화면이 코드만 읽고 닫혀 회사 찾기가 확인한다 (#195).
  * 찾음 → onFound, 승인 대기 → onPending 또는 안내, 이미 참여 → onAlreadyMember 또는 안내, 확인 실패(429·네트워크·서버) → 안내.
  * 유효하지 않은 코드는 화면마다 보여 주는 방법이 달라 check 가 돌려준 갈래로 화면이 정한다.
  * 다시 그리기 전에 연달아 불러도 한 번만 찾고, 찾는 동안 화면을 떠나면 요청을 끊고 늦게 온 결과를 버린다
@@ -42,19 +42,10 @@ export function useCompanyCheck({
   onChecked?: (kind: LookupOutcome['kind']) => void;
 }) {
   const lookup = useLookupCompany();
-  const [notice, setNoticeState] = useState<Notice | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [checking, setChecking] = useState(false);
-  // 다시 그리기 전에도 바로 알 수 있게 ref 로도 든다 (isBusy)
+  // 다시 그리기 전에 연달아 불러도 바로 알 수 있게 ref 로도 든다
   const checkingRef = useRef(false);
-  const noticeRef = useRef<Notice | null>(null);
-  const setNotice = (next: Notice | null) => {
-    noticeRef.current = next;
-    setNoticeState(next);
-  };
-  const isBusy = useCallback(
-    () => checkingRef.current || noticeRef.current !== null,
-    [],
-  );
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -123,7 +114,5 @@ export function useCompanyCheck({
     notice,
     showNotice: setNotice,
     closeNotice: () => setNotice(null),
-    /** 확인하는 중이거나 안내가 떠 있는지. 다시 그리기를 기다리지 않는다 (카메라 프레임마다 부르는 QR 인식이 쓴다) */
-    isBusy,
   };
 }

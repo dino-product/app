@@ -244,7 +244,8 @@ describe('App — 조직 참여', () => {
       expect(camera()).toBeNull();
     });
 
-    it('QR 로 회사를 찾아 기사로 요청하면 요청 경로가 QR 코드다', async () => {
+    // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 회사를 확인한다 (#195). 찾은 회사는 그 위에 역할 선택을 연다
+    it('QR 로 회사를 찾으면 카메라를 닫고 회사 찾기 위에 역할 선택을 열고, 기사로 요청하면 요청 경로가 QR 코드다', async () => {
       const app = await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
 
@@ -252,6 +253,8 @@ describe('App — 조직 참여', () => {
       expect(
         await screen.findByRole('header', { name: '역할을 선택해주세요' }),
       ).toBeOnTheScreen();
+      expect(camera()).toBeNull();
+      expect(header('QR 코드 인식')).toBeNull();
       expect(screen.getByText('Orbit')).toBeOnTheScreen();
       await userEvent.press(screen.getByRole('radio', { name: /^기사/ }));
       await userEvent.press(button('참여 요청하기'));
@@ -265,9 +268,11 @@ describe('App — 조직 참여', () => {
         desiredType: 'TECHNICIAN',
         requestChannel: 'QR_CODE',
       });
+      // 같은 QR 로 회사를 두 번 묻지 않는다
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
     });
 
-    // 카메라는 회사를 찾으면 스택에서 빠진다. 다시 돌아와 같은 QR 로 또 확인하지 않는다
+    // 카메라는 회사를 찾기 전에 이미 스택에서 빠진다. 다시 돌아와 같은 QR 로 또 확인하지 않는다
     it('QR 로 찾은 회사의 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다', async () => {
       await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
@@ -281,19 +286,70 @@ describe('App — 조직 참여', () => {
       expect(tab('마이')).toBeSelected();
     });
 
-    it('폐기된 이전 코드의 QR 이면 유효하지 않은 코드 안내를 띄우고 카메라에 머문다', async () => {
-      await openQrScan();
-      await screen.findByRole('header', { name: 'QR 코드 인식' });
+    // 결과 안내는 카메라 위가 아니라 돌아온 회사 찾기 위에 뜬다 (#195)
+    it.each([
+      [
+        '폐기된 이전 코드',
+        'https://orbit.example/join/PRV014',
+        '유효하지 않은 회사 코드입니다',
+      ],
+      ['이미 소속된 회사', 'BS0001', '이미 참여 중인 회사예요'],
+      ['승인 대기 요청이 있는 회사', 'HB0010', '이미 참여를 요청한 회사예요'],
+    ])(
+      '%s 의 QR 이면 카메라를 닫고 회사 찾기로 돌아와 그 위에 안내를 띄운다',
+      async (_, value, title) => {
+        await openQrScan();
+        await screen.findByRole('header', { name: 'QR 코드 인식' });
 
-      await scanQr('https://orbit.example/join/PRV014');
+        await scanQr(value);
+
+        expect(
+          await screen.findByRole('button', { name: '확인' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.getAllByRole('header', { name: title }).length,
+        ).toBeGreaterThan(0);
+        expect(camera()).toBeNull();
+        expect(header('QR 코드 인식')).toBeNull();
+
+        await userEvent.press(button('확인'));
+        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+        expect(button('QR 코드 인식')).toBeOnTheScreen();
+        expect(tab('마이')).toBeSelected();
+      },
+    );
+
+    it('회사를 확인하지 못하면(네트워크) 카메라를 닫고 회사 찾기 위에 안내를 띄운다', async () => {
+      const app = await openQrScan();
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+      app.server.on('GET', COMPANY_LOOKUP_PATH, networkError());
+
+      await scanQr(JOIN_LINK);
 
       expect(
-        await screen.findByRole('header', {
-          name: '유효하지 않은 회사 코드입니다',
-        }),
+        await screen.findByRole('header', { name: '회사를 확인하지 못했어요' }),
       ).toBeOnTheScreen();
+      expect(camera()).toBeNull();
       await userEvent.press(button('확인'));
-      expect(header('QR 코드 인식')).toBeOnTheScreen();
+      expect(header('회사 찾기')).toBeOnTheScreen();
+    });
+
+    it('한 번 인식한 뒤 다시 QR 코드 인식을 열어 같은 QR 을 비추면 다시 확인한다', async () => {
+      const app = await openQrScan();
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+      await scanQr('PRV014');
+      await userEvent.press(
+        await screen.findByRole('button', { name: '확인' }),
+      );
+
+      await userEvent.press(button('QR 코드 인식'));
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+      await scanQr('PRV014');
+
+      expect(
+        await screen.findByRole('button', { name: '확인' }),
+      ).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(2);
     });
   });
 

@@ -101,14 +101,16 @@ export function ParticipationRequestGate({
   );
 }
 
-export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
+export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
+  const scannedCode = useScannedCode(navigation, route.params?.qrCode);
 
   return (
     <OrgJoinScreen
       titleRef={titleRef}
       screenFocused={screenFocused}
+      scannedCode={scannedCode}
       onFound={target => {
         // 찾는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
@@ -122,8 +124,24 @@ export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
   );
 }
 
-// QR 코드 인식 (#108). 찾은 회사는 카메라를 스택에서 빼고 마이 탭의 회사 찾기 위에 역할 선택으로 올린다.
-// 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다. 이미 참여·승인 대기·유효하지 않은 코드는 카메라 위에 안내한다
+/**
+ * QR 코드 인식이 넘긴 회사 코드 (#195). 화면에 넘긴 뒤 파라미터에서 지운다.
+ * 지워야 같은 QR 을 다시 읽어 왔을 때 다시 확인하고, 저장한 화면 상태를 다시 열 때 또 확인하지 않는다
+ */
+export function useScannedCode(
+  navigation: { setParams: (params: { qrCode?: string }) => void },
+  qrCode: string | undefined,
+) {
+  useEffect(() => {
+    if (qrCode) {
+      navigation.setParams({ qrCode: undefined });
+    }
+  }, [qrCode, navigation]);
+  return qrCode;
+}
+
+// QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고(스택에서 빼고) 마이 탭의 회사 찾기로 돌아가 그 코드를 넘긴다 (#195).
+// 회사 확인과 결과(역할 선택·안내 모달)는 회사 찾기가 앱 화면 위에 보인다. 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다
 export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const focused = useIsFocused();
@@ -132,15 +150,12 @@ export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
     <QrScanScreen
       focused={focused}
       titleRef={titleRef}
-      onFound={target => {
-        // 확인하는 사이 다른 화면으로 옮겼으면(알림 등) 늦게 온 결과로 데려가지 않는다
-        if (navigation.isFocused()) {
-          navigation.popTo('Main', {
-            screen: 'my',
-            params: { screen: 'OrgRoleSelect', params: target },
-          });
-        }
-      }}
+      onScanned={qrCode =>
+        navigation.popTo('Main', {
+          screen: 'my',
+          params: { screen: 'OrgJoin', params: { qrCode } },
+        })
+      }
       onClose={() => navigation.goBack()}
     />
   );

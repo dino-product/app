@@ -324,6 +324,176 @@ describe('OrgJoinScreen', () => {
     });
   });
 
+  // QR 스캔 화면은 회사 코드만 읽고 닫힌다 (#195). 바깥(내비게이션)이 그 코드를 넘기면 이 화면이 QR 경로로 회사를 확인하고,
+  // 결과는 카메라가 아니라 이 화면 위에 보인다. 찾은 회사는 역할 선택으로, 그 밖은 회사 코드 입력과 같은 안내 모달이다
+  describe('QR 로 읽어 온 회사 코드 (#195)', () => {
+    type JoinView = Awaited<ReturnType<typeof renderJoin>>;
+    const receive = (view: JoinView, scannedCode: string | undefined) =>
+      view.rerender(
+        <OrgJoinScreen {...view.props} scannedCode={scannedCode} />,
+      );
+    const qrButton = () => screen.getByRole('button', { name: 'QR 코드 인식' });
+    const INVALID_TITLE = '유효하지 않은 회사 코드입니다';
+    const INVALID_MESSAGE =
+      '회사에서 코드를 변경해\n이전 참여 경로를 사용할 수 없습니다.';
+
+    it('받으면 그 코드로 회사를 확인하고, 찾은 회사를 QR 경로의 참여 대상으로 역할 선택에 넘긴다', async () => {
+      const view = await renderJoin();
+
+      await receive(view, 'RBT124');
+
+      await waitFor(() =>
+        expect(view.props.onFound).toHaveBeenCalledWith({
+          ...orbit,
+          companyCode: 'RBT124',
+          requestChannel: 'QR_CODE',
+        }),
+      );
+      expect(lookups(view.server)).toHaveLength(1);
+      expect(lookups(view.server)[0].query).toEqual({ companyCode: 'RBT124' });
+      // 읽은 코드는 입력칸에 넣지 않는다 (코드 입력 경로로 보내지 않게)
+      expect(codeInput()).toHaveDisplayValue('');
+    });
+
+    it.each([
+      [
+        '이미 소속된 회사',
+        'BS0001',
+        '이미 참여 중인 회사예요',
+        '오빗 서비스에 이미 소속되어 있어\n참여 요청을 다시 보낼 수 없습니다.',
+      ],
+      [
+        '승인 대기 요청이 있는 회사',
+        'HB0010',
+        '이미 참여를 요청한 회사예요',
+        '한빛 설비에 보낸 참여 요청이\n승인을 기다리고 있어요.',
+      ],
+    ])(
+      '%s 면 이 화면 위에 안내 모달을 띄우고, 닫으면 회사 찾기에 머문다',
+      async (_, code, title, message) => {
+        const view = await renderJoin();
+
+        await receive(view, code);
+
+        expect(
+          await screen.findByRole('header', { name: title }),
+        ).toBeOnTheScreen();
+        expect(screen.getByText(message)).toBeOnTheScreen();
+        await userEvent.press(screen.getByRole('button', { name: '확인' }));
+        expect(header(title)).toBeNull();
+        expect(header('회사 찾기')).toBeOnTheScreen();
+        expect(qrButton()).toBeEnabled();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+      },
+    );
+
+    // Figma Spec_회사 참여 요청 플로우: 이전 코드·링크·QR 로 접근하면 최신 정보를 다시 확인하도록 안내(⑥ 이전 코드 차단).
+    // 회사 코드 입력처럼 제목·설명이 ⑥ 으로 바뀌고, 카메라에서 돌아온 결과라 같은 문구의 안내 모달도 띄운다
+    it.each([
+      ['없는 코드(ORGANIZATION-011)', 'WRNG99'],
+      ['회사가 바꿔 폐기된 이전 코드(ORGANIZATION-012)', 'PRV014'],
+    ])(
+      '%s 면 이 화면 위에 유효하지 않은 코드 안내 모달을 띄우고, 닫으면 화면이 유효하지 않은 코드(⑥)로 바뀌어 있다',
+      async (_, code) => {
+        const view = await renderJoin();
+
+        await receive(view, code);
+
+        expect(
+          await screen.findByRole('button', { name: '확인' }),
+        ).toBeOnTheScreen();
+        expect(screen.getAllByText(INVALID_MESSAGE).length).toBeGreaterThan(0);
+        await userEvent.press(screen.getByRole('button', { name: '확인' }));
+        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+        expect(header(INVALID_TITLE)).toBeOnTheScreen();
+        expect(screen.getByText(INVALID_MESSAGE)).toBeOnTheScreen();
+        expect(header('회사 참여')).toBeOnTheScreen();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        '실패 한도(429 ORGANIZATION-018)',
+        fail(429, OrganizationErrorCode.tooManyFailures),
+        '잠시 후 다시 시도해 주세요',
+      ],
+      ['네트워크 오류', networkError(), '회사를 확인하지 못했어요'],
+    ])('%s 면 이 화면 위에 안내 모달을 띄운다', async (_, response, title) => {
+      const view = await renderJoin();
+      view.server.on('GET', COMPANY_LOOKUP_PATH, response);
+
+      await receive(view, 'RBT124');
+
+      expect(
+        await screen.findByRole('header', { name: title }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '확인' }));
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(view.props.onFound).not.toHaveBeenCalled();
+    });
+
+    // 확인하는 동안 QR 을 다시 열면 그 결과가 돌아왔을 때 이미 확인 중이라 버려진다
+    it('확인하는 동안 회사 확인·QR 코드 인식을 잠근다', async () => {
+      const view = await renderJoin();
+      const respond = holdLookup(view.server);
+      await userEvent.type(codeInput(), 'HB0010');
+
+      await receive(view, 'RBT124');
+
+      expect(qrButton()).toBeDisabled();
+      expect(checkButton()).toBeDisabled();
+      await respond(ok(orbitFound));
+      expect(qrButton()).toBeEnabled();
+      expect(checkButton()).toBeEnabled();
+      expect(lookups(view.server)).toHaveLength(1);
+    });
+
+    // 바깥은 받은 코드를 넘긴 뒤 지운다. 같은 QR 을 다시 인식해 오면 다시 확인한다
+    it('지워졌다가 같은 코드를 다시 받으면 다시 확인한다. 지우는 것만으로는 확인하지 않는다', async () => {
+      const view = await renderJoin();
+      await receive(view, 'PRV014');
+      await userEvent.press(
+        await screen.findByRole('button', { name: '확인' }),
+      );
+
+      await receive(view, undefined);
+      expect(lookups(view.server)).toHaveLength(1);
+      await receive(view, 'PRV014');
+
+      await waitFor(() => expect(lookups(view.server)).toHaveLength(2));
+    });
+
+    // 온보딩은 회사 코드 입력과 같이 알림 대신 그 요청의 화면으로 간다
+    it('onPending·onAlreadyMember 를 주면 안내 대신 바깥에 맡긴다', async () => {
+      const onPending = jest.fn();
+      const onAlreadyMember = jest.fn(async () => true);
+      const view = await renderJoin({
+        flow: 'onboarding',
+        onPending,
+        onAlreadyMember,
+      });
+
+      await receive(view, 'HB0010');
+      await waitFor(() =>
+        expect(onPending).toHaveBeenCalledWith(
+          { organizationId: '10', organizationName: '한빛 설비' },
+          '1',
+        ),
+      );
+      await receive(view, undefined);
+      await receive(view, 'BS0001');
+      await waitFor(() =>
+        expect(onAlreadyMember).toHaveBeenCalledWith({
+          organizationId: '1',
+          organizationName: '오빗 서비스',
+        }),
+      );
+      expect(header('이미 참여를 요청한 회사예요')).toBeNull();
+      expect(header('이미 참여 중인 회사예요')).toBeNull();
+    });
+  });
+
   it('찾은 회사면 회사 코드·찾은 방법(코드 입력)을 담은 참여 대상으로 역할 선택에 넘긴다', async () => {
     const { props, server } = await renderJoin();
 
