@@ -3,7 +3,8 @@ import { toTermsBlocks, type TermsBlock } from './termsText';
 
 // 약관 전문(txt)을 Figma 약관 상세(51019:16927) 모양의 덩어리로 나눈다 (#192).
 // 빈 줄로 나뉜 덩어리마다 한 칸이고, '제N조' 한 줄은 글머리표 조 제목, 그 아래 글은 들여 쓴다.
-// Figma 본문(51028:17061)은 '제1조'부터 시작하고 문서 이름은 큰 제목이 보이므로, 첫 조 앞의 머리말(문서 이름·버전 줄)은 뺀다
+// Figma 본문(51028:17061)은 '제1조'부터 시작하고 문서 이름은 큰 제목이 보이므로, 첫 조 앞의 머리말(문서 이름·버전 줄)은 뺀다.
+// 마지막 조 뒤의 꼬리(부칙·개정 이력·사업자 정보)는 조 밖이라 들여 쓰지 않는다 (Figma 에 없는 자리라 안내 글처럼 왼쪽)
 
 // 테스트는 Node 에서 돈다 (@types/node 를 두지 않아 쓰는 것만 선언)
 declare const require: (name: 'fs') => {
@@ -21,6 +22,9 @@ const fixture = (document: TermsDocument) =>
 const texts = (blocks: TermsBlock[]) => blocks.map(block => block.text);
 const articles = (blocks: TermsBlock[]) =>
   blocks.filter(block => block.kind === 'article');
+/** 들여 쓰지 않은 본문 (조 밖) */
+const outsideArticles = (blocks: TermsBlock[]) =>
+  blocks.filter(block => block.kind === 'paragraph' && !block.indented);
 
 describe('toTermsBlocks', () => {
   it('빈 줄로 덩어리를 나누고, 조 제목 아래 글은 들여 쓴다. 첫 조 앞의 문서 이름·버전 줄은 뺀다', () => {
@@ -83,6 +87,95 @@ describe('toTermsBlocks', () => {
     ]);
   });
 
+  it("줄 전체가 조 제목 모양일 때만 조 제목이다 ('제13조를 위반한…' 문장은 본문, '제2조의2(정의)' 는 제목)", () => {
+    expect(
+      toTermsBlocks(
+        [
+          '제1조(목적)',
+          '',
+          '본문입니다.',
+          '',
+          '제13조를 위반한 게시물은 삭제합니다.',
+          '',
+          '제2조의2 (정의)',
+          '',
+          '제3조',
+        ].join('\n'),
+      ),
+    ).toEqual([
+      { kind: 'article', text: '제1조(목적)' },
+      { kind: 'paragraph', text: '본문입니다.', indented: true },
+      {
+        kind: 'paragraph',
+        text: '제13조를 위반한 게시물은 삭제합니다.',
+        indented: true,
+      },
+      { kind: 'article', text: '제2조의2 (정의)' },
+      { kind: 'article', text: '제3조' },
+    ]);
+  });
+
+  it("첫 조 앞의 서문은 ':'·')' 로 끝나도 남긴다. 빼는 것은 문서 이름 줄과 '버전(시행일)' 줄뿐이다", () => {
+    expect(
+      toTermsBlocks(
+        [
+          '문서',
+          '',
+          '버전(시행일) 2026-10-10',
+          '',
+          '회사는 다음과 같이 정합니다:',
+          '',
+          '(아래 조항 참조)',
+          '',
+          '제1조(목적)',
+          '',
+          '본문.',
+        ].join('\n'),
+      ),
+    ).toEqual([
+      {
+        kind: 'paragraph',
+        text: '회사는 다음과 같이 정합니다:',
+        indented: false,
+      },
+      { kind: 'paragraph', text: '(아래 조항 참조)', indented: false },
+      { kind: 'article', text: '제1조(목적)' },
+      { kind: 'paragraph', text: '본문.', indented: true },
+    ]);
+  });
+
+  it('CRLF 여도 문서 이름·버전 줄을 뺀다', () => {
+    expect(
+      toTermsBlocks(
+        'Orbit 서비스 이용약관\r\n\r\n버전(시행일) [시행일]\r\n\r\n제1조(목적)\r\n\r\n본문.\r\n',
+      ),
+    ).toEqual([
+      { kind: 'article', text: '제1조(목적)' },
+      { kind: 'paragraph', text: '본문.', indented: true },
+    ]);
+  });
+
+  it('마지막 조 뒤의 꼬리 제목(사업자 정보 등)부터는 조 밖이라 들여 쓰지 않는다', () => {
+    expect(
+      toTermsBlocks(
+        [
+          '제1조(목적)',
+          '',
+          '본문.',
+          '',
+          '사업자 정보',
+          '',
+          '상호: [상호]',
+        ].join('\n'),
+      ),
+    ).toEqual([
+      { kind: 'article', text: '제1조(목적)' },
+      { kind: 'paragraph', text: '본문.', indented: true },
+      { kind: 'paragraph', text: '사업자 정보', indented: false },
+      { kind: 'paragraph', text: '상호: [상호]', indented: false },
+    ]);
+  });
+
   it('조가 없는 문서(동의서)는 머리말도 그대로 둔다', () => {
     expect(toTermsBlocks('동의서 이름\n\n버전 1\n\n본문입니다.')).toEqual([
       { kind: 'paragraph', text: '동의서 이름', indented: false },
@@ -119,6 +212,17 @@ describe('toTermsBlocks — 웹 버킷 전문 (2026-10-10)', () => {
     expect(texts(blocks)).not.toContain('버전(시행일) [시행일]');
     expect(articles(blocks)).toHaveLength(21);
     expect(blocks).toHaveLength(97);
+    // 조 밖(들여 쓰지 않음)은 마지막 조 뒤 꼬리뿐이다: 부칙부터 사업자 정보까지
+    expect(texts(outsideArticles(blocks))).toEqual([
+      '부칙',
+      '부칙 ([시행일])',
+      '이 약관은 [시행일]부터 시행합니다.',
+      '개정 이력',
+      '[시행일]\n- 공지일: —\n- 주요 내용: 최초 제정',
+      '종전 약관의 전문은 서비스 내 약관 화면에서 확인할 수 있습니다.',
+      '사업자 정보',
+      '상호: [상호]\n대표자: [대표자]\n사업자등록번호: [사업자등록번호]\n주소: [주소]\n이메일: [고객센터 이메일]',
+    ]);
   });
 
   it("privacy-policy: 'Orbit 개인정보 처리방침'·버전 줄은 빼고, 제1조 앞 서문 문단은 남긴다", () => {
@@ -139,6 +243,12 @@ describe('toTermsBlocks — 웹 버킷 전문 (2026-10-10)', () => {
     expect(texts(blocks)).not.toContain('버전(시행일) [시행일]');
     expect(articles(blocks)).toHaveLength(15);
     expect(blocks).toHaveLength(77);
+    // 조 밖은 첫 조 앞 서문과 마지막 조 뒤 꼬리(개정 이력)뿐이다
+    expect(texts(outsideArticles(blocks)).slice(1)).toEqual([
+      '개정 이력',
+      '[시행일]\n- 공지일: —\n- 주요 내용: 최초 제정',
+      '종전 개인정보 처리방침의 전문은 서비스 내 약관 화면에서 확인할 수 있습니다.',
+    ]);
   });
 
   it('privacy-consent: 조가 없어 문서 이름·버전 줄부터 그대로 18덩어리', () => {
