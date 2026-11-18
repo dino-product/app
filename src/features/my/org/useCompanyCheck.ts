@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Notice } from './components/NoticeModal';
 import type {
   JoinTarget,
@@ -46,6 +46,7 @@ export function useCompanyCheck({
   const [checking, setChecking] = useState(false);
   // 다시 그리기 전에 연달아 불러도 바로 알 수 있게 ref 로도 든다
   const checkingRef = useRef(false);
+  const isChecking = useCallback(() => checkingRef.current, []);
   const mounted = useRef(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -116,9 +117,10 @@ export function useCompanyCheck({
   return {
     check,
     checking,
+    /** 확인하는 중인지. 다시 그리기를 기다리지 않는다 (권한을 묻고 돌아온 뒤·읽어 온 QR 코드를 받을 때 본다) */
+    isChecking,
     /** 띄운 안내. 화면이 NoticeModal 로 보인다 */
     notice,
-    showNotice: setNotice,
     closeNotice: () => setNotice(null),
   };
 }

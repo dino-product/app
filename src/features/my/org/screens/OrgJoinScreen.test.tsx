@@ -328,6 +328,30 @@ describe('OrgJoinScreen', () => {
       },
     );
 
+    // 권한을 묻는 동안(시스템 대화상자 없이 끝나는 Android 확인 포함) 회사 확인을 시작했으면, 카메라를 열어도 읽어 온 코드가
+    // 확인 중이라 바로 확인되지 못한다. 열지 않는다 (#195)
+    it('권한을 묻는 사이 회사 확인이 시작되면 카메라를 열지 않는다', async () => {
+      let grant: (granted: boolean) => void = () => {};
+      cameraPermission.getStatus.mockReturnValue('not-determined');
+      cameraPermission.request.mockImplementation(
+        () =>
+          new Promise<boolean>(done => {
+            grant = done;
+          }),
+      );
+      const { props, server } = await renderJoin();
+      const respond = holdLookup(server);
+
+      await userEvent.press(qrButton());
+      await userEvent.type(codeInput(), 'RBT124');
+      await userEvent.press(checkButton());
+      await act(async () => grant(true));
+
+      expect(props.onScanQr).not.toHaveBeenCalled();
+      await respond(ok(orbitFound));
+      expect(props.onFound).toHaveBeenCalledTimes(1);
+    });
+
     // 입력하던 키보드가 카메라 화면 위에 남지 않게 한다
     it('누르면 키보드를 내린다', async () => {
       cameraPermission.getStatus.mockReturnValue('granted');
@@ -632,6 +656,33 @@ describe('OrgJoinScreen', () => {
         await waitFor(() => expect(view.props.onFound).toHaveBeenCalled());
         expect(view.waitForReturn).not.toHaveBeenCalled();
       });
+    });
+
+    // 확인 중에 읽어 온 코드는 버리지 않는다. 그 확인이 끝나면 이어서 확인한다.
+    // 카메라는 이미 닫혀 돌아온 지 오래라 전환 끝을 기다리는 구독은 만들지 않는다
+    it('확인하는 동안 받은 코드는 버리지 않고 그 확인이 끝난 뒤 QR 경로로 확인한다', async () => {
+      const waitForReturn = jest.fn(() => new Promise<void>(() => {}));
+      const view = await renderJoin({ waitForReturn });
+      const respond = holdLookup(view.server);
+      await userEvent.type(codeInput(), 'WRNG99');
+      await userEvent.press(checkButton());
+
+      await receive(view, 'RBT124');
+      expect(waitForReturn).not.toHaveBeenCalled();
+      expect(lookups(view.server)).toHaveLength(1);
+      await respond(fail(404, OrganizationErrorCode.unknownCode));
+      await waitFor(() => expect(lookups(view.server)).toHaveLength(2));
+      await respond(ok(orbitFound));
+
+      expect(lookups(view.server)[1].query).toEqual({ companyCode: 'RBT124' });
+      await waitFor(() =>
+        expect(view.props.onFound).toHaveBeenCalledWith({
+          ...orbit,
+          companyCode: 'RBT124',
+          requestChannel: 'QR_CODE',
+        }),
+      );
+      expect(waitForReturn).not.toHaveBeenCalled();
     });
 
     // 확인하는 동안 QR 을 다시 열면 그 결과가 돌아왔을 때 이미 확인 중이라 버려진다

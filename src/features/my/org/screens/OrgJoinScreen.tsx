@@ -86,7 +86,7 @@ export function OrgJoinScreen({
   titleRef?: Ref<TextInstance>;
 }) {
   const [invalid, setInvalid] = useState(false);
-  const { check, checking, notice, closeNotice } = useCompanyCheck({
+  const { check, checking, isChecking, notice, closeNotice } = useCompanyCheck({
     onFound,
     onPending,
     onAlreadyMember,
@@ -97,6 +97,8 @@ export function OrgJoinScreen({
   const [focused, setFocused] = useState(false);
   // 권한을 묻는 동안 다시 눌러도 한 번만 묻는다
   const askingCamera = useRef(false);
+  // 확인하는 동안 읽어 온 QR 코드. 버리지 않고 그 확인이 끝나면 이어서 확인한다
+  const pendingScan = useRef<string | null>(null);
 
   // 입력은 늘 규칙대로 정리돼 있다 (대문자, 허용 문자, 6자까지). 6자를 채워야 찾는다 (#97)
   const complete = isCompanyCodeComplete(code);
@@ -116,6 +118,13 @@ export function OrgJoinScreen({
         `${invalidIntro.title}. ${invalidIntro.description.replace('\n', ' ')}`,
       );
     }
+    // 미뤄 둔 QR 코드. 카메라는 이미 닫혀 돌아온 지 오래라 전환 끝을 기다리지 않는다.
+    // 이 호출이 확인하지 못하고 돌아왔으면(이미 확인 중) 그 확인이 끝날 때 이어서 한다
+    const next = pendingScan.current;
+    if (next !== null && !isChecking()) {
+      pendingScan.current = null;
+      checkCompany(next, 'QR_CODE');
+    }
   };
 
   const submit = () => {
@@ -124,10 +133,15 @@ export function OrgJoinScreen({
     }
   };
 
-  // 전환 끝을 기다리는 구독은 코드를 받은 지금 건다 (전환이 끝나기 전에)
-  const checkScanned = useEffectEvent((companyCode: string) =>
-    checkCompany(companyCode, 'QR_CODE', { until: waitForReturn?.() }),
-  );
+  // 전환 끝을 기다리는 구독은 코드를 받은 지금 건다 (전환이 끝나기 전에).
+  // 확인하는 중이면 버리지 않고 미뤄 두며, 그때는 구독을 만들지 않는다
+  const checkScanned = useEffectEvent((companyCode: string) => {
+    if (isChecking()) {
+      pendingScan.current = companyCode;
+      return;
+    }
+    checkCompany(companyCode, 'QR_CODE', { until: waitForReturn?.() });
+  });
   useEffect(() => {
     if (scannedCode) {
       checkScanned(scannedCode);
@@ -144,7 +158,10 @@ export function OrgJoinScreen({
     askingCamera.current = true;
     try {
       if (await requestCameraPermission()) {
-        onScanQr();
+        // 묻는 사이 회사 확인이 시작됐으면 열지 않는다 (읽어 온 코드가 확인 중이라 바로 확인되지 못한다)
+        if (!isChecking()) {
+          onScanQr();
+        }
       } else {
         showCameraPermissionGuide(
           'QR 코드를 인식하려면 설정에서 카메라 접근을 허용해 주세요.',
