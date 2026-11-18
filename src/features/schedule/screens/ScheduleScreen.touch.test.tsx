@@ -23,7 +23,8 @@ const renderSchedule = () =>
   );
 
 // Android 는 달력·주간 칸 폭 검사를 건너뛴다. 붙어 있는 칸이 48dp 를 다 받지 못한다.
-// 달력 칸 폭이 375 에서 46.7, 360dp 에서 44.6 이다. 384dp 부터 48 이다.
+// 달력 칸은 Figma Calendar Contents 대로 폭 45 이고 격자(칸 7개, 315)가 카드 가운데에 놓인다 (#198).
+// 카드가 315 보다 좁으면 칸이 줄어 360dp 에서 44.6 이다. 어느 폭에서도 48 에 못 미친다.
 // 주간 칸은 Figma 3754:6269 대로 좌우 24 안쪽에 두어 375 에서 41.6 + 칸 사이 6 = 47.6, 360dp 에서 45.4 다 (393 은 50.1).
 // 칸이 붙어 있어 hitSlop 으로는 더 넓힐 수 없다. 겹친 곳은 옆 칸이 먼저 받는다. 레이아웃을 바꾸는 디자인 결정으로 남긴다 (#172).
 // 두 플랫폼이 같은 레이아웃이라 iOS 쪽 검사가 좌우 패딩이 크게 늘어나는 회귀는 잡는다.
@@ -60,8 +61,9 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
     );
   });
 
+  // 격자는 카드(달력 폭) 안에서 최대 폭(칸 7개)까지 넓어진다
   itOnIOS(
-    '달력 날짜 칸 폭(달력 폭의 1/7)이 최소 터치 영역 이상이다',
+    '달력 날짜 칸 폭(격자 폭의 1/7)이 최소 터치 영역 이상이다',
     async () => {
       await renderSchedule();
       await userEvent.press(
@@ -71,7 +73,12 @@ describe('ScheduleScreen — 터치 영역 (375pt 화면)', () => {
       const day = screen.getByRole('button', { name: '12월 15일 화요일' });
       const monthArea = screen.getByTestId('month-calendar')
         .parent as HostElement;
-      expectMinTouchTarget(day, { width: contentWidth(monthArea) / 7 });
+      const weeks = day.parent?.parent as HostElement;
+      const gridWidth = Math.min(
+        contentWidth(monthArea),
+        stylePt(weeks, 'maxWidth'),
+      );
+      expectMinTouchTarget(day, { width: gridWidth / 7 });
     },
   );
 
