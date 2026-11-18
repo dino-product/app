@@ -1,4 +1,9 @@
 import {
+  developOnly,
+  resolveWebOrigin,
+  webOrigin,
+} from '../../shared/api/config';
+import {
   myPageTermsDocuments,
   signUpTermsDocuments,
   TERMS_DOCUMENTS,
@@ -37,9 +42,11 @@ describe('termsDocumentUrl', () => {
     ]);
   });
 
-  it('빌드 값을 주지 않으면 이 빌드의 웹 주소(테스트는 Debug 라 개발)를 쓴다', () => {
+  // 이 빌드의 웹 주소는 테스트를 돌리는 셸의 DEVELOP_ONLY 로 정해진다(babel 이 넣는다). 셸 값에 상관없게 같은 계산과 견준다
+  it('빌드 값을 주지 않으면 이 빌드의 웹 주소(webOrigin)를 쓴다', () => {
+    expect(webOrigin).toBe(resolveWebOrigin(developOnly));
     expect(termsDocumentUrl('marketing')).toBe(
-      'https://dev.orbi-t.com/terms/marketing/2026-10-10.txt',
+      `${webOrigin}/terms/marketing/2026-10-10.txt`,
     );
   });
 });
