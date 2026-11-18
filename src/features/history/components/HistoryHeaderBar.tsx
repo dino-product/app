@@ -48,16 +48,12 @@ export function HistoryHeaderBar({
         styles.tint,
         { opacity: progress.interpolate(collapseKeyframes.barTintOpacity) },
       ],
+      // 제목 줄은 윗변을 축으로 세로로 접힌다 (#204 접어 넣기)
       title: [
-        styles.passThrough,
+        styles.titleFold,
         {
-          opacity: progress.interpolate(collapseKeyframes.titleOpacity),
           transform: [
-            {
-              translateY: progress.interpolate(
-                collapseKeyframes.titleTranslateY,
-              ),
-            },
+            { scaleY: progress.interpolate(collapseKeyframes.titleScaleY) },
           ],
         },
       ],
@@ -94,15 +90,20 @@ export function HistoryHeaderBar({
       </Animated.View>
       {/* 탭을 옮길 때 제목·월 선택만 옆에서 들어오고 바 바탕은 제자리다 (#176) */}
       <TabEnterView part="header" style={styles.content}>
-        {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다) */}
-        <Animated.View
-          testID="work-history-title"
-          style={animated.title}
-          accessibilityElementsHidden={collapsed}
-          importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
-        >
-          <TabHeader title="작업 이력" style={styles.title} />
-        </Animated.View>
+        {/* 접힌 동안 보이지 않는 제목은 스크린리더도 읽지 않는다 (월 글자가 남는다).
+            상태 표시줄 아래 여백은 접히는 부분 밖에 두어, 접히는 축이 제목 줄 윗변에 온다 */}
+        <View style={styles.titleSlot}>
+          <Animated.View
+            testID="work-history-title"
+            style={animated.title}
+            accessibilityElementsHidden={collapsed}
+            importantForAccessibility={
+              collapsed ? 'no-hide-descendants' : 'auto'
+            }
+          >
+            <TabHeader title="작업 이력" style={styles.title} />
+          </Animated.View>
+        </View>
         <MonthSwitcher
           testID="work-history-month"
           title={monthTitle}
@@ -150,9 +151,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background[3],
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
   },
-  passThrough: { pointerEvents: 'box-none' },
   // Figma 3753:4895: 제목은 상태 표시줄 아래 8 (다른 탭 첫 화면의 12 와 다르다)
-  title: { paddingTop: 8 },
+  titleSlot: { paddingTop: 8, pointerEvents: 'box-none' },
+  // 시안 '접어 넣기': transform-origin 50% 0 (윗변이 축)
+  titleFold: { transformOrigin: 'top', pointerEvents: 'box-none' },
+  // 위 여백은 titleSlot 이 갖는다
+  title: { paddingTop: 0 },
   // Figma 3753:4897: 제목 아래 14
   month: { marginTop: 14 },
 });

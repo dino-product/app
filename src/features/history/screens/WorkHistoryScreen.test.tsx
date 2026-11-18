@@ -164,6 +164,8 @@ function transformOf(element: HostElement, key: string): number | undefined {
     | undefined;
   return transform?.find(item => key in item)?.[key];
 }
+/** 제목이 접힌 정도 (세로 배율, 1 펼침 · 0 다 접힘) */
+const titleFold = () => transformOf(part('work-history-title'), 'scaleY');
 const layout = (height: number, y = 0) => ({
   nativeEvent: { layout: { x: 0, y, width: 390, height } },
 });
@@ -185,8 +187,12 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
       ...typography['Body/XL/SemiBold'],
       color: colors.black,
     });
+    // 상태 표시줄 아래 8 은 접히는 부분 바깥(위)에 둔다. 접히는 축이 제목 줄 윗변에 오게 한다 (#204)
+    const folding = part('work-history-title');
+    expect(folding).toContainElement(title);
+    expect(folding.parent).toHaveStyle({ paddingTop: 8 });
     expect(title.parent?.parent).toHaveStyle({
-      paddingTop: 8,
+      paddingTop: 0,
       paddingHorizontal: 24,
     });
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
@@ -272,7 +278,7 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
   });
 });
 
-// #175: Figma 작업이력 (스크롤) 50833:6839. 스크롤하면 제목이 짧은 페이드로 사라지고 월 선택이 바로 바에 흡수된다.
+// #175: Figma 작업이력 (스크롤) 50833:6839. 스크롤하면 제목이 윗변을 축으로 접히며 사라지고(#204 접어 넣기) 월 선택이 바로 바에 흡수된다.
 // 스크롤 양에 따라 중간에 멈추지 않는다: 시작한 전환은 UI 스레드에서 끝까지 간다
 describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => {
   let finishAnimations: () => Promise<void>;
@@ -287,7 +293,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
       .mockImplementation(() => Promise.resolve(false));
   });
 
-  it('12 까지는 그대로이고, 넘게 내리면 260ms 감속 곡선의 UI 스레드 전환 하나로 접는다', async () => {
+  it('12 까지는 그대로이고, 넘게 내리면 240ms 감속 곡선의 UI 스레드 전환 하나로 접는다', async () => {
     const timing = jest.spyOn(Animated, 'timing');
     await renderHistory();
 
@@ -308,9 +314,12 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await scrollListTo(list(), 300);
     await finishAnimations();
 
+    // 제목은 윗변을 축으로 세로 0 까지 접힌다. 투명해지거나 위로 밀리지 않는다 (#204)
     const title = part('work-history-title');
-    expect(styleOf(title).opacity).toBe(0);
-    expect(transformOf(title, 'translateY')).toBe(-6);
+    expect(titleFold()).toBe(0);
+    expect(title).toHaveStyle({ transformOrigin: 'top' });
+    expect(styleOf(title).opacity).toBeUndefined();
+    expect(transformOf(title, 'translateY')).toBeUndefined();
     // 바 배경은 펼친 바(108)의 아래 끝에서 40 올라가 68 에서 끝난다
     const background = part('work-history-bar-background');
     expect(background).toHaveStyle({ bottom: 0 });
@@ -352,7 +361,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
 
     await finishAnimations();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
     expect(
       transformOf(part('work-history-bar-background'), 'translateY'),
@@ -378,7 +387,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
 
     await finishAnimations();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
   });
 
   it('전환이 끝나기 전에 원래 조건으로 돌아오면 반대로 돌아가지 않는다', async () => {
@@ -391,7 +400,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await finishAnimations();
 
     expect(timing).toHaveBeenCalledTimes(1);
-    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+    expect(titleFold()).toBe(0);
   });
 
   it('동작 줄이기면 애니메이션 없이 바로 접고 바로 펼친다', async () => {
@@ -403,11 +412,11 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await act(async () => {});
 
     await scrollListTo(list(), 300);
-    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+    expect(titleFold()).toBe(0);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(1);
 
     await scrollListTo(list(), 0);
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
     expect(timing).not.toHaveBeenCalled();
   });
@@ -561,7 +570,7 @@ describe('WorkHistoryScreen — 맨 위에서 더 당길 때 (#178)', () => {
     await scrollListTo(list(), -40);
     await finishAnimations();
     expect(styleOf(bar()).transform).toBeUndefined();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
   });
 });
 
