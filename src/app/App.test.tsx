@@ -451,7 +451,8 @@ describe('App', () => {
     ).toBeDisabled();
   });
 
-  it('완료 보고를 제출하고 메인으로 돌아오면 다음 작업이 "작업 시작" 으로 온다', async () => {
+  // #205 히어로는 지금 진행 중인 작업만: 다음 작업(세탁기 설치)은 2시간 뒤에 시작해 아직 진행(무)다
+  it('완료 보고를 제출하고 메인으로 돌아오면 끝낸 작업은 빠지고, 다음 작업은 예정 시작 전이라 진행(무)다', async () => {
     const alert = spyAlert();
     await renderSignedInHome();
 
@@ -462,9 +463,14 @@ describe('App', () => {
 
     expect(header('내 작업')).toBeOnTheScreen();
     expect(
-      screen.getByRole('button', { name: '세탁기 설치 상세 보기' }),
+      await screen.findByText('현재 진행 중인 작업이 없습니다'),
     ).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: '작업 수행중' }),
+    ).not.toBeOnTheScreen();
+    expect(
+      screen.queryByRole('button', { name: '세탁기 설치 상세 보기' }),
+    ).not.toBeOnTheScreen();
     // 제출을 마친 보고는 잃을 입력이 아니라 나갈 때 묻지 않는다
     expect(alert).not.toHaveBeenCalled();
   });
@@ -1008,8 +1014,9 @@ describe('App', () => {
       expect(escapeTarget('작업 상세')?.props.collapsable).toBe(false);
     });
 
-    // 홈은 포커스를 잃은 동안 조회를 멈췄다가 돌아오면 새로 받아 다음 작업을 보인다
-    it('완료 보고 제출 뒤 결과 모달에서 두 손가락 Z 로 메인화면과 다음 작업의 "작업 시작" 으로 돌아온다', async () => {
+    // 홈은 포커스를 잃은 동안 조회를 멈췄다가 돌아오면 새로 받는다. 끝낸 작업은 빠지고,
+    // 다음 작업은 아직 예정 시작 전이라 히어로는 진행(무)다 (#205)
+    it('완료 보고 제출 뒤 결과 모달에서 두 손가락 Z 로 메인화면으로 돌아오면 끝낸 작업 대신 진행(무)다', async () => {
       await renderSignedInHome();
 
       await submitReport();
@@ -1018,11 +1025,11 @@ describe('App', () => {
       expect(header('제출 완료')).not.toBeOnTheScreen();
       expect(header('내 작업')).toBeOnTheScreen();
       expect(
-        await screen.findByRole('button', { name: '세탁기 설치 상세 보기' }),
+        await screen.findByText('현재 진행 중인 작업이 없습니다'),
       ).toBeOnTheScreen();
       expect(
-        screen.getByRole('button', { name: '작업 시작' }),
-      ).toBeOnTheScreen();
+        screen.queryByRole('button', { name: '작업 수행중' }),
+      ).not.toBeOnTheScreen();
     });
   });
 
