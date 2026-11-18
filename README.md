@@ -48,6 +48,19 @@ npm start         # Metro (Debug 빌드용)
 - Metro 는 값마다 변환 캐시를 따로 쓴다 (`metro.config.js` 의 `cacheVersion`). 값을 바꾸면 Metro 를 다시 띄우기만 하면 된다
 - Release 는 `https://` 주소만 쓴다. 값이 없으면 앱은 열리지만 서버 요청이 설정 오류로 실패한다. Xcode 빌드는 `ios/.xcode.env.local` 에 `export ORBIT_API_BASE_URL=…` 를 둔다
 
+### 웹 주소 (DEVELOP_ONLY)
+
+약관 전문 등 웹 버킷의 정적 파일(`{웹 주소}/terms/{종류}/{버전}.txt`)을 받을 웹 주소를 빌드 값 `DEVELOP_ONLY` 로 고른다 (`src/shared/api/config.ts`, #192). 비밀 값이 아니다.
+
+- `true` 면 `https://dev.orbi-t.com`, `false` 면 `https://orbi-t.com` (dev 와 그 뒤 점을 뺀다). 대소문자·앞뒤 공백은 무시한다
+- 값이 없거나 `true`·`false` 가 아니면 Debug 는 `true`(개발 웹), Release 는 `false`(운영 웹)
+  ```sh
+  DEVELOP_ONLY=false npm start
+  ```
+- `ORBIT_API_BASE_URL` 과 따로 정해진다. 둘을 함께 맞추지 않으면 개발 API 서버와 운영 웹(또는 그 반대)이 섞일 수 있다. 예: Release 에 개발 API 주소만 넣으면 약관 전문은 운영 웹에서 받는다
+- `ORBIT_API_BASE_URL` 과 같이 babel 이 번들에 넣고, Metro 변환 캐시(`metro.config.js` 의 `cacheVersion`)와 Android 번들 작업(`android/app/build.gradle` 의 `createBundle*` 입력)도 값마다 따로 쓴다. 값을 바꾸면 Metro 를 다시 띄우기만 하면 된다
+- Release 에서 개발 웹을 쓰려면 그 빌드를 돌리는 곳에 값을 둔다. Xcode 빌드는 `ios/.xcode.env.local` 에 `export DEVELOP_ONLY=true`, Android(gradle)는 빌드하는 셸에 `export DEVELOP_ONLY=true`, CI(`native-build.yml`)는 빌드 단계의 `env` 에 `DEVELOP_ONLY: 'true'` 를 넣는다
+
 ## 스크립트
 
 | 명령                                    | 내용                                                                                     |
