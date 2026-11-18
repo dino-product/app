@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { mockAppState } from '../../jest/appState';
 import { scanQr } from '../../jest/qrCamera';
+import { finishReturnTo } from '../../jest/screenTransition';
 import { escapeFrom } from '../../jest/voiceOver';
 import {
   cancelRequestPath,
@@ -228,6 +229,12 @@ describe('App — 조직 참여', () => {
       await userEvent.press(button('QR 코드 인식'));
       return app;
     }
+    // 카메라(루트 스택의 QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 마친 것으로 한다. 결과는 그 뒤에 보인다 (#195)
+    const finishReturn = () => finishReturnTo(button('QR 코드 인식'), 'root');
+    async function scanAndReturn(...values: string[]) {
+      await scanQr(...values);
+      await finishReturn();
+    }
 
     it('회사 찾기의 QR 코드 인식은 하단 탭 없이 전체 화면 카메라를 열고, 닫으면 회사 찾기로 돌아온다', async () => {
       await openQrScan();
@@ -244,12 +251,33 @@ describe('App — 조직 참여', () => {
       expect(camera()).toBeNull();
     });
 
+    // 사용자는 앱으로 돌아온 뒤 결과를 본다. 카메라 화면이 닫히는 전환 중에는 모달·다음 화면을 띄우지 않는다
+    it('결과는 응답이 먼저 와도 카메라 화면이 닫히는 전환이 끝난 뒤에 보인다', async () => {
+      const app = await openQrScan();
+      await screen.findByRole('header', { name: 'QR 코드 인식' });
+
+      await scanQr('BS0001');
+      await waitFor(() =>
+        expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1),
+      );
+      await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+      expect(camera()).toBeNull();
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('이미 참여 중인 회사예요')).toBeNull();
+
+      await finishReturn();
+
+      expect(
+        await screen.findByRole('header', { name: '이미 참여 중인 회사예요' }),
+      ).toBeOnTheScreen();
+    });
+
     // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 회사를 확인한다 (#195). 찾은 회사는 그 위에 역할 선택을 연다
     it('QR 로 회사를 찾으면 카메라를 닫고 회사 찾기 위에 역할 선택을 열고, 기사로 요청하면 요청 경로가 QR 코드다', async () => {
       const app = await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
 
-      await scanQr(JOIN_LINK);
+      await scanAndReturn(JOIN_LINK);
       expect(
         await screen.findByRole('header', { name: '역할을 선택해주세요' }),
       ).toBeOnTheScreen();
@@ -276,7 +304,7 @@ describe('App — 조직 참여', () => {
     it('QR 로 찾은 회사의 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다', async () => {
       await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
-      await scanQr(JOIN_LINK);
+      await scanAndReturn(JOIN_LINK);
       await screen.findByRole('header', { name: '역할을 선택해주세요' });
 
       await userEvent.press(button('뒤로 가기'));
@@ -296,7 +324,7 @@ describe('App — 조직 참여', () => {
         await openQrScan();
         await screen.findByRole('header', { name: 'QR 코드 인식' });
 
-        await scanQr(value);
+        await scanAndReturn(value);
 
         expect(
           await screen.findByRole('header', { name: title }),
@@ -316,7 +344,7 @@ describe('App — 조직 참여', () => {
       await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
 
-      await scanQr('https://orbit.example/join/PRV014');
+      await scanAndReturn('https://orbit.example/join/PRV014');
 
       expect(
         await screen.findByRole('header', {
@@ -334,7 +362,7 @@ describe('App — 조직 참여', () => {
       await screen.findByRole('header', { name: 'QR 코드 인식' });
       app.server.on('GET', COMPANY_LOOKUP_PATH, networkError());
 
-      await scanQr(JOIN_LINK);
+      await scanAndReturn(JOIN_LINK);
 
       expect(
         await screen.findByRole('header', { name: '회사를 확인하지 못했어요' }),
@@ -347,14 +375,14 @@ describe('App — 조직 참여', () => {
     it('한 번 인식한 뒤 다시 QR 코드 인식을 열어 같은 QR 을 비추면 다시 확인한다', async () => {
       const app = await openQrScan();
       await screen.findByRole('header', { name: 'QR 코드 인식' });
-      await scanQr('BS0001');
+      await scanAndReturn('BS0001');
       await userEvent.press(
         await screen.findByRole('button', { name: '확인' }),
       );
 
       await userEvent.press(button('QR 코드 인식'));
       await screen.findByRole('header', { name: 'QR 코드 인식' });
-      await scanQr('BS0001');
+      await scanAndReturn('BS0001');
 
       expect(
         await screen.findByRole('button', { name: '확인' }),

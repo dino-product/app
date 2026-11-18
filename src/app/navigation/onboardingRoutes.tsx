@@ -40,7 +40,11 @@ import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgr
 import { isApiError, useApiClient } from '../../shared/api';
 import { useLightStatusBar } from '../../shared/layout/useLightStatusBar';
 import { useAccountProfile, useAuth } from '../AuthProvider';
-import { ParticipationRequestGate, useScannedCode } from './orgRoutes';
+import {
+  ParticipationRequestGate,
+  useAwaitReturnTransition,
+  useScannedCode,
+} from './orgRoutes';
 import { useFocusTitleOnOpen } from './routes';
 import type { OnboardingScreenProps, OnboardingStackParamList } from './types';
 
@@ -270,6 +274,8 @@ export function CompanyFindRoute({
   const screenFocused = useIsFocused();
   const found = useCompanyFound(navigation);
   const scannedCode = useScannedCode(navigation, route.params?.qrCode);
+  // QR 코드 인식은 같은 온보딩 스택 화면이라, 닫히면 이 화면이 다시 보인다
+  const waitForReturn = useAwaitReturnTransition(navigation);
 
   return (
     <OrgJoinScreen
@@ -278,6 +284,7 @@ export function CompanyFindRoute({
       screenFocused={screenFocused}
       {...found}
       scannedCode={scannedCode}
+      waitForReturn={waitForReturn}
       onScanQr={() => navigation.navigate('CompanyQrScan')}
       onBack={() => navigation.goBack()}
     />

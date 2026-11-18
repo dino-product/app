@@ -63,6 +63,7 @@ export function OrgJoinScreen({
   screenFocused = true,
   onScanQr,
   scannedCode,
+  waitForReturn,
   titleRef,
 }: CompanyCheckHandlers & {
   flow?: JoinFlow;
@@ -76,6 +77,11 @@ export function OrgJoinScreen({
    * 바깥은 넘긴 뒤 지운다 (같은 QR 을 다시 읽어 오면 다시 확인하게)
    */
   scannedCode?: string;
+  /**
+   * 카메라 화면이 닫히며 이 화면이 다시 보이는 전환이 끝나기를 기다린다. 읽어 온 코드의 결과(다음 화면·안내 모달·⑥)는
+   * 그 뒤에 보인다 (앱 화면으로 돌아온 뒤 결과). 확인 요청은 기다리지 않고 먼저 보낸다
+   */
+  waitForReturn?: () => Promise<void>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
@@ -101,8 +107,9 @@ export function OrgJoinScreen({
   const checkCompany = async (
     companyCode: string,
     requestChannel: RequestChannel,
+    options?: { until?: Promise<void> },
   ) => {
-    const kind = await check(companyCode, requestChannel);
+    const kind = await check(companyCode, requestChannel, options);
     if (kind === 'invalid' && Platform.OS === 'ios') {
       // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
       AccessibilityInfo.announceForAccessibility(
@@ -117,8 +124,9 @@ export function OrgJoinScreen({
     }
   };
 
+  // 전환 끝을 기다리는 구독은 코드를 받은 지금 건다 (전환이 끝나기 전에)
   const checkScanned = useEffectEvent((companyCode: string) =>
-    checkCompany(companyCode, 'QR_CODE'),
+    checkCompany(companyCode, 'QR_CODE', { until: waitForReturn?.() }),
   );
   useEffect(() => {
     if (scannedCode) {

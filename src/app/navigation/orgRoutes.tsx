@@ -1,5 +1,11 @@
 import { CommonActions, useIsFocused } from '@react-navigation/native';
-import { useCallback, useEffect, type ReactElement, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactElement,
+  type Ref,
+} from 'react';
 import type { TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SubScreenHeader } from '../../features/my/components/SubScreenHeader';
@@ -105,12 +111,17 @@ export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
   const scannedCode = useScannedCode(navigation, route.params?.qrCode);
+  // QR 코드 인식은 루트 스택 화면이라, 닫히면 루트 스택에서 메인(하단 탭)이 다시 보인다
+  const waitForReturn = useAwaitReturnTransition(
+    navigation.getParent()?.getParent<TransitionSource>(),
+  );
 
   return (
     <OrgJoinScreen
       titleRef={titleRef}
       screenFocused={screenFocused}
       scannedCode={scannedCode}
+      waitForReturn={waitForReturn}
       onFound={target => {
         // 찾는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
@@ -138,6 +149,51 @@ export function useScannedCode(
     }
   }, [qrCode, navigation]);
   return qrCode;
+}
+
+/** 카메라(QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 기다리는 최대 시간. 네이티브 전환은 0.35초쯤이다 */
+export const RETURN_TRANSITION_TIMEOUT_MS = 1000;
+
+/** 전환 끝(transitionEnd)을 알려 주는 스택 내비게이션 (native-stack) */
+type TransitionSource = {
+  addListener: (
+    type: 'transitionEnd',
+    listener: (event: { data: { closing: boolean } }) => void,
+  ) => () => void;
+};
+
+/**
+ * 화면이 다시 보이는 전환이 끝나기를(transitionEnd) 기다리는 함수 (#195). QR 결과는 앱 화면으로 돌아온 뒤에 보인다.
+ * source 는 그 전환을 하는 스택에서의 이 화면(또는 이 화면을 담은 화면) 내비게이션이다.
+ * 이벤트를 놓쳐도 결과가 묶이지 않게 RETURN_TRANSITION_TIMEOUT_MS 뒤에는 기다리지 않는다. 화면을 떠나면 구독·타이머를 푼다
+ */
+export function useAwaitReturnTransition(source: TransitionSource | undefined) {
+  const waiting = useRef(new Set<() => void>());
+  useEffect(() => {
+    const pending = waiting.current;
+    return () => pending.forEach(stop => stop());
+  }, []);
+  return useCallback(
+    () =>
+      new Promise<void>(resolve => {
+        let unsubscribe: (() => void) | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const stop = () => {
+          unsubscribe?.();
+          clearTimeout(timer);
+          waiting.current.delete(stop);
+          resolve();
+        };
+        waiting.current.add(stop);
+        unsubscribe = source?.addListener('transitionEnd', ({ data }) => {
+          if (!data.closing) {
+            stop();
+          }
+        });
+        timer = setTimeout(stop, RETURN_TRANSITION_TIMEOUT_MS);
+      }),
+    [source],
+  );
 }
 
 // QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고(스택에서 빼고) 마이 탭의 회사 찾기로 돌아가 그 코드를 넘긴다 (#195).

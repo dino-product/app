@@ -456,6 +456,90 @@ describe('OrgJoinScreen', () => {
       expect(view.props.onFound).not.toHaveBeenCalled();
     });
 
+    // 사용자는 '앱으로 돌아와서' 결과를 본다. 카메라 화면이 닫히는 전환 중에 모달이 뜨거나 다음 화면이 올라오지 않게,
+    // 결과(다음 화면·안내 모달·⑥)는 바깥이 알려 주는 전환 끝(waitForReturn) 뒤에 보인다. 확인 요청은 기다리지 않고 먼저 보낸다
+    describe('카메라 화면이 닫히는 전환', () => {
+      function renderReturning() {
+        let finish: () => void = () => {};
+        const waitForReturn = jest.fn(
+          () =>
+            new Promise<void>(done => {
+              finish = done;
+            }),
+        );
+        return renderJoin({ waitForReturn }).then(view => ({
+          ...view,
+          waitForReturn,
+          finishReturn: () => act(async () => finish()),
+        }));
+      }
+
+      it.each([
+        [
+          '찾은 회사면 역할 선택으로 넘기는 것',
+          ok(orbitFound),
+          (view: JoinView) => expect(view.props.onFound).toHaveBeenCalled(),
+          (view: JoinView) => expect(view.props.onFound).not.toHaveBeenCalled(),
+        ],
+        [
+          '없는 코드면 ⑥ 으로 바꾸는 것',
+          fail(404, OrganizationErrorCode.unknownCode),
+          () => expect(header(INVALID_TITLE)).toBeOnTheScreen(),
+          () => expect(header(INVALID_TITLE)).toBeNull(),
+        ],
+        [
+          '확인하지 못했으면 안내 모달을 띄우는 것',
+          networkError(),
+          () =>
+            expect(
+              screen.getByRole('header', { name: '회사를 확인하지 못했어요' }),
+            ).toBeOnTheScreen(),
+          () => expect(header('회사를 확인하지 못했어요')).toBeNull(),
+        ],
+      ])(
+        '%s 은 응답이 먼저 와도 전환이 끝난 뒤에 한다',
+        async (_, response, shown, notYet) => {
+          const view = await renderReturning();
+          const respond = holdLookup(view.server);
+
+          await receive(view, 'RBT124');
+          expect(view.waitForReturn).toHaveBeenCalledTimes(1);
+          expect(lookups(view.server)).toHaveLength(1);
+          await respond(response);
+          await act(async () => {});
+          notYet(view);
+          expect(header('회사 찾기')).toBeOnTheScreen();
+
+          await view.finishReturn();
+
+          shown(view);
+        },
+      );
+
+      it('전환이 먼저 끝났으면 응답이 오는 대로 보인다', async () => {
+        const view = await renderReturning();
+        const respond = holdLookup(view.server);
+        await receive(view, 'RBT124');
+
+        await view.finishReturn();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+        await respond(ok(orbitFound));
+
+        expect(view.props.onFound).toHaveBeenCalledTimes(1);
+      });
+
+      // 회사 코드 입력은 화면이 그대로라 기다리지 않는다
+      it('회사 코드 입력은 전환을 기다리지 않는다', async () => {
+        const view = await renderReturning();
+
+        await userEvent.type(codeInput(), 'RBT124');
+        await userEvent.press(checkButton());
+
+        await waitFor(() => expect(view.props.onFound).toHaveBeenCalled());
+        expect(view.waitForReturn).not.toHaveBeenCalled();
+      });
+    });
+
     // 확인하는 동안 QR 을 다시 열면 그 결과가 돌아왔을 때 이미 확인 중이라 버려진다
     it('확인하는 동안 회사 확인·QR 코드 인식을 잠근다', async () => {
       const view = await renderJoin();

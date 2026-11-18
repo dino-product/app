@@ -1,5 +1,7 @@
 import {
+  act,
   render,
+  renderHook,
   screen,
   userEvent,
   waitFor,
@@ -21,7 +23,11 @@ import { networkError, ok } from '../../shared/testing/fakeServer';
 import { createTestApi } from '../../shared/testing/renderWithApi';
 import { expectOnlySkeletons } from '../../shared/testing/skeleton';
 import { testSession } from '../../shared/testing/session';
-import { ParticipationRequestGate } from './orgRoutes';
+import {
+  ParticipationRequestGate,
+  RETURN_TRANSITION_TIMEOUT_MS,
+  useAwaitReturnTransition,
+} from './orgRoutes';
 
 // 참여 요청 하나를 그리는 화면(요청 완료·거절·참여 완료)의 문지기 (#116).
 // 캐시는 옛 상태일 수 있다(대기였다가 거절됨, 다른 기기가 보낸 요청). 화면을 연 뒤 받은 서버 목록으로 판단한다
@@ -172,5 +178,93 @@ describe('ParticipationRequestGate', () => {
 
     expect(await screen.findByText('REJECTED')).toBeOnTheScreen();
     expect(onMissing).not.toHaveBeenCalled();
+  });
+});
+
+// QR 코드 인식이 닫히며 회사 찾기가 다시 보이는 전환 (#195). 결과는 이 전환이 끝난 뒤에 보인다
+describe('useAwaitReturnTransition', () => {
+  type Listener = (event: { data: { closing: boolean } }) => void;
+  // native-stack 내비게이션의 transitionEnd 구독만 흉내 낸다
+  function fakeStack() {
+    const listeners = new Set<Listener>();
+    return {
+      listeners,
+      addListener: jest.fn((_: 'transitionEnd', listener: Listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }),
+      end: (closing: boolean) =>
+        act(async () =>
+          listeners.forEach(listener => listener({ data: { closing } })),
+        ),
+    };
+  }
+  const settled = (promise: Promise<void>) => {
+    let done = false;
+    promise.then(() => {
+      done = true;
+    });
+    return () => done;
+  };
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('그 스택에서 이 화면이 다시 보이는 전환이 끝나면(transitionEnd, closing false) 풀리고 구독을 푼다', async () => {
+    const stack = fakeStack();
+    const { result } = await renderHook(() => useAwaitReturnTransition(stack));
+
+    const done = settled(result.current());
+    expect(stack.addListener).toHaveBeenCalledWith(
+      'transitionEnd',
+      expect.any(Function),
+    );
+    await stack.end(true);
+    expect(done()).toBe(false);
+    await stack.end(false);
+
+    expect(done()).toBe(true);
+    expect(stack.listeners.size).toBe(0);
+  });
+
+  // 이벤트를 놓쳐도 결과가 묶이지 않게 한다
+  it(`${RETURN_TRANSITION_TIMEOUT_MS}ms 안에 전환 끝이 오지 않으면 기다리지 않는다`, async () => {
+    jest.useFakeTimers();
+    const stack = fakeStack();
+    const { result } = await renderHook(() => useAwaitReturnTransition(stack));
+
+    const done = settled(result.current());
+    await act(async () => {
+      jest.advanceTimersByTime(RETURN_TRANSITION_TIMEOUT_MS - 1);
+    });
+    expect(done()).toBe(false);
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+    });
+
+    expect(done()).toBe(true);
+    expect(stack.listeners.size).toBe(0);
+  });
+
+  it('화면을 떠나면 구독과 타이머를 푼다', async () => {
+    jest.useFakeTimers();
+    const stack = fakeStack();
+    const { result, unmount } = await renderHook(() =>
+      useAwaitReturnTransition(stack),
+    );
+    const setTimer = jest.spyOn(globalThis, 'setTimeout');
+    const clearTimer = jest.spyOn(globalThis, 'clearTimeout');
+    result.current();
+    expect(stack.listeners.size).toBe(1);
+    const timer = setTimer.mock.results.at(-1)?.value;
+
+    await unmount();
+
+    expect(stack.listeners.size).toBe(0);
+    expect(clearTimer).toHaveBeenCalledWith(timer);
+    // 가짜 타이머를 걷기 전에 되돌린다 (jest 설정의 afterEach 가 전역 타이머를 본다)
+    setTimer.mockRestore();
+    clearTimer.mockRestore();
   });
 });

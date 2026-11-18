@@ -56,10 +56,14 @@ export function useCompanyCheck({
     };
   }, []);
 
-  /** 확인한 갈래. 이미 찾는 중이었거나, 확인하지 못했거나(안내를 띄웠다), 그사이 화면을 떠났으면 null */
+  /**
+   * 확인한 갈래. 이미 찾는 중이었거나, 확인하지 못했거나(안내를 띄웠다), 그사이 화면을 떠났으면 null.
+   * until: 결과(갈래 나누기·안내)를 보일 때. 요청은 기다리지 않고 먼저 보낸다 (QR 은 카메라 화면이 닫히는 전환이 끝난 뒤, #195)
+   */
   const check = async (
     companyCode: string,
     requestChannel: RequestChannel,
+    { until }: { until?: Promise<void> } = {},
   ): Promise<LookupOutcome['kind'] | null> => {
     if (checkingRef.current) {
       return null;
@@ -72,6 +76,7 @@ export function useCompanyCheck({
       const outcome = await lookup(companyCode, requestChannel, {
         signal: controller.signal,
       });
+      await until;
       if (!mounted.current) {
         return null;
       }
@@ -94,6 +99,7 @@ export function useCompanyCheck({
       }
       return mounted.current ? outcome.kind : null;
     } catch (error) {
+      await until;
       if (mounted.current) {
         setNotice(lookupFailureNotice(error));
       }

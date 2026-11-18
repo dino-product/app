@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { mockAppState } from '../../jest/appState';
 import { scanQr } from '../../jest/qrCamera';
+import { finishReturnTo } from '../../jest/screenTransition';
 import { escapeFrom } from '../../jest/voiceOver';
 import {
   COMPANY_LOOKUP_PATH,
@@ -1068,6 +1069,35 @@ describe('App — 온보딩', () => {
       );
       await screen.findByRole('header', { name: 'QR 코드 인식' });
     }
+    // 카메라(온보딩 스택의 QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 마친 것으로 한다. 결과는 그 뒤에 보인다 (#195)
+    async function scanAndReturn(value: string) {
+      await scanQr(value);
+      await finishReturnTo(button('QR 코드 인식'), 'inner');
+    }
+
+    it('결과는 응답이 먼저 와도 카메라 화면이 닫히는 전환이 끝난 뒤에 보인다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+
+      await scanQr('123456');
+      await waitFor(() =>
+        expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1),
+      );
+      await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+      expect(header('QR 코드 인식')).toBeNull();
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('역할을 선택해주세요')).toBeNull();
+
+      await finishReturnTo(button('QR 코드 인식'), 'inner');
+
+      expect(
+        await screen.findByRole('header', { name: '역할을 선택해주세요' }),
+      ).toBeOnTheScreen();
+    });
 
     it('회사 찾기에서 QR 로 회사를 찾아 요청하면 요청 경로가 QR 코드다', async () => {
       mockAppState('active');
@@ -1077,7 +1107,7 @@ describe('App — 온보딩', () => {
       await agreeTerms();
       await openQrScan();
 
-      await scanQr('https://orbit.example/join/123456');
+      await scanAndReturn('https://orbit.example/join/123456');
       expect(
         await screen.findByRole('header', { name: '역할을 선택해주세요' }),
       ).toBeOnTheScreen();
@@ -1104,7 +1134,7 @@ describe('App — 온보딩', () => {
       await escapeFrom('승인 대기');
       await openQrScan();
 
-      await scanQr('123456');
+      await scanAndReturn('123456');
 
       expect(
         await screen.findByRole('header', { name: '승인 대기' }),
@@ -1124,7 +1154,7 @@ describe('App — 온보딩', () => {
       await agreeTerms();
       await openQrScan();
 
-      await scanQr('https://orbit.example/join/PRV014');
+      await scanAndReturn('https://orbit.example/join/PRV014');
 
       expect(
         await screen.findByRole('header', {
@@ -1147,7 +1177,7 @@ describe('App — 온보딩', () => {
       await openQrScan();
       app.server.on('GET', COMPANY_LOOKUP_PATH, networkError());
 
-      await scanQr('123456');
+      await scanAndReturn('123456');
 
       expect(
         await screen.findByRole('header', { name: '회사를 확인하지 못했어요' }),
