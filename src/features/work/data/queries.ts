@@ -7,6 +7,9 @@ import {
   useQuery,
   useQueryClient,
   type Mutation,
+  type Query,
+  type QueryClient,
+  type QueryKey,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
@@ -268,9 +271,86 @@ const respondBatch = createMutationBatch(queryClient =>
   queryClient.invalidateQueries({ queryKey: workKeys.all }),
 );
 
+const hasData = (query: Query) => query.state.data !== undefined;
+
+// 캐시에서 그 조회들의 값을 바꾼다. 같은 값이면 건드리지 않는다
+function updateQueries<T>(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  update: (data: T, queryKey: QueryKey) => T,
+) {
+  for (const query of queryClient
+    .getQueryCache()
+    .findAll({ queryKey, predicate: hasData })) {
+    const data = query.state.data as T;
+    const next = update(data, query.queryKey);
+    if (next !== data) {
+      queryClient.setQueryData(query.queryKey, next);
+    }
+  }
+}
+
+const periodOf = (queryKey: QueryKey): Period => {
+  const [, , from, to] = queryKey as ReturnType<typeof workKeys.schedule>;
+  return { from, to };
+};
+
+/**
+ * 서버가 받은 응답을 캐시에 확정한다: 응답 필요·내 일정(모든 구간)·그 작업의 상세.
+ * 무효화는 보이는 조회만 다시 받으므로(#110) 보이지 않는 화면이나, 다시 받기가 실패·중단돼도 옛 값이 남지 않는다.
+ * 받던 조회(서버가 처리하기 전 값)가 늦게 와 덮지 않게 먼저 멈춘다 (확정 뒤 마지막 응답에서 다시 받는다)
+ */
+async function confirmResponse(
+  queryClient: QueryClient,
+  response: RespondingWork,
+) {
+  const responses = [response];
+  const keys = [
+    workKeys.pending,
+    workKeys.schedules,
+    workKeys.details(response.workId),
+  ];
+  await Promise.all(
+    keys.map(queryKey =>
+      queryClient.cancelQueries({ queryKey, predicate: hasData }),
+    ),
+  );
+  updateQueries<MySchedule>(queryClient, workKeys.pending, pending =>
+    pendingWithResponses(pending, responses),
+  );
+  updateQueries<MySchedule>(
+    queryClient,
+    workKeys.schedules,
+    (schedule, queryKey) =>
+      scheduleWithResponses(schedule, periodOf(queryKey), responses),
+  );
+  updateQueries<WorkDetail>(
+    queryClient,
+    workKeys.details(response.workId),
+    detail => detailWithResponses(detail, response.workId, responses),
+  );
+}
+
+/**
+ * 서버 작업이 화면과 달라져 실패했다(-010·-002·-016). 서버 값을 모르므로 응답 필요·내 일정·그 상세는 보이지 않는 화면
+ * 것까지 새로 받는다. 나머지 작업 조회는 보이는 것만 받는다 (받는 중이면 그 조회를 같이 쓴다)
+ */
+const refetchAfterConflict = (queryClient: QueryClient, workId: number) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: workKeys.all }),
+    ...[workKeys.pending, workKeys.schedules, workKeys.details(workId)].map(
+      queryKey =>
+        queryClient.invalidateQueries(
+          { queryKey, refetchType: 'all' },
+          { cancelRefetch: false },
+        ),
+    ),
+  ]);
+
 /**
  * 응답(수락·거절). 보내는 즉시 조회 훅이 결과를 얹어 보이고(useRespondingWorks), 실패하면 진행 중에서 빠져 되돌아간다.
- * 서버 작업이 화면과 달라져 실패했으면(-010·-002·-016) 곧바로 다시 받는다
+ * - 성공: 결과를 캐시에 확정하고, 마지막 응답이 끝날 때 서버 값을 다시 받는다 (그때까지 진행 중이다)
+ * - 서버 작업이 달라져 실패(-010·-002·-016): 서버 값을 받을 때까지 진행 중으로 둔다. 요청이 잠깐 돌아왔다 빠지지 않는다
  */
 function useRespondMutation<T extends { workId: number }>(
   kind: keyof typeof respondKeys,
@@ -289,12 +369,22 @@ function useRespondMutation<T extends { workId: number }>(
           ?.works.find(work => work.workId === command.workId),
       };
     },
-    onSettled: (_data, error) => {
+    onSuccess: (_data, command, context) =>
+      confirmResponse(queryClient, {
+        kind,
+        workId: command.workId,
+        request: context?.request,
+      }),
+    onSettled: async (_data, error, command) => {
       const settled = respondBatch.settle(queryClient, !error);
       if (error && shouldRefetchAfter(error)) {
-        queryClient.invalidateQueries({ queryKey: workKeys.all });
+        await Promise.all([
+          settled,
+          refetchAfterConflict(queryClient, command.workId),
+        ]);
+        return;
       }
-      return settled;
+      await settled;
     },
   });
 }
