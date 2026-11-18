@@ -29,6 +29,23 @@ describe('Radio', () => {
     expect(svg().props.color).toBe(colors.gray[200]);
   });
 
+  // 같은 라벨의 라디오가 여럿인 화면(약관 상세 '모든 약관')은 무엇의 라디오인지 이름에 넣는다 (#193)
+  it('접근성 이름을 따로 주면 그것으로 읽고, 보이는 라벨은 그대로다', async () => {
+    await render(
+      <Radio
+        label="동의합니다"
+        accessibilityLabel="서비스 이용약관, 동의합니다"
+        checked
+        onPress={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('radio', { name: '서비스 이용약관, 동의합니다' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('동의합니다')).toBeOnTheScreen();
+  });
+
   it('누르면 알린다', async () => {
     const onPress = jest.fn();
     await render(

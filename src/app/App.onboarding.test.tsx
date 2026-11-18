@@ -132,7 +132,10 @@ async function chooseInDetail(
 ) {
   await userEvent.press(button(row));
   await screen.findByRole('header', { name: title });
-  await userEvent.press(screen.getByRole('radio', { name: choice }));
+  // 라디오는 약관 제목을 붙여 읽는다
+  await userEvent.press(
+    screen.getByRole('radio', { name: `${title}, ${choice}` }),
+  );
   await userEvent.press(button('뒤로 가기'));
   await screen.findByRole('header', {
     name: '서비스 이용을 위해 동의가 필요해요',
@@ -849,10 +852,14 @@ describe('App — 온보딩', () => {
         await screen.findByRole('header', { name: '(필수) 서비스 이용약관' }),
       ).toBeOnTheScreen();
       expect(
-        screen.getByRole('radio', { name: '동의합니다' }),
+        screen.getByRole('radio', {
+          name: '(필수) 서비스 이용약관, 동의합니다',
+        }),
       ).not.toBeChecked();
       expect(
-        screen.getByRole('radio', { name: '동의하지 않습니다' }),
+        screen.getByRole('radio', {
+          name: '(필수) 서비스 이용약관, 동의하지 않습니다',
+        }),
       ).toBeChecked();
       expect(await screen.findByText('제1조(service 목적)')).toBeOnTheScreen();
       expect(
@@ -907,18 +914,22 @@ describe('App — 온보딩', () => {
       expect(
         await screen.findByRole('header', { name: '(필수) 서비스 이용약관' }),
       ).toBeOnTheScreen();
-      const [serviceAgree] = screen.getAllByRole('radio', {
-        name: '동의합니다',
-      });
-      expect(serviceAgree).toBeChecked();
+      // 라디오는 약관 제목을 붙여 읽어 약관마다 구별된다
+      expect(
+        screen.getByRole('radio', {
+          name: '(필수) 서비스 이용약관, 동의합니다',
+        }),
+      ).toBeChecked();
       for (const radio of screen.getAllByRole('radio', {
-        name: '동의하지 않습니다',
+        name: /, 동의하지 않습니다$/,
       })) {
         expect(radio).not.toBeChecked();
       }
 
       await userEvent.press(
-        screen.getAllByRole('radio', { name: '동의하지 않습니다' })[0],
+        screen.getByRole('radio', {
+          name: '(필수) 서비스 이용약관, 동의하지 않습니다',
+        }),
       );
       await userEvent.press(button('뒤로 가기'));
       await screen.findByRole('header', { name: TERMS_TITLE });

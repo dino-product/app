@@ -186,10 +186,12 @@ describe('TermsDetailScreen', () => {
         screen.getByTestId('terms-agreement-service').props.accessibilityLabel,
       ).toBe('서비스 이용약관 동의 여부');
       expect(
-        radios.getByRole('radio', { name: '동의합니다' }),
+        radios.getByRole('radio', { name: '서비스 이용약관, 동의합니다' }),
       ).not.toBeChecked();
       expect(
-        radios.getByRole('radio', { name: '동의하지 않습니다' }),
+        radios.getByRole('radio', {
+          name: '서비스 이용약관, 동의하지 않습니다',
+        }),
       ).toBeChecked();
       await screen.findByText('제1조(service 목적)');
     });
@@ -198,7 +200,9 @@ describe('TermsDetailScreen', () => {
       await renderAgreement({ service: true });
 
       expect(
-        radiosOf('service').getByRole('radio', { name: '동의합니다' }),
+        radiosOf('service').getByRole('radio', {
+          name: '서비스 이용약관, 동의합니다',
+        }),
       ).toBeChecked();
       await screen.findByText('제1조(service 목적)');
     });
@@ -207,11 +211,15 @@ describe('TermsDetailScreen', () => {
       const onAgreeChange = await renderAgreement({ service: false });
       const radios = radiosOf('service');
 
-      await userEvent.press(radios.getByRole('radio', { name: '동의합니다' }));
+      await userEvent.press(
+        radios.getByRole('radio', { name: '서비스 이용약관, 동의합니다' }),
+      );
       expect(onAgreeChange).toHaveBeenLastCalledWith('service', true);
 
       await userEvent.press(
-        radios.getByRole('radio', { name: '동의하지 않습니다' }),
+        radios.getByRole('radio', {
+          name: '서비스 이용약관, 동의하지 않습니다',
+        }),
       );
       expect(onAgreeChange).toHaveBeenLastCalledWith('service', false);
       await screen.findByText('제1조(service 목적)');
@@ -233,10 +241,31 @@ describe('TermsDetailScreen', () => {
 
       await userEvent.press(
         radiosOf('MARKETING').getByRole('radio', {
-          name: '동의하지 않습니다',
+          name: '(선택) 혜택 이벤트 알림 수신동의, 동의하지 않습니다',
         }),
       );
       expect(onAgreeChange).toHaveBeenLastCalledWith('MARKETING', false);
+    });
+
+    // VoiceOver 는 radiogroup 이름을 읽지 않아, 여러 약관 페이지에서 '동의합니다' 가 같은 이름으로 여럿 나오지 않게 한다
+    it('라디오는 약관 제목을 붙여 읽고, 보이는 라벨은 동의합니다·동의하지 않습니다 그대로다', async () => {
+      await renderAgreement({ service: true, MARKETING: false }, [
+        service,
+        marketing,
+      ]);
+
+      expect(
+        screen
+          .getAllByRole('radio')
+          .map(radio => radio.props.accessibilityLabel),
+      ).toEqual([
+        '서비스 이용약관, 동의합니다',
+        '서비스 이용약관, 동의하지 않습니다',
+        '(선택) 혜택 이벤트 알림 수신동의, 동의합니다',
+        '(선택) 혜택 이벤트 알림 수신동의, 동의하지 않습니다',
+      ]);
+      expect(screen.getAllByText('동의합니다')).toHaveLength(2);
+      await screen.findByText('제1조(marketing 목적)');
     });
   });
 });

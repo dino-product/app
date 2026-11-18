@@ -11,6 +11,8 @@ import { Text } from './Text';
 // 묶음은 쓰는 쪽이 accessibilityRole="radiogroup" 으로 감싼다
 export type RadioProps = {
   label: string;
+  /** 스크린리더 이름. 같은 라벨의 라디오가 여럿이면 무엇의 라디오인지 넣는다 (없으면 label) */
+  accessibilityLabel?: string;
   checked: boolean;
   onPress: () => void;
   testID?: string;
@@ -18,6 +20,7 @@ export type RadioProps = {
 
 export const Radio = memo(function DesignSystemRadio({
   label,
+  accessibilityLabel = label,
   checked,
   onPress,
   testID,
@@ -25,7 +28,7 @@ export const Radio = memo(function DesignSystemRadio({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked }}
       hitSlop={HIT_SLOP}
       onPress={onPress}

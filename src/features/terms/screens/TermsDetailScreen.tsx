@@ -184,7 +184,10 @@ function SectionHeader({
   );
 }
 
-/** 전문 아래 동의 라디오. 동의하지 않았으면 '동의하지 않습니다' 가 골라져 있다 */
+/**
+ * 전문 아래 동의 라디오. 동의하지 않았으면 '동의하지 않습니다' 가 골라져 있다.
+ * VoiceOver 는 묶음(radiogroup) 이름을 읽지 않아, 라디오 이름에 약관 제목을 붙인다 ('… 서비스 이용약관, 동의합니다')
+ */
 const AgreementRadios = memo(function TermsAgreementRadios({
   termsKey,
   title,
@@ -205,11 +208,13 @@ const AgreementRadios = memo(function TermsAgreementRadios({
     >
       <Radio
         label={AGREE_LABEL}
+        accessibilityLabel={`${title}, ${AGREE_LABEL}`}
         checked={agreed}
         onPress={() => onChange(termsKey, true)}
       />
       <Radio
         label={DISAGREE_LABEL}
+        accessibilityLabel={`${title}, ${DISAGREE_LABEL}`}
         checked={!agreed}
         onPress={() => onChange(termsKey, false)}
       />

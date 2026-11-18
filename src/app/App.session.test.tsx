@@ -616,7 +616,9 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
         screen.getByRole('button', { name: `${name} (필수)` }),
       );
       await screen.findByRole('header', { name: `(필수) ${name}` });
-      await userEvent.press(screen.getByRole('radio', { name: '동의합니다' }));
+      await userEvent.press(
+        screen.getByRole('radio', { name: `(필수) ${name}, 동의합니다` }),
+      );
       await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
       await screen.findByRole('header', {
         name: '서비스 이용을 위해 동의가 필요해요',
