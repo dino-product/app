@@ -66,7 +66,12 @@ async function launchAt(now: Date) {
   return app;
 }
 
-const passTime = (ms: number) => act(() => jest.advanceTimersByTimeAsync(ms));
+const T1900 = new Date(2026, 10, 18, 19, 0).getTime();
+const T2000 = new Date(2026, 10, 18, 20, 0).getTime();
+
+// 가짜 시계는 실제 시간(앱을 켜고 기다린 시간)만큼도 흐르므로, 경계까지 남은 시간은 그때의 Date.now() 로 센다
+const passUntil = (at: number) =>
+  act(() => jest.advanceTimersByTimeAsync(Math.max(0, at - Date.now())));
 
 describe('App — 지금 진행 중인 작업 히어로 (#205)', () => {
   afterEach(() => {
@@ -86,21 +91,24 @@ describe('App — 지금 진행 중인 작업 히어로 (#205)', () => {
   it('화면을 켜 둔 채 19:00 이 되면 새로고침 없이 그 작업 카드("작업 시작")로 바뀐다', async () => {
     await launchAt(new Date(2026, 10, 18, 18, 40));
 
-    await passTime(20 * MINUTE - 1000);
+    await passUntil(T1900 - 1000);
     expect(screen.getByText(NO_CURRENT_WORK)).toBeOnTheScreen();
 
-    await passTime(1000);
+    await passUntil(T1900);
     expect(heroCard()).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
     expect(screen.queryByText(NO_CURRENT_WORK)).not.toBeOnTheScreen();
   });
 
   it('시작하지 않은 채 예정 종료(20:00)가 지나면 다시 진행(무)로 바뀐다', async () => {
-    await launchAt(new Date(2026, 10, 18, 19, 59));
+    await launchAt(new Date(2026, 10, 18, 19, 50));
     expect(heroCard()).toBeOnTheScreen();
 
-    await passTime(MINUTE + 1);
+    await passUntil(T2000 - 1000);
+    expect(heroCard()).toBeOnTheScreen();
 
+    // 예정 종료 정각까지는 진행 중이고 그 바로 뒤에 바뀐다
+    await passUntil(T2000 + 1);
     expect(screen.getByText(NO_CURRENT_WORK)).toBeOnTheScreen();
     expect(heroCard()).not.toBeOnTheScreen();
   });
@@ -112,7 +120,7 @@ describe('App — 지금 진행 중인 작업 히어로 (#205)', () => {
       await screen.findByRole('button', { name: '작업 수행중' }),
     ).toBeOnTheScreen();
 
-    await passTime(20 * MINUTE);
+    await passUntil(T2000 + 10 * MINUTE);
 
     expect(
       screen.getByRole('button', { name: '작업 수행중' }),
@@ -124,7 +132,10 @@ describe('App — 지금 진행 중인 작업 히어로 (#205)', () => {
     await launchAt(new Date(2026, 10, 18, 18, 40));
 
     await changeAppState('background');
-    await passTime(30 * MINUTE);
+    await passUntil(T1900 + 10 * MINUTE);
+    expect(
+      screen.getByText(NO_CURRENT_WORK, { includeHiddenElements: true }),
+    ).toBeTruthy();
     await changeAppState('active');
 
     expect(heroCard()).toBeOnTheScreen();
@@ -134,7 +145,11 @@ describe('App — 지금 진행 중인 작업 히어로 (#205)', () => {
     await launchAt(new Date(2026, 10, 18, 18, 40));
 
     await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
-    await passTime(30 * MINUTE);
+    await passUntil(T1900 + 10 * MINUTE);
+    // 떠나 있는 동안(포커스 없음)은 숨은 홈도 그대로다: 라우트가 포커스를 훅에 넘기는지 지킨다 (PR #207 리뷰)
+    expect(
+      screen.getByText(NO_CURRENT_WORK, { includeHiddenElements: true }),
+    ).toBeTruthy();
     await userEvent.press(screen.getByRole('tab', { name: '홈' }));
 
     expect(
