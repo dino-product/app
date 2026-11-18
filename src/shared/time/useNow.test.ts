@@ -82,6 +82,24 @@ describe('useNow', () => {
     expect(result.current).toBe(T1840 + 25 * MINUTE);
   });
 
+  // PR #207 리뷰: background 동안 조회 결과가 와 경계가 새로 생겨도 그때 타이머를 걸지 않는다
+  it('background 인 동안 경계가 바뀌어도 타이머를 걸지 않고, active 로 돌아오면 그때 반영한다', async () => {
+    const { result, rerender } = await renderHook(
+      ({ next }: { next: (now: number) => number | undefined }) => useNow(next),
+      { initialProps: { next: () => undefined } },
+    );
+
+    await changeAppState('background');
+    timeouts.mockClear();
+    await rerender({ next: nextBoundary });
+    expect(timeouts).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTime(25 * MINUTE));
+    expect(result.current).toBe(T1840);
+
+    await changeAppState('active');
+    expect(result.current).toBe(T1840 + 25 * MINUTE);
+  });
+
   it('경계 전에 active 로 돌아오면 그대로 두고 남은 시간만큼 다시 기다린다', async () => {
     const { result } = await renderHook(() => useNow(nextBoundary));
 

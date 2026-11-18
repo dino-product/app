@@ -31,20 +31,28 @@ export function useNow(
         timer = undefined;
       }
     };
-    // 경계를 지났으면 지금으로 바꾼다 (새 경계로 이 효과가 다시 돈다). 아직이면 경계까지 기다린다
-    const wake = () => {
+    // 경계를 지났으면 지금으로 바꾼다 (새 경계로 이 효과가 다시 돈다). 아직이면 경계까지 기다린다.
+    // 앱이 background·inactive 인 동안(그사이 경계가 바뀌어 이 효과가 다시 돌 때도)은 걸지 않고 active 로 돌아올 때 깬다.
+    // 모르는 상태(unknown 등)는 active 로 본다
+    const wake = (status: unknown = AppState.currentState) => {
       stop();
+      if (status === 'background' || status === 'inactive') {
+        return;
+      }
       const current = Date.now();
       if (current >= changesAt) {
         setNow(current);
         return;
       }
-      timer = setTimeout(wake, Math.min(changesAt - current, MAX_TIMEOUT_MS));
+      timer = setTimeout(
+        () => wake(),
+        Math.min(changesAt - current, MAX_TIMEOUT_MS),
+      );
     };
     wake();
     const subscription = AppState.addEventListener('change', status => {
       if (status === 'active') {
-        wake();
+        wake(status);
       } else {
         stop();
       }
