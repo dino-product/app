@@ -1074,28 +1074,37 @@ describe('App — 온보딩', () => {
       await scanQr(value);
       await finishReturnTo(button('QR 코드 인식'), 'inner');
     }
+    // 결과는 전환 끝 바로 뒤에 보인다. 대비책(1초)으로 보인 것을 통과로 치지 않게 그보다 훨씬 짧게 기다린다
+    const AFTER_RETURN = { timeout: 200 };
 
-    it('결과는 응답이 먼저 와도 카메라 화면이 닫히는 전환이 끝난 뒤에 보인다', async () => {
+    // 전환 끝을 놓쳤을 때의 대비책(1초 타이머)이 끼어들지 않게 시간을 멈추고, 어느 스택의 전환 끝을 기다리는지 본다
+    it('결과는 응답이 먼저 와도 온보딩 스택의 카메라 화면이 닫히는 전환이 끝난 뒤에 보인다', async () => {
       mockAppState('active');
       const app = await launch();
       await login('카카오로 시작하기');
       await registerProfile();
       await agreeTerms();
       await openQrScan();
+      jest.useFakeTimers();
 
       await scanQr('123456');
-      await waitFor(() =>
-        expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1),
-      );
-      await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+      await act(() => jest.advanceTimersByTimeAsync(100));
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
       expect(header('QR 코드 인식')).toBeNull();
       expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('역할을 선택해주세요')).toBeNull();
+      // 루트 스택의 전환 끝은 기다리던 전환이 아니다
+      await finishReturnTo(button('QR 코드 인식'), 'root');
       expect(header('역할을 선택해주세요')).toBeNull();
 
       await finishReturnTo(button('QR 코드 인식'), 'inner');
 
       expect(
-        await screen.findByRole('header', { name: '역할을 선택해주세요' }),
+        await screen.findByRole(
+          'header',
+          { name: '역할을 선택해주세요' },
+          AFTER_RETURN,
+        ),
       ).toBeOnTheScreen();
     });
 
@@ -1109,7 +1118,11 @@ describe('App — 온보딩', () => {
 
       await scanAndReturn('https://orbit.example/join/123456');
       expect(
-        await screen.findByRole('header', { name: '역할을 선택해주세요' }),
+        await screen.findByRole(
+          'header',
+          { name: '역할을 선택해주세요' },
+          AFTER_RETURN,
+        ),
       ).toBeOnTheScreen();
       expect(header('QR 코드 인식')).toBeNull();
       await requestAs('기사');
@@ -1137,7 +1150,7 @@ describe('App — 온보딩', () => {
       await scanAndReturn('123456');
 
       expect(
-        await screen.findByRole('header', { name: '승인 대기' }),
+        await screen.findByRole('header', { name: '승인 대기' }, AFTER_RETURN),
       ).toBeOnTheScreen();
       await escapeFrom('승인 대기');
       expect(header('회사 찾기')).toBeOnTheScreen();
@@ -1157,9 +1170,11 @@ describe('App — 온보딩', () => {
       await scanAndReturn('https://orbit.example/join/PRV014');
 
       expect(
-        await screen.findByRole('header', {
-          name: '유효하지 않은 회사 코드입니다',
-        }),
+        await screen.findByRole(
+          'header',
+          { name: '유효하지 않은 회사 코드입니다' },
+          AFTER_RETURN,
+        ),
       ).toBeOnTheScreen();
       expect(header('회사 참여')).toBeOnTheScreen();
       expect(header('QR 코드 인식')).toBeNull();
@@ -1180,7 +1195,11 @@ describe('App — 온보딩', () => {
       await scanAndReturn('123456');
 
       expect(
-        await screen.findByRole('header', { name: '회사를 확인하지 못했어요' }),
+        await screen.findByRole(
+          'header',
+          { name: '회사를 확인하지 못했어요' },
+          AFTER_RETURN,
+        ),
       ).toBeOnTheScreen();
       expect(header('QR 코드 인식')).toBeNull();
       await userEvent.press(button('확인'));
