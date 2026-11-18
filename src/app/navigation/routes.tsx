@@ -125,7 +125,8 @@ export function useFocusTitleOnOpen(
   return titleRef;
 }
 
-// 변경(수락·거절·시작·완료 보고)이 실패하면 화면 상태는 그대로 두고 명령·코드별 문구로 알린다 (Figma 에 없어 시스템 알림, 기본안)
+// 변경(수락·거절·시작·완료 보고)이 실패하면 명령·코드별 문구로 알린다 (Figma 에 없어 시스템 알림, 기본안).
+// 시작·완료 보고는 화면 상태를 그대로 두고, 먼저 반영한 수락·거절은 보내기 전으로 되돌린다 (#197)
 const failureTitles: Record<WorkCommand, string> = {
   accept: '수락하지 못했어요',
   reject: '거절하지 못했어요',
@@ -525,8 +526,9 @@ export function RequestDetailRoute({
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
       onAccept={async () => {
+        let accepted: Promise<void>;
         try {
-          await acceptWork({
+          accepted = acceptWork({
             workId,
             assignmentNumber: requireAssignment(work, detail.refetch),
           });
@@ -534,7 +536,15 @@ export function RequestDetailRoute({
           alertWorkError('accept', error);
           return false;
         }
+        // 낙관 반영 (#197): 서버 답을 기다리지 않고 돌아간다. 요청은 곧바로 응답 필요에서 빠지고,
+        // 실패하면 돌아오며 알린다 (화면을 떠난 뒤라도)
         navigation.goBack();
+        try {
+          await accepted;
+        } catch (error) {
+          alertWorkError('accept', error);
+          return false;
+        }
         return true;
       }}
       onReject={() =>
@@ -595,12 +605,13 @@ export function RejectReasonRoute({
       onDraftChange={value => saveRejectDraft(requestId, value)}
       onBack={() => navigation.goBack()}
       onSubmit={async ({ key, note }) => {
+        let rejected: Promise<void>;
         try {
           // 사유를 고르는 동안 상세가 아직 오지 않았을 수 있다
           const work = await queryClient.ensureQueryData(
             workDetailQuery(repository, workId),
           );
-          await rejectWork({
+          rejected = rejectWork({
             workId,
             assignmentNumber: requireAssignment(work, detail.refetch),
             reason: toRejectionReason(key),
@@ -610,8 +621,17 @@ export function RejectReasonRoute({
           alertWorkError('reject', error);
           throw error;
         }
-        // 요청 상세에서 왔어도 내 일정까지 돌아간다
+        // 낙관 반영 (#197): 서버 답을 기다리지 않고 내 일정까지 돌아간다(요청 상세에서 왔어도). 요청은 곧바로
+        // 응답 필요에서 빠지고, 실패하면 돌아오며 알린다. 고른 사유는 서버가 받을 때까지 남겨 다시 거절하면 이어 고른다
+        keepDraftOnLeave.current = true;
         navigation.popTo('Main');
+        try {
+          await rejected;
+        } catch (error) {
+          alertWorkError('reject', error);
+          throw error;
+        }
+        clearRejectDraft(requestId);
       }}
     />
   );

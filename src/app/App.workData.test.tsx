@@ -15,6 +15,7 @@ import {
   makeLocalSeed,
 } from '../features/work/data/localSeedTesting';
 import { ApiError, ApiErrorMessage } from '../shared/api';
+import { appStorage } from '../shared/storage/appStorage';
 import {
   APP_TEST_NOW,
   findHomeLoaded,
@@ -140,35 +141,151 @@ describe('App — 작업 데이터 (#114)', () => {
       await waitFor(() => expect(read).toHaveBeenCalled());
     });
 
-    it('거절이 실패하면 거절 사유에 머물러 다시 낼 수 있다', async () => {
-      const alert = spyAlert();
-      const { repository, render } = setup();
-      jest
-        .spyOn(repository, 'rejectWork')
-        .mockRejectedValue(scheduleError(409, 'SCHEDULE-002'));
-      await openPending(render);
+    // #197 수락·거절(POST)은 서버 답을 기다리지 않고 곧바로 반영한다(낙관 반영). 실패하면 돌아오고 알린다
+    describe('낙관 반영', () => {
+      // 서버가 아직 답하지 않은 동안
+      const unanswered = () => new Promise<void>(() => {});
+      // 테스트가 정한 때 답한다
+      function later() {
+        let fail: (error: unknown) => void = () => {};
+        const send = jest.fn(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              fail = reject;
+            }),
+        );
+        return { send, fail: (error: unknown) => fail(error) };
+      }
+      const acceptButtons = () =>
+        screen.queryAllByRole('button', { name: /수락$/ });
+      const rejectButtons = () =>
+        screen.queryAllByRole('button', { name: /거절$/ });
 
-      await userEvent.press(
-        screen.getAllByRole('button', { name: /거절$/ })[0],
-      );
-      await userEvent.press(
-        screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
-      );
-      await userEvent.press(screen.getByRole('button', { name: '거절 제출' }));
+      async function openRequestDetail(render: () => Promise<unknown>) {
+        const before = (await openPending(render)).length;
+        await userEvent.press(
+          screen.getAllByRole('button', { name: / 상세,/ })[0],
+        );
+        await screen.findByRole('button', { name: '수락' });
+        return before;
+      }
 
-      await waitFor(() =>
-        expect(alert).toHaveBeenCalledWith(
-          '거절하지 못했어요',
-          '이미 처리됐거나 바뀐 요청이라 거절하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
-        ),
-      );
-      expect(
-        screen.getByRole('header', { name: '거절 사유' }),
-      ).toBeOnTheScreen();
-      expect(
-        screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
-      ).toBeChecked();
-      expect(screen.getByRole('button', { name: '거절 제출' })).toBeEnabled();
+      async function submitRejection() {
+        await userEvent.press(
+          screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+        );
+        await userEvent.press(
+          screen.getByRole('button', { name: '거절 제출' }),
+        );
+      }
+
+      it('응답 필요에서 수락하면 서버 답 전에 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(acceptButtons()[0]);
+
+        expect(acceptButtons()).toHaveLength(before - 1);
+      });
+
+      it('요청 상세에서 수락하면 서버 답을 기다리지 않고 내 일정으로 돌아가며 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        const before = await openRequestDetail(render);
+
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+
+        expect(
+          await screen.findByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('header', { name: '작업 상세' }),
+        ).not.toBeOnTheScreen();
+        expect(acceptButtons()).toHaveLength(before - 1);
+      });
+
+      it('요청 상세에서 보낸 수락이 실패하면 응답 필요에 요청이 돌아오고 문구로 알린다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        const answer = later();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(answer.send);
+        const before = await openRequestDetail(render);
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+        await screen.findByRole('header', { name: '내 일정' });
+        expect(acceptButtons()).toHaveLength(before - 1);
+
+        answer.fail(networkError());
+
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '수락하지 못했어요',
+            ApiErrorMessage.network,
+          ),
+        );
+        await waitFor(() => expect(acceptButtons()).toHaveLength(before));
+        expect(acceptButtons()[0]).toBeEnabled();
+      });
+
+      it('거절 사유를 내면 서버 답을 기다리지 않고 내 일정으로 돌아가며 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'rejectWork').mockImplementation(unanswered);
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        expect(
+          await screen.findByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('header', { name: '거절 사유' }),
+        ).not.toBeOnTheScreen();
+        expect(rejectButtons()).toHaveLength(before - 1);
+      });
+
+      // 고른 사유는 서버가 거절을 받을 때까지 남겨 두어, 다시 거절하면 이어 고른다
+      it('거절이 실패하면 요청이 응답 필요로 돌아오고 알리며, 다시 거절하면 고른 사유가 남아 있다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        jest
+          .spyOn(repository, 'rejectWork')
+          .mockRejectedValue(scheduleError(409, 'SCHEDULE-002'));
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '거절하지 못했어요',
+            '이미 처리됐거나 바뀐 요청이라 거절하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
+          ),
+        );
+        expect(
+          screen.getByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        await waitFor(() => expect(rejectButtons()).toHaveLength(before));
+
+        await userEvent.press(rejectButtons()[0]);
+        expect(
+          screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+        ).toBeChecked();
+        expect(screen.getByRole('button', { name: '거절 제출' })).toBeEnabled();
+      });
+
+      it('거절이 성공하면 고른 사유를 지운다', async () => {
+        const { render } = setup();
+        const loadDraft = () =>
+          appStorage.getAllKeys().filter(key => key.includes('rejectDraft'));
+        await openPending(render);
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        await screen.findByRole('header', { name: '내 일정' });
+        await waitFor(() => expect(loadDraft()).toEqual([]));
+      });
     });
 
     it('거절 사유를 서버 사유 코드로 보낸다 (기타는 메모와 함께)', async () => {
