@@ -84,4 +84,21 @@ describe('useTermsDocuments', () => {
     );
     expect(api.server.calls).toHaveLength(1);
   });
+
+  // 주소에 버전(시행일)이 들어 있어 같은 주소의 내용은 바뀌지 않는다. 상세를 다시 열 때 다시 받지 않는다
+  it('한 번 받은 전문은 상세를 다시 열어도 다시 받지 않는다', async () => {
+    const { result, api, unmount } = await renderDocuments(['service']);
+    await waitFor(() =>
+      expect(result.current[0]).toMatchObject({ status: 'ready' }),
+    );
+    await unmount();
+
+    const again = await renderHook(() => useTermsDocuments(['service']), {
+      wrapper: api.wrapper,
+    });
+
+    expect(again.result.current[0]).toMatchObject({ status: 'ready' });
+    await act(async () => {});
+    expect(api.server.callsTo('GET', serviceUrl)).toHaveLength(1);
+  });
 });

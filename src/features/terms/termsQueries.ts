@@ -31,6 +31,8 @@ export const termsDocumentQuery = (api: ApiClient, document: TermsDocument) =>
       toTermsBlocks(
         await api.getPlainText(termsDocumentUrl(document), { signal }),
       ),
+    // 주소에 버전(시행일)이 들어 있어 같은 주소의 내용은 바뀌지 않는다. 받은 뒤에는 상세를 다시 열어도 다시 받지 않는다
+    staleTime: Infinity,
   });
 
 const UNAVAILABLE: TermsDocumentState = { status: 'unavailable' };
