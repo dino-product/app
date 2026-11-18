@@ -528,6 +528,29 @@ describe('OrgJoinScreen', () => {
       },
     );
 
+    // Figma ⑥(마이 3255:18149 · 온보딩 3257:10685)의 입력칸은 비어 있다(플레이스홀더). 앞서 친 다른 코드를 남기지 않는다.
+    // 회사 코드 입력의 ⑥ 은 방금 친 코드라 그대로 둔다
+    it('QR 결과가 유효하지 않은 코드(⑥)면 앞서 입력하던 코드를 비운다', async () => {
+      const view = await renderJoin();
+      await userEvent.type(codeInput(), 'HB00');
+
+      await receive(view, 'PRV014');
+
+      await screen.findByRole('header', { name: INVALID_TITLE });
+      expect(codeInput()).toHaveDisplayValue('');
+      expect(checkButton()).toBeDisabled();
+    });
+
+    it('QR 결과가 안내 모달이면 입력하던 코드는 그대로 둔다', async () => {
+      const view = await renderJoin();
+      await userEvent.type(codeInput(), 'HB00');
+
+      await receive(view, 'BS0001');
+
+      await screen.findByRole('header', { name: '이미 참여 중인 회사예요' });
+      expect(codeInput()).toHaveDisplayValue('HB00');
+    });
+
     // 회사 코드 입력과 같다. Android 는 바뀐 소개의 live region 이 읽는다
     it.each([
       ['ios', 1],

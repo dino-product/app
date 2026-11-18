@@ -112,6 +112,11 @@ export function OrgJoinScreen({
     options?: { until?: Promise<void> },
   ) => {
     const kind = await check(companyCode, requestChannel, options);
+    if (kind === 'invalid' && requestChannel === 'QR_CODE') {
+      // Figma ⑥(3255:18149 · 3257:10685)의 입력칸은 비어 있다. 앞서 입력하던 다른 코드를 남기지 않는다
+      // (회사 코드 입력의 ⑥ 은 방금 확인한 코드라 그대로 둔다)
+      setCode('');
+    }
     if (kind === 'invalid' && Platform.OS === 'ios') {
       // accessibilityLiveRegion 은 Android 만 읽으므로 iOS 만 따로 알린다 (Android 에서 알리면 두 번 읽는다)
       AccessibilityInfo.announceForAccessibility(
