@@ -21,10 +21,10 @@ import {
   colors,
   CTA,
   Icon,
+  ICON_HIT_SLOP,
   Text,
-  touchSlop,
+  withOpacity,
 } from '../../../../shared/design-system';
-import { smallestLineHeight } from '../../../../shared/design-system/tokens/touchTarget';
 import { LoadStateView } from '../../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
@@ -42,7 +42,8 @@ import {
   useParticipationRequests,
 } from '../participationQueries';
 
-// Figma 마이페이지-신청현황 (2880:15194 빈 상태 / 2874:14773 승인 대기 목록).
+// Figma 마이페이지-신청현황 (2880:15194 빈 상태 / 2874:14773 승인 대기 목록). 카드는 흰 바탕·Gray200 테두리이고
+// 신청 취소는 오른쪽 위 X 다 (승인 대기 칩·'신청 취소' 글자는 빠졌다, #200). 조직 참여하기는 목록 위에 겹친 그라데이션 자리에 있다.
 // 목록은 서버 신청 현황(GET /api/v1/participation-requests)의 승인 대기 요청이고 당겨서 새로고침한다 (#116).
 // 받는 동안·받지 못했을 때와 실패 안내는 Figma 에 없어 기본안이다 (Figma 미확인).
 // 취소 실패는 시트가 내려가는 중에도 뜨도록 시스템 알림(Alert)으로 알린다 (RN Modal 두 개를 겹쳐 띄우지 않는다)
@@ -194,6 +195,7 @@ export function JoinRequestsScreen({
               ref={listTitleRef}
               accessibilityRole="header"
               variant="Body/S/SemiBold"
+              color={colors.gray[900]}
               style={styles.listTitle}
             >
               승인 대기 {requests.length}
@@ -225,8 +227,8 @@ export function JoinRequestsScreen({
         ]}
       />
       {hasRequests && (
-        <View style={[readableColumn, styles.actions]}>
-          <CTA label="조직 참여하기" onPress={onJoin} />
+        <View pointerEvents="box-none" style={styles.actions}>
+          <CTA label="조직 참여하기" onPress={onJoin} style={readableColumn} />
         </View>
       )}
 
@@ -253,22 +255,25 @@ function EmptyRequests({
 }) {
   return (
     <View style={styles.empty}>
-      <Icon name="document" size={40} color={colors.gray[400]} />
-      <Text
-        ref={titleRef}
-        accessibilityRole="header"
-        variant="Body/S/Bold"
-        style={styles.center}
-      >
-        참여 신청 내역이 없어요
-      </Text>
-      <Text
-        variant="Caption/M/Medium"
-        color={colors.gray[600]}
-        style={styles.center}
-      >
-        {'회사 코드나 참여 링크·QR로 조직에 참여를\n신청해 보세요.'}
-      </Text>
+      <Icon name="document-fill" color={colors.gray[300]} />
+      <View style={styles.emptyTexts}>
+        <Text
+          ref={titleRef}
+          accessibilityRole="header"
+          variant="Body/M/SemiBold"
+          color={colors.primary}
+          style={styles.center}
+        >
+          참여 신청 내역이 없어요
+        </Text>
+        <Text
+          variant="Caption/M/Medium"
+          color={colors.gray[600]}
+          style={styles.center}
+        >
+          {'회사 코드나 참여 링크·QR로 조직에 참여를\n신청해 보세요.'}
+        </Text>
+      </View>
       <CTA label="조직 참여하기" onPress={onJoin} style={styles.emptyCta} />
     </View>
   );
@@ -280,45 +285,29 @@ function Separator() {
   return <View style={styles.separator} />;
 }
 
-// '신청 취소' 글자 줄을 가장 작은 글자 설정에서도 최소 터치 영역으로 넓힌다
-const CANCEL_SLOP = touchSlop(smallestLineHeight('Caption/M/SemiBold'));
-const CANCEL_HIT_SLOP = {
-  top: CANCEL_SLOP,
-  bottom: CANCEL_SLOP,
-  left: 8,
-  right: 8,
-};
-
+// Figma 2874:14773 › 2880:15120. 이름·희망 유형 줄 오른쪽 위에 신청 취소 X(ci:close-md 24, #585858), 아래에 검토 안내
 const RequestCard = memo(function MyRequestCard({
   request,
   sending,
   onCancel,
 }: {
   request: ParticipationRequest;
-  /** 서버에 취소를 보내는 중이다. 답이 올 때까지 '취소 중' 으로 잠근다 (Figma 미확인) */
+  /** 서버에 취소를 보내는 중이다. 답이 올 때까지 X 를 흐리게 잠근다 (Figma 미확인) */
   sending: boolean;
   onCancel: (request: ParticipationRequest) => void;
 }) {
   return (
     <View style={styles.card} testID={`join-request-${request.requestId}`}>
       <View style={styles.cardTop}>
-        <Text variant="Body/S/Bold" style={styles.cardTitle}>
-          {request.organizationName}
-        </Text>
-        <View style={styles.chip}>
-          <Text variant="Caption/M/Medium" color={colors.gray[700]}>
-            승인 대기
+        <View style={styles.cardTitle}>
+          <Text variant="Body/S/SemiBold" color={colors.gray[900]}>
+            {request.organizationName}
+          </Text>
+          <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+            희망 유형 {participationTypeLabels[request.desiredType]} ·{' '}
+            {formatRequestDate(request.requestedAt)} 신청
           </Text>
         </View>
-      </View>
-      <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-        희망 유형 {participationTypeLabels[request.desiredType]} ·{' '}
-        {formatRequestDate(request.requestedAt)} 신청
-      </Text>
-      <View style={styles.cardBottom}>
-        <Text variant="Caption/M/Medium" color={colors.inspection[1]}>
-          사무실에서 검토 중이에요
-        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${request.organizationName} 신청 취소${
@@ -326,63 +315,95 @@ const RequestCard = memo(function MyRequestCard({
           }`}
           accessibilityState={{ disabled: sending }}
           disabled={sending}
-          hitSlop={CANCEL_HIT_SLOP}
+          hitSlop={ICON_HIT_SLOP}
           onPress={() => onCancel(request)}
         >
-          <Text
-            variant="Caption/M/SemiBold"
-            color={sending ? colors.gray[400] : colors.warning[1]}
-          >
-            {sending ? '취소 중' : '신청 취소'}
-          </Text>
+          <Icon
+            name="close-md"
+            color={sending ? colors.gray[400] : colors.gray[700]}
+          />
         </Pressable>
       </View>
+      <Text variant="Caption/M/Medium" color={colors.typeColor.blue}>
+        사무실에서 검토 중이에요
+      </Text>
     </View>
   );
 });
+
+// 아래 버튼 자리 (Figma 2880:15074): 탭 바 포함 185 높이에 #F5F6F8 그라데이션(위 6.1% 까지 투명, 57.1% 부터 불투명)을
+// 목록 위에 겹치고, 버튼은 그 위 3 에 있다. 앱 화면은 탭 바(102) 위에서 끝나므로 보이는 83 만 그린다:
+// 13.6% 까지 투명, 아래 끝은 76% 불투명
+const ACTIONS_TOP = 3;
+const ACTIONS_BOTTOM = 24;
+const CTA_HEIGHT = 56;
+const FIGMA_FADE_HEIGHT = 185;
+const FIGMA_TAB_BAR_HEIGHT = 102;
+const ACTIONS_HEIGHT = FIGMA_FADE_HEIGHT - FIGMA_TAB_BAR_HEIGHT;
+const FADE_CLEAR_UNTIL = FIGMA_FADE_HEIGHT * 0.06103;
+const FADE_SOLID_FROM = FIGMA_FADE_HEIGHT * 0.57114;
+const FADE_END_OPACITY =
+  Math.round(
+    ((ACTIONS_HEIGHT - FADE_CLEAR_UNTIL) /
+      (FADE_SOLID_FROM - FADE_CLEAR_UNTIL)) *
+      100,
+  ) / 100;
+const FADE_COLOR = colors.background[3];
+const percent = (value: number) => `${Math.round(value * 10) / 10}%`;
+/** 목록 끝이 버튼 자리 아래로 숨지 않게 비우는 높이 (버튼 자리 + 지금까지의 목록 아래 여백 24) */
+const LIST_BOTTOM = ACTIONS_TOP + CTA_HEIGHT + ACTIONS_BOTTOM + 24;
+// 빈 상태 묶음(아이콘 40 · 24 · 글자 82 · 40 · 버튼 56)이 Figma 처럼 머리 아래 152 에서 시작하도록 가운데 정렬의 아래 여백
+const EMPTY_BOTTOM = 88;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white[100] },
   center: { textAlign: 'center' },
   // 빈 상태·불러오는 중은 남은 높이 가운데에 둔다 (당겨서 새로고침이 되게 목록 안에 그린다)
   emptyList: { flexGrow: 1 },
+  // Figma 3278:23404: 아이콘–글자 24, 제목–설명 12, 설명–버튼 40
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 24,
     paddingHorizontal: 24,
-    paddingBottom: 80,
+    paddingBottom: EMPTY_BOTTOM,
   },
-  emptyCta: { alignSelf: 'stretch', marginTop: 28 },
-  list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
-  listTitle: { marginBottom: 16 },
+  emptyTexts: { alignItems: 'center', gap: 12 },
+  emptyCta: { alignSelf: 'stretch', marginTop: 40 - 24 },
+  list: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: LIST_BOTTOM },
+  // Figma 2880:15160: 머리 아래 12, 첫 카드 위 12
+  listTitle: { marginBottom: 12 },
   separator: { height: 12 },
   card: {
-    gap: 8,
+    gap: 6,
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.gray[200],
+    backgroundColor: colors.white[100],
   },
   cardTop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
-  cardTitle: { flex: 1 },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: colors.gray[100],
+  cardTitle: { flex: 1, gap: 6 },
+  actions: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: ACTIONS_TOP,
+    paddingBottom: ACTIONS_BOTTOM,
+    backgroundImage: `linear-gradient(to bottom, ${withOpacity(
+      FADE_COLOR,
+      0,
+    )} ${percent((FADE_CLEAR_UNTIL / ACTIONS_HEIGHT) * 100)}, ${withOpacity(
+      FADE_COLOR,
+      FADE_END_OPACITY,
+    )} 100%)`,
   },
-  cardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  actions: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12 },
 });

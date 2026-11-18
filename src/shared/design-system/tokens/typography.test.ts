@@ -50,4 +50,14 @@ describe('typography', () => {
   it('Button/S 는 자간이 0 이다', () => {
     expect(typography['Button/S'].letterSpacing).toBe(0);
   });
+
+  // Figma 마이페이지-신청 취소 바텀시트 (2889:13040) 제목의 텍스트 스타일 (#200)
+  it('Heading/XS 는 Bold 20, 행간 140%, 자간 0 이다', () => {
+    expect(typography['Heading/XS']).toEqual({
+      fontFamily: 'Pretendard-Bold',
+      fontSize: 20,
+      lineHeight: 28,
+      letterSpacing: 0,
+    });
+  });
 });

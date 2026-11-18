@@ -44,6 +44,8 @@ const style = (
 export const typography = {
   'Title/M': style(fonts.bold, 36),
   'Title/S': style(fonts.bold, 32),
+  // 자간 0 (마이페이지-신청 취소 바텀시트 제목 2889:13040, #200)
+  'Heading/XS': style(fonts.bold, 20, 140, 0),
 
   'Body/XXL/Bold': style(fonts.bold, 28),
   'Body/XL/Bold': style(fonts.bold, 24),
