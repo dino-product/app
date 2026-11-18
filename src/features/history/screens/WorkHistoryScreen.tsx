@@ -34,7 +34,7 @@ import {
   useTabSwipeRegion,
 } from '../../../shared/gesture/TabSwipeArea';
 import { useSwipeSwitch } from '../../../shared/gesture/useSwipeSwitch';
-import { EmptyMessage } from '../../../shared/layout/EmptyMessage';
+import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
   LoadStateView,
   type LoadState,
@@ -336,6 +336,9 @@ function CardGap() {
 
 const rowsSkeleton = <WorkRowsSkeleton />;
 
+// 요약 카드 아래 여백. 완료 작업 카드는 여기서 시작하고(Figma 3753:4896), 빈 상태 안내 글은 이 아래에서 EMPTY_GAP 을 채운다
+const HEADER_PADDING_BOTTOM = 24;
+
 // Figma 작업이력 (기본) 51019:16207: 아이콘·설명 없이 글 한 줄 (#196)
 function EmptyMonth() {
   return (
@@ -356,10 +359,13 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   // 요약 카드. 위 여백(월 선택과의 사이 24)은 상단 바가 갖는다
   // Figma 3753:4896: 요약 카드 아래 24 에 완료 작업 카드 (구분선 없음)
-  header: { paddingBottom: 24 },
+  header: { paddingBottom: HEADER_PADDING_BOTTOM },
   summary: { flexDirection: 'row', gap: 10, paddingHorizontal: 24 },
-  // Figma 51019:16288: 요약 카드 묶음과 안내 글 사이 gap 60 (요약 카드 아래 여백 24 + 36). 글 상자는 요약 카드와 같은 좌우 24 안 (#196)
-  empty: { paddingTop: 60 - 24, paddingHorizontal: 24 },
+  // Figma 51019:16288: 요약 카드 묶음과 안내 글 사이 gap 60. 글 상자는 요약 카드와 같은 좌우 24 안 (#196)
+  empty: {
+    paddingTop: EMPTY_GAP - HEADER_PADDING_BOTTOM,
+    paddingHorizontal: 24,
+  },
 });
 
 // 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)

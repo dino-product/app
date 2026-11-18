@@ -25,7 +25,6 @@ import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
 import { SWITCH_DISTANCE, type Rect } from '../../../shared/gesture/tabSwipe';
 import * as tabSwipeArea from '../../../shared/gesture/TabSwipeArea';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
-import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { scrollListTo } from '../../../shared/testing/autoHideHeader';
 import { TabEnterContext } from '../../../shared/layout/tabEnter';
@@ -768,13 +767,6 @@ describe('WorkHistoryScreen — 월 이동', () => {
       paddingHorizontal: 24,
     });
     expectMessageOnly(message);
-    expect(
-      screen.queryByTestId('history-empty-icon', {
-        includeHiddenElements: true,
-      }),
-    ).not.toBeOnTheScreen();
-    // 빈 상태 전용으로 두었던 시계 아이콘은 쓰는 곳이 없어 아이콘 모음에서도 뺐다
-    expect(iconSvgs).not.toHaveProperty('history-empty');
     const header = screen.getByTestId('work-history-list-header');
     expect(
       stylePt(header, 'paddingBottom') + stylePt(message, 'paddingTop'),

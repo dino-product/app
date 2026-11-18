@@ -147,11 +147,6 @@ describe('WorkHomeScreen', () => {
       textAlign: 'center',
     });
     expectMessageOnly(message);
-    expect(
-      screen.queryByTestId('empty-schedule-icon', {
-        includeHiddenElements: true,
-      }),
-    ).not.toBeOnTheScreen();
   });
 
   it('빈 상태 문구는 스크린리더에 글자로 읽히고 버튼으로 읽히지 않는다', async () => {

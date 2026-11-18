@@ -1312,7 +1312,14 @@ describe('ScheduleScreen — 일정이 없을 때 (#196)', () => {
       textAlign: 'center',
     });
     expectMessageOnly(message);
-    // 응답 필요 카드가 시작하는 자리(머리 아래 24)에서 더 내려 하위 탭 아래 60 이다
-    expect(24 + stylePt(message, 'paddingTop')).toBe(60);
+    // 겹쳐 그린 머리(제목 줄 + 하위 탭)를 잰 높이에서 리스트 내용이 시작하는 자리를 읽어, 머리 아래 끝에서 글까지가 60 인지 본다
+    const HEADER = 150;
+    await fireEvent(autoHideHeader(), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 390, height: HEADER } },
+    });
+    const contentTop = contentStyleOf(
+      screen.getByTestId('schedule-pending-list'),
+    ).paddingTop as number;
+    expect(contentTop - HEADER + stylePt(message, 'paddingTop')).toBe(60);
   });
 });

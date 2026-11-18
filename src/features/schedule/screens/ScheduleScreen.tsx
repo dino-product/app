@@ -26,7 +26,7 @@ import {
 } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
-import { EmptyMessage } from '../../../shared/layout/EmptyMessage';
+import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
   LoadStateView,
   type LoadState,
@@ -377,7 +377,7 @@ function ScheduleScreenView({
             ItemSeparatorComponent={CardGap}
             ListEmptyComponent={
               confirmedLoad.status === 'ready' ? (
-                <EmptyMessage style={styles.empty}>
+                <EmptyMessage style={styles.emptyConfirmed}>
                   이 날은 일정이 없습니다
                 </EmptyMessage>
               ) : (
@@ -404,7 +404,7 @@ function ScheduleScreenView({
             ItemSeparatorComponent={CardGap}
             ListEmptyComponent={
               pendingLoad.status === 'ready' ? (
-                <EmptyMessage style={styles.empty}>
+                <EmptyMessage style={styles.emptyPending}>
                   응답할 요청이 없습니다
                 </EmptyMessage>
               ) : (
@@ -432,6 +432,9 @@ const keyExtractor = (item: { id: string }) => item.id;
 function CardGap() {
   return <View testID="schedule-card-gap" style={styles.cardGap} />;
 }
+
+// 날짜 블록 아래 여백 (카드 목록까지 24). 일정이 없는 날의 안내 글은 이 아래에서 EMPTY_GAP 을 채운다
+const DATE_AREA_PADDING_BOTTOM = 24;
 
 // 제목 줄 아래 여백. 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
 const TITLE_BAR_PADDING_BOTTOM = 16;
@@ -466,7 +469,7 @@ const styles = StyleSheet.create({
   dateArea: {
     gap: 16,
     paddingTop: 24,
-    paddingBottom: 24,
+    paddingBottom: DATE_AREA_PADDING_BOTTOM,
     paddingHorizontal: LIST_INSET,
   },
   dateRow: {
@@ -475,9 +478,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cardGap: { height: 12 },
-  // Figma 51019:15863·51019:15902: 안내 글은 날짜 블록 아래 60 (날짜 블록 아래 여백 24 + 36).
-  // 응답 필요는 Figma 에 빈 상태가 없어 같은 간격으로 하위 탭 아래 60 에 둔다 (카드 시작 24 + 36, 기본안)
-  empty: { paddingTop: 36 },
+  // Figma 51019:15863·51019:15902: 안내 글은 날짜 블록과 gap 60
+  emptyConfirmed: { paddingTop: EMPTY_GAP - DATE_AREA_PADDING_BOTTOM },
+  // 응답 필요는 Figma 에 빈 상태가 없어 같은 간격으로 머리(하위 탭) 아래 60 에 둔다 (기본안)
+  emptyPending: { paddingTop: EMPTY_GAP - PENDING_TOP },
 });
 
 // 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)

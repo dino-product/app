@@ -28,7 +28,7 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
-import { EmptyMessage } from '../../../shared/layout/EmptyMessage';
+import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
@@ -257,6 +257,8 @@ const CONTENT_TOP = 20;
 const HEADER_PADDING_BOTTOM = 12;
 // Figma 3463:17452 에서 날짜 줄(아래 끝 455)과 첫 일정 카드(469) 사이 (블록 보기)
 const BLOCK_HEADER_PADDING_BOTTOM = 14;
+// Figma 메인화면 - 시작 가능 50892:14565: 날짜 줄 아래 끝(455)과 고른 날 안내 글(527) 사이 (블록 보기)
+const BLOCK_EMPTY_GAP = 72;
 
 // 보기 전환 아이콘 26 두 개가 4 간격으로 붙어 있다. 서로 쪽으로는 간격의 반만, 바깥쪽으로 나머지를 넓혀
 // 겹치지 않고 최소 터치 영역을 채운다
@@ -313,10 +315,10 @@ const styles = StyleSheet.create({
   viewToggle: { flexDirection: 'row', gap: TOGGLE_GAP },
   separator: { height: 12 },
   // Figma 메인화면 - 일정(무) 51028:17146 · 51019:15784: '일정' 줄과 안내 글 사이 gap 60. 글 상자는 카드와 같은 폭 (#196)
-  emptyWeek: { paddingTop: 60 - HEADER_PADDING_BOTTOM },
-  // Figma 메인화면 - 시작 가능 50892:14565: 날짜 줄 아래 끝(455)과 안내 글(527) 사이 72, 글 상자 폭 304 가운데 (#196)
+  emptyWeek: { paddingTop: EMPTY_GAP - HEADER_PADDING_BOTTOM },
+  // Figma 메인화면 - 시작 가능 50892:14565: 날짜 줄과 안내 글 사이 72, 글 상자 폭 304 가운데 (#196)
   emptyDay: {
-    paddingTop: 72 - BLOCK_HEADER_PADDING_BOTTOM,
+    paddingTop: BLOCK_EMPTY_GAP - BLOCK_HEADER_PADDING_BOTTOM,
     maxWidth: 304,
     alignSelf: 'center',
   },
