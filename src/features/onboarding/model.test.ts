@@ -7,8 +7,6 @@ import {
   loginMethodsFor,
   noTermsAgreed,
   termsList,
-  toggleAllTerms,
-  toggleTerm,
   withRo,
   type TermsAgreement,
 } from './model';
@@ -50,7 +48,7 @@ describe('약관', () => {
 
   const agreeing = (...types: (keyof TermsAgreement)[]): TermsAgreement =>
     types.reduce(
-      (agreement, type) => toggleTerm(agreement, type),
+      (agreement, type) => ({ ...agreement, [type]: true }),
       noTermsAgreed,
     );
 
@@ -69,20 +67,6 @@ describe('약관', () => {
     expect(canSignUp(agreeing('PRIVACY', 'THIRD_PARTY', 'LOCATION'))).toBe(
       false,
     );
-  });
-
-  it('하나를 누르면 그것만 켜지고, 다시 누르면 꺼진다', () => {
-    const once = toggleTerm(noTermsAgreed, 'MARKETING');
-    expect(once).toEqual({ ...noTermsAgreed, MARKETING: true });
-    expect(toggleTerm(once, 'MARKETING')).toEqual(noTermsAgreed);
-  });
-
-  it('전체 동의는 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끈다', () => {
-    const all = toggleAllTerms(agreeing('SERVICE'));
-
-    expect(allTermsAgreed(all)).toBe(true);
-    expect(canSignUp(all)).toBe(true);
-    expect(toggleAllTerms(all)).toEqual(noTermsAgreed);
   });
 });
 

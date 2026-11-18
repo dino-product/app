@@ -72,13 +72,6 @@ export const noTermsAgreed: TermsAgreement = {
   MARKETING: false,
 };
 
-export function toggleTerm(
-  agreement: TermsAgreement,
-  type: TermsType,
-): TermsAgreement {
-  return { ...agreement, [type]: !agreement[type] };
-}
-
 export function allTermsAgreed(agreement: TermsAgreement): boolean {
   return termsList.every(terms => agreement[terms.type]);
 }
@@ -96,18 +89,6 @@ export function allTermsAgreedWith(agreed: boolean): TermsAgreement {
 
 export const isTermsType = (value: string): value is TermsType =>
   (ALL_TERMS_TYPES as readonly string[]).includes(value);
-
-/** 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끈다 */
-export function toggleAllTerms(agreement: TermsAgreement): TermsAgreement {
-  const next = !allTermsAgreed(agreement);
-  return {
-    SERVICE: next,
-    PRIVACY: next,
-    THIRD_PARTY: next,
-    LOCATION: next,
-    MARKETING: next,
-  };
-}
 
 /** 필수 약관에 모두 동의해야 가입할 수 있다. 선택은 꺼져 있어도 된다 */
 export function canSignUp(agreement: TermsAgreement): boolean {
