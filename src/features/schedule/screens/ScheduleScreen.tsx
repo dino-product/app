@@ -26,6 +26,7 @@ import {
 } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
+import { EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
   LoadStateView,
   type LoadState,
@@ -376,7 +377,9 @@ function ScheduleScreenView({
             ItemSeparatorComponent={CardGap}
             ListEmptyComponent={
               confirmedLoad.status === 'ready' ? (
-                <Empty text="예정된 일정이 없습니다" />
+                <EmptyMessage style={styles.empty}>
+                  이 날은 일정이 없습니다
+                </EmptyMessage>
               ) : (
                 <LoadStateView
                   state={confirmedLoad}
@@ -401,7 +404,9 @@ function ScheduleScreenView({
             ItemSeparatorComponent={CardGap}
             ListEmptyComponent={
               pendingLoad.status === 'ready' ? (
-                <Empty text="응답할 요청이 없습니다" />
+                <EmptyMessage style={styles.empty}>
+                  응답할 요청이 없습니다
+                </EmptyMessage>
               ) : (
                 <LoadStateView
                   state={pendingLoad}
@@ -426,18 +431,6 @@ const keyExtractor = (item: { id: string }) => item.id;
 // Figma: 일정 카드 사이 12
 function CardGap() {
   return <View testID="schedule-card-gap" style={styles.cardGap} />;
-}
-
-function Empty({ text }: { text: string }) {
-  return (
-    <Text
-      variant="Body/XS/Medium"
-      color={colors.gray[500]}
-      style={styles.empty}
-    >
-      {text}
-    </Text>
-  );
 }
 
 // 제목 줄 아래 여백. 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
@@ -482,7 +475,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cardGap: { height: 12 },
-  empty: { textAlign: 'center', paddingVertical: 40 },
+  // Figma 51019:15863·51019:15902: 안내 글은 날짜 블록 아래 60 (날짜 블록 아래 여백 24 + 36).
+  // 응답 필요는 Figma 에 빈 상태가 없어 같은 간격으로 하위 탭 아래 60 에 둔다 (카드 시작 24 + 36, 기본안)
+  empty: { paddingTop: 36 },
 });
 
 // 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)

@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
-import { colors, Icon, Text } from '../../../shared/design-system';
+import { colors } from '../../../shared/design-system';
 import {
   ENTER_MS,
   ENTER_OFFSET,
@@ -34,6 +34,7 @@ import {
   useTabSwipeRegion,
 } from '../../../shared/gesture/TabSwipeArea';
 import { useSwipeSwitch } from '../../../shared/gesture/useSwipeSwitch';
+import { EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
   LoadStateView,
   type LoadState,
@@ -335,33 +336,12 @@ function CardGap() {
 
 const rowsSkeleton = <WorkRowsSkeleton />;
 
-// Figma 에 없어 메인화면 일정(무)과 같은 모양으로 둔다 (기본안). 아이콘은 화살표 없는 채운 시계를 회색으로 칠한 것 (탭 아이콘과는 따로 둔다)
+// Figma 작업이력 (기본) 51019:16207: 아이콘·설명 없이 글 한 줄 (#196)
 function EmptyMonth() {
   return (
-    <View style={styles.empty}>
-      <Icon
-        name="history-empty"
-        size={40}
-        color={colors.gray[300]}
-        testID="history-empty-icon"
-      />
-      <View style={styles.emptyText}>
-        <Text
-          variant="Body/M/SemiBold"
-          color={colors.primary}
-          style={styles.centered}
-        >
-          이 달에 완료한 작업이 없어요
-        </Text>
-        <Text
-          variant="Caption/M/Medium"
-          color={colors.gray[600]}
-          style={styles.centered}
-        >
-          작업을 완료하면 여기에 표시돼요
-        </Text>
-      </View>
-    </View>
+    <EmptyMessage style={styles.empty}>
+      이 달에 완료한 작업이 없습니다
+    </EmptyMessage>
   );
 }
 
@@ -378,9 +358,8 @@ const styles = StyleSheet.create({
   // Figma 3753:4896: 요약 카드 아래 24 에 완료 작업 카드 (구분선 없음)
   header: { paddingBottom: 24 },
   summary: { flexDirection: 'row', gap: 10, paddingHorizontal: 24 },
-  empty: { alignItems: 'center', gap: 24, paddingVertical: 80 },
-  emptyText: { alignItems: 'center', gap: 12, maxWidth: 304 },
-  centered: { textAlign: 'center' },
+  // Figma 51019:16288: 요약 카드 묶음과 안내 글 사이 gap 60 (요약 카드 아래 여백 24 + 36). 글 상자는 요약 카드와 같은 좌우 24 안 (#196)
+  empty: { paddingTop: 60 - 24, paddingHorizontal: 24 },
 });
 
 // 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)

@@ -9,7 +9,7 @@ import {
 import { AccessibilityInfo, Platform, StyleSheet } from 'react-native';
 import { drag, touchesEvent } from '../../../../jest/gesture';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
-import { colors } from '../../../shared/design-system';
+import { colors, typography } from '../../../shared/design-system';
 import { haptic } from '../../../shared/haptics';
 
 jest.mock('../../../shared/haptics', () => ({
@@ -25,6 +25,7 @@ import {
   scrollDownFromTop,
   scrollListTo,
 } from '../../../shared/testing/autoHideHeader';
+import { expectMessageOnly } from '../../../shared/testing/emptyState';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
@@ -169,7 +170,7 @@ describe('ScheduleScreen — 확정 일정', () => {
       screen.getByRole('button', { name: '12월 17일 목요일' }),
     );
 
-    expect(screen.getByText('예정된 일정이 없습니다')).toBeOnTheScreen();
+    expect(screen.getByText('이 날은 일정이 없습니다')).toBeOnTheScreen();
   });
 
   it('달력을 펼쳐 다음 달로 가서 날짜를 고를 수 있다', async () => {
@@ -1161,7 +1162,7 @@ describe('ScheduleScreen — 불러오기', () => {
     await renderSchedule({ confirmed: [], confirmedLoad: loading });
 
     expectOnlySkeletons('confirmed-cards-skeleton');
-    expect(screen.queryByText('예정된 일정이 없습니다')).not.toBeOnTheScreen();
+    expect(screen.queryByText('이 날은 일정이 없습니다')).not.toBeOnTheScreen();
   });
 
   it('응답 필요를 불러오는 동안 요청 카드를 닮은 스켈레톤을 보인다 (빈 안내·스피너 대신)', async () => {
@@ -1264,5 +1265,54 @@ describe('ScheduleScreen — 날짜가 바뀌면', () => {
     );
 
     expect(screen.getByText('2026년 12월 17일 (목)')).toBeOnTheScreen();
+  });
+});
+
+// #196: Figma 내 스케줄 화면 - 확정 일정 (기본) 51019:15863(주간)·51019:15902(달력). 일정이 없는 날은 아이콘·설명 없이
+// '이 날은 일정이 없습니다' 한 줄(Body/XS/Regular, Gray600, 화면 폭 가운데)이 날짜 블록 아래 60 에 놓인다
+describe('ScheduleScreen — 일정이 없을 때 (#196)', () => {
+  it.each([
+    ['주간 줄', 'week-strip', false],
+    ['펼친 달력', 'month-calendar', true],
+  ] as const)(
+    '%s 아래: 아이콘 없이 Body/XS/Regular Gray600 가운데 글 한 줄이 날짜 블록 아래 60 에 놓인다',
+    async (_label, testID, open) => {
+      await renderSchedule({ confirmed: [] });
+      if (open) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+      }
+
+      const message = screen.getByText('이 날은 일정이 없습니다');
+      expect(message).toHaveStyle({
+        ...typography['Body/XS/Regular'],
+        color: colors.gray[600],
+        textAlign: 'center',
+      });
+      expectMessageOnly(message);
+      // 날짜 블록처럼 화면 폭을 차지한다 (Figma 글 상자 x 0, 폭 393)
+      expect(stylePt(message, 'paddingHorizontal')).toBe(0);
+      const dateArea = screen.getByTestId(testID).parent as HostElement;
+      expect(
+        stylePt(dateArea, 'paddingBottom') + stylePt(message, 'paddingTop'),
+      ).toBe(60);
+    },
+  );
+
+  // Figma 에 응답 필요 빈 상태 프레임이 없어 확정 일정의 빈 상태와 같은 모양·간격으로 둔다 (기본안)
+  it('응답 필요에 요청이 없으면 확정 일정과 같은 모양으로 하위 탭 아래 60 에 안내한다', async () => {
+    await renderSchedule({ pending: [] });
+    await userEvent.press(screen.getByRole('tab', { name: '응답 필요 0건' }));
+
+    const message = screen.getByText('응답할 요청이 없습니다');
+    expect(message).toHaveStyle({
+      ...typography['Body/XS/Regular'],
+      color: colors.gray[600],
+      textAlign: 'center',
+    });
+    expectMessageOnly(message);
+    // 응답 필요 카드가 시작하는 자리(머리 아래 24)에서 더 내려 하위 탭 아래 60 이다
+    expect(24 + stylePt(message, 'paddingTop')).toBe(60);
   });
 });

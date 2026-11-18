@@ -82,13 +82,6 @@ describe('Icon', () => {
     expect(inactive.xml).toContain('stroke="#9B9B9B"');
   });
 
-  it('작업 이력 빈 상태 시계(history-empty)는 탭 아이콘과 따로 둔 속도선 없는 채운 시계다', () => {
-    const empty = iconSvgs['history-empty'];
-    expect(empty).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
-    expect(empty.xml).not.toBe(iconSvgs['tab-history-active'].xml);
-    expect(empty.xml).toContain('M12.25 2.03125C15.0928 2.03125'); // 원본 윤곽
-  });
-
   // DesignSystem App Icon 의 x 는 사진 삭제용(어두운 원), Modal-X 는 결과 상태라 일반 닫기 X 를 더한다 (#98)
   it('일반 닫기 X(close-line)는 뒤로 가기(chevron-left)와 같은 선 아이콘이고 색을 바꿀 수 있다', () => {
     const x = iconSvgs['close-line'];
