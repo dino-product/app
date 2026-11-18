@@ -2,27 +2,28 @@ import {
   keepPreviousData,
   queryOptions,
   useMutation,
+  useMutationState,
   useQueries,
   useQuery,
   useQueryClient,
-  type QueryClient,
-  type QueryKey,
+  type Mutation,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
-import {
-  applyOptimistic,
-  optimisticChange,
-  type OptimisticChange,
-} from '../../../shared/api';
+import { useCallback, useMemo, useState } from 'react';
+import { createMutationBatch } from '../../../shared/api';
 import {
   useStableLoadState,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import type { WorkDetail } from '../model';
-import { workStatusChip } from './convert';
 import { shouldRefetchAfter, workErrorMessage } from './errors';
 import { workKeys } from './keys';
+import {
+  detailWithResponses,
+  pendingWithResponses,
+  scheduleWithResponses,
+  type RespondingWork,
+} from './responding';
 import type {
   AcceptWorkCommand,
   MySchedule,
@@ -38,7 +39,8 @@ import { useWorkRepository } from './WorkRepositoryProvider';
 //   const accept = useAcceptWork(); await accept.mutateAsync({ workId, assignmentNumber })   변경
 // 변경이 성공하면 목록·상세·이력을 새로 받고(끝날 때까지 isPending), 서버 작업이 달라져 실패했으면(-010·-002) 그때도 새로 받는다.
 // 그 밖의 실패는 화면 상태를 그대로 둔다.
-// 수락·거절은 서버 답을 기다리지 않고 곧바로 반영한다(낙관 반영, #197). 실패하면 보내기 전 값으로 되돌린다
+// 수락·거절은 서버 답을 기다리지 않고 곧바로 반영한다(낙관 반영, #197): 조회 훅이 보내는 중인 응답을 서버 값 위에 얹어 준다.
+// 캐시는 고치지 않으므로 응답 중에 다시 받아도 흔들리지 않고, 실패하면 저절로 보내기 전으로 돌아간다 (responding.ts)
 
 export const myScheduleQuery = (repository: WorkRepository, period: Period) =>
   queryOptions({
@@ -75,12 +77,51 @@ export const workHistoryQuery = (repository: WorkRepository, period: Period) =>
  */
 export type WorkQueryOptions = { subscribed?: boolean; enabled?: boolean };
 
+// 응답(수락·거절) 변경 키. 보내는 중인 응답을 조회 훅이 이 키로 찾는다
+const RESPOND_KEY = ['work', 'respond'] as const;
+const respondKeys = {
+  accept: [...RESPOND_KEY, 'accept'],
+  reject: [...RESPOND_KEY, 'reject'],
+} as const;
+
+type RespondContext = { request?: ScheduledWork };
+
+const toRespondingWork = (
+  mutation: Mutation<unknown, Error, unknown, unknown>,
+): RespondingWork => ({
+  kind: mutation.options.mutationKey?.[2] === 'reject' ? 'reject' : 'accept',
+  workId: (mutation.state.variables as { workId: number }).workId,
+  request: (mutation.state.context as RespondContext | undefined)?.request,
+});
+
+/**
+ * 보내는 중인 응답. 성공한 응답은 서버 값을 다시 받을 때까지 보내는 중이다 (createMutationBatch).
+ * 같은 값이면 같은 배열이다 (useMutationState 가 깊게 비교한다)
+ */
+function useRespondingWorks(): readonly RespondingWork[] {
+  return useMutationState({
+    filters: { mutationKey: RESPOND_KEY, status: 'pending' },
+    select: toRespondingWork,
+  });
+}
+
+/** 내 일정 조회에 보내는 중인 응답을 얹는다 (구간마다) */
+const scheduleSelect =
+  (period: Period, responses: readonly RespondingWork[]) =>
+  (schedule: MySchedule) =>
+    scheduleWithResponses(schedule, period, responses);
+
 export function useMySchedule(
   period: Period,
   { subscribed }: WorkQueryOptions = {},
 ) {
+  const responses = useRespondingWorks();
   return useQuery({
     ...myScheduleQuery(useWorkRepository(), period),
+    select: useMemo(
+      () => scheduleSelect(period, responses),
+      [period, responses],
+    ),
     subscribed,
   });
 }
@@ -107,8 +148,17 @@ export function useMySchedules(
 ) {
   const repository = useWorkRepository();
   const queryClient = useQueryClient();
+  const responses = useRespondingWorks();
+  const queries = useMemo(
+    () =>
+      periods.map(period => ({
+        ...myScheduleQuery(repository, period),
+        select: scheduleSelect(period, responses),
+      })),
+    [periods, repository, responses],
+  );
   const { works, statuses } = useQueries({
-    queries: periods.map(period => myScheduleQuery(repository, period)),
+    queries,
     combine: combineSchedules,
     subscribed,
   });
@@ -140,8 +190,13 @@ const NO_WORKS: ScheduledWork[] = [];
 export function usePendingWorks({
   subscribed,
 }: Omit<WorkQueryOptions, 'enabled'> = {}) {
+  const responses = useRespondingWorks();
   const query = useQuery({
     ...pendingWorksQuery(useWorkRepository()),
+    select: useCallback(
+      (pending: MySchedule) => pendingWithResponses(pending, responses),
+      [responses],
+    ),
     subscribed,
   });
   return {
@@ -164,8 +219,13 @@ export function useWorkDetail(
     onlyErrors?: boolean;
   } = {},
 ) {
+  const responses = useRespondingWorks();
   return useQuery({
     ...workDetailQuery(useWorkRepository(), workId, organizationId),
+    select: useCallback(
+      (detail: WorkDetail) => detailWithResponses(detail, workId, responses),
+      [workId, responses],
+    ),
     notifyOnChangeProps: onlyErrors ? ['error'] : undefined,
     subscribed,
     enabled,
@@ -202,130 +262,51 @@ function useWorkMutation<T>(
   });
 }
 
-// 응답 필요의 수락·거절. 응답을 잇달아 보낼 수 있어 보내는 중인 응답을 이 키로 센다
-const RESPOND_MUTATION_KEY = ['work', 'respond'] as const;
-
-const byStart = (a: ScheduledWork, b: ScheduledWork) =>
-  Date.parse(a.startTime) - Date.parse(b.startTime) || a.workId - b.workId;
-
-// 내 일정 조회 키(['work', 'schedule', from, to])의 구간과 일정이 겹치는지. 반열림 [from, to)
-function overlapsScheduleKey(work: ScheduledWork, queryKey: QueryKey) {
-  const [, , from, to] = queryKey as ReturnType<typeof workKeys.schedule>;
-  return (
-    Date.parse(work.startTime) < Date.parse(to) &&
-    Date.parse(work.endTime) > Date.parse(from)
-  );
-}
-
-// 목록(응답 필요·내 일정)에서 그 작업을 뺀다
-const removeWork = (queryKey: QueryKey, workId: number) =>
-  optimisticChange<MySchedule>({ queryKey }, data =>
-    data.works.some(work => work.workId === workId)
-      ? { works: data.works.filter(work => work.workId !== workId) }
-      : data,
-  );
-
-/** 수락하면: 응답 필요에서 빠지고, 내 일정(겹치는 구간)에 작업전으로 들어가고, 상세가 작업전이 된다 */
-function acceptedChanges(
-  queryClient: QueryClient,
-  { workId }: AcceptWorkCommand,
-): OptimisticChange[] {
-  // 내 일정에 수락 대기가 없으면(운영 API) 응답 필요의 행을 수락됨으로 넣는다
-  const request = queryClient
-    .getQueryData<MySchedule>(workKeys.pending)
-    ?.works.find(work => work.workId === workId);
-  const accepted = request && { ...request, status: 'ACCEPTED' as const };
-  return [
-    removeWork(workKeys.pending, workId),
-    optimisticChange<MySchedule>(
-      { queryKey: workKeys.schedules },
-      (data, queryKey) => {
-        if (data.works.some(work => work.workId === workId)) {
-          return {
-            works: data.works.map(work =>
-              work.workId === workId ? { ...work, status: 'ACCEPTED' } : work,
-            ),
-          };
-        }
-        if (accepted && overlapsScheduleKey(accepted, queryKey)) {
-          return { works: [...data.works, accepted].sort(byStart) };
-        }
-        return data;
-      },
-    ),
-    // 상세는 지연 여부를 칩으로만 들고 있어, 지연이면 그대로 두고 아니면 작업전 칩이다
-    optimisticChange<WorkDetail>(
-      { queryKey: workKeys.details(workId) },
-      detail => ({
-        ...detail,
-        workStatus: 'ACCEPTED',
-        status:
-          detail.status === 'delayed'
-            ? 'delayed'
-            : workStatusChip('ACCEPTED', false).status,
-      }),
-    ),
-  ];
-}
-
-/** 거절하면: 응답 필요와 내 일정에서 빠진다 (본인 배정이 끝나 더는 보이지 않는다) */
-const rejectedChanges = (
-  _queryClient: QueryClient,
-  { workId }: RejectWorkCommand,
-): OptimisticChange[] => [
-  removeWork(workKeys.pending, workId),
-  removeWork(workKeys.schedules, workId),
-];
-
-// 잇달아 보낸 응답 가운데 먼저 끝나 다시 받기를 미뤄 둔 것이 있다 (QueryClient 마다, 마지막 응답이 끝나면 지운다)
-const deferredRefetch = new WeakSet<QueryClient>();
+// 잇달아 보낸 응답은 마지막 응답이 끝날 때 한 번 서버 값을 받는다. 성공한 응답은 그때까지 보내는 중으로 남아
+// 화면이 옛 캐시(아직 수락 대기)로 잠깐 돌아가지 않는다
+const respondBatch = createMutationBatch(queryClient =>
+  queryClient.invalidateQueries({ queryKey: workKeys.all }),
+);
 
 /**
- * 결과를 먼저 보이는 응답(수락·거절). 보내기 전에 화면을 바꾸고, 실패하면 되돌린다.
- * 답이 오면 서버 값으로 다시 받는다. 다만 잇달아 보낸 응답이 남아 있으면 마지막 답이 올 때 한 번에 받는다:
- * 앞 답에 바로 받으면 서버가 아직 처리하지 않은 뒤 요청이 목록에 잠깐 돌아온다
+ * 응답(수락·거절). 보내는 즉시 조회 훅이 결과를 얹어 보이고(useRespondingWorks), 실패하면 진행 중에서 빠져 되돌아간다.
+ * 서버 작업이 화면과 달라져 실패했으면(-010·-002·-016) 곧바로 다시 받는다
  */
-function useRespondMutation<T>(
+function useRespondMutation<T extends { workId: number }>(
+  kind: keyof typeof respondKeys,
   run: (repository: WorkRepository, command: T) => Promise<void>,
-  changes: (queryClient: QueryClient, command: T) => OptimisticChange[],
 ) {
   const repository = useWorkRepository();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationKey: RESPOND_MUTATION_KEY,
+    mutationKey: respondKeys[kind],
     mutationFn: (command: T) => run(repository, command),
-    onMutate: command =>
-      applyOptimistic(queryClient, changes(queryClient, command)),
-    onError: (_error, _command, rollback) => rollback?.(),
+    onMutate: (command): RespondContext => {
+      respondBatch.begin(queryClient);
+      return {
+        request: queryClient
+          .getQueryData<MySchedule>(workKeys.pending)
+          ?.works.find(work => work.workId === command.workId),
+      };
+    },
     onSettled: (_data, error) => {
-      // 성공했거나, 서버 작업이 화면과 달라져 실패했다(-010·-002·-016)
-      const outdated = !error || shouldRefetchAfter(error);
-      // 끝나는 중인 이 응답도 아직 센다
-      if (queryClient.isMutating({ mutationKey: RESPOND_MUTATION_KEY }) > 1) {
-        if (outdated) {
-          deferredRefetch.add(queryClient);
-        }
-        return;
+      const settled = respondBatch.settle(queryClient, !error);
+      if (error && shouldRefetchAfter(error)) {
+        queryClient.invalidateQueries({ queryKey: workKeys.all });
       }
-      const refetch = outdated || deferredRefetch.has(queryClient);
-      deferredRefetch.delete(queryClient);
-      return refetch
-        ? queryClient.invalidateQueries({ queryKey: workKeys.all })
-        : undefined;
+      return settled;
     },
   });
 }
 
 export const useAcceptWork = () =>
-  useRespondMutation(
-    (repository, command: AcceptWorkCommand) => repository.acceptWork(command),
-    acceptedChanges,
+  useRespondMutation('accept', (repository, command: AcceptWorkCommand) =>
+    repository.acceptWork(command),
   );
 
 export const useRejectWork = () =>
-  useRespondMutation(
-    (repository, command: RejectWorkCommand) => repository.rejectWork(command),
-    rejectedChanges,
+  useRespondMutation('reject', (repository, command: RejectWorkCommand) =>
+    repository.rejectWork(command),
   );
 
 export const useStartWork = () =>

@@ -462,6 +462,103 @@ describe('수락·거절 낙관 반영', () => {
       expect(ids(result.current.pending.works)).toEqual([11]),
     );
   });
+
+  // PR #209 리뷰 재현: 응답을 보내는 동안 화면이 다시 받으면(내 일정 재포커스·당겨서 새로고침) 서버는 아직 옛 값이다
+  it('보내는 동안 다시 받은 목록(서버가 아직 처리 전)이 와도 보낸 요청은 응답 필요에 돌아오지 않는다', async () => {
+    const { result } = await setup();
+    await act(async () => {
+      result.current.accept.mutate({ workId: 10, assignmentNumber: 1 });
+      result.current.reject.mutate(rejection(11));
+    });
+    await waitFor(() => expect(result.current.pending.works).toEqual([]));
+
+    await act(async () => {
+      await result.current.pending.refetch();
+      await result.current.week.refetch();
+      // React Query 가 화면에 알리기까지 기다린다
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(result.current.pending.works).toEqual([]);
+    expect(
+      result.current.week.data?.works.find(work => work.workId === 10)?.status,
+    ).toBe('ACCEPTED');
+    expect(ids(result.current.week.data?.works)).not.toContain(11);
+  });
+
+  // PR #209 리뷰 재현 ⓐ: 되돌리기가 다른 응답의 낙관 값까지 덮으면 아직 가는 중인 B 가 돌아온다
+  it('겹친 응답에서 A 만 실패하면 A 만 응답 필요로 돌아오고, 가는 중인 B 는 빠진 채 내 일정에 작업전으로 남는다', async () => {
+    const { result, accept } = await setup({ serverSchedule: true });
+    await act(async () => {
+      result.current.accept.mutate({ workId: 10, assignmentNumber: 1 });
+      result.current.accept.mutate({ workId: 11, assignmentNumber: 1 });
+    });
+    await waitFor(() => expect(result.current.pending.works).toEqual([]));
+
+    await act(() =>
+      accept.answers[0].fail(
+        new ApiError({ kind: 'network', message: '네트워크' }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(ids(result.current.pending.works)).toEqual([10]),
+    );
+    expect(
+      result.current.week.data?.works.map(work => [work.workId, work.status]),
+    ).toEqual([
+      [11, 'ACCEPTED'],
+      [12, 'ACCEPTED'],
+    ]);
+  });
+
+  // PR #209 리뷰 재현 ⓑ: 둘 다 실패하면 서버(둘 다 수락 대기)와 같아야 한다
+  it('겹친 응답이 둘 다 실패하면 응답 필요·내 일정·상세가 서버와 같은 보내기 전 상태로 돌아온다', async () => {
+    const { result, accept, local } = await setup({ serverSchedule: true });
+    await act(async () => {
+      result.current.accept.mutate({ workId: 10, assignmentNumber: 1 });
+      result.current.accept.mutate({ workId: 11, assignmentNumber: 1 });
+    });
+    await waitFor(() => expect(result.current.pending.works).toEqual([]));
+
+    await act(() =>
+      accept.answers[0].fail(
+        new ApiError({ kind: 'network', message: '네트워크' }),
+      ),
+    );
+    await act(() =>
+      accept.answers[1].fail(
+        new ApiError({ kind: 'network', message: '네트워크' }),
+      ),
+    );
+
+    const server = await local.getPendingWorks();
+    await waitFor(() =>
+      expect(ids(result.current.pending.works)).toEqual(ids(server.works)),
+    );
+    expect(ids(server.works)).toEqual([10, 11]);
+    expect(ids(result.current.week.data?.works)).toEqual([12]);
+    expect(result.current.detail.data?.workStatus).toBe('PENDING_ACCEPT');
+  });
+
+  // PR #209 리뷰 재현: '마지막 응답' 판단이 비동기 체인 안에 있으면 같은 틱에 끝난 둘이 모두 미룬다
+  it('같은 틱에 끝난 두 응답도 마지막 답에서 한 번 다시 받는다', async () => {
+    const { result, accept, local } = await setup();
+    const readPending = jest.spyOn(local, 'getPendingWorks');
+    await act(async () => {
+      result.current.accept.mutate({ workId: 10, assignmentNumber: 1 });
+      result.current.accept.mutate({ workId: 11, assignmentNumber: 1 });
+    });
+    await waitFor(() => expect(accept.answers).toHaveLength(2));
+
+    await act(async () => {
+      await Promise.all([accept.answers[0].ok(), accept.answers[1].ok()]);
+    });
+
+    await waitFor(() => expect(readPending).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.accept.isSuccess).toBe(true));
+    expect(result.current.pending.works).toEqual([]);
+  });
 });
 
 describe('loadStateOf', () => {
