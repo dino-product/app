@@ -26,6 +26,7 @@ import {
   type FakeResponse,
   type FakeServer,
 } from '../../../../shared/testing/fakeServer';
+import { READABLE_MAX_WIDTH } from '../../../../shared/layout/readableColumn';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { expectOnlySkeletons } from '../../../../shared/testing/skeleton';
 import { testSession } from '../../../../shared/testing/session';
@@ -624,8 +625,9 @@ describe('JoinRequestsScreen', () => {
       await screen.findByRole('header', { name: '승인 대기 2' });
       await settleList();
 
-      const actions = screen.getByRole('button', { name: '조직 참여하기' })
-        .parent as HostElement;
+      const cta = screen.getByRole('button', { name: '조직 참여하기' });
+      const column = cta.parent as HostElement;
+      const actions = column.parent as HostElement;
       expect(actions).toHaveStyle({
         position: 'absolute',
         left: 0,
@@ -633,7 +635,6 @@ describe('JoinRequestsScreen', () => {
         bottom: 0,
         paddingTop: 3,
         paddingBottom: 24,
-        paddingHorizontal: 24,
       });
       const fade = String(
         StyleSheet.flatten(actions.props.style).backgroundImage,
@@ -645,6 +646,30 @@ describe('JoinRequestsScreen', () => {
       expect(
         StyleSheet.flatten(list.props.contentContainerStyle),
       ).toMatchObject({ paddingBottom: 3 + 56 + 24 + 24 });
+    });
+
+    // 리뷰(#210): 넓은 창(648 초과)에서도 버튼 폭이 카드 폭과 같도록, 버튼은 목록과 같은 기둥(최대 600, 좌우 24) 안에 둔다
+    it('조직 참여하기는 목록과 같은 읽기 기둥(최대 600)에 좌우 24 안쪽이다', async () => {
+      await renderRequests();
+      await screen.findByRole('header', { name: '승인 대기 2' });
+      await settleList();
+
+      const cta = screen.getByRole('button', { name: '조직 참여하기' });
+      const column = cta.parent as HostElement;
+      const list = StyleSheet.flatten(
+        screen.getByTestId('join-requests-list').props.contentContainerStyle,
+      );
+      expect(column).toHaveStyle({
+        maxWidth: READABLE_MAX_WIDTH,
+        alignSelf: 'center',
+        paddingHorizontal: 24,
+      });
+      expect(list).toMatchObject({
+        maxWidth: READABLE_MAX_WIDTH,
+        paddingHorizontal: 24,
+      });
+      expect(StyleSheet.flatten(cta.props.style).maxWidth).toBeUndefined();
+      expect(column.parent).not.toHaveStyle({ paddingHorizontal: 24 });
     });
 
     // 2880:15194 › 3278:23404: 문서 아이콘(famicons:document 40, #CECECE) 아래 24 에 제목 Body/M/SemiBold Primary,

@@ -227,8 +227,14 @@ export function JoinRequestsScreen({
         ]}
       />
       {hasRequests && (
+        // 그라데이션은 창 폭 전체에 깔고, 버튼은 목록과 같은 기둥(최대 600, 좌우 24) 안에 둬 카드와 폭이 같다
         <View pointerEvents="box-none" style={styles.actions}>
-          <CTA label="조직 참여하기" onPress={onJoin} style={readableColumn} />
+          <View
+            pointerEvents="box-none"
+            style={[readableColumn, styles.actionsColumn]}
+          >
+            <CTA label="조직 참여하기" onPress={onJoin} />
+          </View>
         </View>
       )}
 
@@ -390,12 +396,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardTitle: { flex: 1, gap: 6 },
+  actionsColumn: { paddingHorizontal: 24 },
   actions: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 24,
     paddingTop: ACTIONS_TOP,
     paddingBottom: ACTIONS_BOTTOM,
     backgroundImage: `linear-gradient(to bottom, ${withOpacity(
