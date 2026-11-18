@@ -984,6 +984,12 @@ describe('ScheduleScreen — 탑 내비 색 (#201)', () => {
     expect(screen.getByRole('header', { name: '내 일정' })).toHaveStyle({
       color: colors.black,
     });
+    // 하위 탭 줄(3754:6462·3754:6944) 아래에 회색 선이 없다
+    const tablist = screen.getByRole('tab', { name: /^확정 일정/ })
+      .parent as HostElement;
+    expect(StyleSheet.flatten(tablist.props.style).borderBottomWidth ?? 0).toBe(
+      0,
+    );
   };
 
   it.each([
