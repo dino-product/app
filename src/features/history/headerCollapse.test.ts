@@ -103,8 +103,9 @@ describe('전환 시간·곡선·키프레임 (#204 접어 넣기)', () => {
     expect(collapseKeyframes).not.toHaveProperty('titleTranslateY');
   });
 
-  // 진행도는 곡선을 거친 값이다. 감속 곡선이라 시간의 55% 에 진행도는 55% 를 이미 넘는다
-  it('전환 시간의 55% 시점에 제목은 이미 다 접혀 있다', () => {
+  // 시안(WAAPI)은 곡선을 전체 진행에 한 번 걸고 키프레임은 진행도로 보간한다. 그래서 55% 는 시간이 아니라
+  // 곡선을 거친 진행도 기준이다. 감속 곡선이라 시간의 55% 에는 진행도가 이미 55% 를 넘어 다 접혀 있다
+  it('제목은 진행도 55% 에 다 접히며 (시안 WAAPI 와 같은 해석), 감속 곡선이라 시간 55% 에는 이미 접혀 있다', () => {
     const foldEnd = collapseKeyframes.titleScaleY.inputRange[1];
 
     expect(collapseEasing(0.55)).toBeGreaterThanOrEqual(foldEnd);
