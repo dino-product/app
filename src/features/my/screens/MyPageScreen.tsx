@@ -343,7 +343,7 @@ const MembershipRow = memo(function MyMembershipRow({
 });
 
 // 사무실이 검토 중인 참여 요청 줄 (Figma 3235:17153 '검토'). 소속 줄과 같은 글자·칩에 역할 대신 희망 유형을 보이고,
-// 누르면 그 요청의 진행 상황(참여 요청 현황)을 연다 (#199). 화살표는 Figma 에 없어 두지 않는다
+// 누르면 그 요청의 진행 상황(승인 대기 화면)을 연다 (#199). 화살표는 Figma 에 없어 두지 않는다
 const ReviewRequestRow = memo(function MyReviewRequestRow({
   request,
   onPress,

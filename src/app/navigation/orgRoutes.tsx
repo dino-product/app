@@ -1,5 +1,11 @@
 import { CommonActions, useIsFocused } from '@react-navigation/native';
-import { useCallback, useEffect, type ReactElement, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactElement,
+  type Ref,
+} from 'react';
 import type { TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SubScreenHeader } from '../../features/my/components/SubScreenHeader';
@@ -214,7 +220,7 @@ export function RoleSelectRoute({
 // 없는 요청(이미 처리됐거나 서버에서 사라짐)으로 열렸으면 빈 화면 대신 이전 화면으로 돌아간다
 function useLeaveRequest(
   navigation: MyScreenProps<
-    'OrgJoinRequested' | 'OrgJoinRejected' | 'OrgJoinReview'
+    'OrgJoinRequested' | 'OrgJoinRejected'
   >['navigation'],
 ) {
   return useCallback(() => {
@@ -260,14 +266,23 @@ export function JoinRequestedRoute({
 }
 
 // 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199). 요청 완료 화면에 맥락 제목·사무실 검토 중 진행·상태 칩을 더한다.
-// 그사이 사무실이 결정했으면(승인 대기가 아님) 빈 화면 대신 마이페이지로 돌아간다. 참여 완료 화면은 참여 승인 알림으로만 연다
+// 그사이 사무실이 결정했으면(승인 대기가 아님) 빈 화면 대신 마이페이지로 돌아간다. 참여 완료 화면은 참여 승인 알림으로만 연다.
+// 여기서 신청을 취소하면 요청이 승인 대기에서 빠져 게이트의 '없는 요청'(onMissing)과 취소 결과(onCanceled)가 함께 온다.
+// 어느 쪽이 먼저 와도 마이페이지로 한 번만 돌아간다: 뒤로 가기(goBack)는 스택에 마이페이지만 남은 뒤 다시 불리면
+// 탭 내비게이터가 받아 홈 탭으로 가므로, 몇 번 불려도 같은 곳에 머무는 popTo 만 쓴다
 export function JoinReviewRoute({
   navigation,
   route,
 }: MyScreenProps<'OrgJoinReview'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
-  const leave = useLeaveRequest(navigation);
-  const backToMyPage = () => navigation.popTo(MY_INITIAL_ROUTE);
+  const left = useRef(false);
+  const backToMyPage = useCallback(() => {
+    if (left.current) {
+      return;
+    }
+    left.current = true;
+    navigation.popTo(MY_INITIAL_ROUTE);
+  }, [navigation]);
 
   return (
     <ParticipationRequestGate
@@ -276,7 +291,7 @@ export function JoinReviewRoute({
       title={joinRequestedTitle('my', 'reviewing')}
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
-      onMissing={leave}
+      onMissing={backToMyPage}
     >
       {request => (
         <JoinRequestedScreen

@@ -44,15 +44,18 @@ const stepLabels = {
   onboarding: ['요청 완료', '사무실 검토 중', '참여 완료'],
 } as const satisfies Record<JoinFlow, readonly [string, string, string]>;
 
-/** 머리 제목. 마이페이지 검토 줄에서 연 요청은 보낸 직후가 아니라 진행 상황을 보러 온 것이라 '참여 요청 현황' 이다 */
+/**
+ * 머리 제목. 마이페이지 검토 줄에서 연 요청은 보낸 직후가 아니라 승인을 기다리는 요청을 보러 온 것이라,
+ * 같은 화면 온보딩 Figma(3227:8827)의 이 상태 제목 '승인 대기' 를 쓴다 (신청 현황 화면 '참여 신청 현황' 과 헷갈리지 않게)
+ */
 export function joinRequestedTitle(
   flow: JoinFlow,
   stage: JoinRequestStage = 'sent',
 ): string {
-  if (flow === 'onboarding') {
+  if (flow === 'onboarding' || stage === 'reviewing') {
     return '승인 대기';
   }
-  return stage === 'reviewing' ? '참여 요청 현황' : '조직 참여하기';
+  return '조직 참여하기';
 }
 
 export function JoinRequestedScreen({

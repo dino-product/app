@@ -4,7 +4,7 @@ import { colors, Text } from '../../../shared/design-system';
 
 // 마이페이지 소속 카드의 상태 칩 (Figma 마이페이지 3235:17104 › 소속 카드 3235:17146 의 '작업상태 컬러칩').
 // 승인(3235:17151)은 초록, 검토(3235:17157)는 회색이다. 비활성(소속이 꺼짐)은 Figma 에 없어 회색으로 둔다.
-// 참여 요청 현황(마이페이지 검토 줄에서 연 요청 완료, #199)의 상태 칩도 같은 칩이다
+// 마이페이지 검토 줄에서 연 승인 대기 화면(#199)의 상태 칩도 같은 칩이다
 export type MembershipChipStatus = 'approved' | 'review' | 'deactivated';
 
 const spec = {

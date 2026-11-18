@@ -621,11 +621,12 @@ describe('JoinRequestedScreen', () => {
         request: { ...request, requestChannel: undefined },
       });
 
-    it('머리 제목은 조직 참여하기 대신 참여 요청 현황이다', async () => {
+    // 신청 현황 화면 제목('참여 신청 현황')과 헷갈리지 않게, 같은 화면 온보딩 Figma(3227:8827)의 이 상태(승인 대기) 제목을 쓴다
+    it('머리 제목은 조직 참여하기 대신 승인 대기다', async () => {
       await renderReviewing();
 
       expect(
-        screen.getByRole('header', { name: '참여 요청 현황' }),
+        screen.getByRole('header', { name: '승인 대기' }),
       ).toBeOnTheScreen();
       expect(
         screen.queryByRole('header', { name: '조직 참여하기' }),

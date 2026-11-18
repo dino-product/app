@@ -86,12 +86,12 @@ describe('App — 조직 참여', () => {
 
   // #199: 소속 카드의 검토 줄(승인 대기 요청)을 누르면 그 요청의 진행 상황이 열린다. 승인된 소속 줄은 눌러도 그대로다
   describe('마이페이지 소속 카드의 검토 줄 (#199)', () => {
-    it('검토 줄을 누르면 참여 요청 현황이 사무실 검토 중 단계로 열리고, 뒤로 가면 마이페이지다', async () => {
+    it('검토 줄을 누르면 승인 대기 화면이 사무실 검토 중 단계로 열리고, 뒤로 가면 마이페이지다', async () => {
       await openMyPage();
 
       await userEvent.press(button('그린 테크, 기사, 검토'));
 
-      expect(header('참여 요청 현황')).toBeOnTheScreen();
+      expect(header('승인 대기')).toBeOnTheScreen();
       expect(
         screen.getByLabelText(
           '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
@@ -113,7 +113,7 @@ describe('App — 조직 참여', () => {
       );
 
       expect(header('마이페이지')).toBeOnTheScreen();
-      expect(header('참여 요청 현황')).toBeNull();
+      expect(header('승인 대기')).toBeNull();
       expect(header('참여 완료')).toBeNull();
     });
 
@@ -124,7 +124,26 @@ describe('App — 조직 참여', () => {
       await userEvent.press(button('그린 테크, 기사, 검토'));
 
       await waitFor(() => expect(header('마이페이지')).toBeOnTheScreen());
-      expect(header('참여 요청 현황')).toBeNull();
+      expect(header('승인 대기')).toBeNull();
+      expect(tab('마이')).toBeSelected();
+    });
+
+    // 취소가 받아지면 요청이 승인 대기에서 빠져 '없는 요청' 으로도 보인다. 마이페이지로 돌아가기와 겹쳐도
+    // 스택에 마이페이지만 남은 뒤 한 번 더 뒤로 가 홈 탭으로 넘어가면 안 된다
+    it('검토 줄에서 연 화면에서 신청을 취소하면 마이 탭의 마이페이지에 머문다', async () => {
+      await openMyPage();
+      await userEvent.press(button('그린 테크, 기사, 검토'));
+
+      await userEvent.press(button('신청 취소'));
+      expect(header('그린 테크 참여 신청을 취소할까요?')).toBeOnTheScreen();
+      await userEvent.press(button('취소'));
+      await finishAnimations();
+
+      await waitFor(() => expect(button('신청 현황, 1건')).toBeOnTheScreen());
+      expect(header('마이페이지')).toBeOnTheScreen();
+      expect(header('승인 대기')).toBeNull();
+      expect(tab('마이')).toBeSelected();
+      expect(screen.queryByLabelText('그린 테크, 기사, 검토')).toBeNull();
     });
   });
 
