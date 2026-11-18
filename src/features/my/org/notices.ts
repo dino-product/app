@@ -3,7 +3,7 @@ import type { Notice } from './components/NoticeModal';
 import { OrganizationErrorCode } from './participationApi';
 
 // 회사 참여 서버 응답(오류 코드) → 화면 안내와 갈 곳 (#116).
-// '이미 참여'(Figma 3159:13440) 말고는 Figma 에 없는 경우라 문구는 기본안이다 (Figma 미확인)
+// '이미 참여'(Figma 51028:17074) 말고는 Figma 에 없는 경우라 문구는 기본안이다 (Figma 미확인)
 
 export const alreadyMemberNotice = (organizationName: string): Notice => ({
   title: '이미 참여 중인 회사예요',
