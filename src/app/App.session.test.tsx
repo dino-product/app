@@ -454,6 +454,46 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
     );
     expect(app.queryClient.isFetching({ queryKey: profileQueryKey })).toBe(0);
   });
+
+  // #193: 약관 상세는 가입 약관 위에 쌓인다. 상세를 보는 동안 단계가 바뀌어도 놓치지 않는다
+  it.each([
+    ['가입 약관에서', false],
+    ['약관 상세를 연 채로', true],
+  ])(
+    '%s 확인을 기다리다 서버 단계가 PROFILE 이면 프로필 등록으로 돌아간다',
+    async (_, openDetail) => {
+      const pending = deferred();
+      saveSignedInStep('TERMS');
+      await renderApp({
+        server: accountServer({ nextStep: 'TERMS' }).on(
+          'GET',
+          PROFILE_PATH,
+          () => pending.response,
+          ok(accountProfile('PROFILE')),
+        ),
+        session: signedInSession(),
+      });
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
+      if (openDetail) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '서비스 이용약관 (필수)' }),
+        );
+        await screen.findByRole('header', { name: '(필수) 서비스 이용약관' });
+      }
+
+      await act(async () => pending.answer(ok(accountProfile('PROFILE'))));
+
+      expect(
+        await screen.findByRole('header', { name: '프로필 등록' }),
+      ).toBeOnTheScreen();
+      expect(
+        header('서비스 이용을 위해 동의가 필요해요'),
+      ).not.toBeOnTheScreen();
+      expect(header('(필수) 서비스 이용약관')).not.toBeOnTheScreen();
+    },
+  );
 });
 
 describe('App — 쓰는 중 세션 만료 (#113)', () => {

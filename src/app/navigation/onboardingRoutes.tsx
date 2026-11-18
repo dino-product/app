@@ -208,13 +208,17 @@ export function TermsAgreementRoute({
       navigation.navigate('TermsDetail', { types }),
     [navigation],
   );
+  // 약관 단계를 보는 동안(가입 약관, 또는 그 위에 쌓인 약관 상세 #193) 서버 단계가 PROFILE 로 돌아가면 프로필 등록으로 간다.
+  // 회사 찾기 등 다음 단계로 넘어가 있으면 옮기지 않는다
   useStepChanged(
     useCallback(
       (previous, next) => {
+        const { routes, index } = navigation.getState();
+        const top = routes[index]?.name;
         if (
           previous === 'TERMS' &&
           next === 'PROFILE' &&
-          navigation.isFocused()
+          (top === 'TermsAgreement' || top === 'TermsDetail')
         ) {
           navigation.popTo('ProfileRegister');
         }
