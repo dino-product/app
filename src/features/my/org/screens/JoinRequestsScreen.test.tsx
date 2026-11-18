@@ -703,6 +703,12 @@ describe('JoinRequestsScreen', () => {
       expect(screen.getByRole('button', { name: '닫기' }).parent).toHaveStyle({
         gap: 10,
       });
+      // 2935:15477 · 3100:2905: 버튼 높이 56 (CTA L)
+      for (const name of ['닫기', '취소']) {
+        expect(screen.getByRole('button', { name })).toHaveStyle({
+          minHeight: 56,
+        });
+      }
     });
 
     // 받는 동안의 스켈레톤은 Figma 에 없어 바뀐 카드와 같은 상자로 그린다

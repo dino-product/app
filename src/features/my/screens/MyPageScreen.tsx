@@ -154,18 +154,20 @@ function MyPageScreenView({
                   <Text variant="Caption/M/Medium" color={REQUEST_STATUS_COLOR}>
                     신청 현황
                   </Text>
-                  {pendingRequestCount > 0 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText} color={colors.white[100]}>
-                        {pendingRequestCount}
-                      </Text>
-                    </View>
-                  )}
-                  <Icon
-                    name="chevron-right-line"
-                    size={16}
-                    color={colors.gray[500]}
-                  />
+                  {/* Figma 3235:17139: 배지와 화살표(18)는 붙어 있다 */}
+                  <View style={styles.requestStatusTrail}>
+                    {pendingRequestCount > 0 && (
+                      <View style={styles.badge}>
+                        <Text
+                          style={styles.badgeText}
+                          color={colors.white[100]}
+                        >
+                          {pendingRequestCount}
+                        </Text>
+                      </View>
+                    )}
+                    <Icon name="chevron-right-small" color={colors.gray[500]} />
+                  </View>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -483,13 +485,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  sectionActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Figma 3235:17136: 신청 현황–조직 참여 4, 글자–배지·화살표 6, 배지–화살표 0 (#200)
+  sectionActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   requestStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     height: ACTION_HEIGHT,
   },
+  requestStatusTrail: { flexDirection: 'row', alignItems: 'center' },
   badge: {
     minWidth: 20,
     height: 20,

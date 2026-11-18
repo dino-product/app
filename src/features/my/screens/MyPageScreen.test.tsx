@@ -320,6 +320,48 @@ describe('MyPageScreen', () => {
     expect(screen.queryByText('0')).toBeNull();
   });
 
+  // #200: Figma 마이페이지 3235:17136 — 신청 현황 글자와 배지·화살표 묶음 사이 6, 배지–화살표 0, 화살표 18(#9B9B9B),
+  // 신청 현황–조직 참여 사이 4. 화살표는 Figma 에서 내보낸 것(3235:17142)이다
+  describe('신청 현황 줄 (Figma 3235:17136)', () => {
+    const requestStatus = () =>
+      screen.getByRole('button', { name: '신청 현황, 3건' });
+
+    it('글자와 배지·화살표 묶음 사이 6, 배지와 화살표는 붙어 있고, 조직 참여와는 4 떨어진다', async () => {
+      await renderLoadedMyPage();
+
+      const button = requestStatus();
+      expect(button).toHaveStyle({ gap: 6 });
+      const [label, group] = button.children as HostElement[];
+      expect(label).toHaveTextContent('신청 현황');
+      expect(stylePt(group, 'gap')).toBe(0);
+      expect(within(group).getByText('3')).toBeOnTheScreen();
+      expect(button.parent).toHaveStyle({ gap: 4 });
+    });
+
+    it('화살표는 Figma 에서 내보낸 18 · Gray500 아이콘이다', async () => {
+      await renderLoadedMyPage();
+
+      const [, group] = requestStatus().children as HostElement[];
+      const arrow = (group.children as HostElement[]).at(-1) as HostElement;
+      const [svg] = arrow.children as HostElement[];
+      expect(svg.props.xml).toBe(iconSvgs['chevron-right-small'].xml);
+      expect(svg.props).toMatchObject({
+        width: 18,
+        height: 18,
+        color: colors.gray[500],
+      });
+    });
+
+    it('배지가 없으면 글자 다음 6 에 화살표만 있다', async () => {
+      await renderLoadedMyPage({ pendingRequestCount: 0 });
+
+      const button = screen.getByRole('button', { name: '신청 현황' });
+      const [, group] = button.children as HostElement[];
+      expect(group.children).toHaveLength(1);
+      expect(button).toHaveStyle({ gap: 6 });
+    });
+  });
+
   it('설정 및 정보 행 세 개를 보여준다', async () => {
     await renderLoadedMyPage();
 

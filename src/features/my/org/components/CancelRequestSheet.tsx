@@ -60,15 +60,14 @@ export function CancelRequestSheet({
         </Text>
       </View>
       <View style={styles.actions}>
+        {/* 버튼 높이 56 (Figma 2935:15477 · 3100:2905, CTA 기본 L) */}
         <CTA
-          size="M"
           variant="outline"
           label="닫기"
           onPress={onClose}
           style={styles.action}
         />
         <CTA
-          size="M"
           variant="reject"
           label="취소"
           onPress={() => shown && onConfirm(shown.requestId)}
@@ -80,7 +79,7 @@ export function CancelRequestSheet({
 }
 
 // Figma 2889:13037: 제목–설명 12(제목 칸 아래 여백), 설명 아래 24 + 버튼 줄 위 10, 버튼 사이 10.
-// 시트 틀(모서리·손잡이·위아래 여백)은 공용 BottomSheet confirm 모양을 그대로 쓴다
+// 시트 틀(모서리 28·손잡이 32×4 Gray500·위 22·아래 36·딤 45%)은 공용 BottomSheet confirm 모양이다
 const styles = StyleSheet.create({
   body: { gap: 12, marginBottom: 24 + 10 },
   center: { textAlign: 'center' },
