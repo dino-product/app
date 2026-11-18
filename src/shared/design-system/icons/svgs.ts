@@ -1,4 +1,5 @@
 // Figma Design.v0 에서 내보낸 SVG (App Icon 세트·화면 아이콘). 직접 고치지 말고 다시 내보내 교체한다.
+// 예외: 내보낸 SVG 의 일부만 잘라 쓴 항목(check)은 주석에 원본 노드와 viewBox 를 적어 두고, 다시 내보낼 때도 같은 viewBox 로 자른다.
 // tint: true 면 색을 currentColor 로 바꿔 Icon 의 color 를 따르고, color 는 그 Figma 원래 색(기본값)이다.
 // false 는 Figma 색·배경 그대로. size 는 Figma 프레임 크기(= SVG width)로 Icon 의 기본 크기다.
 // height 는 세로가 다른 아이콘에만 둔다 (= SVG height).

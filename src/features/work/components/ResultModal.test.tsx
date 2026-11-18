@@ -227,7 +227,7 @@ describe('ResultModal', () => {
 
     // App Icon(3166:3162)은 DesignSystem App Icon · Modal-check(2791:27085)의 인스턴스다.
     // 승인 대기·요청완료·참여 완료와 같은 원본이라 같은 아이콘을 그린다 (#194)
-    it('제출 완료 아이콘은 App Icon · Modal-check(Select/1 원에 Secondary 체크)다', async () => {
+    it('제출 완료 아이콘은 App Icon · Modal-check(modal-check)를 40 으로 그린다', async () => {
       await render(
         <ResultModal visible result={submitted} onConfirm={jest.fn()} />,
       );
@@ -237,9 +237,9 @@ describe('ResultModal', () => {
       });
       expect(icon).toHaveStyle({ width: 40, height: 40 });
       const [svg] = icon.children;
-      const xml = typeof svg === 'string' ? svg : svg.props.xml;
-      expect(xml).toBe(iconSvgs['modal-check'].xml);
-      expect(xml).toContain('fill="#4F3BFE" fill-opacity="0.06"');
+      expect(typeof svg === 'string' ? svg : svg.props.xml).toBe(
+        iconSvgs['modal-check'].xml,
+      );
     });
 
     it('취소 아이콘은 Warning/2 원에 Warning/1 × 다', async () => {

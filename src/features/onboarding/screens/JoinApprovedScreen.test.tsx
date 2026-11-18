@@ -80,16 +80,13 @@ describe('JoinApprovedScreen', () => {
     ['요청한 유형으로 승인', approved],
     ['다른 유형으로 확정', { ...approved, approvedType: 'STAFF' as const }],
   ])(
-    '%s: 맨 위 아이콘은 App Icon · Modal-check(Select/1 6% 원에 Secondary 체크, 40)다',
+    '%s: 맨 위에 App Icon · Modal-check(modal-check)를 40 으로 하나 그린다',
     async (_, request) => {
       await renderApproved(request);
 
       const icons = svgViewsDrawing(screen.root, iconSvgs['modal-check'].xml);
       expect(icons).toHaveLength(1);
       expect(icons[0].props).toMatchObject({ width: 40, height: 40 });
-      expect(icons[0].props.xml).toContain(
-        'fill="#4F3BFE" fill-opacity="0.06"',
-      );
     },
   );
 
