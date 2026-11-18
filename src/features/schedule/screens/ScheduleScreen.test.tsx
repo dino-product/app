@@ -639,6 +639,68 @@ describe('ScheduleScreen — 오늘 버튼 (#202)', () => {
     expect(screen.getByRole('button', { name: '달력 접기' })).toBeOnTheScreen();
   });
 
+  // 넘김(280ms)이 끝나기 전에 오늘을 누르면 그 넘김은 버린다. 다 넘어간 뒤 확정하면 오늘의 달·주에서 한 페이지 더 간다
+  describe('넘기는 중에 누르면', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+    const layoutTrack = (testID: string) =>
+      fireEvent(screen.getByTestId(testID), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 345, height: 400 } },
+      });
+
+    it.each([
+      ['다음 달(2027년 1월)', []],
+      ['지난달에서 이번 달', ['이전 달']],
+    ] as const)(
+      '월간: %s로 미끄러지는 중에 오늘을 누르면 이번 달에 머문다',
+      async (_label, before) => {
+        const { finish } = holdNativeAnimations();
+        await renderSchedule();
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+        await layoutTrack('month-calendar-track');
+        for (const name of before) {
+          await fireEvent.press(screen.getByRole('button', { name }));
+          await finish();
+        }
+
+        await fireEvent.press(screen.getByRole('button', { name: '다음 달' }));
+        await pressToday();
+        await finish();
+
+        expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+        expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+      },
+    );
+
+    it.each([
+      ['다음 주', 0],
+      ['지난주에서 이번 주', 1],
+    ] as const)(
+      '주간: %s로 미끄러지는 중에 오늘을 누르면 오늘이 있는 주에 머문다',
+      async (_label, weeksBack) => {
+        const { finish } = holdNativeAnimations();
+        await renderSchedule();
+        await layoutTrack('week-strip-track');
+        for (let i = 0; i < weeksBack; i += 1) {
+          await drag(weekStrip(), { dx: 80 });
+          await finish();
+        }
+
+        await drag(weekStrip(), { dx: -80 });
+        await pressToday();
+        await finish();
+
+        expect(
+          screen.getByRole('button', { name: '12월 13일 일요일' }),
+        ).toBeOnTheScreen();
+        expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+      },
+    );
+  });
+
   // Figma 51030:18439·51030:18441: Gray100 알약(좌우 12·위아래 4, 모서리 54), 글자 Caption/M/Semibold Gray900.
   // 날짜 줄 오른쪽에서 달력 전환 버튼 왼쪽에 놓이고, 둘 사이는 주간 16(51030:18440)·월간 12(51030:18444)다
   it('오늘 버튼은 날짜 줄 오른쪽 달력 버튼 앞의 Gray100 알약이고, 달력 버튼과의 간격은 주간 16·월간 12 다', async () => {

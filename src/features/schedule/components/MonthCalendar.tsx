@@ -43,6 +43,7 @@ export function MonthCalendar({
   onNext,
   edgeInset = 0,
   touchHandlers,
+  resetKey,
 }: {
   year: number;
   month: number;
@@ -59,6 +60,10 @@ export function MonthCalendar({
   edgeInset?: number;
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 가로로 미는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
+  /**
+   * 바깥에서 보이는 달을 바꿀 때(오늘 버튼, #202) 바꾸는 값. 바뀌면 미끄러지던 넘김을 버리고 지금 달에 머문다
+   */
+  resetKey?: unknown;
 }) {
   // 화면 가장자리 띠·달력 가장자리 여유에서 시작한 밀기는 탭 전환 몫이라 달을 넘기지 않는다 (#140)
   const tabSwipe = useTabSwipeRegion();
@@ -66,6 +71,7 @@ export function MonthCalendar({
     onPrev,
     onNext,
     ownsGesture: tabSwipe.ownsGesture,
+    resetKey,
   });
   const onTouchStart = (event: GestureResponderEvent) => {
     touchHandlers?.onTouchStart(event);

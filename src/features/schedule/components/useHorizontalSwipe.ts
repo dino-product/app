@@ -70,6 +70,11 @@ export function useHorizontalSwipe(callbacks: {
    * 탭 전환 몫이라 응답자가 되지 않는다 (#140). 주지 않으면 늘 갖는다
    */
   ownsGesture?: () => boolean;
+  /**
+   * 바깥에서 보이는 페이지를 바꿀 때(오늘 버튼, #202) 바꾸는 값. 바뀌면 미끄러지던 넘김을 확정하지 않고 멈추고
+   * 트랙을 지금 페이지 자리로 되돌린다. 다 넘어간 뒤 확정하면 바깥에서 바꾼 페이지에서 한 페이지 더 넘어간다
+   */
+  resetKey?: unknown;
 }): HorizontalSwipe {
   // 부모가 렌더마다 새 콜백을 넘겨도 PanResponder 는 한 번만 만들고 최신 콜백을 부른다
   const latest = useRef(callbacks);
@@ -231,10 +236,27 @@ export function useHorizontalSwipe(callbacks: {
         sliding = null;
         translateX.stopAnimation();
       },
+      // 미끄러지던 넘김을 확정하지 않고 멈추고 지금 페이지 자리로 되돌린다 (돌던 애니메이션은 finished: false 로 끝난다)
+      cancel: () => {
+        if (!sliding) {
+          return;
+        }
+        sliding = null;
+        translateX.stopAnimation();
+        translateX.setValue(restAt(current));
+      },
     };
   });
-  const { stop, ...api } = swipe;
+  const { stop, cancel, ...api } = swipe;
   useEffect(() => stop, [stop]);
+  // 바깥에서 페이지를 바꾼 렌더에서, 그려지기 전에 돌던 넘김을 버린다
+  const lastResetKey = useRef(callbacks.resetKey);
+  useLayoutEffect(() => {
+    if (!Object.is(lastResetKey.current, callbacks.resetKey)) {
+      lastResetKey.current = callbacks.resetKey;
+      cancel();
+    }
+  }, [callbacks.resetKey, cancel]);
 
   return { ...api, page };
 }

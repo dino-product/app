@@ -479,6 +479,48 @@ describe('useHorizontalSwipe 버튼 넘김', () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  // 오늘 버튼처럼 바깥에서 보이는 페이지를 바꾸면 돌던 넘김은 버린다 (#202).
+  // 다 넘어간 뒤 확정하면 바깥에서 바꾼 페이지에서 한 페이지 더 넘어간다
+  it.each([
+    ['버튼', 'button'],
+    ['밀고 놓은', 'drag'],
+  ] as const)(
+    '%s 넘김이 미끄러지는 중에 resetKey 가 바뀌면 확정하지 않고 멈춰 지금 페이지 자리로 돌아간다',
+    async (_label, how) => {
+      const { result, rerender, finish, offsets, lastSlide, onPrev, onNext } =
+        await setup();
+
+      if (how === 'button') {
+        await act(() => result.current.slide(1));
+      } else {
+        await drag(result.current.panHandlers, { dx: -80 });
+      }
+      await rerender({ onPrev, onNext, resetKey: 1 });
+      // 트랙을 지금 페이지 자리(0)에 세운다
+      expect(offsets.at(-1)).toBeCloseTo(0);
+      await finish();
+
+      expect(onNext).not.toHaveBeenCalled();
+      expect(result.current.page).toBe(0);
+      // 다음 넘김은 지금 페이지에서 한 페이지다
+      await act(() => result.current.slide(1));
+      expect(lastSlide()?.toValue).toBe(-PAGE_WIDTH);
+      await finish();
+      expect(onNext).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('resetKey 가 그대로면 미끄러지던 넘김을 이어 간다', async () => {
+    const { result, rerender, finish, onPrev, onNext } = await setup();
+
+    await act(() => result.current.slide(1));
+    await rerender({ onPrev, onNext });
+    await finish();
+
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(result.current.page).toBe(1);
+  });
+
   it('미끄러지는 중에 손가락으로 잡으면 넘김을 확정하고 지금 보이는 자리에서 이어 끈다', async () => {
     const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
     const { result, finish, offsets, lastSlide, onNext } = await setup();

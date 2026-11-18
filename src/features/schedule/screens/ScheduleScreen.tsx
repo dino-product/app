@@ -169,8 +169,13 @@ function ScheduleScreenView({
     followToday(today);
   }, [today]);
 
-  // 오늘 버튼: 주간 보기는 오늘이 있는 주, 달력은 이번 달로 돌아오고 오늘을 고른다 (#202)
-  const goToday = useCallback(() => selectDate(today), [selectDate, today]);
+  // 오늘 버튼: 주간 보기는 오늘이 있는 주, 달력은 이번 달로 돌아오고 오늘을 고른다 (#202).
+  // 누를 때마다 주간 줄·달력에 알려 미끄러지던 넘김을 버린다. 다 넘어간 뒤 확정하면 오늘의 주·달에서 한 페이지 더 간다
+  const [todayPresses, setTodayPresses] = useState(0);
+  const goToday = useCallback(() => {
+    setTodayPresses(count => count + 1);
+    selectDate(today);
+  }, [selectDate, today]);
 
   // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
   const toggleCalendar = useCallback(() => {
@@ -324,6 +329,7 @@ function ScheduleScreenView({
             eventCounts={eventCounts}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={monthTouch}
+            resetKey={todayPresses}
             onSelect={selectDate}
             onPrev={() => moveMonth(-1)}
             onNext={() => moveMonth(1)}
@@ -334,6 +340,7 @@ function ScheduleScreenView({
             selected={selected}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={weekTouch}
+            resetKey={todayPresses}
             onSelect={selectDate}
             onPrev={() => moveWeek(-1)}
             onNext={() => moveWeek(1)}
@@ -349,6 +356,7 @@ function ScheduleScreenView({
       eventCounts,
       selectDate,
       goToday,
+      todayPresses,
       toggleCalendar,
       moveMonth,
       moveWeek,
