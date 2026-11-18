@@ -56,12 +56,12 @@ import {
   homeWeekLabel,
   monthPeriod,
   pendingOf,
-  pickCurrentWork,
   toCompletedWork,
   toCurrentWork,
   toScheduleItem,
   weekPeriod,
 } from '../../features/work/data/views';
+import { useCurrentWork } from '../../features/work/data/useCurrentWork';
 import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvider';
 import {
   formatResultTime,
@@ -208,17 +208,17 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
   const listRef = useTabScrollToTop();
   const today = useToday();
   const week = useMemo(() => weekPeriod(today), [today]);
-  const schedule = useMySchedule(week, { subscribed: useIsFocused() });
+  const focused = useIsFocused();
+  // 서버가 기사 앱에 작업 변경 신호(실시간 연결)를 주게 되면 여기서 구독해 schedule.refetch 한다 (#205: 지금은 기사용이 없다)
+  const schedule = useMySchedule(week, { subscribed: focused });
   const startWork = useStartWork().mutateAsync;
   const { refreshing, onRefresh } = useRefresh(schedule.refetch);
   useHoldTabSwitchWhile(refreshing);
   const load = useLoadState(schedule);
 
   const works = schedule.data?.works;
-  const current = useMemo(
-    () => (works ? pickCurrentWork(works, new Date()) : undefined),
-    [works],
-  );
+  // 히어로 박스: 지금 시각에 진행 중인 작업. 예정 시작·종료에 닿으면 새로고침 없이 바뀐다 (#205)
+  const current = useCurrentWork(works, focused);
   const currentWork = useMemo(
     () => (current ? toCurrentWork(current) : null),
     [current],
