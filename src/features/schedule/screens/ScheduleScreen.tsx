@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -43,6 +44,7 @@ import {
   PendingRequestsSkeleton,
 } from '../components/ScheduleSkeletons';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
+import type { SlideHandle } from '../components/useHorizontalSwipe';
 import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
@@ -146,13 +148,37 @@ function ScheduleScreenView({
   );
   const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
+  // 주간 줄·달력이 내주는 손잡이. 바깥에서 보이는 주·달을 바꿀 때 미끄러지던 넘김을 버린다 (#202)
+  const slideRef = useRef<SlideHandle>(null);
+  // 날짜를 고를 때 지금 보이는 것과 비교한다. 콜백이 이 값들에 따라 바뀌지 않게(달력 격자를 다시 그리지 않게) 그린 뒤 적어 둔다
+  const shown = useRef({ selected, viewMonth, weekStart, calendarOpen });
+  useLayoutEffect(() => {
+    shown.current = { selected, viewMonth, weekStart, calendarOpen };
+  });
+
   // 고른 날의 주·달을 보여 준다
   const selectDate = useCallback(
     (date: Date) => {
+      const now = shown.current;
+      const month = monthOfDate(date);
+      const week = startOfWeek(date).getTime();
+      const sameMonth =
+        month.year === now.viewMonth.year &&
+        month.month === now.viewMonth.month;
+      const sameWeek = week === now.weekStart;
+      // 보이는 주·달을 바꾸면(다른 달 칸·오늘·자정) 미끄러지던 넘김을 버린다. 다 넘어간 뒤 확정하면 바꾼 주·달에서
+      // 한 페이지 더 간다 (#202). 보이는 주·달 안의 날을 고르면 넘김은 이어 간다 (#100)
+      if (now.calendarOpen ? !sameMonth : !sameWeek) {
+        slideRef.current?.cancelSlide();
+      }
+      // 이미 그 날을 고르고 그 주·달을 보고 있으면 바뀌는 것이 없다 (다시 그리지 않는다)
+      if (sameMonth && sameWeek && isSameDay(date, now.selected)) {
+        return;
+      }
       setSelected(date);
-      setViewMonth(monthOfDate(date));
-      setWeekStart(startOfWeek(date).getTime());
-      onVisibleMonthsChange?.(visibleMonths(date, monthOfDate(date)));
+      setViewMonth(month);
+      setWeekStart(week);
+      onVisibleMonthsChange?.(visibleMonths(date, month));
     },
     [onVisibleMonthsChange],
   );
@@ -170,10 +196,9 @@ function ScheduleScreenView({
   }, [today]);
 
   // 오늘 버튼: 주간 보기는 오늘이 있는 주, 달력은 이번 달로 돌아오고 오늘을 고른다 (#202).
-  // 누를 때마다 주간 줄·달력에 알려 미끄러지던 넘김을 버린다. 다 넘어간 뒤 확정하면 오늘의 주·달에서 한 페이지 더 간다
-  const [todayPresses, setTodayPresses] = useState(0);
+  // 오늘의 주·달을 보고 있어도 다른 주·달로 미끄러지는 중이면 그 넘김은 버린다
   const goToday = useCallback(() => {
-    setTodayPresses(count => count + 1);
+    slideRef.current?.cancelSlide();
     selectDate(today);
   }, [selectDate, today]);
 
@@ -329,7 +354,7 @@ function ScheduleScreenView({
             eventCounts={eventCounts}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={monthTouch}
-            resetKey={todayPresses}
+            ref={slideRef}
             onSelect={selectDate}
             onPrev={() => moveMonth(-1)}
             onNext={() => moveMonth(1)}
@@ -340,7 +365,7 @@ function ScheduleScreenView({
             selected={selected}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={weekTouch}
-            resetKey={todayPresses}
+            ref={slideRef}
             onSelect={selectDate}
             onPrev={() => moveWeek(-1)}
             onNext={() => moveWeek(1)}
@@ -356,7 +381,6 @@ function ScheduleScreenView({
       eventCounts,
       selectDate,
       goToday,
-      todayPresses,
       toggleCalendar,
       moveMonth,
       moveWeek,
@@ -495,7 +519,8 @@ const PENDING_TOP = 24;
 const TODAY_PADDING_HORIZONTAL = 12;
 const TODAY_PADDING_VERTICAL = 4;
 // 알약(48×28)을 최소 터치 영역으로 넓힌다. 폭은 글자 폭과 관계없이 좌우 여백만으로도 채우도록 왼쪽(날짜 글자 쪽 빈자리)으로
-// 넓힌다. 오른쪽은 달력 버튼(뒤 형제)이 왼쪽으로 넓힌 영역이 간격(달력 12)을 채우므로 넓히지 않는다.
+// 넓힌다. 오른쪽은 넓히지 않아 달력 버튼(뒤 형제)이 왼쪽으로 넓힌 영역과 겹치지 않고 둘 사이 간격(주간 16·월간 12) 안에
+// 머문다 (달력 버튼은 iOS 10·Android 12 를 넓혀 월간 iOS 2, 주간 iOS 6·Android 4 의 빈틈이 남는다).
 // 위·아래는 날짜 블록 위 여백(24)과 주간 줄·달력과의 간격(16) 안에 든다
 const TODAY_VERTICAL_SLOP = touchSlop(
   TODAY_PADDING_VERTICAL * 2 + smallestLineHeight('Caption/M/SemiBold'),

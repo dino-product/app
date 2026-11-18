@@ -269,6 +269,43 @@ describe('ScheduleScreen 렌더 예산', () => {
     30_000,
   );
 
+  // 이미 오늘의 주·달을 보고 오늘을 고르고 있으면 오늘을 눌러도 바뀌는 것이 없다 (#202)
+  it.each([
+    { label: '주간 줄', open: false },
+    { label: '펼친 달력', open: true },
+  ])(
+    '$label 에서 이미 오늘을 보고 있으면 오늘을 눌러도 다시 그리지 않는다',
+    async ({ open }) => {
+      const result = await measureRenders(
+        <ScheduleScreen
+          today={today}
+          confirmed={confirmed}
+          pending={pending}
+          onAccept={async () => true}
+          onReject={() => {}}
+          onOpenRequest={() => {}}
+        />,
+        {
+          scenario: async () => {
+            if (open) {
+              await fireEvent.press(
+                screen.getByRole('button', { name: '달력 펼치기' }),
+              );
+            }
+            await fireEvent.press(screen.getByRole('button', { name: '오늘' }));
+          },
+        },
+      );
+
+      // 마운트 1 (+ 펼치기 1). 오늘은 0
+      expect(Math.max(...result.counts)).toBe(open ? 2 : 1);
+      expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+        perfBudget.render.maxRedundantUpdates,
+      );
+    },
+    30_000,
+  );
+
   // #148: 상단 바를 숨기고 다시 보이는 것은 UI 스레드 애니메이션이다. 스크롤 중에 화면을 다시 그리지 않는다.
   // 애니메이션은 끝내지 않고 붙잡아 둔다 (프리셋 목은 16ms 뒤 저절로 끝나 측정이 흔들린다). 끝날 때는 RN Animated 가
   // 끝난 값을 맞추려고 머리 뷰(Animated.View)만 한 번 다시 그린다

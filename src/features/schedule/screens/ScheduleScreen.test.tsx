@@ -716,7 +716,70 @@ describe('ScheduleScreen — 오늘 버튼 (#202)', () => {
         expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
       },
     );
+
+    // 격자 끝의 다른 달 칸을 고르면 보이는 달이 그 달로 바뀐다. 그 넘김까지 확정하면 한 달 더 간다
+    it('월간: 다음 달로 미끄러지는 중에 다른 달 칸(1월 2일)을 누르면 그 날의 달에 머문다', async () => {
+      const { finish } = holdNativeAnimations();
+      await renderSchedule();
+      await userEvent.press(
+        screen.getByRole('button', { name: '달력 펼치기' }),
+      );
+      await layoutTrack('month-calendar-track');
+
+      await fireEvent.press(screen.getByRole('button', { name: '다음 달' }));
+      await fireEvent.press(
+        screen.getByRole('button', { name: '1월 2일 토요일' }),
+      );
+      await finish();
+
+      expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+      expect(screen.getByText('2027년 1월 2일 (토)')).toBeOnTheScreen();
+      expect(visibleSelectedDays()).toEqual(['1월 2일 토요일']);
+    });
+
+    // 보이는 달 안의 날을 고르면 넘김은 이어 간다 (주간 줄의 #100 동작과 같다)
+    it('월간: 미끄러지는 중에 이번 달 칸을 누르면 그 날을 고르고 넘김은 이어 간다', async () => {
+      const { finish } = holdNativeAnimations();
+      await renderSchedule();
+      await userEvent.press(
+        screen.getByRole('button', { name: '달력 펼치기' }),
+      );
+      await layoutTrack('month-calendar-track');
+
+      await fireEvent.press(screen.getByRole('button', { name: '다음 달' }));
+      await fireEvent.press(
+        screen.getByRole('button', { name: '12월 20일 일요일' }),
+      );
+      await finish();
+
+      expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+      expect(screen.getByText('2026년 12월 20일 (일)')).toBeOnTheScreen();
+      expect(visibleSelectedDays()).toEqual([]);
+    });
   });
+
+  // 이미 오늘의 주·달을 보고 오늘을 고르고 있으면 바뀌는 것이 없다
+  it.each([
+    ['주간', false],
+    ['월간', true],
+  ] as const)(
+    '%s: 이미 오늘을 보고 있으면 오늘을 눌러도 아무것도 바꾸지 않고 달을 다시 알리지 않는다',
+    async (_label, open) => {
+      const onVisibleMonthsChange = jest.fn();
+      await renderSchedule({ onVisibleMonthsChange });
+      if (open) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '달력 펼치기' }),
+        );
+      }
+      onVisibleMonthsChange.mockClear();
+
+      await pressToday();
+
+      expect(onVisibleMonthsChange).not.toHaveBeenCalled();
+      expect(visibleSelectedDays()).toEqual(['12월 15일 화요일']);
+    },
+  );
 
   // Figma 51030:18439·51030:18441: Gray100 알약(좌우 12·위아래 4, 모서리 54), 글자 Caption/M/Semibold Gray900.
   // 날짜 줄 오른쪽에서 달력 전환 버튼 왼쪽에 놓이고, 둘 사이는 주간 16(51030:18440)·월간 12(51030:18444)다
@@ -758,7 +821,7 @@ describe('ScheduleScreen — 오늘 버튼 (#202)', () => {
   });
 
   // 오늘 알약이 더해져 날짜 줄 오른쪽이 넓어졌다. 큰 글자·좁은 화면에서 날짜가 길어도 버튼을 화면 밖으로 밀지 않고 날짜가 줄을 바꾼다
-  it('날짜가 길면 오늘·달력 버튼을 밀어내지 않고 날짜 글자가 줄어든다', async () => {
+  it('날짜가 길면 오늘·달력 버튼을 밀어내지 않고 날짜가 줄을 바꾼다', async () => {
     await renderSchedule();
 
     expect(screen.getByText('2026년 12월 15일 (화)')).toHaveStyle({
@@ -1513,6 +1576,48 @@ describe('ScheduleScreen — 날짜가 바뀌면', () => {
     expect(onVisibleMonthsChange).toHaveBeenLastCalledWith([
       { year: 2027, month: 0 },
     ]);
+  });
+
+  // 넘김이 끝나기 전에 날짜가 바뀌어 새 오늘의 주·달로 옮기면 그 넘김은 버린다 (#202)
+  it('주간: 다음 주로 미끄러지는 중에 새 주의 오늘로 넘어가면 새 오늘의 주에 머문다', async () => {
+    const { finish } = holdNativeAnimations();
+    const { rerender } = await render(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 19)} />,
+    );
+    await fireEvent(screen.getByTestId('week-strip-track'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 345, height: 69 } },
+    });
+
+    await drag(weekStrip(), { dx: -80 });
+    await rerender(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 20)} />,
+    );
+    await finish();
+
+    expect(visibleSelectedDays()).toEqual(['12월 20일 일요일']);
+    expect(
+      screen.queryByRole('button', { name: '12월 27일 일요일' }),
+    ).not.toBeOnTheScreen();
+    jest.restoreAllMocks();
+  });
+
+  it('월간: 다음 달로 미끄러지는 중에 새 달의 오늘로 넘어가면 새 오늘의 달에 머문다', async () => {
+    const { finish } = holdNativeAnimations();
+    const { rerender } = await render(
+      <ScheduleScreen {...props} today={new Date(2026, 11, 31)} />,
+    );
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    await fireEvent(screen.getByTestId('month-calendar-track'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 345, height: 400 } },
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await rerender(<ScheduleScreen {...props} today={new Date(2027, 0, 1)} />);
+    await finish();
+
+    expect(screen.getByText('2027년 1월')).toBeOnTheScreen();
+    expect(visibleSelectedDays()).toEqual(['1월 1일 금요일']);
+    jest.restoreAllMocks();
   });
 
   it('다른 날을 직접 골라 보고 있었으면 그대로 둔다', async () => {

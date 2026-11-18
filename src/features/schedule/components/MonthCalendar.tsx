@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useImperativeHandle, useMemo, type Ref } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -25,7 +25,7 @@ import {
 } from '../model';
 import { dayA11yLabel, dayColor, weekdayHeaderColor } from './calendarDay';
 import { PAGE_OFFSETS, SwipeTrack, type PageOffset } from './SwipeTrack';
-import { useHorizontalSwipe } from './useHorizontalSwipe';
+import { useHorizontalSwipe, type SlideHandle } from './useHorizontalSwipe';
 import type { AreaTouchHandlers } from './useTouchScrollLock';
 
 // Figma 내 일정 › 달력 펼침 (3754:6457 의 51012:15491, Calendar Contents). 회색 바탕 위 흰 카드다. 선택일은 Primary 둥근 사각형,
@@ -43,7 +43,7 @@ export function MonthCalendar({
   onNext,
   edgeInset = 0,
   touchHandlers,
-  resetKey,
+  ref,
 }: {
   year: number;
   month: number;
@@ -60,10 +60,8 @@ export function MonthCalendar({
   edgeInset?: number;
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 가로로 미는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
-  /**
-   * 바깥에서 보이는 달을 바꿀 때(오늘 버튼, #202) 바꾸는 값. 바뀌면 미끄러지던 넘김을 버리고 지금 달에 머문다
-   */
-  resetKey?: unknown;
+  /** 바깥에서 보이는 달을 바꿀 때(오늘 버튼·다른 달 칸·자정, #202) 미끄러지던 넘김을 버리는 손잡이 */
+  ref?: Ref<SlideHandle>;
 }) {
   // 화면 가장자리 띠·달력 가장자리 여유에서 시작한 밀기는 탭 전환 몫이라 달을 넘기지 않는다 (#140)
   const tabSwipe = useTabSwipeRegion();
@@ -71,8 +69,10 @@ export function MonthCalendar({
     onPrev,
     onNext,
     ownsGesture: tabSwipe.ownsGesture,
-    resetKey,
   });
+  useImperativeHandle(ref, () => ({ cancelSlide: swipe.cancel }), [
+    swipe.cancel,
+  ]);
   const onTouchStart = (event: GestureResponderEvent) => {
     touchHandlers?.onTouchStart(event);
     tabSwipe.onTouchStart(event);
