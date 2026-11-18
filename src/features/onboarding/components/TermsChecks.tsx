@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
 import { requiredLabel, type Terms } from '../model';
 
@@ -85,9 +85,18 @@ export const TermsRow = memo(function OnboardingTermsRow({
   );
 });
 
-// 상자·체크 표시는 Figma 크기 그대로 두고 위아래를 최소 터치 영역까지 넓힌다
+/**
+ * 약관 행 사이 간격. Figma 는 행 20 에 간격 24 이고 체크 표시(24)가 위아래로 2씩 넘친다. 행을 체크 표시 높이(24)로 두고
+ * 간격 20 으로 같은 44 간격을 맞춘다. 넓힌 터치 영역(위아래 각각 간격의 절반까지)이 이웃 행과 겹치지 않으면서
+ * Android 최소 터치 영역 48 을 채우도록 Android 만 간격을 24 로 둔다 (행 사이 4 더 넓다)
+ */
+export const TERMS_ROW_GAP = Platform.select({ android: 24, default: 20 });
+
+// 상자·체크 표시는 Figma 크기 그대로 두고 위아래를 최소 터치 영역까지 넓힌다.
+// 약관 행은 이웃 행과 겹치지 않게 간격의 절반을 넘기지 않는다
 const CHECK_BOX_SLOP = { top: touchSlop(22), bottom: touchSlop(22) };
-const CHECK_MARK_SLOP = { top: touchSlop(24), bottom: touchSlop(24) };
+const ROW_SLOP = Math.min(touchSlop(24), TERMS_ROW_GAP / 2);
+const CHECK_MARK_SLOP = { top: ROW_SLOP, bottom: ROW_SLOP };
 
 const styles = StyleSheet.create({
   allRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

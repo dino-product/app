@@ -1,5 +1,9 @@
 import { render, screen } from '@testing-library/react-native';
-import { expectMinTouchTarget } from '../../../shared/testing/touchTarget';
+import { StyleSheet } from 'react-native';
+import {
+  expectMinTouchTarget,
+  hitSlopOf,
+} from '../../../shared/testing/touchTarget';
 import { noTermsAgreed } from '../model';
 import { LoginScreen } from './LoginScreen';
 import { TermsAgreementScreen } from './TermsAgreementScreen';
@@ -52,6 +56,21 @@ describe('온보딩 터치 영역', () => {
       expect(rows).toHaveLength(5);
       for (const row of rows) {
         expectMinTouchTarget(row, { height: 24 });
+      }
+    });
+
+    // 넓힌 터치 영역이 이웃 행까지 넘어가면 경계를 누를 때 엉뚱한 약관이 열린다 (Android 48 은 행 간격도 넓혀 맞춘다)
+    it('약관 행의 넓힌 터치 영역은 이웃 행과 겹치지 않는다', async () => {
+      await renderTerms();
+
+      const gap = StyleSheet.flatten(
+        screen.getByTestId('terms-rows').props.style,
+      ).gap;
+      for (const row of screen.getAllByRole('button', {
+        name: /\((필수|선택)\)$/,
+      })) {
+        const slop = hitSlopOf(row);
+        expect(slop.bottom + slop.top).toBeLessThanOrEqual(gap);
       }
     });
   });

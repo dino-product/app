@@ -9,7 +9,11 @@ import {
   standaloneScreen,
 } from '../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
-import { AgreeAllCheckbox, TermsRow } from '../components/TermsChecks';
+import {
+  AgreeAllCheckbox,
+  TERMS_ROW_GAP,
+  TermsRow,
+} from '../components/TermsChecks';
 import {
   ALL_TERMS_TYPES,
   allTermsAgreed,
@@ -86,7 +90,7 @@ export function TermsAgreementScreen({
             <AgreeAllCheckbox checked={allAgreed} onPress={agreeAll} />
           </View>
           <View style={styles.divider} />
-          <View style={styles.rows}>
+          <View style={styles.rows} testID="terms-rows">
             {termsList.map(terms => (
               <TermsRow
                 key={terms.type}
@@ -121,7 +125,6 @@ const styles = StyleSheet.create({
   agreements: { gap: 24 },
   allRow: { flexDirection: 'row' },
   divider: { height: 1, backgroundColor: colors.inputDisabled },
-  // Figma 는 행 20 에 간격 24 이고 체크 표시(24)가 위아래로 2씩 넘친다. 행을 체크 표시 높이로 두고 간격 20 으로
-  // 같은 44 간격을 맞춘다. 높이를 묶지 않아 큰 글자로 이름이 두 줄이 돼도 옆 행과 겹치지 않는다
-  rows: { gap: 20 },
+  // 행 사이 간격 (TERMS_ROW_GAP: iOS 20, Android 24). 높이를 묶지 않아 큰 글자로 이름이 두 줄이 돼도 옆 행과 겹치지 않는다
+  rows: { gap: TERMS_ROW_GAP },
 });
