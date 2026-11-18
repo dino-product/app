@@ -335,9 +335,10 @@ describe('App — 기사 작업 API (#155)', () => {
       await userEvent.press(accept);
 
       await waitFor(() =>
+        // 화면을 떠난 뒤에도 어느 요청인지 알 수 있게 작업 이름이 첫 줄이다 (#197)
         expect(alert).toHaveBeenCalledWith(
           '수락하지 못했어요',
-          '같은 작업이 동시에 바뀌어 처리하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
+          `${REQUEST.name}\n같은 작업이 동시에 바뀌어 처리하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.`,
         ),
       );
       await waitFor(() =>

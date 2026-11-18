@@ -32,6 +32,7 @@ import {
   isMissingWork,
   isUnavailableWork,
   MissingAssignmentError,
+  shouldRefetchAfter,
   workErrorMessage,
   type WorkCommand,
 } from '../../features/work/data/errors';
@@ -133,8 +134,17 @@ const failureTitles: Record<WorkCommand, string> = {
   start: '작업을 시작하지 못했어요',
   submit: '완료 보고를 제출하지 못했어요',
 };
-function alertWorkError(command: WorkCommand, error: unknown) {
-  Alert.alert(failureTitles[command], workErrorMessage(error, command));
+// 수락·거절은 화면을 떠난 뒤에 실패를 알 수 있어 어느 요청인지 작업 이름을 첫 줄에 함께 보인다 (#197)
+function alertWorkError(
+  command: WorkCommand,
+  error: unknown,
+  workName?: string,
+) {
+  const message = workErrorMessage(error, command);
+  Alert.alert(
+    failureTitles[command],
+    workName ? `${workName}\n${message}` : message,
+  );
 }
 
 /** 경로의 id (문자열) → 저장소의 id. 양의 정수가 아니면(옛 복원 상태 등) null */
@@ -465,7 +475,11 @@ export function ScheduleRoute({
         if (error instanceof MissingAssignmentError) {
           refetchPending();
         }
-        alertWorkError('accept', error);
+        alertWorkError(
+          'accept',
+          error,
+          pendingWorks.find(work => String(work.workId) === id)?.name,
+        );
         return false;
       }
     },
@@ -533,16 +547,16 @@ export function RequestDetailRoute({
             assignmentNumber: requireAssignment(work, detail.refetch),
           });
         } catch (error) {
-          alertWorkError('accept', error);
+          alertWorkError('accept', error, work.title);
           return false;
         }
-        // 낙관 반영 (#197): 서버 답을 기다리지 않고 돌아간다. 요청은 곧바로 응답 필요에서 빠지고,
-        // 실패하면 돌아오며 알린다 (화면을 떠난 뒤라도)
-        navigation.goBack();
+        // 낙관 반영 (#197): 서버 답을 기다리지 않고 떠난다(돌아갈 화면이 없으면 메인). 요청은 곧바로 응답 필요에서
+        // 빠지고, 실패하면 돌아오며 알린다 (화면을 떠난 뒤라도)
+        leaveRootScreen(navigation);
         try {
           await accepted;
         } catch (error) {
-          alertWorkError('accept', error);
+          alertWorkError('accept', error, work.title);
           return false;
         }
         return true;
@@ -566,7 +580,7 @@ export function RejectReasonRoute({
   const queryClient = useQueryClient();
   const rejectWork = useRejectWork().mutateAsync;
   // 거절 사유는 나갈 때 묻지 않으므로 화면을 스택에서 빼는 동작(취소·뒤로·스와이프)이 곧 버리기로 한 것이다.
-  // 제출로 나갈 때는 서버가 받을 때까지 남긴다 (실패하면 다시 거절할 때 이어 고른다, #197).
+  // 제출로 나갈 때는 서버가 받을 때까지 남긴다 (일시 오류로 실패하면 다시 거절할 때 이어 고른다, #197).
   // 앱이 종료될 때는 이 이벤트가 오지 않아 초안이 남는다.
   // 볼 수 없는 요청이면 아래 effect 가 닫으므로 그보다 먼저 듣는다 (effect 는 선언 순서대로 돈다).
   // 그렇게 닫을 때 요청이 확실히 없지 않으면(소속 문제) 잠시일 수 있어 고르던 사유를 남긴다 (#136, 작업 상세의 보고 초안과 같다)
@@ -607,11 +621,13 @@ export function RejectReasonRoute({
       onBack={() => navigation.goBack()}
       onSubmit={async ({ key, note }) => {
         let rejected: Promise<void>;
+        let workName: string | undefined;
         try {
           // 사유를 고르는 동안 상세가 아직 오지 않았을 수 있다
           const work = await queryClient.ensureQueryData(
             workDetailQuery(repository, workId),
           );
+          workName = work.title;
           rejected = rejectWork({
             workId,
             assignmentNumber: requireAssignment(work, detail.refetch),
@@ -619,17 +635,21 @@ export function RejectReasonRoute({
             note,
           });
         } catch (error) {
-          alertWorkError('reject', error);
+          alertWorkError('reject', error, workName);
           throw error;
         }
         // 낙관 반영 (#197): 서버 답을 기다리지 않고 내 일정까지 돌아간다(요청 상세에서 왔어도). 요청은 곧바로
-        // 응답 필요에서 빠지고, 실패하면 돌아오며 알린다. 고른 사유는 서버가 받을 때까지 남겨 다시 거절하면 이어 고른다
+        // 응답 필요에서 빠지고, 실패하면 돌아오며 알린다. 고른 사유는 서버가 받을 때까지 남겨, 일시 오류로 실패하면
+        // 다시 거절할 때 이어 고른다. 이미 처리됐거나 바뀐 요청(-010·-002·-016)이면 다시 거절할 일이 없어 지운다
         keepDraftOnLeave.current = true;
         navigation.popTo('Main');
         try {
           await rejected;
         } catch (error) {
-          alertWorkError('reject', error);
+          if (shouldRefetchAfter(error)) {
+            clearRejectDraft(requestId);
+          }
+          alertWorkError('reject', error, workName);
           throw error;
         }
         clearRejectDraft(requestId);
