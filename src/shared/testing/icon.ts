@@ -12,3 +12,21 @@ export function iconSvgIn(button: HostElement): HostElement {
   }
   return svg;
 }
+
+/** element 아래에서 xml 이 같은 SVG 뷰를 그린 순서대로 모두 찾는다. testID 없이 화면 속 아이콘을 찾을 때 쓴다 */
+export function svgViewsDrawing(
+  element: HostElement | null,
+  xml: string,
+): HostElement[] {
+  if (element === null) {
+    return [];
+  }
+  return element.children.flatMap(child =>
+    typeof child === 'string'
+      ? []
+      : [
+          ...(child.props.xml === xml ? [child] : []),
+          ...svgViewsDrawing(child, xml),
+        ],
+  );
+}

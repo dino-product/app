@@ -3,16 +3,16 @@ import type { Rect } from '../../shared/gesture/tabSwipe';
 import type { ScrollMetrics } from '../../shared/layout/autoHideHeader';
 
 // 작업 이력 상단 바 접힘 (#175, Figma 작업이력 (기본) 3753:4890 → (스크롤) 50833:6839).
-// 맨 위에서는 제목 '작업 이력' 과 ◀ 월 ▶ 이 보이고, 조금이라도 내리면 제목이 짧은 페이드로 사라지고 월 글자가 바로
-// 위(접힌 바)로 올라가 흡수된다. 스크롤 양에 따라 중간에 멈추지 않는 원자적 전환이다: 진행도 하나(0 펼침, 1 접힘)를
+// 맨 위에서는 제목 '작업 이력' 과 ◀ 월 ▶ 이 보이고, 조금이라도 내리면 제목이 윗변을 축으로 납작하게 접히며 바 안으로 들어가고
+// 월 글자가 바로 위(접힌 바)로 올라가 흡수된다. 스크롤 양에 따라 중간에 멈추지 않는 원자적 전환이다: 진행도 하나(0 펼침, 1 접힘)를
 // 정해진 시간·곡선으로 끝까지 돌리고, 각 부분은 그 진행도를 키프레임으로 보간한다. 펼침은 같은 곡선으로 진행도를 1 → 0 으로
-// 돌린다 (접힘의 시간축을 뒤집은 것: 제목은 마지막에 나타난다). 이 파일은 판단·값만 두고, 애니메이션은 useHeaderCollapse 가 돌린다.
-// 사용자가 HTML 시안 6가지 중 고른 '짧은 페이드' 의 키프레임 그대로다.
+// 돌린다 (접힘의 시간축을 뒤집은 것: 제목은 마지막에 펼쳐진다). 이 파일은 판단·값만 두고, 애니메이션은 useHeaderCollapse 가 돌린다.
+// 사용자가 HTML 시안 중 고른 '접어 넣기'(#204, 처음 고른 #175 '짧은 페이드' 를 바꿈) 의 키프레임 그대로다.
 
 /** 이 위치(pt)보다 아래로 내리면 접는다. 펼치는 것은 맨 위(0)에 닿았을 때뿐이다 */
 export const COLLAPSE_AFTER = 12;
 /** 접힘·펼침 시간 (ms) */
-export const COLLAPSE_MS = 260;
+export const COLLAPSE_MS = 240;
 /** cubic-bezier(0.2, 0, 0, 1): 빠르게 출발해 부드럽게 멈춘다 */
 export const collapseEasing = Easing.bezier(0.2, 0, 0, 1);
 
@@ -30,9 +30,8 @@ type Keyframes = { inputRange: number[]; outputRange: number[] };
 
 /** 진행도(0 펼침 → 1 접힘)에 맞춘 각 부분의 값. Animated 의 interpolate 설정으로 그대로 넘긴다 */
 export const collapseKeyframes = {
-  // 제목은 앞 33% 안에 사라지고 그 뒤로는 0 이다 (중간 장면에 반투명한 제목이 남지 않는다)
-  titleOpacity: { inputRange: [0, 0.33, 1], outputRange: [1, 0, 0] },
-  titleTranslateY: { inputRange: [0, 0.33, 1], outputRange: [0, -6, -6] },
+  // 제목은 윗변을 축으로 세로로 접혀 55% 에 납작해지고(0) 그 뒤로는 그대로다. 투명도·위치는 바꾸지 않는다
+  titleScaleY: { inputRange: [0, 0.55, 1], outputRange: [1, 0, 0] },
   // 화살표는 앞 35% 안에 월 글자 쪽으로 8 들어가며 반으로 줄어 사라진다
   arrowOpacity: { inputRange: [0, 0.35, 1], outputRange: [1, 0, 0] },
   arrowScale: { inputRange: [0, 0.35, 1], outputRange: [1, 0.5, 0.5] },

@@ -61,7 +61,7 @@ export function RejectReasonScreen({
 }: {
   /** 뒤로 가기·취소 */
   onBack: () => void;
-  /** 거절을 보낸다. 보내는 동안(약속이 끝날 때까지) 거절 제출을 잠근다. 실패 안내는 부른 쪽이 한다 */
+  /** 거절을 보낸다. 보내는 동안(약속이 끝날 때까지) 다시 보내지 않는다. 낙관 반영·실패 안내는 부른 쪽이 한다 */
   onSubmit: (rejection: Rejection) => void | Promise<void>;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
@@ -84,9 +84,9 @@ export function RejectReasonScreen({
   const [focusOnOpen, setFocusOnOpen] = useState(!restoredExpanded);
   const reduceMotion = useReduceMotion();
   const reveal = useReveal(restoredExpanded);
-  // 보내는 동안 거절 제출을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
-  const [submitting, setSubmitting] = useState(false);
-  const submittingRef = useRef(false);
+  // 거절(POST)은 낙관적으로 반영한다 (#197). 보내는 동안 거절 제출 모양(Figma 기본)은 그대로 두고 다시 누른 것만 받지 않는다.
+  // 비활성으로 바꾸면 Disabled 채움(사유를 고르기 전 모양)이 된다
+  const submitting = useRef(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollMetrics = useScrollMetrics();
   // 다 접혔지만 스크롤이 줄어들 끝까지 오기를 기다리는 중이다. 오면 섹션을 내린다
@@ -263,11 +263,10 @@ export function RejectReasonScreen({
   }, [expanded]);
 
   const send = async (rejection: Rejection) => {
-    if (submittingRef.current) {
+    if (submitting.current) {
       return;
     }
-    submittingRef.current = true;
-    setSubmitting(true);
+    submitting.current = true;
     try {
       await onSubmit(rejection);
       // 햅틱은 결과다: 서버가 거절을 받았을 때만 울린다 (#32)
@@ -275,8 +274,7 @@ export function RejectReasonScreen({
     } catch {
       // 실패 안내는 부른 쪽이 한다. 고른 사유를 둔 채 다시 보낼 수 있게 한다
     } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
+      submitting.current = false;
     }
   };
 
@@ -417,7 +415,7 @@ export function RejectReasonScreen({
         <CTA
           label="거절 제출"
           onPress={submit}
-          disabled={selected === null || submitting}
+          disabled={selected === null}
           style={styles.action}
         />
       </View>

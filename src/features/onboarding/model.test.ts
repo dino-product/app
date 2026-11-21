@@ -1,12 +1,12 @@
 import {
   allTermsAgreed,
+  allTermsAgreedWith,
   canRegisterProfile,
   canSignUp,
+  isTermsType,
   loginMethodsFor,
   noTermsAgreed,
   termsList,
-  toggleAllTerms,
-  toggleTerm,
   withRo,
   type TermsAgreement,
 } from './model';
@@ -48,7 +48,7 @@ describe('약관', () => {
 
   const agreeing = (...types: (keyof TermsAgreement)[]): TermsAgreement =>
     types.reduce(
-      (agreement, type) => toggleTerm(agreement, type),
+      (agreement, type) => ({ ...agreement, [type]: true }),
       noTermsAgreed,
     );
 
@@ -68,19 +68,17 @@ describe('약관', () => {
       false,
     );
   });
+});
 
-  it('하나를 누르면 그것만 켜지고, 다시 누르면 꺼진다', () => {
-    const once = toggleTerm(noTermsAgreed, 'MARKETING');
-    expect(once).toEqual({ ...noTermsAgreed, MARKETING: true });
-    expect(toggleTerm(once, 'MARKETING')).toEqual(noTermsAgreed);
+describe('약관 모두 같은 값으로 (#193)', () => {
+  it('모두 동의·모두 끄기', () => {
+    expect(allTermsAgreed(allTermsAgreedWith(true))).toBe(true);
+    expect(allTermsAgreedWith(false)).toEqual(noTermsAgreed);
   });
 
-  it('전체 동의는 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끈다', () => {
-    const all = toggleAllTerms(agreeing('SERVICE'));
-
-    expect(allTermsAgreed(all)).toBe(true);
-    expect(canSignUp(all)).toBe(true);
-    expect(toggleAllTerms(all)).toEqual(noTermsAgreed);
+  it('약관 종류인지', () => {
+    expect(isTermsType('MARKETING')).toBe(true);
+    expect(isTermsType('service')).toBe(false);
   });
 });
 

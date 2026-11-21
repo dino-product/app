@@ -5,6 +5,8 @@ import {
 } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { requestChannelLabels } from '../../features/my/org/model';
+import { ALL_TERMS_TYPES } from '../../features/onboarding/model';
+import { myPageTermsTitles } from '../../features/terms/documents';
 import {
   appStorage,
   isRecord,
@@ -118,6 +120,12 @@ const myStack = {
   NotificationSettings: once,
   NotificationCenter: once,
   Terms: once,
+  TermsDetail: {
+    params: params =>
+      isRecord(params) &&
+      typeof params.terms === 'string' &&
+      Object.prototype.hasOwnProperty.call(myPageTermsTitles, params.terms),
+  },
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,
@@ -126,6 +134,7 @@ const myStack = {
   OrgJoinRequested: joinRequest,
   OrgJoinRejected: byRequest,
   OrgJoinRequests: once,
+  OrgJoinReview: byRequest,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
 const mainTabs = {
   home: nested(homeStack),
@@ -144,6 +153,12 @@ const mainTabs = {
 const onboardingStack = {
   ProfileRegister: once,
   TermsAgreement: once,
+  TermsDetail: {
+    params: params =>
+      isRecord(params) &&
+      Array.isArray(params.types) &&
+      params.types.every(type => ALL_TERMS_TYPES.includes(type)),
+  },
   CompanyFind: companyFind,
   CompanyQrScan: once,
   JoinRoleSelect: joinTarget,

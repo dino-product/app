@@ -24,14 +24,15 @@ import {
 import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
 import { SWITCH_DISTANCE, type Rect } from '../../../shared/gesture/tabSwipe';
 import * as tabSwipeArea from '../../../shared/gesture/TabSwipeArea';
-import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { scrollListTo } from '../../../shared/testing/autoHideHeader';
 import { TabEnterContext } from '../../../shared/layout/tabEnter';
+import { expectMessageOnly } from '../../../shared/testing/emptyState';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
-import type { HostElement } from '../../../shared/testing/touchTarget';
+import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { COLLAPSE_MS, collapseEasing } from '../headerCollapse';
 import type { CompletedWork } from '../model';
 import {
@@ -164,6 +165,23 @@ function transformOf(element: HostElement, key: string): number | undefined {
     | undefined;
   return transform?.find(item => key in item)?.[key];
 }
+/** 제목이 접힌 정도 (세로 배율, 1 펼침 · 0 다 접힘) */
+const titleFold = () => transformOf(part('work-history-title'), 'scaleY');
+/** 요소 안의 아이콘 SVG */
+function iconSvgIn(element: HostElement): HostElement {
+  const queue: HostElement[] = [element];
+  for (let node = queue.shift(); node; node = queue.shift()) {
+    if (node.props.xml !== undefined) {
+      return node;
+    }
+    for (const child of node.children) {
+      if (typeof child !== 'string') {
+        queue.push(child);
+      }
+    }
+  }
+  throw new Error('아이콘이 없습니다');
+}
 const layout = (height: number, y = 0) => ({
   nativeEvent: { layout: { x: 0, y, width: 390, height } },
 });
@@ -185,8 +203,12 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
       ...typography['Body/XL/SemiBold'],
       color: colors.black,
     });
+    // 상태 표시줄 아래 8 은 접히는 부분 바깥(위)에 둔다. 접히는 축이 제목 줄 윗변에 오게 한다 (#204)
+    const folding = part('work-history-title');
+    expect(folding).toContainElement(title);
+    expect(folding.parent).toHaveStyle({ paddingTop: 8 });
     expect(title.parent?.parent).toHaveStyle({
-      paddingTop: 8,
+      paddingTop: 0,
       paddingHorizontal: 24,
     });
     expect(screen.queryByRole('button', { name: '알림센터' })).toBeNull();
@@ -206,6 +228,23 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
       ...typography['Body/M/SemiBold'],
       color: colors.gray[800],
     });
+  });
+
+  // Figma 작업이력 (기본) 50929:14830 · 50929:14833: 채운 삼각형 Gray400 #AAAAAA (#204 에서 함께 맞춤)
+  it('◀ ▶ 는 Figma 의 Gray400 채운 삼각형이고, 이번 달에서 ▶ 는 흐린 Gray100 이다', async () => {
+    await renderHistory();
+
+    const prev = iconSvgIn(prevMonth());
+    expect(prev.props.xml).toBe(iconSvgs['triangle-left'].xml);
+    expect(prev.props.color).toBe(colors.gray[400]);
+    expect(colors.gray[400]).toBe('#AAAAAA');
+    // 오늘이 속한 달이라 다음 달로 갈 수 없다
+    expect(iconSvgIn(nextMonth()).props.color).toBe(colors.gray[100]);
+
+    await userEvent.press(prevMonth());
+    const next = iconSvgIn(nextMonth());
+    expect(next.props.xml).toBe(iconSvgs['triangle-right'].xml);
+    expect(next.props.color).toBe(colors.gray[400]);
   });
 
   it('바는 화면 바탕과 같아 구분되지 않는다 (회색 배경·그림자는 아직 투명하다)', async () => {
@@ -272,7 +311,7 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
   });
 });
 
-// #175: Figma 작업이력 (스크롤) 50833:6839. 스크롤하면 제목이 짧은 페이드로 사라지고 월 선택이 바로 바에 흡수된다.
+// #175: Figma 작업이력 (스크롤) 50833:6839. 스크롤하면 제목이 윗변을 축으로 접히며 사라지고(#204 접어 넣기) 월 선택이 바로 바에 흡수된다.
 // 스크롤 양에 따라 중간에 멈추지 않는다: 시작한 전환은 UI 스레드에서 끝까지 간다
 describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => {
   let finishAnimations: () => Promise<void>;
@@ -287,7 +326,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
       .mockImplementation(() => Promise.resolve(false));
   });
 
-  it('12 까지는 그대로이고, 넘게 내리면 260ms 감속 곡선의 UI 스레드 전환 하나로 접는다', async () => {
+  it('12 까지는 그대로이고, 넘게 내리면 240ms 감속 곡선의 UI 스레드 전환 하나로 접는다', async () => {
     const timing = jest.spyOn(Animated, 'timing');
     await renderHistory();
 
@@ -308,9 +347,12 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await scrollListTo(list(), 300);
     await finishAnimations();
 
+    // 제목은 윗변을 축으로 세로 0 까지 접힌다. 투명해지거나 위로 밀리지 않는다 (#204)
     const title = part('work-history-title');
-    expect(styleOf(title).opacity).toBe(0);
-    expect(transformOf(title, 'translateY')).toBe(-6);
+    expect(titleFold()).toBe(0);
+    expect(title).toHaveStyle({ transformOrigin: 'top' });
+    expect(styleOf(title).opacity).toBeUndefined();
+    expect(transformOf(title, 'translateY')).toBeUndefined();
     // 바 배경은 펼친 바(108)의 아래 끝에서 40 올라가 68 에서 끝난다
     const background = part('work-history-bar-background');
     expect(background).toHaveStyle({ bottom: 0 });
@@ -352,7 +394,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
 
     await finishAnimations();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
     expect(
       transformOf(part('work-history-bar-background'), 'translateY'),
@@ -378,7 +420,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     expect(timing.mock.calls[1][1]).toEqual(COLLAPSE_TIMING(0));
 
     await finishAnimations();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
   });
 
   it('전환이 끝나기 전에 원래 조건으로 돌아오면 반대로 돌아가지 않는다', async () => {
@@ -391,7 +433,7 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await finishAnimations();
 
     expect(timing).toHaveBeenCalledTimes(1);
-    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+    expect(titleFold()).toBe(0);
   });
 
   it('동작 줄이기면 애니메이션 없이 바로 접고 바로 펼친다', async () => {
@@ -403,11 +445,11 @@ describe('WorkHistoryScreen — 스크롤하면 상단 바가 접힌다', () => 
     await act(async () => {});
 
     await scrollListTo(list(), 300);
-    expect(styleOf(part('work-history-title')).opacity).toBe(0);
+    expect(titleFold()).toBe(0);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(1);
 
     await scrollListTo(list(), 0);
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
     expect(timing).not.toHaveBeenCalled();
   });
@@ -561,7 +603,7 @@ describe('WorkHistoryScreen — 맨 위에서 더 당길 때 (#178)', () => {
     await scrollListTo(list(), -40);
     await finishAnimations();
     expect(styleOf(bar()).transform).toBeUndefined();
-    expect(styleOf(part('work-history-title')).opacity).toBe(1);
+    expect(titleFold()).toBe(1);
   });
 });
 
@@ -685,7 +727,7 @@ describe('WorkHistoryScreen — 두 상태의 불러오기·빈 상태 (#175)', 
         <WorkHistoryScreen today={today} works={[]} onOpenWork={jest.fn()} />,
       );
       expect(
-        screen.getByText('이 달에 완료한 작업이 없어요'),
+        screen.getByText('이 달에 완료한 작업이 없습니다'),
       ).toBeOnTheScreen();
       expect(
         StyleSheet.flatten(list().props.contentContainerStyle),
@@ -740,31 +782,37 @@ describe('WorkHistoryScreen — 월 이동', () => {
   it('고른 달에 완료 작업이 없으면 빈 상태를 보여준다', async () => {
     await renderHistory();
     expect(
-      screen.queryByText('이 달에 완료한 작업이 없어요'),
+      screen.queryByText('이 달에 완료한 작업이 없습니다'),
     ).not.toBeOnTheScreen();
 
     await userEvent.press(prevMonth());
     await userEvent.press(prevMonth());
 
     expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
-    expect(screen.getByText('이 달에 완료한 작업이 없어요')).toBeOnTheScreen();
+    expect(
+      screen.getByText('이 달에 완료한 작업이 없습니다'),
+    ).toBeOnTheScreen();
     expect(screen.getByLabelText('이번 달 완료 0건')).toBeOnTheScreen();
   });
 
-  it('빈 상태 아이콘은 화살표 없는 채운 시계(Gray300, 40)다', async () => {
+  // #196: Figma 작업이력 (기본) 51019:16207 — 요약 카드 묶음(Frame 51019:16287) 아래 gap 60 에
+  // '이 달에 완료한 작업이 없습니다' (51019:16229: Body/XS/Regular, Gray600, 폭 345 가운데) 한 줄이고 아이콘·설명이 없다
+  it('빈 상태는 아이콘 없이 Body/XS/Regular Gray600 가운데 글 한 줄이 요약 카드 아래 60 에 놓인다', async () => {
     await renderHistory({ works: [] });
 
-    const icon = screen.getByTestId('history-empty-icon', {
-      includeHiddenElements: true,
+    const message = screen.getByText('이 달에 완료한 작업이 없습니다');
+    expect(message).toHaveStyle({
+      ...typography['Body/XS/Regular'],
+      color: colors.gray[600],
+      textAlign: 'center',
+      // 요약 카드와 같은 좌우 24 안(폭 345)
+      paddingHorizontal: 24,
     });
-    expect(icon).toHaveStyle({ width: 40, height: 40 });
-    const [svg] = icon.children;
-    if (typeof svg === 'string') {
-      throw new Error('SVG 뷰가 없습니다');
-    }
-    expect(svg.props.xml).toBe(iconSvgs['history-empty'].xml);
-    expect(svg.props.xml).not.toContain('M5 2.667V6.167H8.5');
-    expect(svg.props.color).toBe(colors.gray[300]);
+    expectMessageOnly(message);
+    const header = screen.getByTestId('work-history-list-header');
+    expect(
+      stylePt(header, 'paddingBottom') + stylePt(message, 'paddingTop'),
+    ).toBe(60);
   });
 });
 
@@ -799,7 +847,7 @@ describe('WorkHistoryScreen — 좌우로 밀어 월 이동 (#153)', () => {
     await renderHistory();
     await swipeRows({ dx: FAR });
     await swipeRows({ dx: FAR });
-    const empty = screen.getByText('이 달에 완료한 작업이 없어요');
+    const empty = screen.getByText('이 달에 완료한 작업이 없습니다');
     expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
 
     await swipeRows({ dx: -FAR }, empty);
@@ -888,7 +936,7 @@ describe('WorkHistoryScreen — 월 전환 애니메이션 (#153)', () => {
     await animations.finish();
     await userEvent.press(prevMonth());
     expect(
-      shiftOf(screen.getByText('이 달에 완료한 작업이 없어요')).translateX,
+      shiftOf(screen.getByText('이 달에 완료한 작업이 없습니다')).translateX,
     ).toBe(-ENTER_OFFSET);
   });
 
@@ -1210,7 +1258,7 @@ describe('WorkHistoryScreen — 불러오기', () => {
 
     expectOnlySkeletons('work-rows-skeleton');
     expect(
-      screen.queryByText('이 달에 완료한 작업이 없어요'),
+      screen.queryByText('이 달에 완료한 작업이 없습니다'),
     ).not.toBeOnTheScreen();
   });
 

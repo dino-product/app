@@ -112,7 +112,6 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   onAccept,
   onReject,
   onOpen,
-  disabled = false,
 }: {
   item: PendingRequest;
   /** 시간 뒤의 날짜 (formatCardDay) */
@@ -120,8 +119,6 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onOpen: (id: string) => void;
-  /** 이 요청의 수락을 보내는 동안 거절·수락을 잠근다 */
-  disabled?: boolean;
 }) {
   // 카드 안쪽에서 시작한 가로 밀기로는 탭을 바꾸지 않는다 (#140)
   const tabSwipe = useTabSwipeRegion();
@@ -141,7 +138,6 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
           variant="outline"
           label="거절"
           onPress={() => onReject(item.id)}
-          disabled={disabled}
           style={styles.action}
           accessibilityLabel={`${item.title} 거절`}
         />
@@ -149,7 +145,6 @@ export const PendingRequestCard = memo(function PendingRequestCardView({
           type="modal"
           label="수락"
           onPress={() => onAccept(item.id)}
-          disabled={disabled}
           style={styles.action}
           accessibilityLabel={`${item.title} 수락`}
         />

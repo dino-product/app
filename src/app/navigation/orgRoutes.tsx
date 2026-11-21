@@ -17,7 +17,10 @@ import type {
 } from '../../features/my/org/model';
 import { useParticipationRequest } from '../../features/my/org/participationQueries';
 import { JoinRejectedScreen } from '../../features/my/org/screens/JoinRejectedScreen';
-import { JoinRequestedScreen } from '../../features/my/org/screens/JoinRequestedScreen';
+import {
+  joinRequestedTitle,
+  JoinRequestedScreen,
+} from '../../features/my/org/screens/JoinRequestedScreen';
 import { JoinRequestsScreen } from '../../features/my/org/screens/JoinRequestsScreen';
 import { OrgJoinScreen } from '../../features/my/org/screens/OrgJoinScreen';
 import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
@@ -308,7 +311,7 @@ export function JoinRequestedRoute({
   return (
     <ParticipationRequestGate
       requestId={requestId}
-      title="조직 참여하기"
+      title={joinRequestedTitle('my')}
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
       onMissing={leave}
@@ -317,6 +320,64 @@ export function JoinRequestedRoute({
         <JoinRequestedScreen
           // 서버는 요청 경로를 돌려주지 않아 보낸 화면이 넘긴 값을 쓴다
           request={{ ...request, requestChannel }}
+          titleRef={titleRef}
+          onConfirm={backToMyPage}
+          onCanceled={backToMyPage}
+          onAlreadyDecided={backToMyPage}
+          onBack={() => navigation.goBack()}
+        />
+      )}
+    </ParticipationRequestGate>
+  );
+}
+
+// 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199). 요청 완료 화면에 맥락 제목·사무실 검토 중 진행·상태 칩을 더한다.
+// 그사이 사무실이 결정했으면(승인 대기가 아님) 빈 화면 대신 마이페이지로 돌아간다. 참여 완료 화면은 참여 승인 알림으로만 연다.
+// 떠날 때는 이 화면만 마이 스택에서 뺀다 (한 번만):
+// - 신청을 취소하면 게이트의 '없는 요청'(onMissing)과 취소 결과(onCanceled)가 함께 온다. 뒤로 가기(goBack)는 스택에
+//   마이페이지만 남은 뒤 다시 불리면 탭 내비게이터가 받아 홈 탭으로 간다
+// - 이 화면 위에 다른 화면이 쌓인 채 결정이 나면(알림으로 연 같은 요청의 거절 화면 등, 리뷰 #210) 아래의 이 화면이 떠난다.
+//   popTo(마이페이지)는 위의 화면까지 지운다
+export function JoinReviewRoute({
+  navigation,
+  route,
+}: MyScreenProps<'OrgJoinReview'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const left = useRef(false);
+  const backToMyPage = useCallback(() => {
+    if (left.current) {
+      return;
+    }
+    left.current = true;
+    navigation.dispatch(state => {
+      const routes = state.routes.filter(item => item.key !== route.key);
+      if (routes.length === 0) {
+        return CommonActions.reset({
+          index: 0,
+          routes: [{ name: MY_INITIAL_ROUTE }],
+        });
+      }
+      return CommonActions.reset({
+        ...state,
+        routes,
+        index: routes.length - 1,
+      });
+    });
+  }, [navigation, route.key]);
+
+  return (
+    <ParticipationRequestGate
+      requestId={route.params.requestId}
+      status="PENDING"
+      title={joinRequestedTitle('my', 'reviewing')}
+      titleRef={titleRef}
+      onBack={() => navigation.goBack()}
+      onMissing={backToMyPage}
+    >
+      {request => (
+        <JoinRequestedScreen
+          stage="reviewing"
+          request={request}
           titleRef={titleRef}
           onConfirm={backToMyPage}
           onCanceled={backToMyPage}

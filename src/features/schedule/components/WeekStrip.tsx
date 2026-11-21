@@ -1,3 +1,4 @@
+import { useImperativeHandle, type Ref } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -12,7 +13,7 @@ import { GestureExclusionArea } from '../../../shared/native/GestureExclusionAre
 import { addWeeks, isSameDay, WEEKDAYS } from '../model';
 import { dayA11yLabel, dayColor, weekA11yLabel } from './calendarDay';
 import { SwipeTrack, type PageOffset } from './SwipeTrack';
-import { useHorizontalSwipe } from './useHorizontalSwipe';
+import { useHorizontalSwipe, type SlideHandle } from './useHorizontalSwipe';
 import type { AreaTouchHandlers } from './useTouchScrollLock';
 
 // VoiceOver 는 한 손가락 밀기를 탐색에 쓰므로 날짜마다 이전·다음 주 동작을 단다 (위·아래로 쓸어 넘긴다)
@@ -36,6 +37,7 @@ export function WeekStrip({
   onNext,
   edgeInset = 0,
   touchHandlers,
+  ref,
 }: {
   /** 보이는 주 (일요일~토요일). 고른 날이 없는 주일 수 있다 */
   days: readonly Date[];
@@ -52,6 +54,8 @@ export function WeekStrip({
   edgeInset?: number;
   /** 루트에 다는 터치 핸들러. 리스트 머리에 두면 만지는 동안 리스트 스크롤을 막는 데 쓴다 */
   touchHandlers?: AreaTouchHandlers;
+  /** 바깥에서 보이는 주를 바꿀 때(오늘 버튼·자정, #202) 미끄러지던 넘김을 버리는 손잡이 */
+  ref?: Ref<SlideHandle>;
 }) {
   // 화면 가장자리 띠·줄 가장자리 여유에서 시작한 밀기는 탭 전환 몫이라 주를 넘기지 않는다 (#140)
   const tabSwipe = useTabSwipeRegion();
@@ -60,6 +64,9 @@ export function WeekStrip({
     onNext,
     ownsGesture: tabSwipe.ownsGesture,
   });
+  useImperativeHandle(ref, () => ({ cancelSlide: swipe.cancel }), [
+    swipe.cancel,
+  ]);
   const onTouchStart = (event: GestureResponderEvent) => {
     touchHandlers?.onTouchStart(event);
     tabSwipe.onTouchStart(event);

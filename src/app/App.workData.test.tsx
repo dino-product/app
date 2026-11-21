@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   screen,
   userEvent,
@@ -15,6 +16,9 @@ import {
   makeLocalSeed,
 } from '../features/work/data/localSeedTesting';
 import { ApiError, ApiErrorMessage } from '../shared/api';
+import { SKELETON_LABEL } from '../shared/design-system';
+import { appStorage, writeJson } from '../shared/storage/appStorage';
+import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   APP_TEST_NOW,
   findHomeLoaded,
@@ -103,10 +107,11 @@ describe('App — 작업 데이터 (#114)', () => {
         screen.getAllByRole('button', { name: /수락$/ })[0],
       );
 
+      // 응답 필요 첫 요청은 내일의 도어록 교체(106)다
       await waitFor(() =>
         expect(alert).toHaveBeenCalledWith(
           '수락하지 못했어요',
-          ApiErrorMessage.network,
+          `도어록 교체\n${ApiErrorMessage.network}`,
         ),
       );
       const buttons = screen.getAllByRole('button', { name: /수락$/ });
@@ -140,35 +145,285 @@ describe('App — 작업 데이터 (#114)', () => {
       await waitFor(() => expect(read).toHaveBeenCalled());
     });
 
-    it('거절이 실패하면 거절 사유에 머물러 다시 낼 수 있다', async () => {
-      const alert = spyAlert();
-      const { repository, render } = setup();
-      jest
-        .spyOn(repository, 'rejectWork')
-        .mockRejectedValue(scheduleError(409, 'SCHEDULE-002'));
-      await openPending(render);
+    // #197 수락·거절(POST)은 서버 답을 기다리지 않고 곧바로 반영한다(낙관 반영). 실패하면 돌아오고 알린다
+    describe('낙관 반영', () => {
+      // 서버가 아직 답하지 않은 동안
+      const unanswered = () => new Promise<void>(() => {});
+      // 테스트가 정한 때 답한다
+      function later() {
+        let fail: (error: unknown) => void = () => {};
+        const send = jest.fn(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              fail = reject;
+            }),
+        );
+        return { send, fail: (error: unknown) => fail(error) };
+      }
+      const acceptButtons = () =>
+        screen.queryAllByRole('button', { name: /수락$/ });
+      const rejectButtons = () =>
+        screen.queryAllByRole('button', { name: /거절$/ });
+      // 스켈레톤은 불러오기(GET)에만 쓴다. 변경(POST)을 기다리는 동안에는 보이지 않는다
+      const skeletons = () =>
+        screen.queryAllByLabelText(SKELETON_LABEL, {
+          includeHiddenElements: true,
+        });
 
-      await userEvent.press(
-        screen.getAllByRole('button', { name: /거절$/ })[0],
-      );
-      await userEvent.press(
-        screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
-      );
-      await userEvent.press(screen.getByRole('button', { name: '거절 제출' }));
+      async function openRequestDetail(render: () => Promise<unknown>) {
+        const before = (await openPending(render)).length;
+        await userEvent.press(
+          screen.getAllByRole('button', { name: / 상세,/ })[0],
+        );
+        await screen.findByRole('button', { name: '수락' });
+        return before;
+      }
 
-      await waitFor(() =>
-        expect(alert).toHaveBeenCalledWith(
-          '거절하지 못했어요',
-          '이미 처리됐거나 바뀐 요청이라 거절하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
-        ),
-      );
-      expect(
-        screen.getByRole('header', { name: '거절 사유' }),
-      ).toBeOnTheScreen();
-      expect(
-        screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
-      ).toBeChecked();
-      expect(screen.getByRole('button', { name: '거절 제출' })).toBeEnabled();
+      async function submitRejection() {
+        await userEvent.press(
+          screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+        );
+        await userEvent.press(
+          screen.getByRole('button', { name: '거절 제출' }),
+        );
+      }
+
+      it('응답 필요에서 수락하면 서버 답 전에 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(acceptButtons()[0]);
+
+        expect(acceptButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
+      });
+
+      it('요청 상세에서 수락하면 서버 답을 기다리지 않고 내 일정으로 돌아가며 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        const before = await openRequestDetail(render);
+
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+
+        expect(
+          await screen.findByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('header', { name: '작업 상세' }),
+        ).not.toBeOnTheScreen();
+        expect(acceptButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
+      });
+
+      it('요청 상세에서 보낸 수락이 실패하면 응답 필요에 요청이 돌아오고 문구로 알린다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        const answer = later();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(answer.send);
+        const before = await openRequestDetail(render);
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+        await screen.findByRole('header', { name: '내 일정' });
+        expect(acceptButtons()).toHaveLength(before - 1);
+
+        answer.fail(networkError());
+
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '수락하지 못했어요',
+            `도어록 교체\n${ApiErrorMessage.network}`,
+          ),
+        );
+        await waitFor(() => expect(acceptButtons()).toHaveLength(before));
+        expect(acceptButtons()[0]).toBeEnabled();
+      });
+
+      it('거절 사유를 내면 서버 답을 기다리지 않고 내 일정으로 돌아가며 요청이 빠진다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'rejectWork').mockImplementation(unanswered);
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        expect(
+          await screen.findByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('header', { name: '거절 사유' }),
+        ).not.toBeOnTheScreen();
+        expect(rejectButtons()).toHaveLength(before - 1);
+        expect(skeletons()).toEqual([]);
+      });
+
+      // 고른 사유는 서버가 거절을 받을 때까지 남겨 두어, 일시 오류로 실패하면 다시 거절할 때 이어 고른다.
+      // 화면을 떠난 뒤 뜨는 알림이라 어느 요청인지 작업 이름을 함께 보인다 (응답 필요 첫 요청은 내일의 도어록 교체)
+      it('거절이 일시 오류로 실패하면 요청이 응답 필요로 돌아오고 작업 이름과 알리며, 다시 거절하면 고른 사유가 남아 있다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'rejectWork').mockRejectedValue(networkError());
+        const before = (await openPending(render)).length;
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '거절하지 못했어요',
+            `도어록 교체\n${ApiErrorMessage.network}`,
+          ),
+        );
+        expect(
+          screen.getByRole('header', { name: '내 일정' }),
+        ).toBeOnTheScreen();
+        await waitFor(() => expect(rejectButtons()).toHaveLength(before));
+
+        await userEvent.press(rejectButtons()[0]);
+        expect(
+          screen.getByRole('radio', { name: '일정이 맞지 않습니다' }),
+        ).toBeChecked();
+        expect(screen.getByRole('button', { name: '거절 제출' })).toBeEnabled();
+      });
+
+      // 이미 처리됐거나 바뀐 요청(-010·-002·-016)은 다시 거절할 일이 없어 고른 사유를 남기지 않는다
+      it('거절이 이미 처리된 요청이라(-002) 실패하면 최신 목록을 다시 받아 알리고 고른 사유를 지운다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        jest
+          .spyOn(repository, 'rejectWork')
+          .mockRejectedValue(scheduleError(409, 'SCHEDULE-002'));
+        await openPending(render);
+        const readPending = jest.spyOn(repository, 'getPendingWorks');
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        await waitFor(() =>
+          expect(alert).toHaveBeenCalledWith(
+            '거절하지 못했어요',
+            '도어록 교체\n이미 처리됐거나 바뀐 요청이라 거절하지 못했어요. 최신 정보를 다시 불러왔으니 확인해 주세요.',
+          ),
+        );
+        expect(readPending).toHaveBeenCalled();
+        expect(
+          appStorage.getAllKeys().filter(key => key.includes('rejectDraft')),
+        ).toEqual([]);
+      });
+
+      it('거절이 성공하면 고른 사유를 지운다', async () => {
+        const { render } = setup();
+        const loadDraft = () =>
+          appStorage.getAllKeys().filter(key => key.includes('rejectDraft'));
+        await openPending(render);
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+
+        await screen.findByRole('header', { name: '내 일정' });
+        await waitFor(() => expect(loadDraft()).toEqual([]));
+      });
+
+      // PR #209 리뷰 재현: 돌아온 내 일정은 다시 포커스를 받아 응답 필요를 새로 받는다. 서버는 아직 처리 전이라 옛 목록이 온다
+      function slowPendingReads(
+        repository: ReturnType<typeof setup>['repository'],
+      ) {
+        const read = repository.getPendingWorks;
+        return jest
+          .spyOn(repository, 'getPendingWorks')
+          .mockImplementation(async options => {
+            const works = await read(options);
+            await new Promise<void>(resolve => setTimeout(resolve, 80));
+            return works;
+          });
+      }
+      const settleReads = () =>
+        act(() => new Promise<void>(resolve => setTimeout(resolve, 300)));
+
+      it('요청 상세에서 수락하고 돌아온 내 일정이 서버 답 전에 다시 받아도 요청은 응답 필요에 돌아오지 않는다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        const before = await openRequestDetail(render);
+        const reads = slowPendingReads(repository);
+
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+        await screen.findByRole('header', { name: '내 일정' });
+        await waitFor(() => expect(reads).toHaveBeenCalled());
+        await settleReads();
+
+        expect(acceptButtons()).toHaveLength(before - 1);
+      });
+
+      it('거절 사유를 내고 돌아온 내 일정이 서버 답 전에 다시 받아도 요청은 응답 필요에 돌아오지 않는다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'rejectWork').mockImplementation(unanswered);
+        const before = (await openPending(render)).length;
+        const reads = slowPendingReads(repository);
+
+        await userEvent.press(rejectButtons()[0]);
+        await submitRejection();
+        await screen.findByRole('header', { name: '내 일정' });
+        await waitFor(() => expect(reads).toHaveBeenCalled());
+        await settleReads();
+
+        expect(rejectButtons()).toHaveLength(before - 1);
+      });
+
+      // 돌아갈 화면이 없는 요청 상세(복원·딥링크)에서도 수락하면 화면을 떠난다
+      // 공용 기기에서 다음 사람이 로그인 화면에서 앞 계정의 작업 이름을 보지 않게 한다 (PR #209 재리뷰)
+      it('화면을 떠난 뒤 로그아웃했으면 늦게 온 수락 실패를 알리지 않는다', async () => {
+        const alert = spyAlert();
+        const { repository, render } = setup();
+        const answer = later();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(answer.send);
+        await openRequestDetail(render);
+        await userEvent.press(screen.getByRole('button', { name: '수락' }));
+        await screen.findByRole('header', { name: '내 일정' });
+
+        await userEvent.press(tab('마이'));
+        await userEvent.press(
+          screen.getByRole('button', { name: '계정 관리' }),
+        );
+        await userEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+        await userEvent.press(screen.getByRole('button', { name: '확인' }));
+        expect(
+          await screen.findByRole('header', {
+            name: '오늘의 현장, 한눈에. Orbit',
+          }),
+        ).toBeOnTheScreen();
+        await act(async () => {
+          answer.fail(networkError());
+          await new Promise<void>(resolve => setTimeout(resolve, 50));
+        });
+
+        expect(alert).not.toHaveBeenCalledWith(
+          '수락하지 못했어요',
+          expect.anything(),
+        );
+      });
+
+      it('돌아갈 화면이 없는 요청 상세에서 수락하면 메인으로 간다', async () => {
+        const { repository, render } = setup();
+        jest.spyOn(repository, 'acceptWork').mockImplementation(unanswered);
+        writeJson(NAVIGATION_STATE_KEY, {
+          savedAt: Date.now(),
+          state: {
+            index: 0,
+            routes: [{ name: 'RequestDetail', params: { id: '106' } }],
+          },
+        });
+        await render();
+
+        await userEvent.press(
+          await screen.findByRole('button', { name: '수락' }),
+        );
+
+        expect(
+          await screen.findByRole('header', { name: '내 작업' }),
+        ).toBeOnTheScreen();
+        expect(
+          screen.queryByRole('button', { name: '수락' }),
+        ).not.toBeOnTheScreen();
+      });
     });
 
     it('거절 사유를 서버 사유 코드로 보낸다 (기타는 메모와 함께)', async () => {

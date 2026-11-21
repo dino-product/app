@@ -47,6 +47,19 @@ export type HorizontalSwipe = {
   onTrackLayout: (event: LayoutChangeEvent) => void;
   /** 이전(-1)·다음(1) 페이지로 미끄러져 넘긴다 (버튼) */
   slide: (delta: -1 | 1) => void;
+  /**
+   * 미끄러지던 넘김을 확정하지 않고 멈추고 트랙을 지금 페이지 자리로 되돌린다. 오늘 버튼·다른 달 칸·자정처럼 바깥에서
+   * 보이는 페이지를 바꿀 때 부른다 (#202). 다 넘어간 뒤 확정하면 바깥에서 바꾼 페이지에서 한 페이지 더 넘어간다.
+   * 미끄러지는 넘김이 없으면 아무것도 하지 않는다. 손가락으로 끄는 중에는 버리지 않는다 (지금은 응답자 규칙상 끄는 중에
+   * 다른 버튼·칸을 누를 수 없다). 다시 그리지 않는다
+   */
+  cancel: () => void;
+};
+
+/** 밀어 넘기는 뷰(주간 줄·달력)가 바깥에 내주는 손잡이 */
+export type SlideHandle = {
+  /** 미끄러지던 넘김을 버린다 (HorizontalSwipe.cancel) */
+  cancelSlide: () => void;
 };
 
 /** 미끄러지는 중인 넘김. delta 는 다 넘어가면 확정할 페이지 수 (제자리로 돌아가면 0) */
@@ -230,6 +243,15 @@ export function useHorizontalSwipe(callbacks: {
       stop: () => {
         sliding = null;
         translateX.stopAnimation();
+      },
+      // 돌던 애니메이션은 finished: false 로 끝나 확정하지 않는다
+      cancel: () => {
+        if (!sliding) {
+          return;
+        }
+        sliding = null;
+        translateX.stopAnimation();
+        translateX.setValue(restAt(current));
       },
     };
   });

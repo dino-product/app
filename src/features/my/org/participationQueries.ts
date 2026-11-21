@@ -46,15 +46,20 @@ function participationRequestsQuery(api: ApiClient, queryClient: QueryClient) {
   };
 }
 
-/** 내 신청 현황. select 로 화면이 쓰는 값만 고른다 (렌더 수를 줄이려면 모듈 수준 함수를 넘긴다) */
+/**
+ * 내 신청 현황. select 로 화면이 쓰는 값만 고른다 (렌더 수를 줄이려면 모듈 수준 함수를 넘긴다).
+ * subscribed: 화면이 보이는 동안만 구독한다. 마이페이지는 소속과 같은 때(탭에 돌아올 때) 오래된 목록을 다시 받는다 (#199)
+ */
 export function useParticipationRequests<T = ParticipationRequest[]>(
   select?: (requests: ParticipationRequest[]) => T,
+  { subscribed }: { subscribed?: boolean } = {},
 ) {
   const api = useApiClient();
   const queryClient = useQueryClient();
   return useQuery({
     ...participationRequestsQuery(api, queryClient),
     select,
+    subscribed,
   });
 }
 
