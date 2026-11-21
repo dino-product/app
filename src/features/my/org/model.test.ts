@@ -7,7 +7,6 @@ import {
   isCompanyCodeComplete,
   lookupOutcome,
   normalizeCompanyCode,
-  countPendingRequests,
   hasNewApproval,
   latestRequestOf,
   pendingRequests,
@@ -233,18 +232,6 @@ describe('pendingRequests', () => {
         request('e', 'APPROVED'),
       ]).map(item => item.requestId),
     ).toEqual(['a', 'c']);
-  });
-});
-
-describe('countPendingRequests', () => {
-  it('승인 대기 건수를 센다 (마이페이지 신청 현황 배지)', () => {
-    expect(
-      countPendingRequests([
-        request('a', 'PENDING'),
-        request('b', 'REJECTED'),
-        request('c', 'PENDING'),
-      ]),
-    ).toBe(2);
   });
 });
 

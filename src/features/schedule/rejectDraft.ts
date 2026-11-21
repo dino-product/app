@@ -11,7 +11,7 @@ import {
 } from './model';
 
 // 거절 사유 화면에서 고르던 것 (#34). 앱이 종료돼도 같은 요청의 화면을 다시 열면 이어 고르도록 요청 id 별로 기기에 둔다.
-// 제출하거나 화면을 나가면 지운다
+// 서버가 거절을 받거나 화면을 나가면(취소·뒤로) 지운다
 const DRAFT_KEY_PREFIX = 'schedule.rejectDraft.';
 const draftKey = (requestId: string) => `${DRAFT_KEY_PREFIX}${requestId}`;
 

@@ -81,33 +81,35 @@ describe('nextCollapseState — 원자적 전환 (#175)', () => {
   });
 });
 
-describe('전환 시간·곡선·키프레임 (#175 짧은 페이드)', () => {
-  it('260ms, cubic-bezier(0.2, 0, 0, 1) 감속 곡선이다', () => {
-    expect(COLLAPSE_MS).toBe(260);
+describe('전환 시간·곡선·키프레임 (#204 접어 넣기)', () => {
+  it('240ms, cubic-bezier(0.2, 0, 0, 1) 감속 곡선이다', () => {
+    expect(COLLAPSE_MS).toBe(240);
     // 빠르게 출발해 부드럽게 멈춘다: 절반 시간에 이미 대부분 간다
     expect(collapseEasing(0)).toBe(0);
     expect(collapseEasing(0.5)).toBeGreaterThan(0.8);
     expect(collapseEasing(1)).toBe(1);
   });
 
-  it('제목은 진행도 33% 안에 투명도 0·위로 6 이 되고 그 뒤는 그대로다', () => {
-    expect(collapseKeyframes.titleOpacity).toEqual({
-      inputRange: [0, 0.33, 1],
+  // 시안 '접어 넣기': 제목이 윗변을 축으로 납작하게 접히며 바 안으로 들어간다
+  it('제목은 진행도 55% 에 세로 0 으로 다 접히고 그 뒤는 그대로다', () => {
+    expect(collapseKeyframes.titleScaleY).toEqual({
+      inputRange: [0, 0.55, 1],
       outputRange: [1, 0, 0],
-    });
-    expect(collapseKeyframes.titleTranslateY).toEqual({
-      inputRange: [0, 0.33, 1],
-      outputRange: [0, -6, -6],
     });
   });
 
-  // 진행도는 곡선을 거친 값이다. 감속 곡선이라 시간의 33% 에 진행도는 33% 를 이미 넘는다
-  it('전환 시간의 33% 시점에 제목 투명도는 이미 0 이다', () => {
-    const progressAtThird = collapseEasing(0.33);
-    const fadeEnd = collapseKeyframes.titleOpacity.inputRange[1];
+  it('제목은 투명해지거나 위로 밀리지 않는다 (페이드 없음)', () => {
+    expect(collapseKeyframes).not.toHaveProperty('titleOpacity');
+    expect(collapseKeyframes).not.toHaveProperty('titleTranslateY');
+  });
 
-    expect(progressAtThird).toBeGreaterThanOrEqual(fadeEnd);
-    expect(collapseKeyframes.titleOpacity.outputRange[1]).toBe(0);
+  // 시안(WAAPI)은 곡선을 전체 진행에 한 번 걸고 키프레임은 진행도로 보간한다. 그래서 55% 는 시간이 아니라
+  // 곡선을 거친 진행도 기준이다. 감속 곡선이라 시간의 55% 에는 진행도가 이미 55% 를 넘어 다 접혀 있다
+  it('제목은 진행도 55% 에 다 접히며 (시안 WAAPI 와 같은 해석), 감속 곡선이라 시간 55% 에는 이미 접혀 있다', () => {
+    const foldEnd = collapseKeyframes.titleScaleY.inputRange[1];
+
+    expect(collapseEasing(0.55)).toBeGreaterThanOrEqual(foldEnd);
+    expect(collapseKeyframes.titleScaleY.outputRange[1]).toBe(0);
   });
 
   it('화살표는 진행도 35% 안에 투명도 0, 안쪽으로 8, 크기 ×0.5 가 된다', () => {

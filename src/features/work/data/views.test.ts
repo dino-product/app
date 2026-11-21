@@ -4,6 +4,7 @@ import {
   confirmedOf,
   homeWeekLabel,
   monthPeriod,
+  nextCurrentWorkChange,
   pendingOf,
   pickCurrentWork,
   toCompletedWork,
@@ -51,62 +52,120 @@ describe('조회 구간', () => {
   });
 });
 
+// #205 히어로 박스는 지금 시각에 진행 중인 작업만 보인다
 describe('pickCurrentWork', () => {
-  const now = new Date(2026, 9, 21, 10, 55);
+  // 서울 2026-11-18(수) 19:00~20:00 작업전
+  const evening = scheduled({
+    workId: 7,
+    startTime: '2026-11-18T10:00:00Z',
+    endTime: '2026-11-18T11:00:00Z',
+  });
+  const at = (hour: number, minute: number, ms = 0) =>
+    new Date(2026, 10, 18, hour, minute, 0, ms);
 
-  it('작업중인 작업이 먼저다', () => {
-    const works = [
-      scheduled({ workId: 1 }),
-      scheduled({
-        workId: 2,
-        status: 'IN_PROGRESS',
-        startTime: '2026-10-20T02:00:00Z',
-      }),
-    ];
-
-    expect(pickCurrentWork(works, now)?.workId).toBe(2);
+  it('18:40 에는 같은 날 19:00 에 시작하는 작업전이 있어도 없다 (메인화면 - 진행(무))', () => {
+    expect(pickCurrentWork([evening], at(18, 40))).toBeUndefined();
   });
 
-  it('없으면 오늘 아직 끝나지 않은 작업전 중 가장 이른 것', () => {
+  it('예정 시작 10분 전(서버가 시작을 받기 시작하는 때)이어도 아직 진행 중이 아니다', () => {
+    expect(pickCurrentWork([evening], at(18, 50))).toBeUndefined();
+  });
+
+  it('19:00 이 되면 그 작업이다', () => {
+    expect(pickCurrentWork([evening], at(19, 0))?.workId).toBe(7);
+  });
+
+  it('예정 종료 시각까지는 그 작업이고, 지나면 없다', () => {
+    expect(pickCurrentWork([evening], at(20, 0))?.workId).toBe(7);
+    expect(pickCurrentWork([evening], at(20, 0, 1))).toBeUndefined();
+  });
+
+  it('작업중인 작업이 먼저이고, 시작 전이든 예정 종료가 지났든 완료 보고 전까지 남는다', () => {
+    const started = scheduled({
+      workId: 2,
+      status: 'IN_PROGRESS',
+      startTime: '2026-11-18T01:00:00Z',
+      endTime: '2026-11-18T02:00:00Z',
+    });
+
+    expect(pickCurrentWork([evening, started], at(19, 30))?.workId).toBe(2);
+    expect(pickCurrentWork([started], at(18, 40))?.workId).toBe(2);
+  });
+
+  it('진행 중인 작업전이 여럿이면 가장 이른 것, 응답 전·완료 작업은 고르지 않는다', () => {
     const works = [
-      // 오늘 이미 끝남
       scheduled({
         workId: 1,
-        startTime: '2026-10-20T23:00:00Z',
-        endTime: '2026-10-21T00:00:00Z',
+        status: 'PENDING_ACCEPT',
+        startTime: '2026-11-18T09:00:00Z',
+        endTime: '2026-11-18T12:00:00Z',
       }),
       scheduled({
         workId: 2,
-        startTime: '2026-10-21T05:00:00Z',
-        endTime: '2026-10-21T06:00:00Z',
+        status: 'COMPLETED',
+        startTime: '2026-11-18T09:00:00Z',
+        endTime: '2026-11-18T12:00:00Z',
       }),
-      scheduled({ workId: 3 }),
-      // 내일
+      evening,
       scheduled({
-        workId: 4,
-        startTime: '2026-10-22T00:00:00Z',
-        endTime: '2026-10-22T01:00:00Z',
+        workId: 3,
+        startTime: '2026-11-18T09:30:00Z',
+        endTime: '2026-11-18T10:30:00Z',
       }),
-      // 응답 전·완료
-      scheduled({ workId: 5, status: 'PENDING_ACCEPT' }),
-      scheduled({ workId: 6, status: 'COMPLETED' }),
     ];
 
-    expect(pickCurrentWork(works, now)?.workId).toBe(3);
+    expect(pickCurrentWork(works, at(19, 10))?.workId).toBe(3);
+  });
+});
+
+describe('nextCurrentWorkChange', () => {
+  const evening = scheduled({
+    workId: 7,
+    startTime: '2026-11-18T10:00:00Z',
+    endTime: '2026-11-18T11:00:00Z',
+  });
+  const at = (hour: number, minute: number) =>
+    new Date(2026, 10, 18, hour, minute).getTime();
+
+  it('시작 전이면 예정 시작 시각이다 (18:40 → 19:00)', () => {
+    expect(nextCurrentWorkChange([evening], at(18, 40))).toBe(at(19, 0));
   });
 
-  it('오늘 할 작업이 없으면 없다', () => {
-    expect(
-      pickCurrentWork(
-        [
-          scheduled({
-            startTime: '2026-10-22T00:00:00Z',
-            endTime: '2026-10-22T01:00:00Z',
-          }),
-        ],
-        now,
-      ),
-    ).toBeUndefined();
+  it('진행 중이면 예정 종료 바로 뒤다', () => {
+    expect(nextCurrentWorkChange([evening], at(19, 0))).toBe(at(20, 0) + 1);
+  });
+
+  it('여러 작업 중 가장 이른 경계다', () => {
+    const later = scheduled({
+      workId: 8,
+      startTime: '2026-11-18T10:30:00Z',
+      endTime: '2026-11-18T12:00:00Z',
+    });
+
+    expect(nextCurrentWorkChange([later, evening], at(19, 10))).toBe(
+      at(19, 30),
+    );
+  });
+
+  it('작업중인 작업이 있으면 시각으로는 바뀌지 않아 없다', () => {
+    const started = scheduled({ workId: 2, status: 'IN_PROGRESS' });
+
+    expect(nextCurrentWorkChange([evening, started], at(18, 40))).toBe(
+      undefined,
+    );
+  });
+
+  it('남은 경계가 없으면(모두 끝났거나 작업전이 아니면) 없다', () => {
+    const pending = scheduled({
+      workId: 3,
+      status: 'PENDING_ACCEPT',
+      startTime: '2026-11-18T12:00:00Z',
+      endTime: '2026-11-18T13:00:00Z',
+    });
+
+    expect(nextCurrentWorkChange([evening, pending], at(21, 0))).toBe(
+      undefined,
+    );
   });
 });
 

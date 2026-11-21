@@ -1,5 +1,10 @@
 import { transformSync } from '@babel/core';
-import { DEV_API_BASE_URL, resolveApiBaseUrl } from './config';
+import {
+  DEV_API_BASE_URL,
+  resolveApiBaseUrl,
+  resolveDevelopOnly,
+  resolveWebOrigin,
+} from './config';
 
 // 테스트는 Node 에서 돈다 (@types/node 를 두지 않아 쓰는 것만 선언)
 declare const process: {
@@ -33,6 +38,31 @@ describe('resolveApiBaseUrl', () => {
   });
 });
 
+describe('resolveDevelopOnly (#192)', () => {
+  it("DEVELOP_ONLY 가 'true'·'false' 면 그 값을 쓴다 (빌드 종류와 상관없이)", () => {
+    expect(resolveDevelopOnly('true', false)).toBe(true);
+    expect(resolveDevelopOnly('false', true)).toBe(false);
+    expect(resolveDevelopOnly(' TRUE ', false)).toBe(true);
+  });
+
+  it('값이 없거나 true·false 가 아니면 Debug 는 true, Release 는 false 다', () => {
+    expect(resolveDevelopOnly(undefined, true)).toBe(true);
+    expect(resolveDevelopOnly(undefined, false)).toBe(false);
+    expect(resolveDevelopOnly('', false)).toBe(false);
+    expect(resolveDevelopOnly('yes', true)).toBe(true);
+  });
+});
+
+describe('resolveWebOrigin (#192)', () => {
+  it('develop_only 면 웹 주소에 dev. 를 붙인다', () => {
+    expect(resolveWebOrigin(true)).toBe('https://dev.orbi-t.com');
+  });
+
+  it('develop_only 가 아니면 dev 와 그 뒤 점을 붙이지 않는다', () => {
+    expect(resolveWebOrigin(false)).toBe('https://orbi-t.com');
+  });
+});
+
 describe('빌드 때 넣는 환경 변수', () => {
   const transform = (code: string) =>
     transformSync(code, {
@@ -46,20 +76,24 @@ describe('빌드 때 넣는 환경 변수', () => {
 
   beforeEach(() => {
     env.ORBIT_API_BASE_URL = 'https://api.example.com';
+    env.DEVELOP_ONLY = 'false';
     env.ORBIT_SECRET = 'secret';
   });
 
   afterEach(() => {
     delete env.ORBIT_API_BASE_URL;
+    delete env.DEVELOP_ONLY;
     delete env.ORBIT_SECRET;
   });
 
-  it('ORBIT_API_BASE_URL 만 번들에 값으로 넣고 다른 환경 변수는 넣지 않는다', () => {
+  it('ORBIT_API_BASE_URL·DEVELOP_ONLY 만 번들에 값으로 넣고 다른 환경 변수는 넣지 않는다', () => {
     const code = transform(
-      'export const a = process.env.ORBIT_API_BASE_URL; export const b = process.env.ORBIT_SECRET;',
+      'export const a = process.env.ORBIT_API_BASE_URL; export const d = process.env.DEVELOP_ONLY; export const b = process.env.ORBIT_SECRET;',
     );
 
     expect(code).toContain('"https://api.example.com"');
+    expect(code).toContain('"false"');
+    expect(code).not.toContain('process.env.DEVELOP_ONLY');
     expect(code).not.toContain('"secret"');
     expect(code).toContain('process.env.ORBIT_SECRET');
   });

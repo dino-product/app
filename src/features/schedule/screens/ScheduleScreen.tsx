@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,10 +21,13 @@ import {
   colors,
   Icon,
   ICON_HIT_SLOP,
+  MIN_TOUCH_TARGET,
   Text,
+  touchSlop,
   UNDERLINE_TABS_HEIGHT,
   UnderlineTabs,
 } from '../../../shared/design-system';
+import { smallestLineHeight } from '../../../shared/design-system/tokens/touchTarget';
 import { haptic } from '../../../shared/haptics';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import {
@@ -40,6 +44,7 @@ import {
   PendingRequestsSkeleton,
 } from '../components/ScheduleSkeletons';
 import { useTouchScrollLock } from '../components/useTouchScrollLock';
+import type { SlideHandle } from '../components/useHorizontalSwipe';
 import { WeekStrip } from '../components/WeekStrip';
 import {
   addMonths,
@@ -143,13 +148,37 @@ function ScheduleScreenView({
   );
   const eventCounts = useMemo(() => countByDate(confirmed), [confirmed]);
 
+  // 주간 줄·달력이 내주는 손잡이. 바깥에서 보이는 주·달을 바꿀 때 미끄러지던 넘김을 버린다 (#202)
+  const slideRef = useRef<SlideHandle>(null);
+  // 날짜를 고를 때 지금 보이는 것과 비교한다. 콜백이 이 값들에 따라 바뀌지 않게(달력 격자를 다시 그리지 않게) 그린 뒤 적어 둔다
+  const shown = useRef({ selected, viewMonth, weekStart, calendarOpen });
+  useLayoutEffect(() => {
+    shown.current = { selected, viewMonth, weekStart, calendarOpen };
+  });
+
   // 고른 날의 주·달을 보여 준다
   const selectDate = useCallback(
     (date: Date) => {
+      const now = shown.current;
+      const month = monthOfDate(date);
+      const week = startOfWeek(date).getTime();
+      const sameMonth =
+        month.year === now.viewMonth.year &&
+        month.month === now.viewMonth.month;
+      const sameWeek = week === now.weekStart;
+      // 보이는 주·달을 바꾸면(다른 달 칸·오늘·자정) 미끄러지던 넘김을 버린다. 다 넘어간 뒤 확정하면 바꾼 주·달에서
+      // 한 페이지 더 간다 (#202). 보이는 주·달 안의 날을 고르면 넘김은 이어 간다 (#100)
+      if (now.calendarOpen ? !sameMonth : !sameWeek) {
+        slideRef.current?.cancelSlide();
+      }
+      // 이미 그 날을 고르고 그 주·달을 보고 있으면 바뀌는 것이 없다 (다시 그리지 않는다)
+      if (sameMonth && sameWeek && isSameDay(date, now.selected)) {
+        return;
+      }
       setSelected(date);
-      setViewMonth(monthOfDate(date));
-      setWeekStart(startOfWeek(date).getTime());
-      onVisibleMonthsChange?.(visibleMonths(date, monthOfDate(date)));
+      setViewMonth(month);
+      setWeekStart(week);
+      onVisibleMonthsChange?.(visibleMonths(date, month));
     },
     [onVisibleMonthsChange],
   );
@@ -165,6 +194,13 @@ function ScheduleScreenView({
   useEffect(() => {
     followToday(today);
   }, [today]);
+
+  // 오늘 버튼: 주간 보기는 오늘이 있는 주, 달력은 이번 달로 돌아오고 오늘을 고른다 (#202).
+  // 오늘의 주·달을 보고 있어도 다른 주·달로 미끄러지는 중이면 그 넘김은 버린다
+  const goToday = useCallback(() => {
+    slideRef.current?.cancelSlide();
+    selectDate(today);
+  }, [selectDate, today]);
 
   // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
   const toggleCalendar = useCallback(() => {
@@ -234,29 +270,34 @@ function ScheduleScreenView({
     ),
     [today],
   );
-  // 수락을 보내는 동안 그 요청의 버튼을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
-  const [accepting, setAccepting] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const acceptingRef = useRef(new Set<string>());
+  // 수락(POST)은 낙관적으로 반영한다 (#197): 요청은 곧바로 응답 필요에서 빠지고, 실패하면 돌아온다.
+  // 보내는 동안 카드 버튼 모양(Figma 기본)은 그대로 두고, 그 요청의 수락·거절만 다시 받지 않는다.
+  // 비활성으로 바꾸면 거절이 Disabled 채움으로 까맣게 변한다. 결과가 오면(실패해 돌아온 요청) 다시 받는다
+  const accepting = useRef(new Set<string>());
   const accept = useCallback(
     async (id: string) => {
-      if (acceptingRef.current.has(id)) {
+      if (accepting.current.has(id)) {
         return;
       }
-      acceptingRef.current.add(id);
-      setAccepting(new Set(acceptingRef.current));
+      accepting.current.add(id);
       try {
         // 햅틱은 결과다: 서버가 수락을 받았을 때만 울린다 (#32)
         if (await onAccept(id)) {
           haptic.success();
         }
       } finally {
-        acceptingRef.current.delete(id);
-        setAccepting(new Set(acceptingRef.current));
+        accepting.current.delete(id);
       }
     },
     [onAccept],
+  );
+  const reject = useCallback(
+    (id: string) => {
+      if (!accepting.current.has(id)) {
+        onReject(id);
+      }
+    },
+    [onReject],
   );
   const renderPending = useCallback(
     ({ item }: { item: PendingRequest }) => (
@@ -264,12 +305,11 @@ function ScheduleScreenView({
         item={item}
         dayLabel={formatCardDay(item.dateKey, today)}
         onAccept={accept}
-        onReject={onReject}
+        onReject={reject}
         onOpen={onOpenRequest}
-        disabled={accepting.has(item.id)}
       />
     ),
-    [accept, onReject, onOpenRequest, accepting, today],
+    [accept, reject, onOpenRequest, today],
   );
 
   // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)
@@ -277,19 +317,37 @@ function ScheduleScreenView({
     () => (
       <View style={styles.dateArea}>
         <View style={styles.dateRow}>
-          <Text variant="Body/M/SemiBold">{formatDateHeader(selected)}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
-            hitSlop={ICON_HIT_SLOP}
-            onPress={toggleCalendar}
+          <Text variant="Body/M/SemiBold" style={styles.dateText}>
+            {formatDateHeader(selected)}
+          </Text>
+          {/* Figma 51030:18440(주간)·51030:18444(달력): 오늘 알약, 그 오른쪽에 달력 전환 버튼 */}
+          <View
+            style={[styles.dateActions, calendarOpen && styles.dateActionsOpen]}
           >
-            {/* Figma Web Icon Calender/ Weekly · Monthly: 펼침은 모양이 좌우로 뒤집히고 색은 둘 다 Gray500 */}
-            <Icon
-              name={calendarOpen ? 'calendar-switch-open' : 'calendar-switch'}
-              color={colors.gray[500]}
-            />
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="오늘"
+              hitSlop={TODAY_HIT_SLOP}
+              onPress={goToday}
+              style={styles.todayButton}
+            >
+              <Text variant="Caption/M/SemiBold" color={colors.gray[900]}>
+                오늘
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={calendarOpen ? '달력 접기' : '달력 펼치기'}
+              hitSlop={ICON_HIT_SLOP}
+              onPress={toggleCalendar}
+            >
+              {/* Figma Web Icon Calender/ Weekly · Monthly: 펼침은 모양이 좌우로 뒤집히고 색은 둘 다 Gray500 */}
+              <Icon
+                name={calendarOpen ? 'calendar-switch-open' : 'calendar-switch'}
+                color={colors.gray[500]}
+              />
+            </Pressable>
+          </View>
         </View>
         {/* Figma 3754:6269·3754:6457: 날짜 줄 아래 16 에 주간 줄 또는 달력 카드 */}
         {calendarOpen ? (
@@ -300,6 +358,7 @@ function ScheduleScreenView({
             eventCounts={eventCounts}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={monthTouch}
+            ref={slideRef}
             onSelect={selectDate}
             onPrev={() => moveMonth(-1)}
             onNext={() => moveMonth(1)}
@@ -310,6 +369,7 @@ function ScheduleScreenView({
             selected={selected}
             edgeInset={styles.dateArea.paddingHorizontal}
             touchHandlers={weekTouch}
+            ref={slideRef}
             onSelect={selectDate}
             onPrev={() => moveWeek(-1)}
             onNext={() => moveWeek(1)}
@@ -324,6 +384,7 @@ function ScheduleScreenView({
       week,
       eventCounts,
       selectDate,
+      goToday,
       toggleCalendar,
       moveMonth,
       moveWeek,
@@ -334,13 +395,13 @@ function ScheduleScreenView({
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      {/* 머리말은 리스트 위에 겹쳐 그리고 그림자가 리스트 위로 드리운다.
+      {/* 머리말은 리스트 위에 겹쳐 그린다 (화면 바탕과 같은 색, 그림자 없음 #201).
           탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(3754:6269)에는 종이 없다 */}
       <AutoHideHeaderLayout
         autoHide={autoHide}
         header={<TabHeader title="내 일정" style={styles.titleBar} />}
         sticky={
-          <View style={readableColumn}>
+          <View style={[readableColumn, styles.tabsBar]}>
             <UnderlineTabs
               items={[
                 {
@@ -356,7 +417,6 @@ function ScheduleScreenView({
           </View>
         }
         style={styles.header}
-        bodyStyle={styles.listBackground}
       >
         {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
         {tab === 'confirmed' ? (
@@ -442,27 +502,49 @@ function Empty({ text }: { text: string }) {
 
 // 제목 줄 아래 여백. 탭 위 여백(8)과 합쳐 제목과 탭 사이가 Figma 의 24 가 된다
 const TITLE_BAR_PADDING_BOTTOM = 16;
-// 기본 글자 크기에서 숨는 제목 줄과 머리 전체(제목 줄 + 하위 탭)의 높이. 그린 뒤 잰 높이로 고친다
+// Figma 머리(3754:6458·3754:6940, 167)는 하위 탭 아래 끝(166)보다 1 길다. 내용은 그 아래 24 에서 시작해
+// 하위 탭 아래 끝에서 내용까지 25 다 (탭 줄 아래 선을 뺀 뒤에도, #201)
+const TABS_BAR_PADDING_BOTTOM = 1;
+// 기본 글자 크기에서 숨는 제목 줄과 머리 전체(제목 줄 + 하위 탭 + 아래 1)의 높이. 그린 뒤 잰 높이로 고친다
 const HEADER_ESTIMATE = {
   collapsible: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM,
-  total: TAB_HEADER_HEIGHT + TITLE_BAR_PADDING_BOTTOM + UNDERLINE_TABS_HEIGHT,
+  total:
+    TAB_HEADER_HEIGHT +
+    TITLE_BAR_PADDING_BOTTOM +
+    UNDERLINE_TABS_HEIGHT +
+    TABS_BAR_PADDING_BOTTOM,
 };
 
 // Figma: 날짜 블록·카드는 화면 가장자리에서 24 안쪽이고, 응답 필요 카드는 머리 아래 24 에서 시작한다
 const LIST_INSET = 24;
 const PENDING_TOP = 24;
 
+// Figma 51030:18439·51030:18441 오늘 알약: 좌우 12·위아래 4 안에 Caption/M/Semibold 글자
+const TODAY_PADDING_HORIZONTAL = 12;
+const TODAY_PADDING_VERTICAL = 4;
+// 알약(48×28)을 최소 터치 영역으로 넓힌다. 폭은 글자 폭과 관계없이 좌우 여백만으로도 채우도록 왼쪽(날짜 글자 쪽 빈자리)으로
+// 넓힌다. 오른쪽은 넓히지 않아 달력 버튼(뒤 형제)이 왼쪽으로 넓힌 영역과 겹치지 않고 둘 사이 간격(주간 16·월간 12) 안에
+// 머문다 (달력 버튼은 iOS 10·Android 12 를 넓혀 월간 iOS 2, 주간 iOS 6·Android 4 의 빈틈이 남는다).
+// 위·아래는 날짜 블록 위 여백(24)과 주간 줄·달력과의 간격(16) 안에 든다
+const TODAY_VERTICAL_SLOP = touchSlop(
+  TODAY_PADDING_VERTICAL * 2 + smallestLineHeight('Caption/M/SemiBold'),
+);
+const TODAY_HIT_SLOP = {
+  top: TODAY_VERTICAL_SLOP,
+  bottom: TODAY_VERTICAL_SLOP,
+  left: MIN_TOUCH_TARGET - TODAY_PADDING_HORIZONTAL * 2,
+  right: 0,
+};
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.white[100] },
-  // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). 내용이 아래로 지나가므로 화면 배경으로 가린다
-  header: {
-    backgroundColor: colors.white[100],
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.04)',
-  },
+  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다.
+  // 바탕은 화면에 그려 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+  screen: { flex: 1, backgroundColor: colors.background[3] },
+  // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). Figma 탑 내비는 바탕색·그림자가 없다 (#201).
+  // 내용이 아래로 지나가므로 화면 배경과 같은 색으로 가린다
+  header: { backgroundColor: colors.background[3] },
   titleBar: { paddingBottom: TITLE_BAR_PADDING_BOTTOM },
-  // 머리말 아래는 회색 바탕에 흰 카드가 놓인다 (Figma Background/3). 바탕은 리스트 뒤 본문에 그려
-  // 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
-  listBackground: { backgroundColor: colors.background[3] },
+  tabsBar: { paddingBottom: TABS_BAR_PADDING_BOTTOM },
   list: { flex: 1 },
   // 날짜 블록은 화면 폭을 차지하고(넓힌 터치 영역·가장자리 밀기 제외 영역이 그 안에 든다) 안쪽 여백으로 24 를 들인다
   confirmedContent: { paddingBottom: 24 },
@@ -480,6 +562,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  // 큰 글자·좁은 화면에서 날짜가 길면 오른쪽 버튼을 밀어내지 않고 날짜가 줄을 바꾼다
+  dateText: { flexShrink: 1 },
+  // 오늘 알약과 달력 전환 버튼 사이: 주간 16(51030:18440), 달력 12(51030:18444)
+  dateActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  dateActionsOpen: { gap: 12 },
+  todayButton: {
+    paddingHorizontal: TODAY_PADDING_HORIZONTAL,
+    paddingVertical: TODAY_PADDING_VERTICAL,
+    borderRadius: 54,
+    backgroundColor: colors.gray[100],
   },
   cardGap: { height: 12 },
   empty: { textAlign: 'center', paddingVertical: 40 },

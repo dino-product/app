@@ -217,7 +217,7 @@ describe('MonthCalendar 넘김', () => {
 const dotsOf = (name: string) =>
   within(screen.getByRole('button', { name })).queryAllByTestId('event-dot');
 
-// Figma 내 일정 › 달력 펼침 (3754:6457·3754:6618) 의 Calendar Contents 칸
+// Figma 내 일정 › 달력 펼침 (3754:6457·51012:15491) 의 Calendar Contents 칸
 describe('MonthCalendar 표시', () => {
   // 2026년 12월: 11월 29일(일) ~ 1월 2일(토) 5주
   const renderDecember = (
@@ -236,8 +236,9 @@ describe('MonthCalendar 표시', () => {
       />,
     );
 
-  // Figma 3754:6457 · DesignSystem Event Indicator 는 Count 0/1 뿐이다: 일정이 있으면 7×7 점 하나
-  it('일정이 있으면 건수와 관계없이 날짜 아래 13 에 7×7 점 하나를 그린다', async () => {
+  // Figma 3754:6457 · DesignSystem Event Indicator 는 Count 0/1 뿐이다: 일정이 있으면 7×7 점 하나.
+  // DesignSystem Calendar Contents (View=Month) 의 Event Dots 1: 칸 위에서 48.84, 칸 가운데에서 오른쪽 0.91 (#198)
+  it('일정이 있으면 건수와 관계없이 칸 위 48.84 에 7×7 점 하나를 그린다', async () => {
     await renderDecember(
       new Map([
         ['2026-12-03', 1],
@@ -252,7 +253,47 @@ describe('MonthCalendar 표시', () => {
     expect(dotsOf('12월 9일 수요일')).toHaveLength(0);
     const [dot] = dotsOf('12월 10일 목요일');
     expect(dot).toHaveStyle({ width: 7, height: 7, borderRadius: 3.5 });
-    expect(dot.parent).toHaveStyle({ position: 'absolute', bottom: 13 });
+    expect(dot.parent).toHaveStyle({
+      position: 'absolute',
+      top: 48.84,
+      transform: [{ translateX: 0.91 }],
+    });
+    expect(dot.parent).not.toHaveStyle({ bottom: 13 });
+  });
+
+  // DesignSystem Calendar Contents (View=Month): 45×63, 모서리 12, 날짜는 칸 위 12 (#198. 전에는 높이 69)
+  it('날짜 칸은 높이 63, 모서리 12 이고 날짜는 칸 위 12 에 Body/XS/Medium 이다', async () => {
+    await renderDecember();
+
+    const day = screen.getByRole('button', { name: '12월 9일 수요일' });
+    expect(day).toHaveStyle({
+      flex: 1,
+      height: 63,
+      borderRadius: 12,
+      paddingTop: 12,
+    });
+    expect(within(day).getByText('9')).toHaveStyle({
+      fontSize: typography['Body/XS/Medium'].fontSize,
+      fontFamily: typography['Body/XS/Medium'].fontFamily,
+    });
+  });
+
+  // Figma 51012:15498: 요일 줄(51012:15499)과 날짜 격자(51012:15514)는 폭 315(칸 45 × 7)로 카드(345) 가운데에 놓인다.
+  // 카드가 315 보다 좁은 화면에서는 카드 폭에 맞춰 칸이 줄어든다 (#198. 전에는 카드 폭 전체)
+  it('요일 줄과 날짜 격자는 폭 315(칸 45 × 7)로 카드 가운데에 놓인다', async () => {
+    await renderDecember();
+
+    const weekdays = screen.getByText('일').parent as HostElement;
+    const day = screen.getByRole('button', { name: '12월 9일 수요일' });
+    const weeks = day.parent?.parent as HostElement;
+    for (const row of [weekdays, weeks]) {
+      expect(row).toHaveStyle({
+        width: '100%',
+        maxWidth: 315,
+        alignSelf: 'center',
+      });
+    }
+    expect(weeks).toHaveStyle({ gap: 4 });
   });
 
   // DesignSystem Calendar Contents: 다른 달(Inactive) 칸에는 점이 없다
@@ -268,7 +309,7 @@ describe('MonthCalendar 표시', () => {
     expect(dotsOf('1월 1일 금요일')).toHaveLength(0);
   });
 
-  // Figma 3754:6618: 흰 카드(모서리 18) 위 20 에 달 이동 줄, 그 아래 24 에 요일 줄·날짜 격자. 좌우·아래 여백 없음
+  // Figma 51012:15491: 흰 카드(모서리 18) 위 20 에 달 이동 줄, 그 아래 24 에 요일 줄·날짜 격자. 좌우·아래 여백 없음
   it('흰 카드에 모서리 18, 위 20, 달 이동 줄과 격자 사이 24 다', async () => {
     await renderDecember();
 
@@ -435,7 +476,7 @@ describe('MonthCalendar Android 가장자리 밀기', () => {
     jest.restoreAllMocks();
   });
 
-  // 날짜 칸 69, 주 사이 4. 가장 짧은 4주 달(288)도 200dp 를 넘어 어느 달이든 같다
+  // 날짜 칸 63, 주 사이 4. 가장 짧은 4주 달(264)도 200dp 를 넘어 어느 달이든 같다
   it.each([
     { label: '2026년 2월 (4주)', month: 1, height: 200 },
     { label: '2026년 10월 (5주)', month: 9, height: 200 },
@@ -466,7 +507,7 @@ describe('MonthCalendar Android 가장자리 밀기', () => {
     expect(within(swipeWindow).queryByTestId('gesture-exclusion')).toBeNull();
   });
 
-  // Figma 3754:6618: 달력은 회색 바탕 위 흰 카드라, 옆 달이 카드 밖 여백으로 나와 보이지 않게 카드 폭에서 자른다.
+  // Figma 51012:15491: 달력은 회색 바탕 위 흰 카드라, 옆 달이 카드 밖 여백으로 나와 보이지 않게 카드 폭에서 자른다.
   // 가장자리 밀기 제외 영역은 그대로 부모 여백(화면 가장자리)까지 넓힌다
   it('넘김 창은 카드 폭에서 자르고(옆 달이 카드 밖으로 나오지 않는다), 제외 영역만 부모 여백까지 넓힌다', async () => {
     await renderMonthOn('android');

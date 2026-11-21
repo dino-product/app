@@ -273,7 +273,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       await screen.findByRole('button', { name: /^박기사/ }),
     ).toBeOnTheScreen();
     expect(
-      await screen.findByLabelText('오르빗 설비, 기사, 활성'),
+      await screen.findByLabelText('오르빗 설비, 기사, 승인'),
     ).toBeOnTheScreen();
 
     await userEvent.press(screen.getByRole('button', { name: '알림센터' }));

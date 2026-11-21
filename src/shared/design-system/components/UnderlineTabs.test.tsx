@@ -45,8 +45,9 @@ describe('UnderlineTabs', () => {
     expect(screen.getByText('7')).toHaveStyle({ color: colors.gray[500] });
   });
 
-  // Figma 내 일정 › 확정 일정 (2714:12918) 의 Underline Tabs (#77)
-  it('건수는 Caption/M/Medium 으로 라벨과 6, 밑줄은 라벨에서 12 떨어지고, 탭 사이 24, 아래 선은 Gray200 이다', async () => {
+  // Figma 내 일정 › 확정 일정 (2714:12918) 의 Underline Tabs (#77). 탭 목록 아래 Gray200 선은 Figma 내 일정 탑 내비
+  // (3754:6462·3754:6944)에서 빠졌다 (#201)
+  it('건수는 Caption/M/Medium 으로 라벨과 6, 밑줄은 라벨에서 12 떨어지고, 탭 사이 24, 탭 목록 아래 선은 없다', async () => {
     await render(
       <UnderlineTabs
         items={items}
@@ -63,14 +64,14 @@ describe('UnderlineTabs', () => {
     const tab = screen.getByRole('tab', { name: '확정 일정 2건' });
     expect(tab).toHaveStyle({ gap: 12 });
     // 탭 목록은 접근성 요소가 아니라 역할로 찾지 않는다. 탭 사이는 확정 일정 프레임의 24 다
-    expect(tab.parent).toHaveStyle({
-      gap: 24,
-      borderBottomColor: colors.gray[200],
-    });
+    expect(tab.parent).toHaveStyle({ gap: 24 });
+    const list = StyleSheet.flatten(tab.parent?.props.style);
+    expect(list.borderBottomWidth ?? 0).toBe(0);
+    expect(list.borderBottomColor).toBeUndefined();
   });
 
   // 겹쳐 그리는 머리(내 일정, #148)가 처음 그릴 때 내용 위 여백으로 쓴다
-  it('기본 글자 크기의 높이는 탭 위 여백 + 라벨 한 줄 + 밑줄까지 간격 + 밑줄 + 아래 선이다', async () => {
+  it('기본 글자 크기의 높이는 탭 위 여백 + 라벨 한 줄 + 밑줄까지 간격 + 밑줄이다', async () => {
     await render(
       <UnderlineTabs
         items={items}
@@ -84,13 +85,11 @@ describe('UnderlineTabs', () => {
     const indicator = StyleSheet.flatten(
       screen.getByTestId('underline-tabs-indicator-confirmed').props.style,
     );
-    const list = StyleSheet.flatten(tab.parent?.props.style);
     expect(UNDERLINE_TABS_HEIGHT).toBe(
       Number(tabStyle.paddingTop) +
         typography['Body/XS/SemiBold'].lineHeight +
         Number(tabStyle.gap) +
-        Number(indicator.height) +
-        Number(list.borderBottomWidth),
+        Number(indicator.height),
     );
   });
 
