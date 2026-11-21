@@ -537,8 +537,7 @@ const TODAY_HIT_SLOP = {
 };
 
 const styles = StyleSheet.create({
-  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다.
-  // 바탕은 화면에 그려 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다
   screen: { flex: 1, backgroundColor: colors.background[3] },
   // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). Figma 탑 내비는 바탕색·그림자가 없다 (#201).
   // 내용이 아래로 지나가므로 화면 배경과 같은 색으로 가린다

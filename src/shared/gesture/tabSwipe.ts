@@ -165,13 +165,3 @@ export function decideTabTrack({
 export function swipeDirection(dx: number): SwipeDirection {
   return dx < 0 ? 'next' : 'prev';
 }
-
-/** 옮겨 갈 이웃 탭. 양 끝 탭에서 바깥쪽이면 null */
-export function neighborIndex(
-  index: number,
-  count: number,
-  direction: SwipeDirection,
-): number | null {
-  const next = direction === 'next' ? index + 1 : index - 1;
-  return next >= 0 && next < count ? next : null;
-}

@@ -7,7 +7,6 @@ import {
   decideTabSwipe,
   decideTabTrack,
   hesitantSwitchDistance,
-  neighborIndex,
   startOwner,
   switchOnRelease,
   swipeDirection,
@@ -190,21 +189,10 @@ describe('decideTabSwipe — 방향 판정은 공용 규칙(decidePanAxis)을 �
   });
 });
 
-describe('밀기 방향과 이웃 탭', () => {
-  it('왼쪽으로 밀면 오른쪽 탭(next), 오른쪽으로 밀면 왼쪽 탭(prev)', () => {
+describe('밀기 방향', () => {
+  it('왼쪽으로 밀면 오른쪽(next), 오른쪽으로 밀면 왼쪽(prev)', () => {
     expect(swipeDirection(-60)).toBe('next');
     expect(swipeDirection(60)).toBe('prev');
-  });
-
-  it('양 끝 탭에서 바깥쪽으로는 옮길 탭이 없다', () => {
-    expect(neighborIndex(0, 4, 'prev')).toBeNull();
-    expect(neighborIndex(3, 4, 'next')).toBeNull();
-  });
-
-  it('가운데 탭은 양옆으로 옮긴다', () => {
-    expect(neighborIndex(0, 4, 'next')).toBe(1);
-    expect(neighborIndex(2, 4, 'prev')).toBe(1);
-    expect(neighborIndex(2, 4, 'next')).toBe(3);
   });
 });
 
