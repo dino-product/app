@@ -1,7 +1,6 @@
 import type { CompletedWork, YearMonth } from '../../history/model';
 import {
   formatCardDay,
-  isSameDay,
   type ConfirmedSchedule,
   type PendingRequest,
 } from '../../schedule/model';
@@ -68,7 +67,17 @@ const addressOf = (work: {
 }) =>
   joinAddress(work.customerAddress, work.customerAddressDetail) ?? EMPTY_VALUE;
 
-/** 홈 상단의 진행할 작업: 작업중인 작업, 없으면 오늘 아직 끝나지 않은(시작할 수 있는) 작업전. 둘 다 가장 이른 것 */
+// 예정 시간 안인 작업전: 예정 시작부터 예정 종료 정각까지 (서버가 시작을 받는 끝도 예정 종료 정각이다)
+const isScheduledAt = (work: ScheduledWork, now: number) =>
+  work.status === 'ACCEPTED' &&
+  Date.parse(work.startTime) <= now &&
+  now <= Date.parse(work.endTime);
+
+/**
+ * 홈 상단 히어로의 작업: 지금 시각에 진행 중인 작업만 (#205). 둘 다 가장 이른 것.
+ * - 작업중(기사가 시작함): 시각과 관계없이 완료 보고 전까지 (예정 종료가 지나도 남는다)
+ * - 없으면 예정 시작 ≤ 지금 ≤ 예정 종료인 작업전 ('메인화면 - 시작 가능'). 시작 전이면 오늘 작업이어도 없다 ('메인화면 - 진행(무)')
+ */
 export function pickCurrentWork(
   works: readonly ScheduledWork[],
   now: Date,
@@ -80,12 +89,25 @@ export function pickCurrentWork(
   if (inProgress) {
     return inProgress;
   }
-  return byStart.find(
-    work =>
-      work.status === 'ACCEPTED' &&
-      Date.parse(work.endTime) >= now.getTime() &&
-      isSameDay(new Date(work.startTime), now),
-  );
+  return byStart.find(work => isScheduledAt(work, now.getTime()));
+}
+
+/**
+ * now 뒤에 pickCurrentWork 의 답이 시각 때문에 바뀔 수 있는 가장 이른 시각 (ms, now 보다 크다):
+ * 작업전의 예정 시작, 예정 종료 바로 뒤. 작업중인 작업이 있으면 시각으로는 바뀌지 않아 없다
+ */
+export function nextCurrentWorkChange(
+  works: readonly ScheduledWork[],
+  now: number,
+): number | undefined {
+  if (works.some(work => work.status === 'IN_PROGRESS')) {
+    return undefined;
+  }
+  const boundaries = works
+    .filter(work => work.status === 'ACCEPTED')
+    .flatMap(work => [Date.parse(work.startTime), Date.parse(work.endTime) + 1])
+    .filter(at => at > now);
+  return boundaries.length > 0 ? Math.min(...boundaries) : undefined;
 }
 
 export function toCurrentWork(work: ScheduledWork): CurrentWork {
