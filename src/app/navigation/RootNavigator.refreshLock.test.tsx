@@ -17,11 +17,17 @@ const tab = (name: TabLabel) => screen.getByRole('tab', { name });
 const expectSelected = (name: TabLabel) =>
   expect(screen.getByRole('tab', { name, selected: true })).toBeOnTheScreen();
 const FAR = SWITCH_DISTANCE + 30;
-const swipeTab = (name: string, dx: number) =>
-  swipeFrom(
+/** 덮기 전환(탭 바 누름·밀기, #216)이 끝나기를 기다린다. 마무리하는 동안에는 밀기를 받지 않는다 */
+const settle = () =>
+  act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+const swipeTab = async (name: string, dx: number) => {
+  await settle();
+  await swipeFrom(
     screen.getByTestId(`tab-swipe-${name}`, { includeHiddenElements: true }),
     { from: { x: 200, y: 400 }, dx },
   );
+  await settle();
+};
 
 type Read = 'getMySchedule' | 'getPendingWorks' | 'getWorkHistory';
 /** 작업 저장소의 다음 조회 한 번을 붙잡아 둔다. 끝내면 원래 조회로 답하거나 실패한다 */

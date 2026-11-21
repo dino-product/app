@@ -32,6 +32,7 @@ import {
 import {
   measureElement,
   useTabSwipeRegion,
+  useTabSwipeScrollLock,
 } from '../../../shared/gesture/TabSwipeArea';
 import { useSwipeSwitch } from '../../../shared/gesture/useSwipeSwitch';
 import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
@@ -192,6 +193,8 @@ function WorkHistoryScreenView({
 
   // 스크롤하면 상단 바가 접히고(제목이 사라지고 월 선택이 바에 흡수됨), 맨 위로 돌아오면 펼친다 (#175)
   const collapse = useHeaderCollapse();
+  // 탭을 좌우로 미는 동안에는 세로로 스크롤하지 않는다 (#216)
+  const tabSwipeLocked = useTabSwipeScrollLock();
 
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
   // 목록 영역(리스트에서 보이는 상단 바·머리를 뺀 아래쪽, monthSwipe.ts rowsArea) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
@@ -298,6 +301,7 @@ function WorkHistoryScreenView({
                 ref={listRef}
                 testID="work-history-list"
                 {...collapse.scrollProps}
+                scrollEnabled={!tabSwipeLocked}
                 data={monthWorks}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}

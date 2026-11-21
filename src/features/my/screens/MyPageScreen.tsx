@@ -18,7 +18,10 @@ import {
   touchSlop,
   type IconName,
 } from '../../../shared/design-system';
-import { useTabSwipeRegion } from '../../../shared/gesture/TabSwipeArea';
+import {
+  useTabSwipeRegion,
+  useTabSwipeScrollLock,
+} from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
@@ -95,6 +98,8 @@ function MyPageScreenView({
   const tabSwipe = useTabSwipeRegion();
   // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
   const autoHide = useAutoHideHeader();
+  // 탭을 좌우로 미는 동안에는 세로로 스크롤하지 않는다 (#216)
+  const tabSwipeLocked = useTabSwipeScrollLock();
   const contentStyle = useMemo(
     () => [
       readableColumn,
@@ -125,6 +130,7 @@ function MyPageScreenView({
           ref={scrollRef}
           testID="my-page-scroll"
           {...autoHide.scrollProps}
+          scrollEnabled={!tabSwipeLocked}
           contentContainerStyle={contentStyle}
         >
           {profile.status === 'ready' ? (

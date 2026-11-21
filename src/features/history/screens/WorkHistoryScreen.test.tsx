@@ -16,6 +16,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { swipeFrom } from '../../../../jest/responder';
+import { fakeTabCover, WithTabCover } from '../../../../jest/tabCover';
 import {
   colors,
   pressedBackground,
@@ -623,15 +624,17 @@ describe('WorkHistoryScreen — 바와 목록의 밀기 판정 (#175)', () => {
   ])(
     '%s 의 월 글자에서 민 것은 탭을 바꾸고 달은 그대로, 목록 안쪽에서 민 것은 달을 옮긴다',
     async (_state, collapse) => {
-      const onTabSwipe = jest.fn();
+      const { cover, onSwipe: onTabSwipe } = fakeTabCover();
       await render(
-        <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
-          <WorkHistoryScreen
-            today={today}
-            works={works}
-            onOpenWork={jest.fn()}
-          />
-        </tabSwipeArea.TabSwipeArea>,
+        <WithTabCover cover={cover}>
+          <tabSwipeArea.TabSwipeArea canSwipe={() => true}>
+            <WorkHistoryScreen
+              today={today}
+              works={works}
+              onOpenWork={jest.fn()}
+            />
+          </tabSwipeArea.TabSwipeArea>
+        </WithTabCover>,
       );
       if (collapse) {
         await scrollListTo(list(), 300);
@@ -668,11 +671,17 @@ describe('WorkHistoryScreen — 바와 목록의 밀기 판정 (#175)', () => {
               ''
           ] ?? measure(target),
       );
-    const onTabSwipe = jest.fn();
+    const { cover, onSwipe: onTabSwipe } = fakeTabCover();
     await render(
-      <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
-        <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />
-      </tabSwipeArea.TabSwipeArea>,
+      <WithTabCover cover={cover}>
+        <tabSwipeArea.TabSwipeArea canSwipe={() => true}>
+          <WorkHistoryScreen
+            today={today}
+            works={works}
+            onOpenWork={jest.fn()}
+          />
+        </tabSwipeArea.TabSwipeArea>
+      </WithTabCover>,
     );
     const rects = new Map([
       [monthSwipeArea(), { x: 0, y: 0, width, height: 700 }],

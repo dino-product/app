@@ -27,6 +27,7 @@ import {
   LoadStateView,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
+import { useTabSwipeScrollLock } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -130,6 +131,8 @@ function WorkHomeScreenView({
   const block = view === 'block';
   // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
   const autoHide = useAutoHideHeader();
+  // 탭을 좌우로 미는 동안에는 세로로 스크롤하지 않는다 (#216)
+  const tabSwipeLocked = useTabSwipeScrollLock();
   // 애니메이션 리스트는 배열·객체 props 가 바뀌면 스크롤 이벤트 연결을 다시 만든다. 높이가 바뀔 때만 새로 만든다
   const contentStyle = useMemo(
     () => [
@@ -228,6 +231,7 @@ function WorkHomeScreenView({
             ref={listRef}
             testID="work-home-list"
             {...autoHide.scrollProps}
+            scrollEnabled={!tabSwipeLocked}
             data={block ? daySchedule : schedule}
             keyExtractor={keyExtractor}
             renderItem={renderItem}

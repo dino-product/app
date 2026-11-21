@@ -13,7 +13,8 @@ type Kind =
   | 'virtualKey'
   | 'longPress'
   | 'contextClick'
-  | 'clockTick';
+  | 'clockTick'
+  | 'impactLight';
 
 // 옵션은 넘기지 않는다: enableVibrateFallback·ignoreAndroidSystemSettings 기본값(false)으로
 // 시스템 햅틱·터치 진동 설정을 그대로 따른다. 햅틱이 없는 기기에서는 라이브러리가 아무것도 하지 않는다
@@ -50,6 +51,8 @@ export const haptic = {
   warning: () => fire(pick('notificationWarning', 'reject', 'longPress')),
   /** 결제 방식·거절 사유 선택 */
   selection: () => fire(pick('selection', 'segmentTick', 'contextClick')),
+  /** 메인 탭 덮기 밀기가 임계를 넘는 순간 (딸깍, #216) */
+  threshold: () => fire(pick('impactLight', 'segmentTick', 'clockTick')),
   /** 토글. iOS 는 켬/끔 구분이 없다 */
   toggle: (on: boolean) => {
     if (isIOS()) {

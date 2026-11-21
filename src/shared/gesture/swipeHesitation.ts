@@ -31,13 +31,22 @@ export type HesitationTracker = {
 
 type Sample = { t: number; x: number };
 
-/** 가로로 정해진 순간(t, x)부터 본다 */
-export function trackHesitation(t: number, x: number): HesitationTracker {
+/**
+ * 가로로 정해진 순간(t, x)부터 본다. since 는 손가락이 처음 닿은 순간(x 0)이다. 주면 그때부터의 움직임도 놓는 속도에 넣는다
+ * (한 번에 크게 움직이고 바로 떼면 정해진 뒤의 이동이 거의 없다)
+ */
+export function trackHesitation(
+  t: number,
+  x: number,
+  since?: Sample,
+): HesitationTracker {
   const direction = Math.sign(x) || 1;
   let hesitation: Hesitation | null = null;
   let peak = x * direction;
-  let anchor: Sample = { t, x };
-  const samples: Sample[] = [{ t, x }];
+  let anchor: Sample =
+    since && Math.abs(x - since.x) <= HOLD_SLOP ? since : { t, x };
+  const samples: Sample[] =
+    since && since.t < t ? [since, { t, x }] : [{ t, x }];
 
   const decide = (next: Hesitation) => {
     hesitation = next;

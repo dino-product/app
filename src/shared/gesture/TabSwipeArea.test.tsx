@@ -7,17 +7,21 @@ import {
   View,
   type GestureResponderEvent,
 } from 'react-native';
+import { touchEvent, touchesEvent } from '../../../jest/gesture';
 import { swipeFrom } from '../../../jest/responder';
+import { fakeTabCover, WithTabCover } from '../../../jest/tabCover';
 import {
   COMPONENT_SLACK,
   EDGE_BAND,
   SWITCH_DISTANCE,
+  TAB_TRACK_DISTANCE,
   type Rect,
 } from './tabSwipe';
 import {
   measureElement,
   TabSwipeArea,
   useTabSwipeRegion,
+  useTabSwipeScrollLock,
 } from './TabSwipeArea';
 
 const width = () => Dimensions.get('window').width;
@@ -78,16 +82,18 @@ function Holder() {
 }
 
 async function setup({ enabled = true }: { enabled?: boolean } = {}) {
-  const onSwipe = jest.fn();
+  const { cover, onSwipe } = fakeTabCover();
   const view = await render(
-    <TabSwipeArea canSwipe={() => enabled} onSwipe={onSwipe} testID="area">
-      <View testID="background">
-        <Card testID="card" />
-        <Card testID="row" stacked />
-        <OwnSwipe />
-        <Holder />
-      </View>
-    </TabSwipeArea>,
+    <WithTabCover cover={cover}>
+      <TabSwipeArea canSwipe={() => enabled} testID="area">
+        <View testID="background">
+          <Card testID="card" />
+          <Card testID="row" stacked />
+          <OwnSwipe />
+          <Holder />
+        </View>
+      </TabSwipeArea>
+    </WithTabCover>,
   );
   const rects = new Map([
     [screen.getByTestId('card'), CARD],
@@ -99,7 +105,7 @@ async function setup({ enabled = true }: { enabled?: boolean } = {}) {
     testID: string,
     options: Omit<Parameters<typeof swipeFrom>[1], 'rects'>,
   ) => swipeFrom(screen.getByTestId(testID), { ...options, rects });
-  return { ...view, onSwipe, swipe };
+  return { ...view, onSwipe, cover, swipe };
 }
 
 const center = { x: 200, y: MIDDLE_Y };
@@ -167,8 +173,8 @@ describe('TabSwipeArea — 어디서 밀면 탭이 바뀌나', () => {
 });
 
 describe('TabSwipeArea — 응답자 잡기', () => {
-  it('가로로 방향이 정해지면(10pt) 바로 응답자가 되고, 바꾸는 것은 임계값을 넘을 때다', async () => {
-    const { swipe, onSwipe } = await setup();
+  it('가로로 방향이 정해지면(8pt) 바로 응답자가 되어 손가락을 넘기고, 바꿀지는 놓을 때 정한다 (#216)', async () => {
+    const { swipe, onSwipe, cover } = await setup();
 
     // Android 세로 리스트는 세로로 8dp 남짓 움직이면 터치를 가져간다. 그 전에 응답자가 돼 부모의 가로채기를 막는다
     const short = await swipe('background', {
@@ -183,21 +189,13 @@ describe('TabSwipeArea — 응답자 잡기', () => {
     expect(short?.onMoveShouldSetResponder).toBe(
       screen.getByTestId('area').props.onMoveShouldSetResponder,
     );
-    expect(onSwipe).not.toHaveBeenCalled();
-
-    await swipe('background', {
-      from: center,
-      path: [
-        { x: 0, y: 0 },
-        { x: -12, y: 4 },
-        { x: -40, y: 12 },
-        { x: -FAR, y: 20 },
-      ],
-    });
+    expect(cover.move).toHaveBeenLastCalledWith(-30, TAB_TRACK_DISTANCE);
+    // 이어 민 채 놓았다
+    expect(onSwipe).toHaveBeenCalledTimes(1);
     expect(onSwipe).toHaveBeenCalledWith('next');
   });
 
-  it('응답자가 된 뒤 세로로 꺾이면(세로 우세) 바꾸지 않는다', async () => {
+  it('응답자가 된 뒤 세로로 꺾여도 놓을 때까지 가로로 본다 (그동안 리스트는 스크롤하지 않는다, #216)', async () => {
     const { swipe, onSwipe } = await setup();
 
     await swipe('background', {
@@ -210,7 +208,7 @@ describe('TabSwipeArea — 응답자 잡기', () => {
       ],
     });
 
-    expect(onSwipe).not.toHaveBeenCalled();
+    expect(onSwipe).toHaveBeenCalledWith('next');
   });
 
   it('한 번에 크게 움직이고 바로 떼도 바꾼다', async () => {
@@ -232,10 +230,10 @@ describe('TabSwipeArea — 응답자 잡기', () => {
 });
 
 describe('TabSwipeArea — 손바닥 오작동 방지', () => {
-  it('임계값보다 짧은 가로 이동은 아무 일도 없다', async () => {
+  it('8pt 이하로 스치는 가로 이동은 아무 일도 없다 (#216)', async () => {
     const { swipe, onSwipe } = await setup();
 
-    await swipe('background', { from: center, dx: -(SWITCH_DISTANCE - 2) });
+    await swipe('background', { from: center, dx: -TAB_TRACK_DISTANCE });
 
     expect(onSwipe).not.toHaveBeenCalled();
   });
@@ -319,16 +317,18 @@ describe('TabSwipeArea — 손바닥 오작동 방지', () => {
 
 describe('useTabSwipeRegion — 판정 영역 재기', () => {
   it('measure 를 주면 터치한 뷰 대신 그 사각형으로 판정한다 (예: 리스트에서 머리를 뺀 목록 영역)', async () => {
-    const onSwipe = jest.fn();
+    const { cover, onSwipe } = fakeTabCover();
     const measure = jest.fn(() => CARD);
     function Measured() {
       const region = useTabSwipeRegion({ measure });
       return <View testID="measured" onTouchStart={region.onTouchStart} />;
     }
     await render(
-      <TabSwipeArea canSwipe={() => true} onSwipe={onSwipe}>
-        <Measured />
-      </TabSwipeArea>,
+      <WithTabCover cover={cover}>
+        <TabSwipeArea canSwipe={() => true}>
+          <Measured />
+        </TabSwipeArea>
+      </WithTabCover>,
     );
     const measured = screen.getByTestId('measured');
 
@@ -405,5 +405,54 @@ describe('useTabSwipeRegion — 자체 가로 제스처와 공존', () => {
     } as unknown as GestureResponderEvent);
 
     expect(owns?.()).toBe(true);
+  });
+});
+
+describe('TabSwipeArea — 미는 동안 세로 스크롤 잠금 (#216)', () => {
+  function List() {
+    const locked = useTabSwipeScrollLock();
+    return <View testID="list" accessibilityLabel={locked ? '잠김' : '풀림'} />;
+  }
+
+  it('가로로 정해진 순간부터 놓을 때까지 리스트 스크롤을 잠근다', async () => {
+    const { cover } = fakeTabCover();
+    await render(
+      <WithTabCover cover={cover}>
+        <TabSwipeArea canSwipe={() => true} testID="area">
+          <List />
+        </TabSwipeArea>
+      </WithTabCover>,
+    );
+    const area = () => screen.getByTestId('area').props;
+    const list = () => screen.getByTestId('list').props.accessibilityLabel;
+    const at = (from: number, x: number, step: number, active = true) =>
+      touchEvent({ x: from, y: 0 }, { x, y: 0 }, step, 1, active);
+
+    await act(() => {
+      area().onTouchStartCapture(touchesEvent({ changed: [0], touches: [0] }));
+      area().onStartShouldSetResponderCapture(at(0, 0, 0));
+      area().onStartShouldSetResponder(at(0, 0, 0));
+      // 아직 8pt 를 넘지 않았다 (RN 처럼 capture 다음 bubble 로 묻는다)
+      const first = at(0, -6, 1);
+      area().onMoveShouldSetResponderCapture(first);
+      area().onMoveShouldSetResponder(first);
+    });
+    expect(list()).toBe('풀림');
+
+    await act(() => {
+      const move = at(-6, -20, 2);
+      area().onMoveShouldSetResponderCapture(move);
+      if (area().onMoveShouldSetResponder(move)) {
+        area().onResponderGrant(move);
+      }
+      area().onResponderMove(move);
+      area().onResponderMove(at(-20, -40, 3));
+    });
+    expect(list()).toBe('잠김');
+
+    await act(() => {
+      area().onResponderRelease(at(-40, -40, 4, false));
+    });
+    expect(list()).toBe('풀림');
   });
 });

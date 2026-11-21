@@ -112,4 +112,14 @@ describe('swipeHesitation — 미는 중의 망설임 (#216)', () => {
     moving.move(100, -62.5);
     expect(moving.release(120, -64)).toBeNull();
   });
+
+  it('가로로 정해지기 전의 움직임(닿은 순간부터)도 놓는 속도에 넣는다: 한 번에 크게 움직이고 바로 떼면 이어 민 것이다', () => {
+    const flick = trackHesitation(16, -78, { t: 0, x: 0 });
+    expect(flick.release(32, -78)).toBeNull();
+
+    // 닿은 채 오래 있다가 밀기 시작한 것은 멈춤이 아니다 (흔들림 폭 밖으로 움직였다)
+    const late = trackHesitation(300, -12, { t: 0, x: 0 });
+    expect(late.hesitation).toBeNull();
+    expect(late.check(330)).toBeNull();
+  });
 });

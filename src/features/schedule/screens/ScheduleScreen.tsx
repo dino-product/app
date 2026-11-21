@@ -29,6 +29,7 @@ import {
 } from '../../../shared/design-system';
 import { smallestLineHeight } from '../../../shared/design-system/tokens/touchTarget';
 import { haptic } from '../../../shared/haptics';
+import { useTabSwipeScrollLock } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
@@ -258,6 +259,8 @@ function ScheduleScreenView({
   // 주간 줄을 만지는 동안 리스트가 세로로 움직이지 않게 한다 (#99).
   // 펼친 달력은 처음 움직인 방향이 가로일 때만 막고, 세로면 리스트가 스크롤한다 (#144)
   const scrollLock = useTouchScrollLock();
+  // 탭을 좌우로 미는 동안에도 세로로 스크롤하지 않는다 (#216)
+  const tabSwipeLocked = useTabSwipeScrollLock();
   const weekTouch = scrollLock.areaTouchHandlers;
   const monthTouch = scrollLock.axisAreaTouchHandlers;
 
@@ -428,7 +431,7 @@ function ScheduleScreenView({
             // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
             directionalLockEnabled
             // 주간 줄에 손가락이 닿아 있는 동안, 펼친 달력을 가로로 미는 동안은 세로로 움직이지 않는다 (#99, #144)
-            scrollEnabled={!scrollLock.locked}
+            scrollEnabled={!scrollLock.locked && !tabSwipeLocked}
             onTouchStartCapture={scrollLock.onListTouchStartCapture}
             data={daySchedules}
             keyExtractor={keyExtractor}
@@ -458,6 +461,7 @@ function ScheduleScreenView({
             ref={listRef}
             testID="schedule-pending-list"
             {...autoHide.scrollProps}
+            scrollEnabled={!tabSwipeLocked}
             data={pending}
             keyExtractor={keyExtractor}
             renderItem={renderPending}
