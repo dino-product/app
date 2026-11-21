@@ -19,7 +19,7 @@ import { useTabCoverSwipe } from './useTabCoverSwipe';
 // 메인 탭 좌우 밀기 (#140 → #216). 판정 규칙은 tabSwipe.ts·swipeHesitation.ts, 밀기 엔진은 useTabCoverSwipe.ts 다.
 //
 // TabSwipeArea 는 탭 화면 하나를 통째로 감싸 좌우 밀기를 받아, 메인 탭 내비게이터(TabCoverContext)가 이웃 탭 화면을
-// 손가락을 따라 덮게 한다 (놓을 때 바꿀지 정한다). 미는 동안에는 탭 화면 리스트의 세로 스크롤을 잠근다 (useTabSwipeScrollLock).
+// 손가락을 따라 덮게 한다 (놓을 때 바꿀지 정한다). 미는 동안에는 탭 화면 리스트의 세로 스크롤을 잠근다 (TabSwipeScrollLock).
 // RN 모달(Modal·BottomSheet)의 터치도 React 트리를 따라 이 영역까지 올라온다. 지금 탭 첫 화면에는 모달이 없다
 // (모달은 탭 안쪽 화면에 있고 거기서는 canSwipe 가 false 다). 탭 첫 화면에 모달을 두면 열린 동안 canSwipe 가 false 가 되게 한다.
 //
@@ -37,9 +37,20 @@ type RegionReport = { claimForComponent: () => void };
 const TabSwipeContext = createContext<RegionReport | null>(null);
 const ScrollLockContext = createContext(false);
 
-/** 탭 화면 리스트의 scrollEnabled 를 끌 때. 탭을 좌우로 미는 동안 true 다 */
-export function useTabSwipeScrollLock(): boolean {
-  return useContext(ScrollLockContext);
+/**
+ * 탭을 좌우로 미는 동안 리스트의 세로 스크롤을 끈다. 탭 첫 화면 리스트를 children(scrollEnabled) 로 그린다.
+ * 잠금이 바뀌면 이 안(리스트)만 다시 그리고 화면은 다시 그리지 않는다 (탭 전환 렌더 예산).
+ * enabled 가 false 면 화면 자체 잠금으로 늘 끈다
+ */
+export function TabSwipeScrollLock({
+  enabled = true,
+  children,
+}: {
+  enabled?: boolean;
+  children: (scrollEnabled: boolean) => ReactNode;
+}) {
+  const locked = useContext(ScrollLockContext);
+  return children(enabled && !locked);
 }
 
 export function TabSwipeArea({

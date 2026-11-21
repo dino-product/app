@@ -1,5 +1,5 @@
 import { act, render, screen } from '@testing-library/react-native';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import {
   Dimensions,
   PanResponder,
@@ -21,7 +21,7 @@ import {
   measureElement,
   TabSwipeArea,
   useTabSwipeRegion,
-  useTabSwipeScrollLock,
+  TabSwipeScrollLock,
 } from './TabSwipeArea';
 
 const width = () => Dimensions.get('window').width;
@@ -409,17 +409,28 @@ describe('useTabSwipeRegion — 자체 가로 제스처와 공존', () => {
 });
 
 describe('TabSwipeArea — 미는 동안 세로 스크롤 잠금 (#216)', () => {
-  function List() {
-    const locked = useTabSwipeScrollLock();
-    return <View testID="list" accessibilityLabel={locked ? '잠김' : '풀림'} />;
-  }
+  const screenRenders = { count: 0 };
+  // 탭 첫 화면처럼 리스트를 그리는 화면. 잠금이 바뀌어도 화면은 다시 그리지 않고 리스트만 다시 그린다
+  const Screen = memo(function TabScreen() {
+    screenRenders.count += 1;
+    return (
+      <TabSwipeScrollLock>
+        {scrollEnabled => (
+          <View
+            testID="list"
+            accessibilityLabel={scrollEnabled ? '풀림' : '잠김'}
+          />
+        )}
+      </TabSwipeScrollLock>
+    );
+  });
 
-  it('가로로 정해진 순간부터 놓을 때까지 리스트 스크롤을 잠근다', async () => {
+  it('가로로 정해진 순간부터 놓을 때까지 리스트 스크롤을 잠그고, 그동안 화면은 다시 그리지 않는다', async () => {
     const { cover } = fakeTabCover();
     await render(
       <WithTabCover cover={cover}>
         <TabSwipeArea canSwipe={() => true} testID="area">
-          <List />
+          <Screen />
         </TabSwipeArea>
       </WithTabCover>,
     );
@@ -454,5 +465,17 @@ describe('TabSwipeArea — 미는 동안 세로 스크롤 잠금 (#216)', () => 
       area().onResponderRelease(at(-40, -40, 4, false));
     });
     expect(list()).toBe('풀림');
+    expect(screenRenders.count).toBe(1);
+  });
+
+  it('화면 자체 잠금(enabled false)이면 밀지 않아도 끈다', async () => {
+    await render(
+      <TabSwipeScrollLock enabled={false}>
+        {scrollEnabled => (
+          <View testID="list" accessibilityLabel={String(scrollEnabled)} />
+        )}
+      </TabSwipeScrollLock>,
+    );
+    expect(screen.getByTestId('list').props.accessibilityLabel).toBe('false');
   });
 });

@@ -408,6 +408,8 @@ const CoverScene = memo(function Scene({
   style: SceneStyle;
   render: () => ReactNode;
 }) {
+  // 층(위치·스타일)이 바뀌어도 탭 화면 내용은 다시 그리지 않는다 (탭 전환 렌더 예산)
+  const content = useMemo(render, [render]);
   return (
     <Animated.View
       style={style}
@@ -415,7 +417,7 @@ const CoverScene = memo(function Scene({
       accessibilityElementsHidden={!focused}
       importantForAccessibility={focused ? 'auto' : 'no-hide-descendants'}
     >
-      {render()}
+      {content}
     </Animated.View>
   );
 });

@@ -20,7 +20,7 @@ import {
 } from '../../../shared/design-system';
 import {
   useTabSwipeRegion,
-  useTabSwipeScrollLock,
+  TabSwipeScrollLock,
 } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
@@ -98,8 +98,6 @@ function MyPageScreenView({
   const tabSwipe = useTabSwipeRegion();
   // 아래로 스크롤하면 상단 바가 숨고 위로 스크롤하면 다시 보인다 (#148)
   const autoHide = useAutoHideHeader();
-  // 탭을 좌우로 미는 동안에는 세로로 스크롤하지 않는다 (#216)
-  const tabSwipeLocked = useTabSwipeScrollLock();
   const contentStyle = useMemo(
     () => [
       readableColumn,
@@ -125,137 +123,149 @@ function MyPageScreenView({
         style={styles.headerBar}
       >
         {/* 소속 발주사는 한 사람이 몇 곳뿐이라 카드 하나 안에 다 그린다 (가상화할 만큼 길지 않다) */}
-        <Animated.ScrollView
-          {...noOverscroll}
-          ref={scrollRef}
-          testID="my-page-scroll"
-          {...autoHide.scrollProps}
-          scrollEnabled={!tabSwipeLocked}
-          contentContainerStyle={contentStyle}
-        >
-          {profile.status === 'ready' ? (
-            <ProfileCard profile={profile.data} onPress={onEditProfile} />
-          ) : (
-            <View style={[styles.card, styles.loadCard]}>
-              <LoadStateView
-                state={profile}
-                style={styles.cardLoad}
-                skeleton={<ProfileCardSkeleton />}
-              />
-            </View>
-          )}
-
-          <View style={styles.section}>
-            <View style={styles.sectionRow}>
-              <Text accessibilityRole="header" variant="Body/S/SemiBold">
-                소속 발주사
-              </Text>
-              <View style={styles.sectionActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    pendingRequestCount > 0
-                      ? `신청 현황, ${pendingRequestCount}건`
-                      : '신청 현황'
-                  }
-                  hitSlop={ACTION_HIT_SLOP}
-                  onPress={onOpenRequestStatus}
-                  style={styles.requestStatus}
-                >
-                  <Text variant="Caption/M/Medium" color={REQUEST_STATUS_COLOR}>
-                    신청 현황
-                  </Text>
-                  {/* Figma 3235:17139: 배지와 화살표(18)는 붙어 있다 */}
-                  <View style={styles.requestStatusTrail}>
-                    {pendingRequestCount > 0 && (
-                      <View style={styles.badge}>
-                        <Text
-                          style={styles.badgeText}
-                          color={colors.white[100]}
-                        >
-                          {pendingRequestCount}
-                        </Text>
-                      </View>
-                    )}
-                    <Icon name="chevron-right-small" color={colors.gray[500]} />
-                  </View>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  hitSlop={ACTION_HIT_SLOP}
-                  onPress={onJoinOrganization}
-                  style={({ pressed }) => [
-                    styles.joinButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <Text variant="Caption/S/Medium" color={colors.white[100]}>
-                    조직 참여
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={[styles.card, styles.membershipCard]}>
-              {membershipCard.kind === 'load' ? (
-                <LoadStateView
-                  state={membershipCard.state}
-                  style={styles.membershipLoad}
-                  skeleton={<MembershipsSkeleton />}
-                />
-              ) : membershipCard.kind === 'empty' ? (
-                <Text variant="Caption/M/Medium" color={colors.gray[600]}>
-                  아직 소속된 발주사가 없어요
-                </Text>
-              ) : (
-                <>
-                  {membershipCard.memberships.map((membership, index) => (
-                    <Fragment key={membership.organizationId}>
-                      {index > 0 && <View style={styles.divider} />}
-                      <MembershipRow membership={membership} />
-                    </Fragment>
-                  ))}
-                  {membershipCard.reviews.map((request, index) => (
-                    <Fragment key={`review-${request.requestId}`}>
-                      {(membershipCard.memberships.length > 0 || index > 0) && (
-                        <View style={styles.divider} />
-                      )}
-                      <ReviewRequestRow
-                        request={request}
-                        onPress={onOpenReviewRequest}
-                      />
-                    </Fragment>
-                  ))}
-                </>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text accessibilityRole="header" variant="Body/S/SemiBold">
-              설정 및 정보
-            </Text>
-            <View
-              style={[styles.card, styles.settingsCard]}
-              onTouchStart={tabSwipe.onTouchStart}
+        <TabSwipeScrollLock>
+          {scrollEnabled => (
+            <Animated.ScrollView
+              {...noOverscroll}
+              ref={scrollRef}
+              testID="my-page-scroll"
+              {...autoHide.scrollProps}
+              scrollEnabled={scrollEnabled}
+              contentContainerStyle={contentStyle}
             >
-              <SettingRow
-                icon="settings-bell"
-                label="알림 설정"
-                onPress={onOpenNotificationSettings}
-              />
-              <SettingRow
-                icon="settings-document"
-                label="약관 및 앱 정보"
-                onPress={onOpenTerms}
-              />
-              <SettingRow
-                icon="settings-user"
-                label="계정 관리"
-                onPress={onOpenAccount}
-              />
-            </View>
-          </View>
-        </Animated.ScrollView>
+              {profile.status === 'ready' ? (
+                <ProfileCard profile={profile.data} onPress={onEditProfile} />
+              ) : (
+                <View style={[styles.card, styles.loadCard]}>
+                  <LoadStateView
+                    state={profile}
+                    style={styles.cardLoad}
+                    skeleton={<ProfileCardSkeleton />}
+                  />
+                </View>
+              )}
+
+              <View style={styles.section}>
+                <View style={styles.sectionRow}>
+                  <Text accessibilityRole="header" variant="Body/S/SemiBold">
+                    소속 발주사
+                  </Text>
+                  <View style={styles.sectionActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        pendingRequestCount > 0
+                          ? `신청 현황, ${pendingRequestCount}건`
+                          : '신청 현황'
+                      }
+                      hitSlop={ACTION_HIT_SLOP}
+                      onPress={onOpenRequestStatus}
+                      style={styles.requestStatus}
+                    >
+                      <Text
+                        variant="Caption/M/Medium"
+                        color={REQUEST_STATUS_COLOR}
+                      >
+                        신청 현황
+                      </Text>
+                      {/* Figma 3235:17139: 배지와 화살표(18)는 붙어 있다 */}
+                      <View style={styles.requestStatusTrail}>
+                        {pendingRequestCount > 0 && (
+                          <View style={styles.badge}>
+                            <Text
+                              style={styles.badgeText}
+                              color={colors.white[100]}
+                            >
+                              {pendingRequestCount}
+                            </Text>
+                          </View>
+                        )}
+                        <Icon
+                          name="chevron-right-small"
+                          color={colors.gray[500]}
+                        />
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={ACTION_HIT_SLOP}
+                      onPress={onJoinOrganization}
+                      style={({ pressed }) => [
+                        styles.joinButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text
+                        variant="Caption/S/Medium"
+                        color={colors.white[100]}
+                      >
+                        조직 참여
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={[styles.card, styles.membershipCard]}>
+                  {membershipCard.kind === 'load' ? (
+                    <LoadStateView
+                      state={membershipCard.state}
+                      style={styles.membershipLoad}
+                      skeleton={<MembershipsSkeleton />}
+                    />
+                  ) : membershipCard.kind === 'empty' ? (
+                    <Text variant="Caption/M/Medium" color={colors.gray[600]}>
+                      아직 소속된 발주사가 없어요
+                    </Text>
+                  ) : (
+                    <>
+                      {membershipCard.memberships.map((membership, index) => (
+                        <Fragment key={membership.organizationId}>
+                          {index > 0 && <View style={styles.divider} />}
+                          <MembershipRow membership={membership} />
+                        </Fragment>
+                      ))}
+                      {membershipCard.reviews.map((request, index) => (
+                        <Fragment key={`review-${request.requestId}`}>
+                          {(membershipCard.memberships.length > 0 ||
+                            index > 0) && <View style={styles.divider} />}
+                          <ReviewRequestRow
+                            request={request}
+                            onPress={onOpenReviewRequest}
+                          />
+                        </Fragment>
+                      ))}
+                    </>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text accessibilityRole="header" variant="Body/S/SemiBold">
+                  설정 및 정보
+                </Text>
+                <View
+                  style={[styles.card, styles.settingsCard]}
+                  onTouchStart={tabSwipe.onTouchStart}
+                >
+                  <SettingRow
+                    icon="settings-bell"
+                    label="알림 설정"
+                    onPress={onOpenNotificationSettings}
+                  />
+                  <SettingRow
+                    icon="settings-document"
+                    label="약관 및 앱 정보"
+                    onPress={onOpenTerms}
+                  />
+                  <SettingRow
+                    icon="settings-user"
+                    label="계정 관리"
+                    onPress={onOpenAccount}
+                  />
+                </View>
+              </View>
+            </Animated.ScrollView>
+          )}
+        </TabSwipeScrollLock>
       </AutoHideHeaderLayout>
     </SafeAreaView>
   );
