@@ -56,6 +56,16 @@ type Node = ReturnType<typeof tabArea>;
  * 탭 화면이 그려진 층. rest 는 지금 탭, over 는 덮으며 들어오는 탭, under 는 덮이는 탭, hidden 은 안 보이는 탭
  * (덮기 탭 뷰의 장면 스타일로 본다)
  */
+/** 탭 장면이 터치를 받는지 */
+function pointerEventsOf(name: TabName) {
+  for (let node: Node | null = tabArea(name); node; node = node.parent) {
+    if (StyleSheet.flatten(node.props.style)?.zIndex !== undefined) {
+      return node.props.pointerEvents;
+    }
+  }
+  throw new Error(`${name} 탭 장면을 찾지 못했다`);
+}
+
 function layerOf(name: TabName): 'rest' | 'over' | 'under' | 'hidden' {
   for (let node: Node | null = tabArea(name); node; node = node.parent) {
     const style = StyleSheet.flatten(node.props.style) ?? {};
@@ -337,6 +347,31 @@ describe('탭 전환 — 이웃 탭 화면이 덮는다 (#216)', () => {
     expectSelected('schedule');
     expect(layerOf('schedule')).toBe('rest');
     expect(layerOf('home')).toBe('hidden');
+  });
+
+  it('마무리하는 동안 탭 바로 다른 탭을 누르면 그 탭에 머문다 (밀던 탭으로 또 바뀌지 않는다)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await animations.finish();
+    await settle();
+
+    expectSelected('my');
+    expect(layerOf('my')).toBe('rest');
+  });
+
+  it('놓은 뒤 마무리하는 동안에는 어느 탭 화면도 터치를 받지 않는다 (가려진 화면이 눌리지 않게)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    expect(pointerEventsOf('home')).toBe('none');
+    expect(pointerEventsOf('schedule')).toBe('none');
+
+    await animations.finish();
+    expect(pointerEventsOf('schedule')).toBe('box-none');
   });
 
   it('덮기를 마무리하는 동안 다시 밀어도 받지 않는다 (한 번에 옆 탭 하나)', async () => {

@@ -113,6 +113,45 @@ describe('useTabCoverSwipe — 덮기 밀기 엔진 (#216)', () => {
     }
   });
 
+  it('JS 가 막혀 멈춤 타이머가 한 프레임 넘게 늦으면 멈춤으로 보지 않고 다시 건다 (처음 여는 탭을 그리는 동안)', async () => {
+    jest.useFakeTimers();
+    try {
+      const cover = fakeCover();
+      const { result, touchDown } = await setup(cover);
+      const handlers = result.current.panHandlers;
+      const at = (from: number, x: number, step: number) =>
+        touchEvent({ x: from, y: 0 }, { x, y: 0 }, step, 1, true);
+      let granted = false;
+      const send = (from: number, x: number, step: number) => {
+        const move = at(from, x, step);
+        if (!granted) {
+          handlers.onMoveShouldSetResponderCapture?.(move);
+          granted = handlers.onMoveShouldSetResponder?.(move) === true;
+          if (granted) {
+            handlers.onResponderGrant?.(move);
+          }
+        }
+        handlers.onResponderMove?.(move);
+      };
+
+      await touchDown();
+      await act(() => {
+        handlers.onStartShouldSetResponderCapture?.(at(0, 0, 0));
+        send(0, -12, 1);
+      });
+      // 손가락은 계속 움직였지만 JS 가 200ms 막혀 이동 이벤트보다 타이머가 먼저 돈다
+      jest.setSystemTime(Date.now() + 200);
+      await act(() => jest.advanceTimersByTime(HOLD_MS));
+      expect(cover.move).not.toHaveBeenCalledWith(expect.any(Number), half());
+
+      // 밀려 있던 이동이 들어온다 (이어 민 손길)
+      await act(() => send(-12, -60, 3));
+      expect(cover.move).toHaveBeenLastCalledWith(-60, 8);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('놓기 직전에 멈췄으면 놓기 전 멈춤이라 원래대로다', async () => {
     const cover = fakeCover();
     const { result, touchDown } = await setup(cover);

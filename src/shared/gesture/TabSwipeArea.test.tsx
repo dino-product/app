@@ -219,13 +219,14 @@ describe('TabSwipeArea — 응답자 잡기', () => {
     expect(onSwipe).toHaveBeenCalledWith('next');
   });
 
-  it('안쪽 응답자가 넘겨 주지 않으면(거절) 바꾸지 않는다', async () => {
-    const { swipe, onSwipe } = await setup();
+  it('안쪽 응답자가 넘겨 주지 않으면(거절) 바꾸지 않고, 덮기도 시작하지 않는다', async () => {
+    const { swipe, onSwipe, cover } = await setup();
 
     // 가장자리 띠에서 시작해 탭 전환 몫이지만, 이미 응답자인 안쪽 뷰가 놓아 주지 않는다
     await swipe('holder', { from: { x: 4, y: CARD.y + 60 }, dx: FAR });
 
     expect(onSwipe).not.toHaveBeenCalled();
+    expect(cover.move).not.toHaveBeenCalled();
   });
 });
 

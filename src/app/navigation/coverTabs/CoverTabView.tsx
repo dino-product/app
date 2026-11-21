@@ -65,6 +65,8 @@ type Transition = {
   /** 덮는 탭. 끝 탭에서 바깥쪽으로 밀면 null */
   to: number | null;
   motion: Motion;
+  /** 놓은 뒤 마무리 중이다 */
+  settling: boolean;
   /** 끌어서 바꾸기로 정했고 탭 상태가 바뀌기를 기다린다 */
   landing: boolean;
 };
@@ -84,6 +86,7 @@ function makeTransition(
     kind,
     from,
     to,
+    settling: kind === 'auto',
     landing: false,
     motion: {
       side,
@@ -124,7 +127,8 @@ export function CoverTabView({
   const [shown, setShown] = useState(state.index);
 
   // 탭 상태에 맞춰 전환을 고른다 (그리는 중에 바로 바꿔 한 커밋에 들어가게 한다)
-  if (transition?.landing && state.index === transition.to) {
+  if (transition?.landing && state.index !== transition.from) {
+    // 바꾼 탭이 왔다 (또는 그사이 다른 길로 다른 탭이 왔다). 그 탭으로 쉰다
     setTransition(null);
     setShown(state.index);
   } else if (
@@ -186,9 +190,19 @@ export function CoverTabView({
     let drag: Transition | null = null;
     let follow: Follow | null = null;
     let lastDx = 0;
-    /** 지금 그린 전환. 뷰가 끌기를 버리면(다른 길로 탭이 바뀜) 끌기를 멈춘다 */
+    /** 지금 따라오는 비율의 목표 (딸깍 전 0.8, 따라붙으면 1) */
+    let followTarget = FOLLOW_BEFORE;
+    /** 지금 그린 전환. 뷰가 전환을 버리면(다른 길로 탭이 바뀜) 끌기·마무리를 멈춘다 */
     let drawn: Transition | null = null;
+    /** 놓은 뒤 마무리 애니메이션 */
+    let settling: {
+      transition: Transition;
+      animation: Animated.CompositeAnimation;
+    } | null = null;
+    let disposed = false;
 
+    const stillDrawn = (finished: Transition) =>
+      !disposed && drawn?.motion === finished.motion;
     const done = (finished: Transition) => {
       busy = false;
       setTransition(current =>
@@ -199,10 +213,11 @@ export function CoverTabView({
       }
     };
     const land = (finished: Transition) => {
-      const { state: now, navigation: nav } = latest.current;
       busy = false;
+      const { state: now, navigation: nav } = latest.current;
       const route = finished.to === null ? undefined : now.routes[finished.to];
-      if (!route) {
+      // 마무리하는 동안 탭이 다른 길로 바뀌었으면 바꾸지 않는다 (한 손길에 한 번)
+      if (!route || now.index !== finished.from) {
         done(finished);
         return;
       }
@@ -215,18 +230,29 @@ export function CoverTabView({
         ...TabActions.jumpTo(route.name, route.params),
         target: now.key,
       });
+      // 바꾸기가 받아들여지지 않았으면 기다리지 않고 원래 탭으로 쉰다
+      if (nav.getState().index !== finished.to) {
+        done(finished);
+      }
     };
     const snapFollow = (motion: Motion, to: number) => {
+      followTarget = to;
       if (latest.current.reduceMotion) {
         motion.follow.setValue(to);
       } else {
         timing(motion.follow, to, FOLLOW_MS).start();
       }
     };
+    const stopSettling = () => {
+      const running = settling;
+      settling = null;
+      running?.animation.stop();
+    };
 
     const controller: TabCoverDrag & {
       sync: (current: Transition | null) => void;
       startAuto: (auto: Transition) => () => void;
+      dispose: () => void;
     } = {
       begin: () => {
         if (busy || dragging || drawn !== null) {
@@ -253,6 +279,7 @@ export function CoverTabView({
             side,
           );
           follow = null;
+          followTarget = FOLLOW_BEFORE;
           setTransition(drag);
         }
         const distance = Math.abs(dx);
@@ -276,34 +303,56 @@ export function CoverTabView({
         }
         dragging = false;
         const finished = drag;
-        const crossed = follow?.crossed ?? false;
         drag = null;
         follow = null;
         if (!finished) {
           return;
         }
         busy = true;
+        setTransition(current =>
+          current?.motion === finished.motion
+            ? { ...current, settling: true }
+            : current,
+        );
         const { width: w, reduceMotion: reduce } = latest.current;
         const { motion } = finished;
+        let animation: Animated.CompositeAnimation;
         if (finished.to === null) {
-          timing(motion.edge, 0, reduce ? 0 : EDGE_RETURN_MS).start(() =>
-            done(finished),
-          );
-          return;
+          animation = timing(motion.edge, 0, reduce ? 0 : EDGE_RETURN_MS);
+        } else {
+          // 손가락 거리는 놓은 자리(화면 폭까지)에서 끝(바꾸면 화면 폭, 아니면 0)으로 간다.
+          // 바꿀 때는 따라오는 비율도 1 로 마저 간다 (돌아갈 때는 비율을 그대로 둬야 되밀리지 않는다)
+          const from = Math.min(w, Math.abs(dx));
+          const to = commit ? w : 0;
+          const duration = reduce
+            ? 0
+            : settleDuration(from * followTarget, to, w);
+          motion.finger.setValue(from);
+          const settle = timing(motion.finger, to, duration);
+          animation =
+            commit && followTarget !== 1
+              ? Animated.parallel([
+                  timing(motion.follow, 1, reduce ? 0 : FOLLOW_MS),
+                  settle,
+                ])
+              : settle;
         }
-        // 손가락 거리는 놓은 자리(화면 폭까지)에서 끝(바꾸면 화면 폭, 아니면 0)으로 간다.
-        // 바꿀 때는 따라오는 비율도 1 로 마저 간다 (돌아갈 때는 비율을 그대로 둬야 되밀리지 않는다)
-        const ratio = crossed ? 1 : FOLLOW_BEFORE;
-        const from = Math.min(w, Math.abs(dx));
-        const to = commit ? w : 0;
-        const duration = reduce ? 0 : settleDuration(from * ratio, to, w);
-        motion.finger.setValue(from);
-        const settle = timing(motion.finger, to, duration);
-        Animated.parallel(
-          commit
-            ? [timing(motion.follow, 1, reduce ? 0 : FOLLOW_MS), settle]
-            : [settle],
-        ).start(() => (commit ? land(finished) : done(finished)));
+        settling = { transition: finished, animation };
+        animation.start(({ finished: completed }) => {
+          if (settling?.transition !== finished) {
+            return;
+          }
+          settling = null;
+          if (!completed || !stillDrawn(finished)) {
+            busy = false;
+            return;
+          }
+          if (commit && finished.to !== null) {
+            land(finished);
+          } else {
+            done(finished);
+          }
+        });
       },
       cancel: () => controller.end(lastDx, false),
       sync: current => {
@@ -314,6 +363,15 @@ export function CoverTabView({
           drag = null;
           follow = null;
         }
+        if (settling && current?.motion !== settling.transition.motion) {
+          // 마무리하는 동안 탭이 다른 길로 바뀌었다. 마무리를 멈추고 바꾸지 않는다
+          stopSettling();
+          busy = false;
+        }
+      },
+      dispose: () => {
+        disposed = true;
+        stopSettling();
       },
       startAuto: auto => {
         busy = true;
@@ -339,6 +397,7 @@ export function CoverTabView({
   useLayoutEffect(() => {
     cover.sync(transition);
   }, [cover, transition]);
+  useLayoutEffect(() => cover.dispose, [cover]);
   useLayoutEffect(
     () =>
       transition?.kind === 'auto' ? cover.startAuto(transition) : undefined,
@@ -358,6 +417,14 @@ export function CoverTabView({
       return null;
     }
     const focused = index === state.index;
+    // 지금 탭만 터치를 받는다. 다만 밀어서 놓은 뒤 마무리하는 동안의 지금 탭은 덮여 안 보이므로 받지 않는다
+    // (탭 바로 들어오는 동안의 지금 탭은 위에서 들어오는 화면이라 받는다)
+    const touchable =
+      focused &&
+      !(
+        transition?.kind === 'drag' &&
+        (transition.settling || transition.landing)
+      );
     let style: SceneStyle = focused ? styles.rest : styles.hidden;
     if (transition && motionStyles) {
       if (index === transition.from) {
@@ -375,6 +442,7 @@ export function CoverTabView({
       <CoverScene
         key={route.key}
         focused={focused}
+        touchable={touchable}
         style={style}
         render={descriptors[route.key].render}
       />
@@ -401,10 +469,12 @@ export function CoverTabView({
 
 const CoverScene = memo(function Scene({
   focused,
+  touchable,
   style,
   render,
 }: {
   focused: boolean;
+  touchable: boolean;
   style: SceneStyle;
   render: () => ReactNode;
 }) {
@@ -413,7 +483,7 @@ const CoverScene = memo(function Scene({
   return (
     <Animated.View
       style={style}
-      pointerEvents={focused ? 'box-none' : 'none'}
+      pointerEvents={touchable ? 'box-none' : 'none'}
       accessibilityElementsHidden={!focused}
       importantForAccessibility={focused ? 'auto' : 'no-hide-descendants'}
     >
