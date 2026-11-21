@@ -6,7 +6,8 @@ import { DEV_API_BASE_URL } from '../api/config';
 //   createApiClient({ baseUrl: server.baseUrl, fetch: server.fetch, tokenStore }) 또는 renderWithApi(<X />, { server })
 // 경로·메서드마다 응답을 차례로 주고(마지막 응답은 계속 되풀이), 받은 요청을 calls 에 남긴다.
 // 정하지 않은 경로는 421 FAKE-NO-ROUTE 로 답하고, 그런 요청이 있었으면 테스트가 끝날 때 실패한다(verifyFakeServers).
-// 응답은 백엔드 봉투 모양을 만드는 ok·fail·noContent 로 만든다
+// 응답은 백엔드 봉투 모양을 만드는 ok·fail·noContent 로 만든다.
+// API 서버 밖의 주소(웹 버킷의 약관 전문 등, #192)는 쿼리를 뺀 전체 주소를 경로로 쓴다: server.on('GET', 'https://…/a.txt', rawResponse(…))
 
 /** 가짜 서버가 받은 요청 */
 export type RecordedCall = {
@@ -133,8 +134,11 @@ export function verifyFakeServers() {
   }
 }
 
+/** API 서버 주소면 그 뒤의 경로(/api/v1/...), 밖의 주소면 쿼리를 뺀 전체 주소를 경로로 쓴다 */
 function parseUrl(url: string, baseUrl: string) {
-  const [path, search = ''] = url.slice(baseUrl.length).split('?');
+  const [path, search = ''] = (
+    url.startsWith(baseUrl) ? url.slice(baseUrl.length) : url
+  ).split('?');
   const query: Record<string, string> = {};
   for (const pair of search.split('&').filter(Boolean)) {
     const [key, value = ''] = pair.split('=');
@@ -180,10 +184,11 @@ export function createFakeServer(baseUrl: string = DEV_API_BASE_URL) {
     }
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method ?? 'GET') as HttpMethod;
-    if (!url.startsWith(baseUrl)) {
+    const { path, query } = parseUrl(url, baseUrl);
+    // 밖의 주소는 정해 둔 것만 받는다 (보낸 주소 그대로 처리 못 한 요청으로 남긴다)
+    if (!url.startsWith(baseUrl) && !routes.has(`${method} ${path}`)) {
       return noRoute(`${method} ${url}`);
     }
-    const { path, query } = parseUrl(url, baseUrl);
     const call: RecordedCall = {
       method,
       url,

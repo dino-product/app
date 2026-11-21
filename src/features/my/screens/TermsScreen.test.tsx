@@ -1,14 +1,23 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { TermsScreen, type TermsLinks } from './TermsScreen';
 
-const noLinks: TermsLinks = { terms: '', privacy: '', openSource: '' };
+const noLinks: TermsLinks = { openSource: '' };
 
-const renderTerms = (links: TermsLinks = noLinks, onOpenLink = jest.fn()) =>
+const renderTerms = ({
+  links = noLinks,
+  onOpenLink = jest.fn(),
+  onOpenTerms = jest.fn(),
+}: {
+  links?: TermsLinks;
+  onOpenLink?: jest.Mock;
+  onOpenTerms?: jest.Mock;
+} = {}) =>
   render(
     <TermsScreen
       links={links}
       appVersion="1.0"
       onOpenLink={onOpenLink}
+      onOpenTerms={onOpenTerms}
       onBack={jest.fn()}
     />,
   );
@@ -35,25 +44,38 @@ describe('TermsScreen', () => {
     expect(screen.getByText('최신 버전')).toBeOnTheScreen();
   });
 
-  it('주소가 아직 없는 약관은 비활성이다', async () => {
+  // 서비스 이용약관·개인정보 처리방침은 원격 전문을 앱 안 약관 상세로 연다 (#192)
+  it.each([
+    ['서비스 이용약관', 'service'],
+    ['개인정보 처리방침', 'privacy'],
+  ])('%s 를 누르면 그 약관 상세를 연다', async (name, terms) => {
+    const onOpenTerms = jest.fn();
+    await renderTerms({ onOpenTerms });
+
+    await userEvent.press(screen.getByRole('button', { name }));
+
+    expect(onOpenTerms).toHaveBeenCalledWith(terms);
+  });
+
+  it('오픈소스 라이선스는 주소가 아직 없으면 비활성이다', async () => {
     await renderTerms();
 
     expect(
-      screen.getByRole('button', { name: '서비스 이용약관' }),
+      screen.getByRole('button', { name: '오픈소스 라이선스' }),
     ).toBeDisabled();
   });
 
-  it('주소가 있으면 누를 때 그 주소를 연다', async () => {
+  it('오픈소스 라이선스 주소가 있으면 누를 때 그 주소를 연다', async () => {
     const onOpenLink = jest.fn();
-    await renderTerms(
-      { ...noLinks, privacy: 'https://example.com/privacy' },
+    await renderTerms({
+      links: { openSource: 'https://example.com/oss' },
       onOpenLink,
-    );
+    });
 
     await userEvent.press(
-      screen.getByRole('button', { name: '개인정보 처리방침' }),
+      screen.getByRole('button', { name: '오픈소스 라이선스' }),
     );
 
-    expect(onOpenLink).toHaveBeenCalledWith('https://example.com/privacy');
+    expect(onOpenLink).toHaveBeenCalledWith('https://example.com/oss');
   });
 });

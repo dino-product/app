@@ -1,19 +1,7 @@
-import { useCallback, useState, type Ref } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  type TextInstance,
-} from 'react-native';
+import { useCallback, type Ref } from 'react';
+import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  colors,
-  CTA,
-  Icon,
-  ICON_HIT_SLOP,
-  Text,
-} from '../../../shared/design-system';
+import { colors, CTA, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import {
@@ -21,32 +9,39 @@ import {
   standaloneScreen,
 } from '../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
-import { AgreeAllCheckbox, TermsCheck } from '../components/TermsChecks';
-import { TermsSheet } from '../components/TermsSheet';
 import {
+  AgreeAllCheckbox,
+  TERMS_ROW_GAP,
+  TermsRow,
+} from '../components/TermsChecks';
+import {
+  ALL_TERMS_TYPES,
   allTermsAgreed,
   canSignUp,
-  noTermsAgreed,
-  requiredLabel,
   termsList,
-  toggleAllTerms,
-  toggleTerm,
   type Terms,
   type TermsAgreement,
   type TermsType,
 } from '../model';
 
 // Figma 약관 동의 (3284:22327 빈 / 3278:19869 전체 체크). 필수 네 개에 모두 동의해야 '가입하기' 가 켜진다.
-// 행의 > 를 누르면 약관 시트를 연다 (Figma 에 연결이 없어 기본안, 디자인 확인 항목)
+// 약관 행을 누르면 동의를 바꾸지 않고 그 약관 상세(Figma 약관 상세 페이지 51019:16927)를 연다. 동의는 상세의 라디오로 한다 (#193).
+// '모든 약관에 동의합니다' 는 모두 동의한 채로 모든 약관 상세를 연다(모두 동의돼 있으면 모두 끈다).
+// 동의 상태는 경로가 들고 있다: 약관 상세(다른 경로)에서 고른 라디오가 이 화면의 체크가 된다
 export function TermsAgreementScreen({
-  initialMarketing,
+  agreement,
+  onAgreeAll,
+  onOpenTerms,
   submitting = false,
   onBack,
   onSignUp,
   titleRef,
 }: {
-  /** 서버에 남은 마케팅(선택) 동의. 약관 개정으로 다시 동의할 때 미리 켜 두어, 건드리지 않으면 그 값을 보낸다 (#113) */
-  initialMarketing?: boolean;
+  agreement: TermsAgreement;
+  /** 모든 약관을 동의(true)·비동의(false)로 바꾼다 */
+  onAgreeAll: (agreed: boolean) => void;
+  /** 약관 상세를 연다. 행은 그 약관 하나, 전체 동의는 모든 약관 (행 순서) */
+  onOpenTerms: (types: readonly TermsType[]) => void;
   /** 서버에 동의를 보내는 동안 '가입하기' 를 끈다 */
   submitting?: boolean;
   onBack: () => void;
@@ -55,39 +50,19 @@ export function TermsAgreementScreen({
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  const [agreement, setAgreement] = useState(() => ({
-    ...noTermsAgreed,
-    MARKETING: initialMarketing ?? false,
-  }));
-  // 마케팅 동의 값이 그린 뒤에 오면(켠 직후 서버 확인), 선택 약관을 건드리지 않았을 때만 반영한다. 렌더 중에 맞춘다
-  const [appliedMarketing, setAppliedMarketing] = useState(
-    initialMarketing ?? false,
+  const allAgreed = allTermsAgreed(agreement);
+  // TermsRow 가 memo 라 렌더마다 새로 만들지 않는다
+  const openTerms = useCallback(
+    (terms: Terms) => onOpenTerms([terms.type]),
+    [onOpenTerms],
   );
-  if ((initialMarketing ?? false) !== appliedMarketing) {
-    setAppliedMarketing(initialMarketing ?? false);
-    if (agreement.MARKETING === appliedMarketing) {
-      setAgreement({ ...agreement, MARKETING: initialMarketing ?? false });
+  const agreeAll = () => {
+    if (allAgreed) {
+      onAgreeAll(false);
+      return;
     }
-  }
-  const [sheetOpen, setSheetOpen] = useState(false);
-  // > 를 누른 약관. 시트가 그 약관이 보이게 열린다
-  const [focusType, setFocusType] = useState<TermsType | null>(null);
-  // 시트에서 고치는 체크. 열 때 화면 체크로 시작하고, '확인' 을 눌러야 화면에 반영한다
-  const [draft, setDraft] = useState(noTermsAgreed);
-
-  // TermsCheck 가 memo 라 렌더마다 새로 만들지 않는다
-  const toggle = useCallback(
-    (terms: Terms) => setAgreement(current => toggleTerm(current, terms.type)),
-    [],
-  );
-  const openSheet = (type: TermsType) => {
-    setDraft(agreement);
-    setFocusType(type);
-    setSheetOpen(true);
-  };
-  const confirmSheet = () => {
-    setAgreement(draft);
-    setSheetOpen(false);
+    onAgreeAll(true);
+    onOpenTerms(ALL_TERMS_TYPES);
   };
 
   return (
@@ -112,41 +87,17 @@ export function TermsAgreementScreen({
 
         <View style={styles.agreements}>
           <View style={styles.allRow}>
-            <AgreeAllCheckbox
-              label="모든 약관에 동의합니다."
-              checked={allTermsAgreed(agreement)}
-              onPress={() => setAgreement(toggleAllTerms)}
-              variant="Body/S/SemiBold"
-              color={colors.gray[800]}
-            />
+            <AgreeAllCheckbox checked={allAgreed} onPress={agreeAll} />
           </View>
           <View style={styles.divider} />
-          <View style={styles.rows}>
+          <View style={styles.rows} testID="terms-rows">
             {termsList.map(terms => (
-              <View key={terms.type} style={styles.row}>
-                <TermsCheck
-                  terms={terms}
-                  title={terms.title}
-                  checked={agreement[terms.type]}
-                  onToggle={toggle}
-                  color={colors.gray[600]}
-                  gap={4}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${terms.title} ${requiredLabel(
-                    terms,
-                  )} 보기`}
-                  hitSlop={ICON_HIT_SLOP}
-                  onPress={() => openSheet(terms.type)}
-                  style={styles.more}
-                >
-                  <Icon
-                    name="chevron-right-line"
-                    color={colors.inputDisabled}
-                  />
-                </Pressable>
-              </View>
+              <TermsRow
+                key={terms.type}
+                terms={terms}
+                agreed={agreement[terms.type]}
+                onOpen={openTerms}
+              />
             ))}
           </View>
         </View>
@@ -159,15 +110,6 @@ export function TermsAgreementScreen({
           disabled={!canSignUp(agreement) || submitting}
         />
       </View>
-
-      <TermsSheet
-        visible={sheetOpen}
-        focusType={focusType}
-        draft={draft}
-        onChange={setDraft}
-        onClose={() => setSheetOpen(false)}
-        onConfirm={confirmSheet}
-      />
     </SafeAreaView>
   );
 }
@@ -183,14 +125,6 @@ const styles = StyleSheet.create({
   agreements: { gap: 24 },
   allRow: { flexDirection: 'row' },
   divider: { height: 1, backgroundColor: colors.inputDisabled },
-  // Figma 는 행 20 에 간격 24 이고 체크 표시(24)가 위아래로 2씩 넘친다. 행을 체크 표시 높이로 두고 간격 20 으로
-  // 같은 44 간격을 맞춘다. 높이를 묶지 않아 큰 글자로 이름이 두 줄이 돼도 옆 행과 겹치지 않는다
-  rows: { gap: 20 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  // 화살표 선이 행 오른쪽 끝에서 5 안쪽에 오도록 아이콘 틀(24)을 바깥으로 민다
-  more: { marginRight: -4 },
+  // 행 사이 간격 (TERMS_ROW_GAP: iOS 20, Android 24). 높이를 묶지 않아 큰 글자로 이름이 두 줄이 돼도 옆 행과 겹치지 않는다
+  rows: { gap: TERMS_ROW_GAP },
 });

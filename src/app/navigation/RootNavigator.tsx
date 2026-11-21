@@ -32,6 +32,7 @@ import {
   MyPageRoute,
   NotificationCenterRoute,
   NotificationSettingsRoute,
+  MyTermsDetailRoute,
   ProfileEditRoute,
   TermsRoute,
   WithdrawalBlockedRoute,
@@ -45,7 +46,9 @@ import {
   JoinRejectedRoute as OnboardingJoinRejectedRoute,
   JoinRoleSelectRoute,
   LoginRoute,
+  OnboardingTermsProvider,
   ProfileRegisterRoute,
+  SignUpTermsDetailRoute,
   TermsAgreementRoute,
 } from './onboardingRoutes';
 import {
@@ -230,6 +233,9 @@ const byOrganization = ({ params }: { params: { organizationId: string } }) =>
   params.organizationId;
 const byRequest = ({ params }: { params: { requestId: string } }) =>
   params.requestId;
+const byTerms = ({ params }: { params: { terms: string } }) => params.terms;
+const byTermsTypes = ({ params }: { params: { types: readonly string[] } }) =>
+  params.types.join(',');
 
 function HomeTab() {
   const stackOptions = useStackOptions();
@@ -297,6 +303,11 @@ function MyTab() {
         getId={once}
       />
       <MyStack.Screen name="Terms" component={TermsRoute} getId={once} />
+      <MyStack.Screen
+        name="TermsDetail"
+        component={MyTermsDetailRoute}
+        getId={byTerms}
+      />
       <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
       <MyStack.Screen
         name="Withdrawal"
@@ -353,51 +364,59 @@ function OnboardingFlow() {
       }}
       style={styles.screen}
     >
-      <OnboardingStack.Navigator
-        initialRouteName={ONBOARDING_INITIAL_ROUTE}
-        screenOptions={stackOptions}
-        screenLayout={stackScreenLayout}
-      >
-        <OnboardingStack.Screen
-          name="ProfileRegister"
-          component={ProfileRegisterRoute}
-        />
-        <OnboardingStack.Screen
-          name="TermsAgreement"
-          component={TermsAgreementRoute}
-          getId={once}
-        />
-        <OnboardingStack.Screen
-          name="CompanyFind"
-          component={CompanyFindRoute}
-          getId={once}
-        />
-        <OnboardingStack.Screen
-          name="CompanyQrScan"
-          component={CompanyQrScanRoute}
-          getId={once}
-        />
-        <OnboardingStack.Screen
-          name="JoinRoleSelect"
-          component={JoinRoleSelectRoute}
-          getId={byOrganization}
-        />
-        <OnboardingStack.Screen
-          name="JoinPending"
-          component={JoinPendingRoute}
-          getId={byRequest}
-        />
-        <OnboardingStack.Screen
-          name="JoinApproved"
-          component={JoinApprovedRoute}
-          getId={byRequest}
-        />
-        <OnboardingStack.Screen
-          name="JoinRejected"
-          component={OnboardingJoinRejectedRoute}
-          getId={byRequest}
-        />
-      </OnboardingStack.Navigator>
+      {/* 가입 약관 화면과 약관 상세가 같은 동의 상태를 쓴다 (#193) */}
+      <OnboardingTermsProvider>
+        <OnboardingStack.Navigator
+          initialRouteName={ONBOARDING_INITIAL_ROUTE}
+          screenOptions={stackOptions}
+          screenLayout={stackScreenLayout}
+        >
+          <OnboardingStack.Screen
+            name="ProfileRegister"
+            component={ProfileRegisterRoute}
+          />
+          <OnboardingStack.Screen
+            name="TermsAgreement"
+            component={TermsAgreementRoute}
+            getId={once}
+          />
+          <OnboardingStack.Screen
+            name="TermsDetail"
+            component={SignUpTermsDetailRoute}
+            getId={byTermsTypes}
+          />
+          <OnboardingStack.Screen
+            name="CompanyFind"
+            component={CompanyFindRoute}
+            getId={once}
+          />
+          <OnboardingStack.Screen
+            name="CompanyQrScan"
+            component={CompanyQrScanRoute}
+            getId={once}
+          />
+          <OnboardingStack.Screen
+            name="JoinRoleSelect"
+            component={JoinRoleSelectRoute}
+            getId={byOrganization}
+          />
+          <OnboardingStack.Screen
+            name="JoinPending"
+            component={JoinPendingRoute}
+            getId={byRequest}
+          />
+          <OnboardingStack.Screen
+            name="JoinApproved"
+            component={JoinApprovedRoute}
+            getId={byRequest}
+          />
+          <OnboardingStack.Screen
+            name="JoinRejected"
+            component={OnboardingJoinRejectedRoute}
+            getId={byRequest}
+          />
+        </OnboardingStack.Navigator>
+      </OnboardingTermsProvider>
     </View>
   );
 }

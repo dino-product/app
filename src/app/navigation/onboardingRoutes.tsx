@@ -5,7 +5,7 @@ import {
   useIsFocused,
 } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Alert, BackHandler, Platform } from 'react-native';
 import {
   PROFILE_RULE_MESSAGE,
@@ -23,8 +23,12 @@ import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
 import type { CompanyCheckHandlers } from '../../features/my/org/useCompanyCheck';
 import {
+  isTermsType,
   loginMethodsFor,
+  termsDetailTitle,
+  termsList,
   type TermsAgreement,
+  type TermsType,
 } from '../../features/onboarding/model';
 import {
   agreeToTerms,
@@ -38,6 +42,15 @@ import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprov
 import { LoginScreen } from '../../features/onboarding/screens/LoginScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
+import {
+  TermsAgreementProvider,
+  useTermsAgreement,
+} from '../../features/onboarding/termsAgreementState';
+import { signUpTermsDocuments } from '../../features/terms/documents';
+import {
+  TermsDetailScreen,
+  type TermsDetailSection,
+} from '../../features/terms/screens/TermsDetailScreen';
 import { isApiError, useApiClient } from '../../shared/api';
 import { useLightStatusBar } from '../../shared/layout/useLightStatusBar';
 import { useAccountProfile, useAuth } from '../AuthProvider';
@@ -167,6 +180,21 @@ export function ProfileRegisterRoute({
   );
 }
 
+/**
+ * 가입 단계의 약관 동의 상태 (#193). 가입 약관과 약관 상세(다른 경로)가 같이 쓴다.
+ * 재동의면 서버에 남은 마케팅 동의로 미리 켜 둔다. 건드리지 않으면 그 값을 보낸다 (#113)
+ */
+export function OnboardingTermsProvider({ children }: { children: ReactNode }) {
+  const profile = useAccountProfile();
+  return (
+    <TermsAgreementProvider
+      initialMarketing={profile?.marketingAgreed ?? undefined}
+    >
+      {children}
+    </TermsAgreementProvider>
+  );
+}
+
 export function TermsAgreementRoute({
   navigation,
 }: OnboardingScreenProps<'TermsAgreement'>) {
@@ -174,13 +202,24 @@ export function TermsAgreementRoute({
   const { agreedToTerms } = useAuth();
   const profile = useAccountProfile();
   const titleRef = useFocusTitleOnOpen(navigation);
+  // 동의 상태는 가입 단계 묶음(OnboardingTermsProvider)에 있다. 약관 상세에서 고른 라디오가 여기로 돌아온다 (#193)
+  const terms = useTermsAgreement();
+  const openTerms = useCallback(
+    (types: readonly TermsType[]) =>
+      navigation.navigate('TermsDetail', { types }),
+    [navigation],
+  );
+  // 약관 단계를 보는 동안(가입 약관, 또는 그 위에 쌓인 약관 상세 #193) 서버 단계가 PROFILE 로 돌아가면 프로필 등록으로 간다.
+  // 회사 찾기 등 다음 단계로 넘어가 있으면 옮기지 않는다
   useStepChanged(
     useCallback(
       (previous, next) => {
+        const { routes, index } = navigation.getState();
+        const top = routes[index]?.name;
         if (
           previous === 'TERMS' &&
           next === 'PROFILE' &&
-          navigation.isFocused()
+          (top === 'TermsAgreement' || top === 'TermsDetail')
         ) {
           navigation.popTo('ProfileRegister');
         }
@@ -202,8 +241,9 @@ export function TermsAgreementRoute({
   return (
     <TermsAgreementScreen
       titleRef={titleRef}
-      // 재동의면 서버에 남은 마케팅 동의로 미리 켜 둔다. 건드리지 않으면 그 값을 보낸다
-      initialMarketing={profile?.marketingAgreed ?? undefined}
+      agreement={terms.agreement}
+      onAgreeAll={terms.agreeAll}
+      onOpenTerms={openTerms}
       submitting={agree.isPending}
       onBack={() => navigation.goBack()}
       onSignUp={agreement =>
@@ -219,6 +259,49 @@ export function TermsAgreementRoute({
             Alert.alert('가입하지 못했어요', '잠시 후 다시 시도해 주세요.'),
         })
       }
+    />
+  );
+}
+
+// 가입 약관 상세 (#193, Figma 약관 상세 페이지 51019:16927). 전문 아래 라디오로 고른 동의가 가입 약관의 체크가 된다.
+// 여러 약관이면('모든 약관에 동의합니다') 행 순서로 한 페이지에 차례로 보인다
+export function SignUpTermsDetailRoute({
+  navigation,
+  route,
+}: OnboardingScreenProps<'TermsDetail'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+  const { agreement, choose } = useTermsAgreement();
+  const { types } = route.params;
+  const sections = useMemo<readonly TermsDetailSection[]>(
+    () =>
+      termsList
+        .filter(terms => types.includes(terms.type))
+        .map(terms => ({
+          key: terms.type,
+          title: termsDetailTitle(terms),
+          document: signUpTermsDocuments[terms.type],
+          intro: terms.intro,
+        })),
+    [types],
+  );
+  // 상세는 약관을 문자열 키로 알린다. 가입 약관 종류만 받는다
+  const chooseTerms = useCallback(
+    (key: string, agreed: boolean) => {
+      if (isTermsType(key)) {
+        choose(key, agreed);
+      }
+    },
+    [choose],
+  );
+
+  return (
+    <TermsDetailScreen
+      sections={sections}
+      agreement={agreement}
+      onAgreeChange={chooseTerms}
+      standalone
+      titleRef={titleRef}
+      onBack={() => navigation.goBack()}
     />
   );
 }
