@@ -2,6 +2,7 @@ import {
   COMPONENT_SLACK,
   EDGE_BAND,
   QUICK_SWITCH_DISTANCE,
+  TAB_TRACK_DISTANCE,
   SWITCH_DISTANCE,
   decideTabSwipe,
   decideTabTrack,
@@ -208,13 +209,14 @@ describe('밀기 방향과 이웃 탭', () => {
 });
 
 describe('놓을 때 탭을 바꾸는 거리 — 이어 밀면 방향만, 망설이면 화면 절반 (#216)', () => {
-  it('이어 밀면 방향을 정하는 거리(10pt)만 넘으면 된다 (거의 터치 수준)', () => {
-    expect(QUICK_SWITCH_DISTANCE).toBe(AXIS_DECISION_DISTANCE);
+  it('이어 밀면 방향을 정하는 거리(8pt)만 넘으면 된다 (거의 터치 수준)', () => {
+    expect(QUICK_SWITCH_DISTANCE).toBe(TAB_TRACK_DISTANCE);
+    expect(TAB_TRACK_DISTANCE).toBe(8);
     expect(
-      switchOnRelease({ distance: 10, hesitant: false, windowWidth: 393 }),
+      switchOnRelease({ distance: 8, hesitant: false, windowWidth: 393 }),
     ).toBe(true);
     expect(
-      switchOnRelease({ distance: 9, hesitant: false, windowWidth: 393 }),
+      switchOnRelease({ distance: 7, hesitant: false, windowWidth: 393 }),
     ).toBe(false);
   });
 
@@ -232,10 +234,12 @@ describe('놓을 때 탭을 바꾸는 거리 — 이어 밀면 방향만, 망설
 });
 
 describe('decideTabTrack — 덮기 밀기는 놓을 때까지 따라가기만 한다 (#216)', () => {
-  it('10pt 를 넘게 가로로 움직이면 따라가고, 아무리 멀리 가도 미는 중에는 바꾸지 않는다', () => {
-    // 손바닥·손가락이 스치는 10pt 이하의 움직임은 방향도 정하지 않는다 (어디서 시작했든)
-    expect(decideTabTrack({ dx: -10, dy: 0, touches: 1 })).toBe('wait');
-    expect(decideTabTrack({ dx: -11, dy: 0, touches: 1 })).toBe('track');
+  it('8pt 를 넘게 가로로 움직이면 따라가고, 아무리 멀리 가도 미는 중에는 바꾸지 않는다', () => {
+    // 손바닥·손가락이 스치는 8pt 이하의 움직임은 방향도 정하지 않는다 (어디서 시작했든)
+    expect(decideTabTrack({ dx: -8, dy: 0, touches: 1 })).toBe('wait');
+    expect(decideTabTrack({ dx: -9, dy: 0, touches: 1 })).toBe('track');
+    // 달력·달 넘김(decideTabSwipe)은 그대로 10pt 다
+    expect(decideTabSwipe({ dx: -10, dy: 0, touches: 1 })).toBe('wait');
     expect(decideTabTrack({ dx: -900, dy: 0, touches: 1 })).toBe('track');
   });
 

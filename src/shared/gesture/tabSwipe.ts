@@ -15,7 +15,7 @@
 //   (수평 30° 밖: 세로 우세·세로 먼저) 그 제스처는 끝까지 탭 전환이 아니다. 달력 넘김(45°)보다 좁혀 손바닥 비빔을 거른다
 // - 두 손가락 이상이 닿으면 그 제스처는 무시한다
 
-import { AXIS_DECISION_DISTANCE, decidePanAxis } from './panAxis';
+import { decidePanAxis } from './panAxis';
 
 export type GestureOwner = 'tab' | 'component';
 /** next: 오른쪽 탭으로 (손가락을 왼쪽으로 민다), prev: 왼쪽 탭으로 */
@@ -106,10 +106,12 @@ export function decideTabSwipe({
 // 덮기 밀기 (#216). 메인 탭은 이웃 탭 화면이 손가락을 따라 덮고, 놓을 때 바꿀지 정한다 (작업 이력 달 넘김 #153 은 위의
 // SWITCH_DISTANCE 에서 바로 넘긴다). 멈추지 않고 이어 밀었으면 방향을 정하는 거리만 넘어도 바꾸고(인스타그램처럼 거의 터치 수준),
 // 미는 중에 멈추거나 되돌렸거나 멈춘 채 떼면(swipeHesitation.ts) 망설인 것이라 화면 폭의 절반을 넘겨야 바꾼다.
-// 손바닥·손가락이 스치는 아주 작은 움직임은 방향을 정하는 거리(10pt)를 넘지 못해 탭 밀기가 되지 않는다. 시작 자리는 가리지 않는다
+// 손바닥·손가락이 스치는 아주 작은 움직임은 방향을 정하는 거리(8pt)를 넘지 못해 탭 밀기가 되지 않는다. 시작 자리는 가리지 않는다
 
+/** 덮기 밀기가 방향을 정하는 거리 (pt). 이보다 작은 움직임은 스침이다. 실기기 체감으로 정한 값 (달력·달 넘김은 10pt 그대로) */
+export const TAB_TRACK_DISTANCE = 8;
 /** 이어 밀 때 탭을 바꾸는 거리 (pt). 방향을 정하는 거리와 같다: 가로로 정해지면 바로 */
-export const QUICK_SWITCH_DISTANCE = AXIS_DECISION_DISTANCE;
+export const QUICK_SWITCH_DISTANCE = TAB_TRACK_DISTANCE;
 /** 망설인 뒤에 탭을 바꾸는 거리는 화면 폭의 이 비율이다 */
 export const HESITANT_SWITCH_RATIO = 0.5;
 
@@ -146,8 +148,17 @@ export function decideTabTrack({
   dy: number;
   touches: number;
 }): 'wait' | 'track' | 'ignore' {
-  const decision = decideTabSwipe({ dx, dy, touches });
-  return decision === 'switch' ? 'track' : decision;
+  if (touches > 1) {
+    return 'ignore';
+  }
+  const axis = decidePanAxis(dx, dy, {
+    distance: TAB_TRACK_DISTANCE,
+    horizontalMaxAngle: MAX_SWIPE_ANGLE,
+  });
+  if (axis === null) {
+    return 'wait';
+  }
+  return axis === 'horizontal' ? 'track' : 'ignore';
 }
 
 /** 손가락을 왼쪽으로 밀면(dx < 0) 오른쪽 탭으로 간다 */
