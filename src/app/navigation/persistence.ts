@@ -119,6 +119,7 @@ const myStack = {
   OrgJoinRequested: joinRequest,
   OrgJoinRejected: byRequest,
   OrgJoinRequests: once,
+  OrgJoinReview: byRequest,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
 const mainTabs = {
   home: nested(homeStack),

@@ -6,8 +6,10 @@ import {
   ScrollView,
   Text,
 } from 'react-native';
+import * as SafeArea from 'react-native-safe-area-context';
 import { drag } from '../../../../jest/gesture';
 import { dragFrom } from '../../../../jest/responder';
+import { colors, withOpacity } from '../tokens/colors';
 import { BottomSheet } from './BottomSheet';
 
 // jest 프리셋의 네이티브 애니메이션 목은 16ms 뒤에 저절로 끝난다. 끝내는 시점을 테스트가 정한다
@@ -319,21 +321,55 @@ describe('BottomSheet', () => {
     });
   });
   describe('모양 (Figma 시트마다 다르다)', () => {
-    it('기본은 신청 취소 시트(2889:13197) 모양이다: 손잡이, 위 모서리 24, 아래는 안전 영역 + 16', async () => {
+    // Figma 마이페이지-신청 취소 바텀시트 2889:13037 (#200): 위 모서리 28, 위 여백 10 + 손잡이 칸 12 = 22 에 손잡이(2889:13051 32×4 Gray500),
+    // 손잡이–내용 24, 아래 36(홈 인디케이터 포함, 안전 영역이 더 크면 그만큼), 딤 2889:13020 검정 45%
+    it('기본은 신청 취소 시트(2889:13197) 모양이다: 위 모서리 28, 위 22 에 손잡이 32×4 Gray500, 손잡이 아래 24, 아래 36, 딤 45%', async () => {
       await render(sheet(true));
 
       expect(
         screen.getByTestId('sheet-handle', { includeHiddenElements: true }),
-      ).toBeTruthy();
+      ).toHaveStyle({
+        width: 32,
+        height: 4,
+        backgroundColor: colors.gray[500],
+        marginBottom: 24,
+      });
       expect(screen.getByTestId('sheet')).toHaveStyle({
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
       });
       expect(screen.getByTestId('sheet-content')).toHaveStyle({
-        paddingTop: 12,
+        paddingTop: 22,
         paddingHorizontal: 24,
-        paddingBottom: 16,
+        paddingBottom: 36,
       });
+      expect(
+        screen.getByTestId('sheet-backdrop', { includeHiddenElements: true })
+          .parent,
+      ).toHaveStyle({ backgroundColor: withOpacity('#000000', 0.45) });
+    });
+
+    it('confirm 아래 여백은 안전 영역이 36 보다 크면 안전 영역이다', async () => {
+      // 목 라이브러리의 훅은 이미 jest.fn 이라 restoreAllMocks 로 돌아가지 않는다. 원래 구현을 직접 되돌린다
+      const insets = jest.mocked(SafeArea.useSafeAreaInsets);
+      const original = insets.getMockImplementation();
+      insets.mockImplementation(() => ({
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 48,
+      }));
+      try {
+        await render(sheet(true));
+
+        expect(screen.getByTestId('sheet-content')).toHaveStyle({
+          paddingBottom: 48,
+        });
+      } finally {
+        if (original) {
+          insets.mockImplementation(original);
+        }
+      }
     });
 
     it('document 는 약관 동의 시트(3569:7702) 모양이다: 손잡이 없이 위 모서리 28, 위 24·아래 36, 좌우 여백은 내용이 정한다', async () => {
@@ -360,6 +396,11 @@ describe('BottomSheet', () => {
         paddingHorizontal: 0,
         paddingBottom: 36,
       });
+      // 약관 시트의 딤은 지금 값 그대로다
+      expect(
+        screen.getByTestId('sheet-backdrop', { includeHiddenElements: true })
+          .parent,
+      ).toHaveStyle({ backgroundColor: withOpacity('#000000', 0.4) });
     });
   });
 });

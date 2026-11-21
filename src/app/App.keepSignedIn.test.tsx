@@ -417,7 +417,7 @@ describe('App — 로그인 유지 (#138)', () => {
       await userEvent.press(tab('마이'));
 
       expect(
-        await screen.findByLabelText('오르빗 설비, 기사, 활성'),
+        await screen.findByLabelText('오르빗 설비, 기사, 승인'),
       ).toBeOnTheScreen();
       expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
       expect(
@@ -442,7 +442,7 @@ describe('App — 로그인 유지 (#138)', () => {
       await userEvent.press(tab('마이'));
 
       expect(
-        await screen.findByLabelText('오르빗 설비, 기사, 활성'),
+        await screen.findByLabelText('오르빗 설비, 기사, 승인'),
       ).toBeOnTheScreen();
       expect(
         server
@@ -556,7 +556,7 @@ describe('App — 로그인 유지 (#138)', () => {
       await screen.findByRole('button', { name: /^박기사/ }),
     ).toBeOnTheScreen();
     expect(
-      await screen.findByLabelText('오르빗 설비, 기사, 활성'),
+      await screen.findByLabelText('오르빗 설비, 기사, 승인'),
     ).toBeOnTheScreen();
     expect(server.callsTo('POST', REFRESH_PATH)).toHaveLength(1);
     expect(await keychainSession()).toEqual(sessionOf(2));

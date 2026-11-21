@@ -12,9 +12,11 @@ import type {
   NotificationTarget,
   WithdrawalBlockReason,
 } from '../../features/my/model';
-import { useMyMemberships, useMyProfile } from '../../features/my/myQueries';
-import { countPendingRequests } from '../../features/my/org/model';
-import { useParticipationRequests } from '../../features/my/org/participationQueries';
+import {
+  useMyMemberships,
+  useMyProfile,
+  useMyReviewRequests,
+} from '../../features/my/myQueries';
 import { AccountScreen } from '../../features/my/screens/AccountScreen';
 import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
 import { NotificationCenterScreen } from '../../features/my/screens/NotificationCenterScreen';
@@ -48,22 +50,26 @@ import {
 // 프로필·소속 발주사·탈퇴는 서버 API 다 (#115). 마이페이지는 경로가 조회해 넘기고, 하위 화면은 화면이 직접 받는다
 
 export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
-  // '신청 현황' 배지는 서버 신청 현황의 승인 대기 건수다 (#116). 받기 전·받지 못했으면 배지를 두지 않는다
-  const { data: pendingRequestCount = 0 } =
-    useParticipationRequests(countPendingRequests);
   // 마이페이지에서 마이 탭을 다시 누르면 맨 위로 올린다 (iOS 관례)
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
-  // 하위 화면·다른 탭에 가 있는 동안은 프로필·소속을 구독하지 않는다 (돌아오면 오래된 값만 다시 받는다).
+  // 하위 화면·다른 탭에 가 있는 동안은 프로필·소속·신청 현황을 구독하지 않는다 (돌아오면 오래된 값만 다시 받는다).
   // 경로는 포커스가 바뀔 때 다시 그려지지만, 화면(memo)에 주는 값이 같으면 화면은 다시 그리지 않는다
   const subscribed = useIsFocused();
   const profile = useMyProfile({ subscribed });
   const memberships = useMyMemberships({ subscribed });
+  // 신청 현황의 승인 대기 요청이 소속 카드의 검토 줄이다 (#199). '신청 현황' 배지는 그 건수이고(#116),
+  // 받기 전·받지 못했으면 배지를 두지 않는다
+  const reviewRequests = useMyReviewRequests({ subscribed });
+  const pendingRequestCount =
+    reviewRequests.status === 'ready' ? reviewRequests.data.length : 0;
   const open = useMemo(
     () => ({
       onOpenNotifications: () => navigation.navigate('NotificationCenter'),
       onEditProfile: () => navigation.navigate('ProfileEdit'),
       onOpenRequestStatus: () => navigation.navigate('OrgJoinRequests'),
+      onOpenReviewRequest: (requestId: string) =>
+        navigation.navigate('OrgJoinReview', { requestId }),
       onJoinOrganization: () => navigation.navigate('OrgJoin'),
       onOpenNotificationSettings: () =>
         navigation.navigate('NotificationSettings'),
@@ -78,6 +84,7 @@ export function MyPageRoute({ navigation }: MyScreenProps<'MyPage'>) {
       profile={profile}
       memberships={memberships}
       pendingRequestCount={pendingRequestCount}
+      reviewRequests={reviewRequests}
       {...open}
       scrollRef={scrollRef}
     />

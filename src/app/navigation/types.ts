@@ -82,6 +82,8 @@ export type MyStackParamList = {
   OrgJoinRequested: JoinRequestParams;
   OrgJoinRejected: { requestId: string };
   OrgJoinRequests: undefined;
+  /** 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199) */
+  OrgJoinReview: { requestId: string };
 };
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;

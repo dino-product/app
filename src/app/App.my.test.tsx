@@ -80,7 +80,7 @@ async function openMyPage(
   const app = await renderSignedInApp(options);
   await userEvent.press(tab('마이'));
   await screen.findByRole('button', { name: /^박기사/ });
-  await screen.findByLabelText('오르빗 설비, 기사, 활성');
+  await screen.findByLabelText('오르빗 설비, 기사, 승인');
   return app;
 }
 
@@ -150,7 +150,7 @@ describe('App — 마이 탭', () => {
         )}`,
       );
       expect(
-        screen.getByLabelText('오르빗 설비, 기사, 활성'),
+        screen.getByLabelText('오르빗 설비, 기사, 승인'),
       ).toBeOnTheScreen();
     });
 

@@ -218,18 +218,11 @@ export function formatRequestedAt(at: string): string {
   )}`;
 }
 
-/** 승인 대기 중인 요청 (신청 현황 목록) */
+/** 승인 대기 중인 요청 (신청 현황 목록, 마이페이지 검토 줄·신청 현황 배지) */
 export function pendingRequests(
   requests: readonly ParticipationRequest[],
 ): ParticipationRequest[] {
   return requests.filter(request => request.status === 'PENDING');
-}
-
-/** 승인 대기 건수 (마이페이지 신청 현황 배지) */
-export function countPendingRequests(
-  requests: readonly ParticipationRequest[],
-): number {
-  return pendingRequests(requests).length;
 }
 
 /** 그 회사의 그 상태 요청 중 가장 나중 것. 서버 목록은 요청 일시순이고 다시 보낸 요청은 별개 줄이다 */

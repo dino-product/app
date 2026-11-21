@@ -15,7 +15,7 @@ import { readableColumn } from '../../layout/readableColumn';
 import { colors, withOpacity } from '../tokens/colors';
 
 // 화면 아래에서 올라오는 시트. 모양은 Figma 시트마다 다르다 (variant).
-// confirm: 마이페이지-신청 취소 (2889:13197) — 손잡이, 위 모서리 24, 좌우 여백 24
+// confirm: 마이페이지-신청 취소 (2889:13197) — 손잡이 32×4, 위 모서리 28, 좌우 여백 24, 딤 45% (#200)
 // document: 온보딩 약관 동의 (3569:7702) — 손잡이 없음, 위 모서리 28, 좌우 여백은 내용이 정한다 (제목 16, 본문 24)
 // 닫기 요청(onClose)은 배경 누르기, 아래로 끌기, Android 뒤로가기, VoiceOver 두 손가락 Z 로 온다.
 // 아래로 끌기는 시트 내용 전체에서 받는다. 안쪽에 스크롤이 있는 시트는 header 를 주어 끌기 자리를 제목 줄로 좁힌다
@@ -187,7 +187,7 @@ export function BottomSheet({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
           pointerEvents={touchable}
-          style={[styles.backdrop, { opacity: progress }]}
+          style={[styles.backdrop, shape.backdrop, { opacity: progress }]}
         >
           <Pressable
             onPress={onClose}
@@ -242,49 +242,56 @@ export function BottomSheet({
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: withOpacity('#000000', 0.4),
-  },
+  backdrop: StyleSheet.absoluteFill,
   fill: { flex: 1 },
   sheet: { backgroundColor: colors.white[100] },
+  // 신청 취소 시트의 손잡이 (Figma 2889:13051): 32×4 Gray500, 아래 24 에 내용 (손잡이 칸 아래 12 + 내용 위 12)
   handle: {
     alignSelf: 'center',
-    width: 40,
+    width: 32,
     height: 4,
     marginBottom: 24,
     borderRadius: 2,
-    backgroundColor: colors.gray[300],
+    backgroundColor: colors.gray[500],
   },
 });
 
-const CONFIRM_TOP = 12;
+/** 신청 취소 시트(2889:13037)의 손잡이 위 여백: 시트 위 10 + 손잡이 칸 위 12 */
+const CONFIRM_TOP = 10 + 12;
 const DOCUMENT_TOP = 24;
+/** 시트 아래 여백 (홈 인디케이터 포함). 안전 영역이 더 크면 그만큼 둔다 */
+const SHEET_BOTTOM = 36;
 
 // 끌기 자리(header)는 위 여백까지 덮는다 (손가락은 시트 위 끝을 잡기 쉽다)
 const shapeStyles = StyleSheet.create({
-  confirmSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  confirmSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   confirmContent: { paddingHorizontal: 24, paddingTop: CONFIRM_TOP },
   confirmDragArea: { marginTop: -CONFIRM_TOP, paddingTop: CONFIRM_TOP },
+  // 신청 취소 시트의 딤 (Figma 2889:13020 검정 45%)
+  confirmBackdrop: { backgroundColor: withOpacity('#000000', 0.45) },
   documentSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   documentContent: { paddingHorizontal: 0, paddingTop: DOCUMENT_TOP },
   documentDragArea: { marginTop: -DOCUMENT_TOP, paddingTop: DOCUMENT_TOP },
+  documentBackdrop: { backgroundColor: withOpacity('#000000', 0.4) },
 });
 
-// 아래 여백: confirm 은 안전 영역 위로 16 을 더 띄운다. document 는 Figma 의 36(홈 인디케이터 포함)이고 안전 영역이 더 크면 그만큼 둔다
+// 아래 여백은 두 시트 모두 Figma 의 36(홈 인디케이터 포함)이고 안전 영역이 더 크면 그만큼 둔다
+const sheetBottom = (inset: number) => Math.max(inset, SHEET_BOTTOM);
 const shapes = {
   confirm: {
     sheet: shapeStyles.confirmSheet,
     content: shapeStyles.confirmContent,
     dragArea: shapeStyles.confirmDragArea,
+    backdrop: shapeStyles.confirmBackdrop,
     handle: true,
-    bottomPadding: (inset: number) => inset + 16,
+    bottomPadding: sheetBottom,
   },
   document: {
     sheet: shapeStyles.documentSheet,
     content: shapeStyles.documentContent,
     dragArea: shapeStyles.documentDragArea,
+    backdrop: shapeStyles.documentBackdrop,
     handle: false,
-    bottomPadding: (inset: number) => Math.max(inset, 36),
+    bottomPadding: sheetBottom,
   },
 } as const;
