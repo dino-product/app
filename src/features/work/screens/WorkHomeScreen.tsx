@@ -14,8 +14,6 @@ import {
   StyleSheet,
   View,
   type FlatListInstance,
-  type StyleProp,
-  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -30,6 +28,7 @@ import {
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
+import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { useAutoHideHeader } from '../../../shared/layout/useAutoHideHeader';
@@ -252,49 +251,14 @@ function Separator() {
   return <View style={styles.separator} />;
 }
 
-// 일정(무): 아이콘은 Figma App Icon · Calendar · Active 를 회색으로 칠한 것.
-// 블록 보기에서 고른 날에 일정이 없을 때도 같은 모양을 쓴다 (Figma 에 없어 문구는 기본안)
-function EmptySchedule({
-  title,
-  style,
-}: {
-  title: string;
-  style: StyleProp<ViewStyle>;
-}) {
-  return (
-    <View style={style}>
-      <Icon
-        name="tab-calendar-active"
-        size={40}
-        color={colors.gray[300]}
-        testID="empty-schedule-icon"
-      />
-      <View style={styles.emptyScheduleText}>
-        <Text
-          variant="Body/M/SemiBold"
-          color={colors.primary}
-          style={styles.centered}
-        >
-          {title}
-        </Text>
-        <Text
-          variant="Caption/M/Medium"
-          color={colors.gray[600]}
-          style={styles.centered}
-        >
-          새 작업이 배정되면 여기에 표시돼요
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 // 진행 중 작업 카드는 상단 바 아래 20 에서 시작한다 (Figma 3463:17452: 제목 줄 72–106, 카드 126)
 const CONTENT_TOP = 20;
 // Figma 에서 '일정' 줄과 첫 일정 카드 사이 (목록 보기)
 const HEADER_PADDING_BOTTOM = 12;
 // Figma 3463:17452 에서 날짜 줄(아래 끝 455)과 첫 일정 카드(469) 사이 (블록 보기)
 const BLOCK_HEADER_PADDING_BOTTOM = 14;
+// Figma 메인화면 - 시작 가능 50892:14565: 날짜 줄 아래 끝(455)과 고른 날 안내 글(527) 사이 (블록 보기)
+const BLOCK_EMPTY_GAP = 72;
 
 // 보기 전환 아이콘 26 두 개가 4 간격으로 붙어 있다. 서로 쪽으로는 간격의 반만, 바깥쪽으로 나머지를 넓혀
 // 겹치지 않고 최소 터치 영역을 채운다
@@ -350,28 +314,26 @@ const styles = StyleSheet.create({
   },
   viewToggle: { flexDirection: 'row', gap: TOGGLE_GAP },
   separator: { height: 12 },
-  // Figma 메인화면 - 일정(무) 3278:23276 에서 '일정' 줄 아래 끝(246)과 빈 상태 묶음(354) 사이 108 (#180)
-  emptyWeek: {
-    alignItems: 'center',
-    gap: 24,
-    paddingTop: 108 - HEADER_PADDING_BOTTOM,
-  },
-  // Figma 에 없어 날짜 줄 아래 40 에 둔다 (기본안)
+  // Figma 메인화면 - 일정(무) 51028:17146 · 51019:15784: '일정' 줄과 안내 글 사이 gap 60. 글 상자는 카드와 같은 폭 (#196)
+  emptyWeek: { paddingTop: EMPTY_GAP - HEADER_PADDING_BOTTOM },
+  // Figma 메인화면 - 시작 가능 50892:14565: 날짜 줄과 안내 글 사이 72, 글 상자 폭 304 가운데 (#196)
   emptyDay: {
-    alignItems: 'center',
-    gap: 24,
-    paddingTop: 40 - BLOCK_HEADER_PADDING_BOTTOM,
+    paddingTop: BLOCK_EMPTY_GAP - BLOCK_HEADER_PADDING_BOTTOM,
+    maxWidth: 304,
+    alignSelf: 'center',
   },
-  // 문구 줄바꿈 폭도 Figma 의 304
-  emptyScheduleText: { alignItems: 'center', gap: 12, maxWidth: 304 },
-  centered: { textAlign: 'center' },
 });
 
+// 일정이 없을 때는 아이콘·설명 없이 글 한 줄이다 (#196). 자리마다 Figma 문구·글자 스타일이 다르다:
+// 목록 보기(이번 주)는 메인화면 - 일정(무) 51028:17146 의 Body/XS/Regular,
+// 블록 보기(고른 날)는 메인화면 - 시작 가능 50892:14565 의 Caption/M/Medium
 const emptyWeek = (
-  <EmptySchedule title="이번 주 일정이 없어요" style={styles.emptyWeek} />
+  <EmptyMessage style={styles.emptyWeek}>이 날은 일정이 없습니다</EmptyMessage>
 );
 const emptyDay = (
-  <EmptySchedule title="이 날은 일정이 없어요" style={styles.emptyDay} />
+  <EmptyMessage variant="Caption/M/Medium" style={styles.emptyDay}>
+    예정된 일정이 없습니다
+  </EmptyMessage>
 );
 
 // 탭을 오가면 경로가 포커스 때문에 다시 그려진다. 받은 값이 같으면 화면은 다시 그리지 않는다 (#114 리뷰)

@@ -10,6 +10,7 @@ import { Platform, StyleSheet } from 'react-native';
 import { colors, typography } from '../../../shared/design-system';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { appStorage } from '../../../shared/storage/appStorage';
+import { expectMessageOnly } from '../../../shared/testing/emptyState';
 import { iconSvgIn } from '../../../shared/testing/icon';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
@@ -124,45 +125,28 @@ describe('WorkHomeScreen', () => {
     );
     expect(top).toHaveTextContent('현재 진행 중인 작업이 없습니다');
     expect(rest.map(node => node.props.children)).toEqual(['일정', ...titles]);
-    expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
+    expect(screen.queryByText('이 날은 일정이 없습니다')).not.toBeOnTheScreen();
   });
 
   it('진행할 작업은 있고 이번 주 일정만 없으면 작업 카드 아래에 일정 빈 상태를 보여 준다', async () => {
     await renderHome({ schedule: [] });
 
     expect(screen.getByRole('button', { name: '작업 시작' })).toBeOnTheScreen();
-    expect(screen.getByText('이번 주 일정이 없어요')).toBeOnTheScreen();
+    expect(screen.getByText('이 날은 일정이 없습니다')).toBeOnTheScreen();
   });
 
-  it('이번 주 일정이 없으면 일정 자리에 회색 달력 아이콘과 안내 문구를 보여 준다', async () => {
+  // #196: Figma 메인화면 - 일정(무) 51028:17146 · 51019:15784 (목록 보기). 아이콘·설명 없이 글 한 줄이고,
+  // 문구도 Figma 그대로 '이 날은 일정이 없습니다' 다
+  it('이번 주 일정이 없으면 아이콘 없이 Body/XS/Regular Gray600 가운데 글 한 줄을 보여 준다', async () => {
     await renderHome({ currentWork: null, schedule: [] });
 
-    expect(screen.getByText('이번 주 일정이 없어요')).toHaveStyle({
-      fontSize: 20,
-      color: colors.primary,
-      textAlign: 'center',
-    });
-    expect(screen.getByText('새 작업이 배정되면 여기에 표시돼요')).toHaveStyle({
-      fontSize: 14,
+    const message = screen.getByText('이 날은 일정이 없습니다');
+    expect(message).toHaveStyle({
+      ...typography['Body/XS/Regular'],
       color: colors.gray[600],
       textAlign: 'center',
     });
-    // Figma App Icon · Calendar · Active 를 40pt, Gray300 으로 쓴다
-    const icon = screen.getByTestId('empty-schedule-icon', {
-      includeHiddenElements: true,
-    });
-    expect(icon).toHaveStyle({ width: 40, height: 40 });
-    const [svg] = icon.children;
-    expect(typeof svg === 'string' ? svg : svg.props.color).toBe(
-      colors.gray[300],
-    );
-    const pathsOf = (xml: string) =>
-      [...xml.matchAll(/ d="([^"]+)"/g)].map(([, d]) => d);
-    expect(
-      icon
-        .queryAll(node => typeof node.props.d === 'string')
-        .map(node => node.props.d),
-    ).toEqual(pathsOf(iconSvgs['tab-calendar-active'].xml));
+    expectMessageOnly(message);
   });
 
   it('빈 상태 문구는 스크린리더에 글자로 읽히고 버튼으로 읽히지 않는다', async () => {
@@ -170,8 +154,7 @@ describe('WorkHomeScreen', () => {
 
     for (const text of [
       '현재 진행 중인 작업이 없습니다',
-      '이번 주 일정이 없어요',
-      '새 작업이 배정되면 여기에 표시돼요',
+      '이 날은 일정이 없습니다',
     ]) {
       expect(screen.getByText(text)).toBeOnTheScreen();
     }
@@ -275,19 +258,23 @@ describe('WorkHomeScreen Figma 배치 (메인화면 - 시작 가능 3255:17530)'
     ).toHaveLength(0);
   });
 
-  // #180: 3278:23276 에서 일정 줄 아래 끝(246)과 빈 상태 묶음(354) 사이는 108 이다
-  it('일정 빈 상태는 일정 줄 아래 108 에서 시작한다 (메인화면 - 일정(무) 3278:23276)', async () => {
+  // #196: 51028:17146 · 51019:15784 에서 일정 줄(아래 끝 174)과 안내 글(234) 사이는 gap 60 이다.
+  // 글 상자는 카드와 같은 폭(345)에서 가운데 정렬이다
+  it('일정 빈 상태 글은 일정 줄 아래 60 에서 카드와 같은 폭으로 놓인다 (메인화면 - 일정(무) 51028:17146)', async () => {
     await renderHome({ currentWork: null, schedule: [] });
 
     const header = screen.getByRole('header', { name: '일정' }).parent?.parent
-      ?.parent?.parent;
-    const empty = screen.getByTestId('empty-schedule-icon', {
-      includeHiddenElements: true,
-    }).parent;
+      ?.parent?.parent as HostElement;
+    const message = screen.getByText('이 날은 일정이 없습니다');
     expect(
-      Number(StyleSheet.flatten(header?.props.style).paddingBottom) +
-        Number(StyleSheet.flatten(empty?.props.style).paddingTop),
-    ).toBe(108);
+      stylePt(header, 'paddingBottom') + stylePt(message, 'paddingTop'),
+    ).toBe(60);
+    expect(stylePt(message, 'paddingHorizontal')).toBe(0);
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId('work-home-list').props.contentContainerStyle,
+      ),
+    ).toMatchObject({ paddingHorizontal: 24 });
   });
 });
 
@@ -339,8 +326,8 @@ describe('WorkHomeScreen 바탕색 (Figma Background/3)', () => {
   );
 
   it.each([
-    ['list', '이번 주 일정이 없어요'],
-    ['block', '이 날은 일정이 없어요'],
+    ['list', '이 날은 일정이 없습니다'],
+    ['block', '예정된 일정이 없습니다'],
   ] as const)(
     '%s 보기의 일정 빈 상태 뒤는 Background/3 이다',
     async (view, text) => {
@@ -574,25 +561,28 @@ describe('WorkHomeScreen 블록 보기', () => {
       expect(cardTitles()).toEqual(['에어컨 설치']);
     });
 
-    it('고른 날에 일정이 없으면 일정(무) 모양으로 빈 상태를 보여 준다', async () => {
+    // #196: Figma 메인화면 - 시작 가능 50892:14565 (블록 보기, 고른 날 일정 없음). 날짜 줄(아래 끝 455) 아래 72 에
+    // '예정된 일정이 없습니다' (50927:14791: Caption/M/Medium, Gray600, 폭 304 가운데) 한 줄이고 아이콘·설명이 없다
+    it('고른 날에 일정이 없으면 아이콘 없이 Caption/M/Medium Gray600 글 한 줄을 날짜 줄 아래 72 에 보여 준다', async () => {
       await renderBlock();
 
       await userEvent.press(day('9월 16일 수요일'));
 
       expect(cardTitles()).toEqual([]);
-      expect(screen.getByText('이 날은 일정이 없어요')).toHaveStyle({
-        fontSize: 20,
-        color: colors.primary,
+      const message = screen.getByText('예정된 일정이 없습니다');
+      expect(message).toHaveStyle({
+        ...typography['Caption/M/Medium'],
+        color: colors.gray[600],
         textAlign: 'center',
+        maxWidth: 304,
+        alignSelf: 'center',
       });
+      expectMessageOnly(message);
+      const header = (day('9월 16일 수요일').parent as HostElement).parent
+        ?.parent as HostElement;
       expect(
-        screen.getByText('새 작업이 배정되면 여기에 표시돼요'),
-      ).toHaveStyle({ color: colors.gray[600] });
-      expect(
-        screen.getByTestId('empty-schedule-icon', {
-          includeHiddenElements: true,
-        }),
-      ).toHaveStyle({ width: 40, height: 40 });
+        stylePt(header, 'paddingBottom') + stylePt(message, 'paddingTop'),
+      ).toBe(72);
     });
 
     it('일정 카드를 누르면 그 작업의 상세를 연다', async () => {
@@ -729,8 +719,8 @@ describe('WorkHomeScreen — 불러오기', () => {
       screen.queryByText('현재 진행 중인 작업이 없습니다'),
     ).not.toBeOnTheScreen();
     // 기본인 블록 보기의 빈 상태 문구와 목록 보기의 빈 상태 문구 둘 다 없다
-    expect(screen.queryByText('이 날은 일정이 없어요')).not.toBeOnTheScreen();
-    expect(screen.queryByText('이번 주 일정이 없어요')).not.toBeOnTheScreen();
+    expect(screen.queryByText('예정된 일정이 없습니다')).not.toBeOnTheScreen();
+    expect(screen.queryByText('이 날은 일정이 없습니다')).not.toBeOnTheScreen();
   });
 
   it('불러오지 못하면 문구와 다시 시도를 보인다', async () => {

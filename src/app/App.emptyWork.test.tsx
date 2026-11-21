@@ -108,7 +108,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       await launch();
 
       expect(
-        await screen.findByText('이 날은 일정이 없어요'),
+        await screen.findByText('예정된 일정이 없습니다'),
       ).toBeOnTheScreen();
       expect(
         screen.getByText('현재 진행 중인 작업이 없습니다'),
@@ -116,7 +116,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       expectNoSampleWork();
 
       await userEvent.press(screen.getByRole('button', { name: '목록 보기' }));
-      expect(screen.getByText('이번 주 일정이 없어요')).toBeOnTheScreen();
+      expect(screen.getByText('이 날은 일정이 없습니다')).toBeOnTheScreen();
     });
 
     it('내 일정은 확정 일정·응답 필요 요청이 없다', async () => {
@@ -124,7 +124,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       await userEvent.press(tab('내 일정'));
 
       expect(
-        await screen.findByText('예정된 일정이 없습니다'),
+        await screen.findByText('이 날은 일정이 없습니다'),
       ).toBeOnTheScreen();
       expectNoSampleWork();
 
@@ -140,14 +140,14 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
       await userEvent.press(tab('작업 이력'));
 
       expect(
-        await screen.findByText('이 달에 완료한 작업이 없어요'),
+        await screen.findByText('이 달에 완료한 작업이 없습니다'),
       ).toBeOnTheScreen();
       expect(screen.getByLabelText('누적 완료 0건')).toBeOnTheScreen();
       expectNoSampleWork();
 
       await userEvent.press(screen.getByRole('button', { name: '이전 달' }));
       expect(
-        await screen.findByText('이 달에 완료한 작업이 없어요'),
+        await screen.findByText('이 달에 완료한 작업이 없습니다'),
       ).toBeOnTheScreen();
       expectNoSampleWork();
     });
@@ -252,7 +252,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
     });
 
     const first = await launch();
-    expect(await screen.findByText('이 날은 일정이 없어요')).toBeOnTheScreen();
+    expect(await screen.findByText('예정된 일정이 없습니다')).toBeOnTheScreen();
     expect(draftKeys()).toEqual([]);
 
     // 이 빌드에서 남긴 초안
@@ -260,7 +260,7 @@ describe('App — 예시 작업 없는 작업 화면 (#136)', () => {
     await first.unmount();
     await launch();
 
-    expect(await screen.findByText('이 날은 일정이 없어요')).toBeOnTheScreen();
+    expect(await screen.findByText('예정된 일정이 없습니다')).toBeOnTheScreen();
     expect(draftKeys()).toEqual(['work.reportDraft.7']);
   });
 

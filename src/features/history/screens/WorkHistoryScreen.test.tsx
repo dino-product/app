@@ -24,14 +24,15 @@ import {
 import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
 import { SWITCH_DISTANCE, type Rect } from '../../../shared/gesture/tabSwipe';
 import * as tabSwipeArea from '../../../shared/gesture/TabSwipeArea';
-import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
+import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { scrollListTo } from '../../../shared/testing/autoHideHeader';
 import { TabEnterContext } from '../../../shared/layout/tabEnter';
+import { expectMessageOnly } from '../../../shared/testing/emptyState';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
-import type { HostElement } from '../../../shared/testing/touchTarget';
+import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import { COLLAPSE_MS, collapseEasing } from '../headerCollapse';
 import type { CompletedWork } from '../model';
 import {
@@ -726,7 +727,7 @@ describe('WorkHistoryScreen — 두 상태의 불러오기·빈 상태 (#175)', 
         <WorkHistoryScreen today={today} works={[]} onOpenWork={jest.fn()} />,
       );
       expect(
-        screen.getByText('이 달에 완료한 작업이 없어요'),
+        screen.getByText('이 달에 완료한 작업이 없습니다'),
       ).toBeOnTheScreen();
       expect(
         StyleSheet.flatten(list().props.contentContainerStyle),
@@ -781,31 +782,37 @@ describe('WorkHistoryScreen — 월 이동', () => {
   it('고른 달에 완료 작업이 없으면 빈 상태를 보여준다', async () => {
     await renderHistory();
     expect(
-      screen.queryByText('이 달에 완료한 작업이 없어요'),
+      screen.queryByText('이 달에 완료한 작업이 없습니다'),
     ).not.toBeOnTheScreen();
 
     await userEvent.press(prevMonth());
     await userEvent.press(prevMonth());
 
     expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
-    expect(screen.getByText('이 달에 완료한 작업이 없어요')).toBeOnTheScreen();
+    expect(
+      screen.getByText('이 달에 완료한 작업이 없습니다'),
+    ).toBeOnTheScreen();
     expect(screen.getByLabelText('이번 달 완료 0건')).toBeOnTheScreen();
   });
 
-  it('빈 상태 아이콘은 화살표 없는 채운 시계(Gray300, 40)다', async () => {
+  // #196: Figma 작업이력 (기본) 51019:16207 — 요약 카드 묶음(Frame 51019:16287) 아래 gap 60 에
+  // '이 달에 완료한 작업이 없습니다' (51019:16229: Body/XS/Regular, Gray600, 폭 345 가운데) 한 줄이고 아이콘·설명이 없다
+  it('빈 상태는 아이콘 없이 Body/XS/Regular Gray600 가운데 글 한 줄이 요약 카드 아래 60 에 놓인다', async () => {
     await renderHistory({ works: [] });
 
-    const icon = screen.getByTestId('history-empty-icon', {
-      includeHiddenElements: true,
+    const message = screen.getByText('이 달에 완료한 작업이 없습니다');
+    expect(message).toHaveStyle({
+      ...typography['Body/XS/Regular'],
+      color: colors.gray[600],
+      textAlign: 'center',
+      // 요약 카드와 같은 좌우 24 안(폭 345)
+      paddingHorizontal: 24,
     });
-    expect(icon).toHaveStyle({ width: 40, height: 40 });
-    const [svg] = icon.children;
-    if (typeof svg === 'string') {
-      throw new Error('SVG 뷰가 없습니다');
-    }
-    expect(svg.props.xml).toBe(iconSvgs['history-empty'].xml);
-    expect(svg.props.xml).not.toContain('M5 2.667V6.167H8.5');
-    expect(svg.props.color).toBe(colors.gray[300]);
+    expectMessageOnly(message);
+    const header = screen.getByTestId('work-history-list-header');
+    expect(
+      stylePt(header, 'paddingBottom') + stylePt(message, 'paddingTop'),
+    ).toBe(60);
   });
 });
 
@@ -840,7 +847,7 @@ describe('WorkHistoryScreen — 좌우로 밀어 월 이동 (#153)', () => {
     await renderHistory();
     await swipeRows({ dx: FAR });
     await swipeRows({ dx: FAR });
-    const empty = screen.getByText('이 달에 완료한 작업이 없어요');
+    const empty = screen.getByText('이 달에 완료한 작업이 없습니다');
     expect(screen.getByText('2026년 7월')).toBeOnTheScreen();
 
     await swipeRows({ dx: -FAR }, empty);
@@ -929,7 +936,7 @@ describe('WorkHistoryScreen — 월 전환 애니메이션 (#153)', () => {
     await animations.finish();
     await userEvent.press(prevMonth());
     expect(
-      shiftOf(screen.getByText('이 달에 완료한 작업이 없어요')).translateX,
+      shiftOf(screen.getByText('이 달에 완료한 작업이 없습니다')).translateX,
     ).toBe(-ENTER_OFFSET);
   });
 
@@ -1251,7 +1258,7 @@ describe('WorkHistoryScreen — 불러오기', () => {
 
     expectOnlySkeletons('work-rows-skeleton');
     expect(
-      screen.queryByText('이 달에 완료한 작업이 없어요'),
+      screen.queryByText('이 달에 완료한 작업이 없습니다'),
     ).not.toBeOnTheScreen();
   });
 

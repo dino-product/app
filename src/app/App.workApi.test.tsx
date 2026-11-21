@@ -506,7 +506,7 @@ describe('App — 기사 작업 API (#155)', () => {
 
       // 홈은 블록 보기(오늘)로 연다 (#147)
       expect(
-        await screen.findByText('이 날은 일정이 없어요'),
+        await screen.findByText('예정된 일정이 없습니다'),
       ).toBeOnTheScreen();
       expect(
         screen.getByText('현재 진행 중인 작업이 없습니다'),
@@ -514,7 +514,7 @@ describe('App — 기사 작업 API (#155)', () => {
 
       await userEvent.press(tab('내 일정'));
       expect(
-        await screen.findByText('예정된 일정이 없습니다'),
+        await screen.findByText('이 날은 일정이 없습니다'),
       ).toBeOnTheScreen();
       await userEvent.press(screen.getByRole('tab', { name: /^응답 필요/ }));
       expect(
@@ -525,12 +525,12 @@ describe('App — 기사 작업 API (#155)', () => {
 
     it('작업 이력은 빈 상태이고 누적 완료는 알 수 없음(-)이다', async () => {
       await launchWithoutTechnician();
-      await screen.findByText('이 날은 일정이 없어요');
+      await screen.findByText('예정된 일정이 없습니다');
 
       await userEvent.press(tab('작업 이력'));
 
       expect(
-        await screen.findByText('이 달에 완료한 작업이 없어요'),
+        await screen.findByText('이 달에 완료한 작업이 없습니다'),
       ).toBeOnTheScreen();
       expect(screen.getByLabelText('누적 완료, 알 수 없음')).toBeOnTheScreen();
       expect(screen.queryByText('볼 수 없는 작업이에요')).toBeNull();

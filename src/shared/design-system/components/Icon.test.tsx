@@ -82,13 +82,6 @@ describe('Icon', () => {
     expect(inactive.xml).toContain('stroke="#9B9B9B"');
   });
 
-  it('작업 이력 빈 상태 시계(history-empty)는 탭 아이콘과 따로 둔 속도선 없는 채운 시계다', () => {
-    const empty = iconSvgs['history-empty'];
-    expect(empty).toMatchObject({ tint: true, size: 24, color: '#1C1B2A' });
-    expect(empty.xml).not.toBe(iconSvgs['tab-history-active'].xml);
-    expect(empty.xml).toContain('M12.25 2.03125C15.0928 2.03125'); // 원본 윤곽
-  });
-
   // DesignSystem App Icon · Type=Modal-check (2791:27085). 원이 그라데이션(흰색→#E7E1FF)에서 Select/1(#4F3BFE 6%) 단색으로 바뀌었다 (#194).
   // 승인 대기·요청완료·참여 완료·제출 완료가 모두 이 원본의 인스턴스다
   it('결과 체크(modal-check)는 App Icon · Modal-check 를 내보낸 Select/1 6% 원에 Secondary 체크다', () => {
