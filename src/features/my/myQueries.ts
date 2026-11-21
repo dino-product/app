@@ -3,6 +3,8 @@ import { useApiClient } from '../../shared/api';
 import { profileQuery } from '../onboarding/profileApi';
 import { membershipsQuery } from './memberships';
 import { toMyProfile } from './model';
+import { pendingRequests } from './org/model';
+import { useParticipationRequests } from './org/participationQueries';
 import { useQueryState } from './queryState';
 
 // 마이페이지가 쓰는 서버 상태 (#115). 경로가 부르고 memo 화면(MyPageScreen)에 넘긴다.
@@ -25,5 +27,16 @@ export function useMyMemberships({ subscribed }: Options = {}) {
   return useQueryState(
     useQuery({ ...membershipsQuery(api), subscribed }),
     '소속 발주사를 불러오지 못했어요.',
+  );
+}
+
+/**
+ * 사무실이 검토 중인 내 참여 요청 (신청 현황의 승인 대기). 마이페이지 소속 카드의 검토 줄과 신청 현황 배지다 (#199).
+ * 소속과 같은 때(탭에 돌아올 때) 다시 받아, 그사이 승인된 회사가 검토 줄로 남지 않게 한다
+ */
+export function useMyReviewRequests({ subscribed }: Options = {}) {
+  return useQueryState(
+    useParticipationRequests(pendingRequests, { subscribed }),
+    '신청 현황을 불러오지 못했어요.',
   );
 }

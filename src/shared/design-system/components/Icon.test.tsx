@@ -82,6 +82,33 @@ describe('Icon', () => {
     expect(inactive.xml).toContain('stroke="#9B9B9B"');
   });
 
+  // DesignSystem App Icon · Type=Modal-check (2791:27085). 원이 그라데이션(흰색→#E7E1FF)에서 Select/1(#4F3BFE 6%) 단색으로 바뀌었다 (#194).
+  // 승인 대기·요청완료·참여 완료·제출 완료가 모두 이 원본의 인스턴스다
+  it('결과 체크(modal-check)는 App Icon · Modal-check 를 내보낸 Select/1 6% 원에 Secondary 체크다', () => {
+    const icon = iconSvgs['modal-check'];
+    expect(icon).toMatchObject({ tint: false, size: 40 });
+    expect(icon.xml).toContain(
+      '<rect width="40" height="40" rx="20" fill="#4F3BFE" fill-opacity="0.06"/>',
+    );
+    expect(icon.xml).toContain('d="M25.1046 14.8223C25.3606 14.5773');
+    expect(icon.xml).toContain('fill="#6452FD"');
+    expect(icon.xml).not.toContain('linearGradient'); // 옛 그라데이션 원
+  });
+
+  it('같은 원본을 따로 내보낸 제출 완료 체크(submit-check)는 두지 않는다', () => {
+    expect(Object.keys(iconSvgs)).not.toContain('submit-check');
+  });
+
+  // 진행 단계 첫 원 (Figma 3235:14906 마이 · 3227:8844 온보딩): Secondary 원 40 에 흰 체크. 체크 그림은 Modal-check 와 같다 (#194)
+  it('진행 단계 체크(check)는 Figma 단계 원의 흰 체크를 원 가운데 24 칸으로 잘라 낸 것이고 색을 바꿀 수 있다', () => {
+    const icon = iconSvgs.check;
+    expect(icon).toMatchObject({ tint: true, size: 24, color: '#FFFFFF' });
+    expect(icon.xml).toContain('viewBox="14 14 24 24"');
+    expect(icon.xml).toContain('d="M31.1045 20.8222C31.3605 20.5772');
+    expect(icon.xml).toContain('fill="currentColor"');
+    expect(icon.xml).not.toContain('M6 12.5L10 16.5L18 8'); // 옛 선 체크(Figma 에서 내보낸 것이 아님)
+  });
+
   // DesignSystem App Icon 의 x 는 사진 삭제용(어두운 원), Modal-X 는 결과 상태라 일반 닫기 X 를 더한다 (#98)
   it('일반 닫기 X(close-line)는 뒤로 가기(chevron-left)와 같은 선 아이콘이고 색을 바꿀 수 있다', () => {
     const x = iconSvgs['close-line'];

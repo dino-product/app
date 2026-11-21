@@ -29,6 +29,7 @@ export {
   workStatusLabels,
 } from './components/StatusChip';
 export { Toggle, type ToggleProps } from './components/Toggle';
+export { Radio, type RadioProps } from './components/Radio';
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
 export {
   Skeleton,

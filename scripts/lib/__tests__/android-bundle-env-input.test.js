@@ -19,6 +19,13 @@ describe('Android 번들 작업 입력', () => {
     );
   });
 
+  // #192: 웹 주소(dev.orbi-t.com / orbi-t.com)를 고르는 DEVELOP_ONLY 도 babel 이 번들에 넣는다
+  it('createBundle* 작업이 DEVELOP_ONLY 도 입력으로 본다', () => {
+    expect(gradle).toMatch(
+      /tasks\.matching\s*\{\s*it\.name\.startsWith\("createBundle"\)\s*\}\s*\.configureEach\s*\{[\s\S]*?inputs\.property\(\s*"[^"]+"\s*,\s*providers\.environmentVariable\("DEVELOP_ONLY"\)/,
+    );
+  });
+
   it('React Native gradle 플러그인의 번들 작업 이름이 createBundle 로 시작한다', () => {
     const plugin = read(
       'node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/TaskConfiguration.kt',

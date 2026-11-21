@@ -71,7 +71,7 @@ describe('탭 전환 렌더 예산', () => {
     await screen.findAllByRole('button', { name: /, 완료, / });
     await userEvent.press(tab('마이'));
     await screen.findByRole('button', { name: /^박기사/ });
-    await screen.findByLabelText('오르빗 설비, 기사, 활성');
+    await screen.findByLabelText('오르빗 설비, 기사, 승인');
     await settle();
     const before = { ...mockRenders };
     // 세기가 실제로 걸렸는지 (목 경로가 깨지면 0 으로 그냥 통과하지 않게)
@@ -123,7 +123,7 @@ describe('탭 밀기 렌더 예산', () => {
     await screen.findAllByRole('button', { name: /, 완료, / });
     await userEvent.press(tab('마이'));
     await screen.findByRole('button', { name: /^박기사/ });
-    await screen.findByLabelText('오르빗 설비, 기사, 활성');
+    await screen.findByLabelText('오르빗 설비, 기사, 승인');
     await userEvent.press(tab('홈'));
     await settle();
     const before = { ...mockRenders };

@@ -19,7 +19,8 @@ const CARD_SHADOW: DropShadow = {
   opacity: 0.12,
 };
 
-// 메인화면 상단의 오늘 진행할 작업 카드. 시작 전 "작업 시작"(Secondary), 시작 후 "작업 수행중"(Primary).
+// 메인화면 상단의 지금 진행 중인 작업 카드 (예정 시간 안이거나 시작한 작업, #205).
+// 시작 전 "작업 시작"(Secondary), 시작 후 "작업 수행중"(Primary).
 export function CurrentWorkCard({
   work,
   started,
@@ -84,7 +85,8 @@ export function CurrentWorkCard({
   );
 }
 
-// 진행할 작업이 없을 때 같은 자리의 카드. 누를 수 없는 안내라 글자로만 읽힌다
+// 지금 시각에 진행 중인 작업이 없을 때 같은 자리의 카드 (Figma 메인화면 - 진행(무), #205).
+// 오늘 아직 시작 시각이 안 된 작업이 있어도 이 카드다. 누를 수 없는 안내라 글자로만 읽힌다
 export function NoCurrentWorkCard() {
   return (
     <ShadowView shadow={CARD_SHADOW} style={[styles.frame, styles.empty]}>
@@ -99,7 +101,13 @@ const styles = StyleSheet.create({
   // 작업이 있을 때와 없을 때 같은 Figma 프레임
   frame: { paddingVertical: 24, paddingHorizontal: 20, borderRadius: 18 },
   card: { gap: 22, backgroundColor: colors.white[100] },
-  empty: { backgroundColor: colors.primary },
+  // Figma 메인화면 - 진행(무) 3255:17680: 세로, 왼쪽 정렬, 가운데 배치 (#205)
+  empty: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
   // Figma Frame 2147238731: 작업명 묶음과 > 를 양 끝에, 사이 22
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 22 },
   info: { flex: 1, gap: 6 },

@@ -5,6 +5,8 @@ import type {
 } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JoinTarget, RequestChannel } from '../../features/my/org/model';
+import type { TermsType } from '../../features/onboarding/model';
+import type { MyPageTerms } from '../../features/terms/documents';
 
 /** 참여 요청 화면(요청 완료·승인 대기). 요청 경로는 서버가 돌려주지 않아 이 앱이 방금 보낸 요청에만 있다 (#116) */
 type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
@@ -26,6 +28,8 @@ export type RootStackParamList = {
 export type OnboardingStackParamList = {
   ProfileRegister: undefined;
   TermsAgreement: undefined;
+  /** 가입 약관 상세 (#193). 행은 그 약관 하나, '모든 약관에 동의합니다' 는 모든 약관 (행 순서) */
+  TermsDetail: { types: readonly TermsType[] };
   CompanyFind: undefined;
   /** 회사 찾기 › QR 코드 인식 (#108) */
   CompanyQrScan: undefined;
@@ -72,6 +76,8 @@ export type MyStackParamList = {
   NotificationSettings: undefined;
   NotificationCenter: undefined;
   Terms: undefined;
+  /** 약관 상세 (#192). 원격 전문을 앱 안에서 보인다 */
+  TermsDetail: { terms: MyPageTerms };
   Account: undefined;
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;
@@ -82,6 +88,8 @@ export type MyStackParamList = {
   OrgJoinRequested: JoinRequestParams;
   OrgJoinRejected: { requestId: string };
   OrgJoinRequests: undefined;
+  /** 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199) */
+  OrgJoinReview: { requestId: string };
 };
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;

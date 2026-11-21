@@ -29,66 +29,38 @@ export type Terms = {
   type: TermsType;
   /** 약관 동의 화면의 행 이름 */
   title: string;
-  /** 약관 시트의 항목 이름 */
-  sheetTitle: string;
   required: boolean;
-  body: string;
+  /** 약관 상세에서 제목 아래 안내 (Figma 약관 상세 페이지 51019:16927 은 서비스 이용약관에만 있다) */
+  intro?: string;
 };
 
-// Figma 약관 동의 시트(3569:7702)의 본문. 실제 약관이 나오기 전까지 모든 약관에 자리표시로 쓴다
-const placeholderBody = [
-  '제1조 (목적)',
-  '본 약관은 Orbit(이하 "서비스")가 제공하는 기사 관리 및 업무 운영 서비스의 이용과 관련하여 서비스 운영자와 회원 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.',
-  '제2조 (서비스의 내용)',
-  '서비스는 회원에게 기사 등록 및 관리, 업무 일정 관리, 기사 배정, 작업 현황 확인, 고객 정보 관리, 업무 내역 기록 등의 기능을 제공합니다. 서비스 운영자는 효율적인 업무 환경을 제공하기 위해 일부 기능을 추가하거나 변경할 수 있습니다.',
-  '제3조 (회원의 의무)',
-  '회원은 본 약관 및 관계 법령을 준수하여야 하며, 타인의 계정을 무단으로 사용하거나 허위 업무 정보를 등록해서는 안 됩니다. 또한 회원은 기사 및 고객의 개인정보를 안전하게 관리하고, 서비스를 정해진 목적에 따라 이용하여야 합니다.',
-  '제4조 (서비스 이용 제한)',
-  '회원이 관련 법령 또는 본 약관을 위반하거나 서비스의 정상적인 운영을 방해하는 경우, 서비스 운영자는 위반 행위의 정도에 따라 이용을 일시적으로 제한하거나 회원 자격을 정지할 수 있습니다. 이용 제한 시에는 원칙적으로 사유를 사전에 안내합니다.',
-].join('\n');
-
-// Figma 약관 동의(3284:22327). 시트의 항목 이름은 Figma 두 상자가 모두 '서비스 이용약관 동의' 라 약관별로 썼다 (디자인 확인 항목)
+// Figma 약관 동의(3284:22327) 행. 전문은 원격 txt 다 (features/terms, 행 ↔ 전문 대응표 signUpTermsDocuments)
 export const termsList: readonly Terms[] = [
   {
     type: 'SERVICE',
     title: '서비스 이용약관',
-    sheetTitle: '서비스 이용약관 동의',
     required: true,
-    body: placeholderBody,
+    intro:
+      'Orbit 서비스를 이용하기 위해서는 서비스의 제공 목적과\n이용 범위, 회원의 권리·의무, 기사 및 고객 정보 관리 책임, 이용 제한 기준을 확인하고 약관에 동의해야 합니다. 아래 내용을 자세히 읽으신 후 동의 여부를 결정해 주세요',
   },
-  {
-    type: 'PRIVACY',
-    title: '개인정보 처리방침',
-    sheetTitle: '개인정보 처리방침 동의',
-    required: true,
-    body: placeholderBody,
-  },
-  {
-    type: 'THIRD_PARTY',
-    title: '제3자 제공 동의',
-    sheetTitle: '제3자 제공 동의',
-    required: true,
-    body: placeholderBody,
-  },
-  {
-    type: 'LOCATION',
-    title: '위치기반 서비스 이용약관',
-    sheetTitle: '위치기반 서비스 이용약관 동의',
-    required: true,
-    body: placeholderBody,
-  },
-  {
-    type: 'MARKETING',
-    title: '혜택 이벤트 알림 수신동의',
-    sheetTitle: '혜택 이벤트 알림 수신동의',
-    required: false,
-    body: placeholderBody,
-  },
+  { type: 'PRIVACY', title: '개인정보 처리방침', required: true },
+  { type: 'THIRD_PARTY', title: '제3자 제공 동의', required: true },
+  { type: 'LOCATION', title: '위치기반 서비스 이용약관', required: true },
+  { type: 'MARKETING', title: '혜택 이벤트 알림 수신동의', required: false },
 ];
+
+/** 모든 약관 (행 순서). '모든 약관에 동의합니다' 뒤 약관 상세가 이 순서로 보인다 */
+export const ALL_TERMS_TYPES: readonly TermsType[] = termsList.map(
+  terms => terms.type,
+);
 
 /** 행 끝에 붙는 (필수)·(선택) */
 export const requiredLabel = (terms: Pick<Terms, 'required'>) =>
   terms.required ? '(필수)' : '(선택)';
+
+/** 약관 상세의 큰 제목: '(필수) 서비스 이용약관' (Figma 51019:16927) */
+export const termsDetailTitle = (terms: Pick<Terms, 'required' | 'title'>) =>
+  `${requiredLabel(terms)} ${terms.title}`;
 
 export type TermsAgreement = Readonly<Record<TermsType, boolean>>;
 
@@ -100,28 +72,23 @@ export const noTermsAgreed: TermsAgreement = {
   MARKETING: false,
 };
 
-export function toggleTerm(
-  agreement: TermsAgreement,
-  type: TermsType,
-): TermsAgreement {
-  return { ...agreement, [type]: !agreement[type] };
-}
-
 export function allTermsAgreed(agreement: TermsAgreement): boolean {
   return termsList.every(terms => agreement[terms.type]);
 }
 
-/** 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끈다 */
-export function toggleAllTerms(agreement: TermsAgreement): TermsAgreement {
-  const next = !allTermsAgreed(agreement);
+/** 모든 약관을 같은 값으로 ('모든 약관에 동의합니다' 의 모두 동의·모두 끄기) */
+export function allTermsAgreedWith(agreed: boolean): TermsAgreement {
   return {
-    SERVICE: next,
-    PRIVACY: next,
-    THIRD_PARTY: next,
-    LOCATION: next,
-    MARKETING: next,
+    SERVICE: agreed,
+    PRIVACY: agreed,
+    THIRD_PARTY: agreed,
+    LOCATION: agreed,
+    MARKETING: agreed,
   };
 }
+
+export const isTermsType = (value: string): value is TermsType =>
+  (ALL_TERMS_TYPES as readonly string[]).includes(value);
 
 /** 필수 약관에 모두 동의해야 가입할 수 있다. 선택은 꺼져 있어도 된다 */
 export function canSignUp(agreement: TermsAgreement): boolean {

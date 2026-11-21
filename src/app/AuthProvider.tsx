@@ -127,6 +127,11 @@ type Auth = {
    */
   withdraw: () => Promise<void>;
   profileStore: ProfileStore;
+  /**
+   * 지금 로그인 세션의 차례. 로그아웃·탈퇴·만료로 세션이 끝날 때마다 바뀐다.
+   * 화면을 떠난 뒤 끝난 일(응답 실패 알림 등)이 그사이 세션이 끝났는지 볼 때 쓴다 (#197)
+   */
+  currentSession: () => number;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -164,6 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 세대: 로그아웃·만료와 사용자 동작(로그인·프로필 저장·약관 동의·참여 완료)마다 올린다.
   // 뒤에서 온 결과(켤 때 확인, PROFILE-005 재조회)는 시작할 때의 세대가 그대로일 때만 반영해 더 새 상태를 덮지 않는다
   const epoch = useRef(0);
+  // 세션 차례: 세션이 끝날 때만 올린다 (세대와 달리 사용자 동작으로는 바뀌지 않는다)
+  const sessionTurn = useRef(0);
+  const currentSession = useCallback(() => sessionTurn.current, []);
 
   // 서버가 준 프로필을 기기에 반영한다. 가입 단계가 그대로면 상태를 바꾸지 않아 다시 그리지 않는다.
   // 마이페이지가 쓰는 프로필 캐시(#115)는 아래 두 갈래가 따로 쓴다
@@ -224,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 공용 기기에서 다음 계정에 앞 계정이 쓰던 완료 보고·거절 사유나 작업 저장소가 든 상태(올려 두고 제출하지 않은 사진 식별자, #155)가 남지 않게 한다
   const resetToSignedOut = useCallback(() => {
     epoch.current += 1;
+    sessionTurn.current += 1;
     forgetSignedInStep();
     profileStore.set(null);
     workRepository.reset();
@@ -430,6 +439,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (tellServer: boolean) => {
       signingOut.current ??= (async () => {
         epoch.current += 1;
+        sessionTurn.current += 1;
         forgetSignedInStep();
         if (tellServer) {
           await logOut(api);
@@ -483,6 +493,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       withdraw,
       profileStore,
+      currentSession,
     }),
     [
       state,
@@ -494,6 +505,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       withdraw,
       profileStore,
+      currentSession,
     ],
   );
 

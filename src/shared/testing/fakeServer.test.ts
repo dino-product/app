@@ -8,6 +8,7 @@ import {
   hang,
   noContent,
   ok,
+  rawResponse,
   verifyFakeServers,
 } from './fakeServer';
 import { createMemoryTokenStore, testSession } from './session';
@@ -112,6 +113,22 @@ describe('가짜 서버', () => {
 
     expect(response.status).toBe(FAKE_NO_ROUTE_STATUS);
     expect(server.takeUnhandled()).toEqual(['POST https://elsewhere.test/a']);
+  });
+
+  it('가짜 서버 밖의 주소는 전체 주소로 응답을 정한다 (웹 버킷의 약관 전문, #192)', async () => {
+    const url = 'https://elsewhere.test/terms/service/1.txt';
+    const server = createFakeServer().on(
+      'GET',
+      url,
+      rawResponse(200, '약관', { 'Content-Type': 'text/plain' }),
+    );
+
+    const response = await server.fetch(`${url}?v=1`);
+
+    expect(await response.text()).toBe('약관');
+    expect(server.callsTo('GET', url)).toHaveLength(1);
+    expect(server.calls[0].query).toEqual({ v: '1' });
+    expect(server.takeUnhandled()).toEqual([]);
   });
 
   it('FAKE-NO-ROUTE 는 재시도·일시 오류로 보지 않는 4xx 라 테스트가 기다리지 않는다', async () => {

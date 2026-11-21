@@ -22,6 +22,10 @@ import {
 } from '../features/onboarding/login';
 import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
+import {
+  termsDocumentUrl,
+  type TermsDocument,
+} from '../features/terms/documents';
 import { colors } from '../shared/design-system';
 import { appStorage } from '../shared/storage/appStorage';
 import {
@@ -80,7 +84,7 @@ async function openMyPage(
   const app = await renderSignedInApp(options);
   await userEvent.press(tab('마이'));
   await screen.findByRole('button', { name: /^박기사/ });
-  await screen.findByLabelText('오르빗 설비, 기사, 활성');
+  await screen.findByLabelText('오르빗 설비, 기사, 승인');
   return app;
 }
 
@@ -150,7 +154,7 @@ describe('App — 마이 탭', () => {
         )}`,
       );
       expect(
-        screen.getByLabelText('오르빗 설비, 기사, 활성'),
+        screen.getByLabelText('오르빗 설비, 기사, 승인'),
       ).toBeOnTheScreen();
     });
 
@@ -364,14 +368,39 @@ describe('App — 마이 탭', () => {
     expect(tab('마이')).toBeSelected();
   });
 
-  it('약관 주소가 아직 없어 약관 행은 비활성이고 앱 버전을 보여준다', async () => {
+  it('약관 및 앱 정보는 앱 버전을 보여주고, 오픈소스 라이선스는 주소가 없어 비활성이다', async () => {
     await openMyPage();
 
     await userEvent.press(button('약관 및 앱 정보'));
 
-    expect(button('서비스 이용약관')).toBeDisabled();
+    expect(button('오픈소스 라이선스')).toBeDisabled();
     expect(screen.getByText('현재 버전 1.0')).toBeOnTheScreen();
   });
+
+  // #192: 원격 전문(웹 버킷 txt)을 앱 안 약관 상세로 연다. 서비스→service, 개인정보 처리방침→privacy-policy
+  it.each([
+    ['서비스 이용약관', 'service'],
+    ['개인정보 처리방침', 'privacy-policy'],
+  ])(
+    '약관 및 앱 정보에서 %s 를 누르면 그 원격 전문(%s)을 상세로 열고, 뒤로 가면 돌아온다',
+    async (name, document) => {
+      const app = await openMyPage();
+      await userEvent.press(button('약관 및 앱 정보'));
+
+      await userEvent.press(button(name));
+
+      expect(
+        await screen.findByText(`제1조(${document} 목적)`),
+      ).toBeOnTheScreen();
+      expect(header(name)).toBeOnTheScreen();
+      expect(
+        app.server.callsTo('GET', termsDocumentUrl(document as TermsDocument)),
+      ).toHaveLength(1);
+
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('약관 및 앱 정보')).toBeOnTheScreen();
+    },
+  );
 
   // 로그인 흐름(#85): 로그아웃하면 탭 없이 로그인 화면으로 간다
   it('로그아웃을 확인하면 로그인 화면으로 간다', async () => {

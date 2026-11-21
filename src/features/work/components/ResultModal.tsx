@@ -48,7 +48,7 @@ export function ResultModal({
         <View style={styles.card} testID="result-modal-card">
           <View style={styles.head}>
             <Icon
-              name={submitted ? 'submit-check' : 'modal-x'}
+              name={submitted ? 'modal-check' : 'modal-x'}
               size={40}
               testID="result-modal-icon"
             />

@@ -49,7 +49,7 @@ describe('UnderlineTabs 터치 영역', () => {
     const tabSlop = hitSlopOf(tab);
     const listSlop = hitSlopOf(tablist);
     expect(tabSlop.top).toBeLessThanOrEqual(listSlop.top);
-    // 아래로 넓힌 만큼은 목록의 밑줄 테두리 안에 든다
+    // 목록 아래 선이 없어(#201) 탭은 아래로 넓히지 않는다. 넓히면 목록 밖이라 받지 못한다
     expect(tabSlop.bottom).toBeLessThanOrEqual(
       stylePt(tablist, 'borderBottomWidth') + listSlop.bottom,
     );

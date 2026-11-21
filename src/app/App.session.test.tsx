@@ -454,6 +454,46 @@ describe('App — 다시 켜기 (#113 낙관적 복원)', () => {
     );
     expect(app.queryClient.isFetching({ queryKey: profileQueryKey })).toBe(0);
   });
+
+  // #193: 약관 상세는 가입 약관 위에 쌓인다. 상세를 보는 동안 단계가 바뀌어도 놓치지 않는다
+  it.each([
+    ['가입 약관에서', false],
+    ['약관 상세를 연 채로', true],
+  ])(
+    '%s 확인을 기다리다 서버 단계가 PROFILE 이면 프로필 등록으로 돌아간다',
+    async (_, openDetail) => {
+      const pending = deferred();
+      saveSignedInStep('TERMS');
+      await renderApp({
+        server: accountServer({ nextStep: 'TERMS' }).on(
+          'GET',
+          PROFILE_PATH,
+          () => pending.response,
+          ok(accountProfile('PROFILE')),
+        ),
+        session: signedInSession(),
+      });
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
+      if (openDetail) {
+        await userEvent.press(
+          screen.getByRole('button', { name: '서비스 이용약관 (필수)' }),
+        );
+        await screen.findByRole('header', { name: '(필수) 서비스 이용약관' });
+      }
+
+      await act(async () => pending.answer(ok(accountProfile('PROFILE'))));
+
+      expect(
+        await screen.findByRole('header', { name: '프로필 등록' }),
+      ).toBeOnTheScreen();
+      expect(
+        header('서비스 이용을 위해 동의가 필요해요'),
+      ).not.toBeOnTheScreen();
+      expect(header('(필수) 서비스 이용약관')).not.toBeOnTheScreen();
+    },
+  );
 });
 
 describe('App — 쓰는 중 세션 만료 (#113)', () => {
@@ -564,15 +604,25 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
     expect(readSignedInStep()).toBeNull();
   });
 
-  // 재동의: 필수 약관만 다시 켜고 마케팅(선택)은 건드리지 않는다
+  // 재동의: 필수 약관만 상세에서 다시 동의하고 마케팅(선택)은 건드리지 않는다 (#193 약관 상세 라디오)
   async function agreeRequiredTerms() {
     for (const name of [
-      '서비스 이용약관 (필수)',
-      '개인정보 처리방침 (필수)',
-      '제3자 제공 동의 (필수)',
-      '위치기반 서비스 이용약관 (필수)',
+      '서비스 이용약관',
+      '개인정보 처리방침',
+      '제3자 제공 동의',
+      '위치기반 서비스 이용약관',
     ]) {
-      await userEvent.press(screen.getByRole('checkbox', { name }));
+      await userEvent.press(
+        screen.getByRole('button', { name: `${name} (필수)` }),
+      );
+      await screen.findByRole('header', { name: `(필수) ${name}` });
+      await userEvent.press(
+        screen.getByRole('radio', { name: `(필수) ${name}, 동의합니다` }),
+      );
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await screen.findByRole('header', {
+        name: '서비스 이용을 위해 동의가 필요해요',
+      });
     }
     await userEvent.press(screen.getByRole('button', { name: '가입하기' }));
   }
@@ -587,10 +637,10 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       name: '서비스 이용을 위해 동의가 필요해요',
     });
     expect(
-      screen.getByRole('checkbox', {
+      screen.getByRole('button', {
         name: '혜택 이벤트 알림 수신동의 (선택)',
       }),
-    ).toBeChecked();
+    ).toHaveAccessibilityValue({ text: '동의함' });
 
     await agreeRequiredTerms();
 

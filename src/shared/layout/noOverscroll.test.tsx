@@ -26,7 +26,10 @@ import {
 } from '../../features/my/profileTesting';
 import { JoinApprovedScreen } from '../../features/onboarding/screens/JoinApprovedScreen';
 import { ProfileRegisterScreen } from '../../features/onboarding/screens/ProfileRegisterScreen';
+import { noTermsAgreed } from '../../features/onboarding/model';
 import { TermsAgreementScreen } from '../../features/onboarding/screens/TermsAgreementScreen';
+import { TermsDetailScreen } from '../../features/terms/screens/TermsDetailScreen';
+import { withTermsDocuments } from '../../features/terms/testing';
 import { makeScheduleMock } from '../../features/schedule/mockData';
 import { RejectReasonScreen } from '../../features/schedule/screens/RejectReasonScreen';
 import { RequestDetailScreen } from '../../features/schedule/screens/RequestDetailScreen';
@@ -71,6 +74,8 @@ const blocked: [string, ReactElement][] = [
       profile={{ status: 'ready', data: myProfile }}
       memberships={{ status: 'ready', data: myMemberships }}
       pendingRequestCount={0}
+      reviewRequests={{ status: 'ready', data: [] }}
+      onOpenReviewRequest={noop}
       onOpenNotifications={noop}
       onEditProfile={noop}
       onOpenRequestStatus={noop}
@@ -88,9 +93,17 @@ const blocked: [string, ReactElement][] = [
   [
     '약관 및 앱 정보',
     <TermsScreen
-      links={{ terms: '', privacy: '', openSource: '' }}
+      links={{ openSource: '' }}
       appVersion="1.0"
       onOpenLink={noop}
+      onOpenTerms={noop}
+      onBack={noop}
+    />,
+  ],
+  [
+    '약관 상세',
+    <TermsDetailScreen
+      sections={[{ key: 'service', title: '서비스', document: 'service' }]}
       onBack={noop}
     />,
   ],
@@ -176,7 +189,16 @@ const blocked: [string, ReactElement][] = [
     '온보딩 프로필 등록',
     <ProfileRegisterScreen onBack={noop} onSubmit={noop} />,
   ],
-  ['온보딩 약관 동의', <TermsAgreementScreen onBack={noop} onSignUp={noop} />],
+  [
+    '온보딩 약관 동의',
+    <TermsAgreementScreen
+      agreement={noTermsAgreed}
+      onAgreeAll={noop}
+      onOpenTerms={noop}
+      onBack={noop}
+      onSignUp={noop}
+    />,
+  ],
   [
     '온보딩 참여 완료',
     <JoinApprovedScreen
@@ -226,10 +248,12 @@ const refreshable: [string, ReactElement][] = [
 ];
 
 // 서버 상태를 읽는 화면은 API 를 붙여 그린다. 조직 참여(#116)는 빈 신청 현황, 마이페이지·프로필 수정·탈퇴 불가(#115)는
-// 받아 둔 프로필·소속·탈퇴 가능 여부로 그린다
+// 받아 둔 프로필·소속·탈퇴 가능 여부로 그린다. 약관 상세(#192)는 가짜 웹 버킷의 전문을 받는다
 async function firstScrollView(element: ReactElement) {
   const api = createTestApi({
-    server: myServer({ server: createParticipationServer().server }),
+    server: withTermsDocuments(
+      myServer({ server: createParticipationServer().server }),
+    ),
     session: testSession(),
   });
   seedMyCache(api.queryClient, {

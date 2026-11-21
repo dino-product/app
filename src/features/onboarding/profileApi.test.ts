@@ -2,7 +2,7 @@ import { ApiErrorMessage, isApiError } from '../../shared/api';
 import { createFakeServer, fail, ok } from '../../shared/testing/fakeServer';
 import { createTestApi } from '../../shared/testing/renderWithApi';
 import { testSession } from '../../shared/testing/session';
-import { noTermsAgreed, toggleAllTerms, toggleTerm } from './model';
+import { allTermsAgreedWith } from './model';
 import {
   agreeToTerms,
   currentAccountId,
@@ -100,7 +100,7 @@ describe('parseProfile', () => {
 
 describe('toTermsAgreementRequest', () => {
   it('서비스·개인정보·마케팅만 서버 항목으로 보낸다 (제3자 제공·위치기반은 서버에 없다)', () => {
-    expect(toTermsAgreementRequest(toggleAllTerms(noTermsAgreed))).toEqual({
+    expect(toTermsAgreementRequest(allTermsAgreedWith(true))).toEqual({
       serviceTerms: true,
       privacyPolicy: true,
       marketing: true,
@@ -108,8 +108,7 @@ describe('toTermsAgreementRequest', () => {
   });
 
   it('선택 약관을 끄면 marketing 은 false 다', () => {
-    const required = ['SERVICE', 'PRIVACY', 'THIRD_PARTY', 'LOCATION'] as const;
-    const agreement = required.reduce(toggleTerm, noTermsAgreed);
+    const agreement = { ...allTermsAgreedWith(true), MARKETING: false };
 
     expect(toTermsAgreementRequest(agreement)).toEqual({
       serviceTerms: true,
@@ -177,7 +176,7 @@ describe('프로필 API', () => {
     const { client } = createTestApi({ server, session: signedIn() });
 
     await expect(
-      agreeToTerms(client, 7, toggleAllTerms(noTermsAgreed)),
+      agreeToTerms(client, 7, allTermsAgreedWith(true)),
     ).resolves.toEqual(active);
     expect(server.callsTo('POST', `${PATH}/terms-agreements`)[0].body).toEqual({
       serviceTerms: true,

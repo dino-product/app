@@ -220,6 +220,26 @@ describe('NoCurrentWorkCard', () => {
     expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
+  // #205 Figma 메인화면 - 진행(무) 3255:17670 › Frame 2147238729(3255:17680): 세로, 왼쪽 정렬, 가운데 배치.
+  // 글자는 Caption/M/Semibold (14, 행간 140%, 자간 -2.5%), White/60
+  it('Figma 진행(무) 대로 안내 글자는 Caption/M/SemiBold 이고, 틀 안에서 왼쪽 정렬·세로 가운데다', async () => {
+    await render(<NoCurrentWorkCard />);
+
+    const text = screen.getByText('현재 진행 중인 작업이 없습니다');
+    expect(text).toHaveStyle({
+      fontFamily: fonts.semiBold,
+      fontSize: 14,
+      lineHeight: 19.6,
+      letterSpacing: -0.35,
+      color: colors.white[60],
+    });
+    expect(text.parent).toHaveStyle({
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+    });
+  });
+
   it('boxShadow 를 못 그리는 Android 8.1 이하에서도 같은 그림자를 겹친 사각형으로 깐다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     jest.spyOn(Platform, 'Version', 'get').mockReturnValue(27);

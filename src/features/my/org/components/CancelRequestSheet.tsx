@@ -13,7 +13,7 @@ import {
   cancelRequestTitleLabel,
 } from './cancelRequestCopy';
 
-// Figma 마이페이지-신청 취소 바텀시트 (2889:13197)
+// Figma 마이페이지-신청 취소 바텀시트 (2889:13197). 제목 Heading/XS, 설명 Caption/M/Regular (#200)
 export function CancelRequestSheet({
   request,
   onClose,
@@ -45,13 +45,14 @@ export function CancelRequestSheet({
         <Text
           accessibilityRole="header"
           accessibilityLabel={cancelRequestTitleLabel(name)}
-          variant="Body/M/SemiBold"
+          variant="Heading/XS"
+          color={colors.gray[900]}
           style={styles.center}
         >
           {cancelRequestTitle(name)}
         </Text>
         <Text
-          variant="Caption/M/Medium"
+          variant="Caption/M/Regular"
           color={colors.gray[600]}
           style={styles.center}
         >
@@ -59,15 +60,14 @@ export function CancelRequestSheet({
         </Text>
       </View>
       <View style={styles.actions}>
+        {/* 버튼 높이 56 (Figma 2935:15477 · 3100:2905, CTA 기본 L) */}
         <CTA
-          size="M"
           variant="outline"
           label="닫기"
           onPress={onClose}
           style={styles.action}
         />
         <CTA
-          size="M"
           variant="reject"
           label="취소"
           onPress={() => shown && onConfirm(shown.requestId)}
@@ -78,9 +78,11 @@ export function CancelRequestSheet({
   );
 }
 
+// Figma 2889:13037: 제목–설명 12(제목 칸 아래 여백), 설명 아래 24 + 버튼 줄 위 10, 버튼 사이 10.
+// 시트 틀(모서리 28·손잡이 32×4 Gray500·위 22·아래 36·딤 45%)은 공용 BottomSheet confirm 모양이다
 const styles = StyleSheet.create({
-  body: { gap: 12, marginBottom: 28 },
+  body: { gap: 12, marginBottom: 24 + 10 },
   center: { textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: 8 },
+  actions: { flexDirection: 'row', gap: 10 },
   action: { flex: 1 },
 });

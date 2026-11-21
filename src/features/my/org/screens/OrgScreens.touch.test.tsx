@@ -1,6 +1,5 @@
 import { screen, userEvent } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
-import { smallestLineHeight } from '../../../../shared/design-system/tokens/touchTarget';
 import { networkError } from '../../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
@@ -32,8 +31,8 @@ function renderOrg(element: ReactElement, failList = false) {
 }
 
 describe('조직 참여 터치 영역', () => {
-  // 글자만 있는 버튼이라 가장 작은 글자 설정의 글자 줄 높이가 보이는 크기다
-  it('신청 현황 카드의 신청 취소는 글자 줄을 위아래로 넓힌다', async () => {
+  // 신청 취소는 카드 오른쪽 위 X 아이콘(24)만 보이는 버튼이라 hitSlop 으로 넓힌다 (Figma 2874:14773 ci:close-md, #200)
+  it('신청 현황 카드의 신청 취소 X 는 아이콘 24 를 최소 터치 영역으로 넓힌다', async () => {
     await renderOrg(
       <JoinRequestsScreen onJoin={jest.fn()} onBack={jest.fn()} />,
     );
@@ -41,9 +40,7 @@ describe('조직 참여 터치 영역', () => {
     const cancel = await screen.findByRole('button', {
       name: '한빛 설비 신청 취소',
     });
-    expectMinTouchTarget(cancel, {
-      height: smallestLineHeight('Caption/M/SemiBold'),
-    });
+    expectIconButtonTouchTarget(cancel);
   });
 
   // 신청 현황을 받지 못했을 때의 다시 시도 (#116)
