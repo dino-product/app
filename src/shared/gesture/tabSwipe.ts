@@ -15,7 +15,7 @@
 //   (수평 30° 밖: 세로 우세·세로 먼저) 그 제스처는 끝까지 탭 전환이 아니다. 달력 넘김(45°)보다 좁혀 손바닥 비빔을 거른다
 // - 두 손가락 이상이 닿으면 그 제스처는 무시한다
 
-import { decidePanAxis } from './panAxis';
+import { AXIS_DECISION_DISTANCE, decidePanAxis } from './panAxis';
 
 export type GestureOwner = 'tab' | 'component';
 /** next: 오른쪽 탭으로 (손가락을 왼쪽으로 민다), prev: 왼쪽 탭으로 */
@@ -101,6 +101,53 @@ export function decideTabSwipe({
     return 'ignore';
   }
   return Math.abs(dx) >= SWITCH_DISTANCE ? 'switch' : 'track';
+}
+
+// 덮기 밀기 (#216). 메인 탭은 이웃 탭 화면이 손가락을 따라 덮고, 놓을 때 바꿀지 정한다 (작업 이력 달 넘김 #153 은 위의
+// SWITCH_DISTANCE 에서 바로 넘긴다). 멈추지 않고 이어 밀었으면 방향을 정하는 거리만 넘어도 바꾸고(인스타그램처럼 거의 터치 수준),
+// 미는 중에 멈추거나 되돌렸거나 멈춘 채 떼면(swipeHesitation.ts) 망설인 것이라 화면 폭의 절반을 넘겨야 바꾼다.
+// 손바닥·손가락이 스치는 아주 작은 움직임은 방향을 정하는 거리(10pt)를 넘지 못해 탭 밀기가 되지 않는다. 시작 자리는 가리지 않는다
+
+/** 이어 밀 때 탭을 바꾸는 거리 (pt). 방향을 정하는 거리와 같다: 가로로 정해지면 바로 */
+export const QUICK_SWITCH_DISTANCE = AXIS_DECISION_DISTANCE;
+/** 망설인 뒤에 탭을 바꾸는 거리는 화면 폭의 이 비율이다 */
+export const HESITANT_SWITCH_RATIO = 0.5;
+
+/** 망설인 뒤에 탭을 바꾸는 거리 (pt). 화면 폭에 따라 다시 잰다 (393pt → 196pt) */
+export function hesitantSwitchDistance(windowWidth: number): number {
+  return Math.floor(windowWidth * HESITANT_SWITCH_RATIO);
+}
+
+/** 지금 탭을 바꾸는 거리 */
+export function switchDistanceFor(hesitant: boolean, windowWidth: number) {
+  return hesitant ? hesitantSwitchDistance(windowWidth) : QUICK_SWITCH_DISTANCE;
+}
+
+/** 놓을 때 탭을 바꾸는지. distance 는 시작점에서 가로로 간 거리 */
+export function switchOnRelease({
+  distance,
+  hesitant,
+  windowWidth,
+}: {
+  distance: number;
+  hesitant: boolean;
+  windowWidth: number;
+}): boolean {
+  return Math.abs(distance) >= switchDistanceFor(hesitant, windowWidth);
+}
+
+/** 덮기 밀기의 판정. 가로로 정해지면 놓을 때까지 따라가기만 한다 (미는 중에는 바꾸지 않는다) */
+export function decideTabTrack({
+  dx,
+  dy,
+  touches,
+}: {
+  dx: number;
+  dy: number;
+  touches: number;
+}): 'wait' | 'track' | 'ignore' {
+  const decision = decideTabSwipe({ dx, dy, touches });
+  return decision === 'switch' ? 'track' : decision;
 }
 
 /** 손가락을 왼쪽으로 밀면(dx < 0) 오른쪽 탭으로 간다 */
