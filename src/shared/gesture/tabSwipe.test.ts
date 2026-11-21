@@ -1,10 +1,14 @@
 import {
   COMPONENT_SLACK,
   EDGE_BAND,
+  QUICK_SWITCH_DISTANCE,
+  TAB_TRACK_DISTANCE,
   SWITCH_DISTANCE,
   decideTabSwipe,
-  neighborIndex,
+  decideTabTrack,
+  hesitantSwitchDistance,
   startOwner,
+  switchOnRelease,
   swipeDirection,
 } from './tabSwipe';
 import { AXIS_DECISION_DISTANCE } from './panAxis';
@@ -185,20 +189,50 @@ describe('decideTabSwipe — 방향 판정은 공용 규칙(decidePanAxis)을 �
   });
 });
 
-describe('밀기 방향과 이웃 탭', () => {
-  it('왼쪽으로 밀면 오른쪽 탭(next), 오른쪽으로 밀면 왼쪽 탭(prev)', () => {
+describe('밀기 방향', () => {
+  it('왼쪽으로 밀면 오른쪽(next), 오른쪽으로 밀면 왼쪽(prev)', () => {
     expect(swipeDirection(-60)).toBe('next');
     expect(swipeDirection(60)).toBe('prev');
   });
+});
 
-  it('양 끝 탭에서 바깥쪽으로는 옮길 탭이 없다', () => {
-    expect(neighborIndex(0, 4, 'prev')).toBeNull();
-    expect(neighborIndex(3, 4, 'next')).toBeNull();
+describe('놓을 때 탭을 바꾸는 거리 — 이어 밀면 방향만, 망설이면 화면 절반 (#216)', () => {
+  it('이어 밀면 방향을 정하는 거리(8pt)만 넘으면 된다 (거의 터치 수준)', () => {
+    expect(QUICK_SWITCH_DISTANCE).toBe(TAB_TRACK_DISTANCE);
+    expect(TAB_TRACK_DISTANCE).toBe(8);
+    expect(
+      switchOnRelease({ distance: 8, hesitant: false, windowWidth: 393 }),
+    ).toBe(true);
+    expect(
+      switchOnRelease({ distance: 7, hesitant: false, windowWidth: 393 }),
+    ).toBe(false);
   });
 
-  it('가운데 탭은 양옆으로 옮긴다', () => {
-    expect(neighborIndex(0, 4, 'next')).toBe(1);
-    expect(neighborIndex(2, 4, 'prev')).toBe(1);
-    expect(neighborIndex(2, 4, 'next')).toBe(3);
+  it('망설인 뒤에는 화면 폭의 절반(내림)을 넘겨야 한다. 폭마다 다시 잰다', () => {
+    expect(hesitantSwitchDistance(393)).toBe(196);
+    expect(hesitantSwitchDistance(375)).toBe(187);
+    expect(hesitantSwitchDistance(430)).toBe(215);
+    expect(
+      switchOnRelease({ distance: 195, hesitant: true, windowWidth: 393 }),
+    ).toBe(false);
+    expect(
+      switchOnRelease({ distance: 196, hesitant: true, windowWidth: 393 }),
+    ).toBe(true);
+  });
+});
+
+describe('decideTabTrack — 덮기 밀기는 놓을 때까지 따라가기만 한다 (#216)', () => {
+  it('8pt 를 넘게 가로로 움직이면 따라가고, 아무리 멀리 가도 미는 중에는 바꾸지 않는다', () => {
+    // 손바닥·손가락이 스치는 8pt 이하의 움직임은 방향도 정하지 않는다 (어디서 시작했든)
+    expect(decideTabTrack({ dx: -8, dy: 0, touches: 1 })).toBe('wait');
+    expect(decideTabTrack({ dx: -9, dy: 0, touches: 1 })).toBe('track');
+    // 달력·달 넘김(decideTabSwipe)은 그대로 10pt 다
+    expect(decideTabSwipe({ dx: -10, dy: 0, touches: 1 })).toBe('wait');
+    expect(decideTabTrack({ dx: -900, dy: 0, touches: 1 })).toBe('track');
+  });
+
+  it('수평 30° 밖이거나 두 손가락이면 탭 밀기가 아니다', () => {
+    expect(decideTabTrack({ dx: 20, dy: 12, touches: 1 })).toBe('ignore');
+    expect(decideTabTrack({ dx: -40, dy: 0, touches: 2 })).toBe('ignore');
   });
 });

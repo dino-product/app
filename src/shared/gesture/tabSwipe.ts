@@ -103,17 +103,65 @@ export function decideTabSwipe({
   return Math.abs(dx) >= SWITCH_DISTANCE ? 'switch' : 'track';
 }
 
+// 덮기 밀기 (#216). 메인 탭은 이웃 탭 화면이 손가락을 따라 덮고, 놓을 때 바꿀지 정한다 (작업 이력 달 넘김 #153 은 위의
+// SWITCH_DISTANCE 에서 바로 넘긴다). 멈추지 않고 이어 밀었으면 방향을 정하는 거리만 넘어도 바꾸고(인스타그램처럼 거의 터치 수준),
+// 미는 중에 멈추거나 되돌렸거나 멈춘 채 떼면(swipeHesitation.ts) 망설인 것이라 화면 폭의 절반을 넘겨야 바꾼다.
+// 손바닥·손가락이 스치는 아주 작은 움직임은 방향을 정하는 거리(8pt)를 넘지 못해 탭 밀기가 되지 않는다. 시작 자리는 가리지 않는다
+
+/** 덮기 밀기가 방향을 정하는 거리 (pt). 이보다 작은 움직임은 스침이다. 실기기 체감으로 정한 값 (달력·달 넘김은 10pt 그대로) */
+export const TAB_TRACK_DISTANCE = 8;
+/** 이어 밀 때 탭을 바꾸는 거리 (pt). 방향을 정하는 거리와 같다: 가로로 정해지면 바로 */
+export const QUICK_SWITCH_DISTANCE = TAB_TRACK_DISTANCE;
+/** 망설인 뒤에 탭을 바꾸는 거리는 화면 폭의 이 비율이다 */
+export const HESITANT_SWITCH_RATIO = 0.5;
+
+/** 망설인 뒤에 탭을 바꾸는 거리 (pt). 화면 폭에 따라 다시 잰다 (393pt → 196pt) */
+export function hesitantSwitchDistance(windowWidth: number): number {
+  return Math.floor(windowWidth * HESITANT_SWITCH_RATIO);
+}
+
+/** 지금 탭을 바꾸는 거리 */
+export function switchDistanceFor(hesitant: boolean, windowWidth: number) {
+  return hesitant ? hesitantSwitchDistance(windowWidth) : QUICK_SWITCH_DISTANCE;
+}
+
+/** 놓을 때 탭을 바꾸는지. distance 는 시작점에서 가로로 간 거리 */
+export function switchOnRelease({
+  distance,
+  hesitant,
+  windowWidth,
+}: {
+  distance: number;
+  hesitant: boolean;
+  windowWidth: number;
+}): boolean {
+  return Math.abs(distance) >= switchDistanceFor(hesitant, windowWidth);
+}
+
+/** 덮기 밀기의 판정. 가로로 정해지면 놓을 때까지 따라가기만 한다 (미는 중에는 바꾸지 않는다) */
+export function decideTabTrack({
+  dx,
+  dy,
+  touches,
+}: {
+  dx: number;
+  dy: number;
+  touches: number;
+}): 'wait' | 'track' | 'ignore' {
+  if (touches > 1) {
+    return 'ignore';
+  }
+  const axis = decidePanAxis(dx, dy, {
+    distance: TAB_TRACK_DISTANCE,
+    horizontalMaxAngle: MAX_SWIPE_ANGLE,
+  });
+  if (axis === null) {
+    return 'wait';
+  }
+  return axis === 'horizontal' ? 'track' : 'ignore';
+}
+
 /** 손가락을 왼쪽으로 밀면(dx < 0) 오른쪽 탭으로 간다 */
 export function swipeDirection(dx: number): SwipeDirection {
   return dx < 0 ? 'next' : 'prev';
-}
-
-/** 옮겨 갈 이웃 탭. 양 끝 탭에서 바깥쪽이면 null */
-export function neighborIndex(
-  index: number,
-  count: number,
-  direction: SwipeDirection,
-): number | null {
-  const next = direction === 'next' ? index + 1 : index - 1;
-  return next >= 0 && next < count ? next : null;
 }

@@ -37,6 +37,11 @@ describe('ios', () => {
     haptic.success();
     expect(trigger.mock.calls[0]).toHaveLength(1);
   });
+
+  it('탭 밀기 임계(딸깍)는 가벼운 충격이다', () => {
+    haptic.threshold();
+    expect(trigger.mock.calls).toEqual([['impactLight']]);
+  });
 });
 
 // 라이브러리 Android 구현은 View 상수 맵에 있는 종류만 시스템 터치 진동 설정을 따른다.
@@ -64,6 +69,15 @@ describe('android — API 레벨별 View 상수', () => {
     haptic.toggle(true);
     haptic.toggle(false);
     expect(trigger.mock.calls).toEqual([[on], [off]]);
+  });
+
+  it.each([
+    [24, 'clockTick'],
+    [30, 'segmentTick'],
+  ])('API %i: 탭 밀기 임계(딸깍)', (v, kind) => {
+    asAndroid(v);
+    haptic.threshold();
+    expect(trigger.mock.calls).toEqual([[kind]]);
   });
 
   it('시스템 설정을 따르도록 옵션을 넘기지 않는다', () => {

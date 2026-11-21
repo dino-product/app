@@ -1,10 +1,5 @@
-import { screen, userEvent, within } from '@testing-library/react-native';
-import {
-  AccessibilityInfo,
-  Animated,
-  Dimensions,
-  StyleSheet,
-} from 'react-native';
+import { act, screen, userEvent } from '@testing-library/react-native';
+import { AccessibilityInfo, Dimensions, StyleSheet } from 'react-native';
 import { holdNativeAnimations } from '../../../jest/nativeAnimation';
 import { swipeFrom } from '../../../jest/responder';
 import * as tabSwipeArea from '../../shared/gesture/TabSwipeArea';
@@ -12,6 +7,7 @@ import {
   COMPONENT_SLACK,
   EDGE_BAND,
   SWITCH_DISTANCE,
+  TAB_TRACK_DISTANCE,
   type Rect,
 } from '../../shared/gesture/tabSwipe';
 import {
@@ -20,9 +16,9 @@ import {
   openStartedWorkDetail,
   renderSignedInHome,
 } from '../testing';
-import { TAB_ENTER_OFFSET, TAB_ENTER_TIMING } from './tabTransition';
 
-// 메인 탭 좌우 밀기와 방향을 반영한 전환 (#140). 탭 순서: 홈 → 내 일정 → 작업 이력 → 마이
+// 메인 탭 좌우 밀기 (#140) 와 덮기 전환 (#216). 탭 순서: 홈 → 내 일정 → 작업 이력 → 마이.
+// 놓은 뒤 덮기를 마저 끝내고 탭을 바꾼다 (네이티브 애니메이션 목은 16ms 뒤에 끝난다)
 fixAppTestClock();
 // 앱 전체를 그리는 흐름 테스트라 기본 5초보다 길게 둔다 (App.my.test 와 같다)
 jest.setTimeout(20_000);
@@ -44,38 +40,46 @@ const expectSelected = (name: TabName) =>
   expect(
     screen.getByRole('tab', { name: tabLabels[name], selected: true }),
   ).toBeOnTheScreen();
+/** 놓은 뒤 덮기가 끝나기를 기다린다 */
+const settle = () =>
+  act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+const swipeAndSettle = async (...args: Parameters<typeof swipeFrom>) => {
+  await swipeFrom(...args);
+  await settle();
+};
 /** 탭 화면의 배경(탭 영역 자체)에서 민다 */
 const swipeTab = (name: TabName, dx: number) =>
-  swipeFrom(tabArea(name), { from: MIDDLE, dx });
+  swipeAndSettle(tabArea(name), { from: MIDDLE, dx });
 
 type Node = ReturnType<typeof tabArea>;
-const transformOf = (node: Node) =>
-  StyleSheet.flatten(node.props.style)?.transform as
-    | Array<{ translateX?: number; translateY?: number }>
-    | undefined;
-const translateXIn = (node: Node) =>
-  transformOf(node)?.find(item => item.translateX !== undefined)?.translateX;
-/** 탭 화면 안에서 옆으로 들어오는 내용 (머리 내용: 상단 바·하위 탭, 본문 내용: 리스트) */
-const enterContent = (name: TabName, part: 'header' | 'body') =>
-  within(tabArea(name)).getByTestId(`tab-enter-${part}`, {
-    includeHiddenElements: true,
-  });
-const enterXOf = (name: TabName) => ({
-  header: translateXIn(enterContent(name, 'header')) ?? 0,
-  body: translateXIn(enterContent(name, 'body')) ?? 0,
-});
-/** 내용을 품은 바탕들(탭 장면·탭 영역·화면 배경·머리 바탕·본문 바탕)의 가로 이동. 모두 없어야 한다 */
-function backgroundTranslateX(name: TabName) {
-  const moved: number[] = [];
-  for (const part of ['header', 'body'] as const) {
-    for (let node = enterContent(name, part).parent; node; node = node.parent) {
-      const x = translateXIn(node);
-      if (x !== undefined) {
-        moved.push(x);
-      }
+/**
+ * 탭 화면이 그려진 층. rest 는 지금 탭, over 는 덮으며 들어오는 탭, under 는 덮이는 탭, hidden 은 안 보이는 탭
+ * (덮기 탭 뷰의 장면 스타일로 본다)
+ */
+/** 탭 장면이 터치를 받는지 */
+function pointerEventsOf(name: TabName) {
+  for (let node: Node | null = tabArea(name); node; node = node.parent) {
+    if (StyleSheet.flatten(node.props.style)?.zIndex !== undefined) {
+      return node.props.pointerEvents;
     }
   }
-  return moved;
+  throw new Error(`${name} 탭 장면을 찾지 못했다`);
+}
+
+function layerOf(name: TabName): 'rest' | 'over' | 'under' | 'hidden' {
+  for (let node: Node | null = tabArea(name); node; node = node.parent) {
+    const style = StyleSheet.flatten(node.props.style) ?? {};
+    if (style.display === 'none') {
+      return 'hidden';
+    }
+    if (style.zIndex === 3) {
+      return 'over';
+    }
+    if (style.zIndex === 1) {
+      return style.transform ? 'under' : 'rest';
+    }
+  }
+  throw new Error(`${name} 탭 장면을 찾지 못했다`);
 }
 
 describe('메인 탭 좌우 밀기', () => {
@@ -107,7 +111,8 @@ describe('메인 탭 좌우 밀기', () => {
   it('짧게 밀면 탭이 그대로다', async () => {
     await renderSignedInHome();
 
-    await swipeTab('home', -(SWITCH_DISTANCE - 4));
+    // 8pt 이하로 스치는 것은 탭 밀기가 아니다 (#216)
+    await swipeTab('home', -TAB_TRACK_DISTANCE);
 
     expectSelected('home');
   });
@@ -143,7 +148,7 @@ const swipeOn = (
   rect: Rect,
   options: { from: { x: number; y: number }; dx: number },
 ) =>
-  swipeFrom(element, {
+  swipeAndSettle(element, {
     ...options,
     rects: new Map([[regionOf(element), rect]]),
   });
@@ -178,6 +183,8 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     const openHistory = async () => {
       await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
       const [row] = await screen.findAllByRole('button', { name: /, 완료, / });
+      // 탭 바로 옮긴 덮기가 끝난 뒤에 민다 (마무리 중에는 밀기를 받지 않는다)
+      await settle();
       return row;
     };
     // 목록 영역 (상단 바·월 선택·요약 카드 아래)
@@ -230,6 +237,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     const openHistory = async () => {
       await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
       await screen.findAllByRole('button', { name: /, 완료, / });
+      await settle();
     };
     const swipeHistory = (element: HostElement, y: number) =>
       swipeOn(element, list, { from: { x: windowWidth() / 2, y }, dx: FAR });
@@ -268,7 +276,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     const rect = { x: 20, y: 200, width: windowWidth() - 40, height: 69 };
     const day = () => screen.getAllByRole('button', { name: /^10월 21일/ })[0];
 
-    await swipeFrom(day(), {
+    await swipeAndSettle(day(), {
       from: { x: windowWidth() / 2, y: 235 },
       dx: -FAR,
       rects: new Map([[strip(), rect]]),
@@ -278,11 +286,14 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
       await screen.findAllByRole('button', { name: nextSunday }),
     ).not.toHaveLength(0);
 
-    await swipeFrom(screen.getAllByRole('button', { name: nextSunday })[0], {
-      from: { x: EDGE_BAND - 8, y: 235 },
-      dx: FAR,
-      rects: new Map([[strip(), rect]]),
-    });
+    await swipeAndSettle(
+      screen.getAllByRole('button', { name: nextSunday })[0],
+      {
+        from: { x: EDGE_BAND - 8, y: 235 },
+        dx: FAR,
+        rects: new Map([[strip(), rect]]),
+      },
+    );
     expectSelected('home');
   });
 
@@ -296,7 +307,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     const rect = { x: 20, y: 200, width: windowWidth() - 40, height: 360 };
     const day = () => screen.getAllByRole('button', { name: /^10월 21일/ })[0];
 
-    await swipeFrom(day(), {
+    await swipeAndSettle(day(), {
       from: { x: windowWidth() / 2, y: 380 },
       dx: -FAR,
       rects: new Map([[calendar(), rect]]),
@@ -304,7 +315,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
     expectSelected('schedule');
     expect(await screen.findByText('2026년 11월')).toBeOnTheScreen();
 
-    await swipeFrom(calendar(), {
+    await swipeAndSettle(calendar(), {
       from: { x: windowWidth() - EDGE_BAND + 8, y: 380 },
       dx: -FAR,
       rects: new Map([[calendar(), rect]]),
@@ -313,8 +324,7 @@ describe('메인 탭 좌우 밀기 — 세부 컴포넌트', () => {
   });
 });
 
-// 탭을 옮기면 탭 화면(배경)은 바로 바뀌고, 그 안의 내용만 방향에 맞춰 들어온다 (#140 → #176)
-describe('탭 전환 — 내용이 들어온다', () => {
+describe('탭 전환 — 이웃 탭 화면이 덮는다 (#216)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     // 공유 목이라 restoreAllMocks 로 돌아가지 않는다. 다른 테스트로 새지 않게 꺼진 것으로 되돌린다
@@ -323,88 +333,89 @@ describe('탭 전환 — 내용이 들어온다', () => {
       .mockImplementation(() => Promise.resolve(false));
   });
 
-  it('탭 바로 오른쪽 탭에 가면 내용이 +12 에서, 왼쪽 탭이면 -12 에서 0 으로 들어오고 배경은 제자리다', async () => {
+  it('밀어서 놓으면 이웃 탭 화면이 마저 덮은 뒤에 탭이 바뀐다 (탭 바도 그때 바뀐다)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    // 처음 여는 탭도 밀기를 시작할 때 그려 덮는다
+    expect(layerOf('schedule')).toBe('over');
+    expect(layerOf('home')).toBe('under');
+    expectSelected('home');
+
+    await animations.finish();
+    expectSelected('schedule');
+    expect(layerOf('schedule')).toBe('rest');
+    expect(layerOf('home')).toBe('hidden');
+  });
+
+  it('마무리하는 동안 탭 바로 다른 탭을 누르면 그 탭에 머문다 (밀던 탭으로 또 바뀌지 않는다)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await animations.finish();
+    await settle();
+
+    expectSelected('my');
+    expect(layerOf('my')).toBe('rest');
+  });
+
+  it('놓은 뒤 마무리하는 동안에는 어느 탭 화면도 터치를 받지 않는다 (가려진 화면이 눌리지 않게)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    expect(pointerEventsOf('home')).toBe('none');
+    expect(pointerEventsOf('schedule')).toBe('none');
+
+    await animations.finish();
+    expect(pointerEventsOf('schedule')).toBe('box-none');
+  });
+
+  it('덮기를 마무리하는 동안 다시 밀어도 받지 않는다 (한 번에 옆 탭 하나)', async () => {
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
+    await animations.finish();
+
+    expectSelected('schedule');
+    // 두 번째 밀기로는 그다음 탭을 그리지도 않았다
+    expect(
+      screen.queryByTestId('tab-swipe-history', {
+        includeHiddenElements: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('탭 바를 누르면 같은 덮기로 들어오고, 끝나면 그 탭만 보인다', async () => {
     await renderSignedInHome();
     const animations = holdNativeAnimations();
 
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
-    expect(enterXOf('my')).toEqual({
-      header: TAB_ENTER_OFFSET,
-      body: TAB_ENTER_OFFSET,
-    });
-    expect(backgroundTranslateX('my')).toEqual([]);
-    await animations.finish();
-    expect(enterXOf('my')).toEqual({ header: 0, body: 0 });
+    expectSelected('my');
+    expect(layerOf('my')).toBe('over');
+    expect(layerOf('home')).toBe('under');
 
-    await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
-    expect(enterXOf('schedule')).toEqual({
-      header: -TAB_ENTER_OFFSET,
-      body: -TAB_ENTER_OFFSET,
-    });
-    expect(backgroundTranslateX('schedule')).toEqual([]);
     await animations.finish();
-    expect(enterXOf('schedule')).toEqual({ header: 0, body: 0 });
+    expect(layerOf('my')).toBe('rest');
+    expect(layerOf('home')).toBe('hidden');
   });
 
-  it('밀어서 옮겨도 같은 방향 규칙으로 내용이 들어온다', async () => {
-    await renderSignedInHome();
-    const animations = holdNativeAnimations();
-
-    await swipeTab('home', -FAR);
-    expect(enterXOf('schedule')).toEqual({
-      header: TAB_ENTER_OFFSET,
-      body: TAB_ENTER_OFFSET,
-    });
-    expect(backgroundTranslateX('schedule')).toEqual([]);
-    await animations.finish();
-
-    await swipeTab('schedule', FAR);
-    expect(enterXOf('home')).toEqual({
-      header: -TAB_ENTER_OFFSET,
-      body: -TAB_ENTER_OFFSET,
-    });
-    expect(backgroundTranslateX('home')).toEqual([]);
-    await animations.finish();
-    expect(enterXOf('home')).toEqual({ header: 0, body: 0 });
-  });
-
-  // 좌우의 차이는 시작 값의 부호뿐이다. 처음 여는 탭(오른쪽)도 탭이 바뀐 그 커밋에서 바로 시작한다
-  it('좌우 모두 같은 설정 객체 하나(지연 없음·같은 시간·곡선)로, 처음 여는 탭도 탭이 바뀌자마자 시작한다', async () => {
-    await renderSignedInHome();
-    const animations = holdNativeAnimations();
-    const timing = jest.spyOn(Animated, 'timing');
-    const enters = () =>
-      timing.mock.calls.filter(([, config]) => config === TAB_ENTER_TIMING);
-
-    // 처음 여는 탭 (오른쪽)
-    await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
-    expect(enters()).toHaveLength(1);
-    expect(enterXOf('history')).toEqual({
-      header: TAB_ENTER_OFFSET,
-      body: TAB_ENTER_OFFSET,
-    });
-    expect(backgroundTranslateX('history')).toEqual([]);
-    await animations.finish();
-    // 이미 연 탭 (왼쪽)
-    await userEvent.press(screen.getByRole('tab', { name: '홈' }));
-    expect(enters()).toHaveLength(2);
-  });
-
-  it('동작 줄이기면 옮기지 않고 바로 바뀐다', async () => {
+  it('동작 줄이기면 탭 바를 눌렀을 때 덮지 않고 바로 바뀐다', async () => {
     jest
       .mocked(AccessibilityInfo.isReduceMotionEnabled)
       .mockResolvedValue(true);
     await renderSignedInHome();
     holdNativeAnimations();
-    const timing = jest.spyOn(Animated, 'timing');
 
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
 
     expectSelected('my');
-    expect(enterXOf('my')).toEqual({ header: 0, body: 0 });
-    expect(backgroundTranslateX('my')).toEqual([]);
-    expect(
-      timing.mock.calls.filter(([, config]) => config === TAB_ENTER_TIMING),
-    ).toEqual([]);
+    expect(layerOf('my')).toBe('rest');
+    expect(layerOf('home')).toBe('hidden');
   });
 });

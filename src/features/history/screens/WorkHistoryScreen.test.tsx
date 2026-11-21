@@ -16,6 +16,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { swipeFrom } from '../../../../jest/responder';
+import { fakeTabCover, WithTabCover } from '../../../../jest/tabCover';
 import {
   colors,
   pressedBackground,
@@ -28,7 +29,6 @@ import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
 import { scrollListTo } from '../../../shared/testing/autoHideHeader';
-import { TabEnterContext } from '../../../shared/layout/tabEnter';
 import { expectMessageOnly } from '../../../shared/testing/emptyState';
 import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
@@ -623,15 +623,17 @@ describe('WorkHistoryScreen — 바와 목록의 밀기 판정 (#175)', () => {
   ])(
     '%s 의 월 글자에서 민 것은 탭을 바꾸고 달은 그대로, 목록 안쪽에서 민 것은 달을 옮긴다',
     async (_state, collapse) => {
-      const onTabSwipe = jest.fn();
+      const { cover, onSwipe: onTabSwipe } = fakeTabCover();
       await render(
-        <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
-          <WorkHistoryScreen
-            today={today}
-            works={works}
-            onOpenWork={jest.fn()}
-          />
-        </tabSwipeArea.TabSwipeArea>,
+        <WithTabCover cover={cover}>
+          <tabSwipeArea.TabSwipeArea canSwipe={() => true}>
+            <WorkHistoryScreen
+              today={today}
+              works={works}
+              onOpenWork={jest.fn()}
+            />
+          </tabSwipeArea.TabSwipeArea>
+        </WithTabCover>,
       );
       if (collapse) {
         await scrollListTo(list(), 300);
@@ -668,11 +670,17 @@ describe('WorkHistoryScreen — 바와 목록의 밀기 판정 (#175)', () => {
               ''
           ] ?? measure(target),
       );
-    const onTabSwipe = jest.fn();
+    const { cover, onSwipe: onTabSwipe } = fakeTabCover();
     await render(
-      <tabSwipeArea.TabSwipeArea canSwipe={() => true} onSwipe={onTabSwipe}>
-        <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />
-      </tabSwipeArea.TabSwipeArea>,
+      <WithTabCover cover={cover}>
+        <tabSwipeArea.TabSwipeArea canSwipe={() => true}>
+          <WorkHistoryScreen
+            today={today}
+            works={works}
+            onOpenWork={jest.fn()}
+          />
+        </tabSwipeArea.TabSwipeArea>
+      </WithTabCover>,
     );
     const rects = new Map([
       [monthSwipeArea(), { x: 0, y: 0, width, height: 700 }],
@@ -1370,71 +1378,5 @@ describe('WorkHistoryScreen — 날짜가 바뀌면', () => {
     );
 
     expect(screen.getByText('2026년 8월')).toBeOnTheScreen();
-  });
-});
-
-// 탭을 옮길 때 탭 화면 안의 내용만 옆에서 들어온다 (#176). 바 바탕(접히는 회색 바 포함)·화면 바탕은 제자리다
-describe('WorkHistoryScreen — 탭 전환 때 내용만 옮긴다 (#176)', () => {
-  beforeEach(() => {
-    holdNativeAnimations();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  const translateXIn = (element: HostElement) =>
-    (
-      StyleSheet.flatten(element.props.style)?.transform as
-        | Array<{ translateX?: number }>
-        | undefined
-    )?.find(item => item.translateX !== undefined)?.translateX;
-
-  it('제목·월 선택과 목록만 들어오는 값만큼 옮기고, 바 바탕·화면 바탕은 제자리다', async () => {
-    await render(
-      <TabEnterContext.Provider value={new Animated.Value(-12)}>
-        <WorkHistoryScreen today={today} works={works} onOpenWork={jest.fn()} />
-      </TabEnterContext.Provider>,
-    );
-
-    const headerContent = screen.getByTestId('tab-enter-header');
-    const bodyContent = screen.getByTestId('tab-enter-body');
-    expect(translateXIn(headerContent)).toBe(-12);
-    expect(translateXIn(bodyContent)).toBe(-12);
-    expect(headerContent).toContainElement(
-      screen.getByTestId('work-history-title'),
-    );
-    expect(headerContent).toContainElement(
-      screen.getByTestId('work-history-month'),
-    );
-    expect(bodyContent).toContainElement(
-      screen.getByTestId('work-history-list'),
-    );
-    // 바 바탕은 내용 밖에 있고 가로로 옮기지 않는다
-    const barBackground = screen.getByTestId('work-history-bar-background');
-    expect(headerContent).not.toContainElement(barBackground);
-    for (
-      let node: HostElement | null = headerContent.parent;
-      node;
-      node = node.parent
-    ) {
-      expect(translateXIn(node)).toBeUndefined();
-    }
-    for (
-      let node: HostElement | null = bodyContent.parent;
-      node;
-      node = node.parent
-    ) {
-      expect(translateXIn(node)).toBeUndefined();
-    }
-  });
-
-  it('들어오는 값이 없으면 옮기지 않는다', async () => {
-    await renderHistory();
-
-    expect(
-      translateXIn(screen.getByTestId('tab-enter-header')),
-    ).toBeUndefined();
-    expect(translateXIn(screen.getByTestId('tab-enter-body'))).toBeUndefined();
   });
 });

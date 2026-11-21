@@ -29,6 +29,7 @@ import {
 } from '../../../shared/design-system';
 import { smallestLineHeight } from '../../../shared/design-system/tokens/touchTarget';
 import { haptic } from '../../../shared/haptics';
+import { TabSwipeScrollLock } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import {
@@ -421,65 +422,74 @@ function ScheduleScreenView({
       >
         {/* 같은 자리의 FlatList 하나를 data 만 바꿔 쓰므로 ref 는 늘 지금 보이는 리스트다 */}
         {tab === 'confirmed' ? (
-          <Animated.FlatList
-            ref={listRef}
-            testID="schedule-confirmed-list"
-            {...autoHide.scrollProps}
-            // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
-            directionalLockEnabled
-            // 주간 줄에 손가락이 닿아 있는 동안, 펼친 달력을 가로로 미는 동안은 세로로 움직이지 않는다 (#99, #144)
-            scrollEnabled={!scrollLock.locked}
-            onTouchStartCapture={scrollLock.onListTouchStartCapture}
-            data={daySchedules}
-            keyExtractor={keyExtractor}
-            renderItem={renderConfirmed}
-            ListHeaderComponent={dateHeader}
-            ItemSeparatorComponent={CardGap}
-            ListEmptyComponent={
-              confirmedLoad.status === 'ready' ? (
-                <EmptyMessage style={styles.emptyConfirmed}>
-                  이 날은 일정이 없습니다
-                </EmptyMessage>
-              ) : (
-                <LoadStateView
-                  state={confirmedLoad}
-                  skeleton={<ConfirmedCardsSkeleton />}
-                />
-              )
-            }
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            progressViewOffset={autoHide.progressViewOffset}
-            style={styles.list}
-            contentContainerStyle={confirmedContentStyle}
-          />
+          <TabSwipeScrollLock enabled={!scrollLock.locked}>
+            {scrollEnabled => (
+              <Animated.FlatList
+                ref={listRef}
+                testID="schedule-confirmed-list"
+                {...autoHide.scrollProps}
+                // 머리의 주간 줄·달력을 가로로 밀 때 리스트가 세로로 따라 움직이며 밀기를 가져가지 않게 한다 (iOS)
+                directionalLockEnabled
+                // 주간 줄에 손가락이 닿아 있는 동안, 펼친 달력을 가로로 미는 동안은 세로로 움직이지 않는다 (#99, #144)
+                scrollEnabled={scrollEnabled}
+                onTouchStartCapture={scrollLock.onListTouchStartCapture}
+                data={daySchedules}
+                keyExtractor={keyExtractor}
+                renderItem={renderConfirmed}
+                ListHeaderComponent={dateHeader}
+                ItemSeparatorComponent={CardGap}
+                ListEmptyComponent={
+                  confirmedLoad.status === 'ready' ? (
+                    <EmptyMessage style={styles.emptyConfirmed}>
+                      이 날은 일정이 없습니다
+                    </EmptyMessage>
+                  ) : (
+                    <LoadStateView
+                      state={confirmedLoad}
+                      skeleton={<ConfirmedCardsSkeleton />}
+                    />
+                  )
+                }
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                progressViewOffset={autoHide.progressViewOffset}
+                style={styles.list}
+                contentContainerStyle={confirmedContentStyle}
+              />
+            )}
+          </TabSwipeScrollLock>
         ) : (
-          <Animated.FlatList
-            ref={listRef}
-            testID="schedule-pending-list"
-            {...autoHide.scrollProps}
-            data={pending}
-            keyExtractor={keyExtractor}
-            renderItem={renderPending}
-            ItemSeparatorComponent={CardGap}
-            ListEmptyComponent={
-              pendingLoad.status === 'ready' ? (
-                <EmptyMessage style={styles.emptyPending}>
-                  응답할 요청이 없습니다
-                </EmptyMessage>
-              ) : (
-                <LoadStateView
-                  state={pendingLoad}
-                  skeleton={<PendingRequestsSkeleton />}
-                />
-              )
-            }
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            progressViewOffset={autoHide.progressViewOffset}
-            style={styles.list}
-            contentContainerStyle={pendingContentStyle}
-          />
+          <TabSwipeScrollLock>
+            {scrollEnabled => (
+              <Animated.FlatList
+                ref={listRef}
+                testID="schedule-pending-list"
+                {...autoHide.scrollProps}
+                scrollEnabled={scrollEnabled}
+                data={pending}
+                keyExtractor={keyExtractor}
+                renderItem={renderPending}
+                ItemSeparatorComponent={CardGap}
+                ListEmptyComponent={
+                  pendingLoad.status === 'ready' ? (
+                    <EmptyMessage style={styles.emptyPending}>
+                      응답할 요청이 없습니다
+                    </EmptyMessage>
+                  ) : (
+                    <LoadStateView
+                      state={pendingLoad}
+                      skeleton={<PendingRequestsSkeleton />}
+                    />
+                  )
+                }
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                progressViewOffset={autoHide.progressViewOffset}
+                style={styles.list}
+                contentContainerStyle={pendingContentStyle}
+              />
+            )}
+          </TabSwipeScrollLock>
         )}
       </AutoHideHeaderLayout>
     </SafeAreaView>
@@ -533,8 +543,7 @@ const TODAY_HIT_SLOP = {
 };
 
 const styles = StyleSheet.create({
-  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다.
-  // 바탕은 화면에 그려 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+  // Figma 내 일정(3754:6269·3754:6457·3754:6804) 바탕은 상태 표시줄 뒤까지 Background/3 이고, 그 위에 흰 카드가 놓인다
   screen: { flex: 1, backgroundColor: colors.background[3] },
   // 겹쳐 그린 머리(위에 쌓기는 AutoHideHeaderLayout). Figma 탑 내비는 바탕색·그림자가 없다 (#201).
   // 내용이 아래로 지나가므로 화면 배경과 같은 색으로 가린다
