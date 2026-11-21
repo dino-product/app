@@ -1,6 +1,5 @@
 import {
   CommonActions,
-  StackActions,
   useFocusEffect,
   useIsFocused,
 } from '@react-navigation/native';
@@ -54,7 +53,11 @@ import {
 import { isApiError, useApiClient } from '../../shared/api';
 import { useLightStatusBar } from '../../shared/layout/useLightStatusBar';
 import { useAccountProfile, useAuth } from '../AuthProvider';
-import { ParticipationRequestGate } from './orgRoutes';
+import {
+  ParticipationRequestGate,
+  useAwaitReturnTransition,
+  useScannedCode,
+} from './orgRoutes';
 import { useFocusTitleOnOpen } from './routes';
 import type { OnboardingScreenProps, OnboardingStackParamList } from './types';
 
@@ -311,13 +314,10 @@ type FoundScreen = 'JoinRoleSelect' | 'JoinPending' | 'JoinApproved';
 /**
  * 회사 찾기(코드 입력·QR 인식, #108)의 회사 확인 결과로 갈 곳. 찾음 → 역할 선택,
  * 승인 대기·참여 완료에서 뒤로 왔다가 같은 회사를 다시 찾음 → 그 요청의 화면 (알림만 띄우면 '시작하기' 로 갈 길이 없어진다).
- * replace: QR 인식은 카메라로 돌아오지 않게 자기 자리를 결과 화면으로 바꾼다. 뒤로 가면 회사 찾기로 간다
+ * QR 인식도 카메라를 닫고 돌아온 회사 찾기가 확인하므로(#195) 결과 화면은 늘 회사 찾기 위에 올라간다. 뒤로 가면 회사 찾기로 간다
  */
 function useCompanyFound(
-  navigation: OnboardingScreenProps<
-    'CompanyFind' | 'CompanyQrScan'
-  >['navigation'],
-  { replace }: { replace: boolean },
+  navigation: OnboardingScreenProps<'CompanyFind'>['navigation'],
 ): CompanyCheckHandlers {
   const fetchRequests = useFetchParticipationRequests();
   // 찾는 동안 화면을 옮겼으면 늦게 온 결과로 데려가지 않는다
@@ -326,11 +326,7 @@ function useCompanyFound(
     params: OnboardingStackParamList[Name],
   ) => {
     if (navigation.isFocused()) {
-      navigation.dispatch(
-        replace
-          ? StackActions.replace(name, params)
-          : CommonActions.navigate(name, params),
-      );
+      navigation.dispatch(CommonActions.navigate(name, params));
     }
   };
 
@@ -355,10 +351,14 @@ function useCompanyFound(
 
 export function CompanyFindRoute({
   navigation,
+  route,
 }: OnboardingScreenProps<'CompanyFind'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
-  const found = useCompanyFound(navigation, { replace: false });
+  const found = useCompanyFound(navigation);
+  const scannedCode = useScannedCode(navigation, route.params?.qrCode);
+  // QR 코드 인식은 같은 온보딩 스택 화면이라, 닫히면 이 화면이 다시 보인다
+  const waitForReturn = useAwaitReturnTransition(navigation);
 
   return (
     <OrgJoinScreen
@@ -366,24 +366,26 @@ export function CompanyFindRoute({
       titleRef={titleRef}
       screenFocused={screenFocused}
       {...found}
+      scannedCode={scannedCode}
+      waitForReturn={waitForReturn}
       onScanQr={() => navigation.navigate('CompanyQrScan')}
       onBack={() => navigation.goBack()}
     />
   );
 }
 
+// QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고 회사 찾기로 돌아가 그 코드를 넘긴다 (#195)
 export function CompanyQrScanRoute({
   navigation,
 }: OnboardingScreenProps<'CompanyQrScan'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const focused = useIsFocused();
-  const found = useCompanyFound(navigation, { replace: true });
 
   return (
     <QrScanScreen
       focused={focused}
       titleRef={titleRef}
-      {...found}
+      onScanned={qrCode => navigation.popTo('CompanyFind', { qrCode })}
       onClose={() => navigation.goBack()}
     />
   );

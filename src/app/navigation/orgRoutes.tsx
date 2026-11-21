@@ -30,6 +30,7 @@ import { readableColumn } from '../../shared/layout/readableColumn';
 import { useFocusTitleOnOpen } from './routes';
 import {
   MY_INITIAL_ROUTE,
+  ROOT_NAVIGATOR_ID,
   type MyScreenProps,
   type MyStackParamList,
   type RootScreenProps,
@@ -110,14 +111,21 @@ export function ParticipationRequestGate({
   );
 }
 
-export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
+export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
+  const scannedCode = useScannedCode(navigation, route.params?.qrCode);
+  // QR 코드 인식은 루트 스택 화면이라, 닫히면 루트 스택에서 메인(하단 탭)이 다시 보인다
+  const waitForReturn = useAwaitReturnTransition(
+    navigation.getParent<TransitionSource>(ROOT_NAVIGATOR_ID),
+  );
 
   return (
     <OrgJoinScreen
       titleRef={titleRef}
       screenFocused={screenFocused}
+      scannedCode={scannedCode}
+      waitForReturn={waitForReturn}
       onFound={target => {
         // 찾는 동안 다른 탭으로 옮겼으면 늦게 온 결과로 데려가지 않는다
         if (navigation.isFocused()) {
@@ -131,8 +139,69 @@ export function OrgJoinRoute({ navigation }: MyScreenProps<'OrgJoin'>) {
   );
 }
 
-// QR 코드 인식 (#108). 찾은 회사는 카메라를 스택에서 빼고 마이 탭의 회사 찾기 위에 역할 선택으로 올린다.
-// 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다. 이미 참여·승인 대기·유효하지 않은 코드는 카메라 위에 안내한다
+/**
+ * QR 코드 인식이 넘긴 회사 코드 (#195). 화면에 넘긴 뒤 파라미터에서 지운다.
+ * 지워야 같은 QR 을 다시 읽어 왔을 때 다시 확인하고, 저장한 화면 상태를 다시 열 때 또 확인하지 않는다
+ */
+export function useScannedCode(
+  navigation: { setParams: (params: { qrCode?: string }) => void },
+  qrCode: string | undefined,
+) {
+  useEffect(() => {
+    if (qrCode) {
+      navigation.setParams({ qrCode: undefined });
+    }
+  }, [qrCode, navigation]);
+  return qrCode;
+}
+
+/** 카메라(QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 기다리는 최대 시간. 네이티브 전환은 0.35초쯤이다 */
+export const RETURN_TRANSITION_TIMEOUT_MS = 1000;
+
+/** 전환 끝(transitionEnd)을 알려 주는 스택 내비게이션 (native-stack) */
+type TransitionSource = {
+  addListener: (
+    type: 'transitionEnd',
+    listener: (event: { data: { closing: boolean } }) => void,
+  ) => () => void;
+};
+
+/**
+ * 화면이 다시 보이는 전환이 끝나기를(transitionEnd) 기다리는 함수 (#195). QR 결과는 앱 화면으로 돌아온 뒤에 보인다.
+ * source 는 그 전환을 하는 스택에서의 이 화면(또는 이 화면을 담은 화면) 내비게이션이다.
+ * 이벤트를 놓쳐도 결과가 묶이지 않게 RETURN_TRANSITION_TIMEOUT_MS 뒤에는 기다리지 않는다. 화면을 떠나면 구독·타이머를 푼다
+ */
+export function useAwaitReturnTransition(source: TransitionSource | undefined) {
+  const waiting = useRef(new Set<() => void>());
+  useEffect(() => {
+    const pending = waiting.current;
+    return () => pending.forEach(stop => stop());
+  }, []);
+  return useCallback(
+    () =>
+      new Promise<void>(resolve => {
+        let unsubscribe: (() => void) | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const stop = () => {
+          unsubscribe?.();
+          clearTimeout(timer);
+          waiting.current.delete(stop);
+          resolve();
+        };
+        waiting.current.add(stop);
+        unsubscribe = source?.addListener('transitionEnd', ({ data }) => {
+          if (!data.closing) {
+            stop();
+          }
+        });
+        timer = setTimeout(stop, RETURN_TRANSITION_TIMEOUT_MS);
+      }),
+    [source],
+  );
+}
+
+// QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고(스택에서 빼고) 마이 탭의 회사 찾기로 돌아가 그 코드를 넘긴다 (#195).
+// 회사 확인과 결과(역할 선택·안내 모달)는 회사 찾기가 앱 화면 위에 보인다. 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다
 export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const focused = useIsFocused();
@@ -141,15 +210,12 @@ export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
     <QrScanScreen
       focused={focused}
       titleRef={titleRef}
-      onFound={target => {
-        // 확인하는 사이 다른 화면으로 옮겼으면(알림 등) 늦게 온 결과로 데려가지 않는다
-        if (navigation.isFocused()) {
-          navigation.popTo('Main', {
-            screen: 'my',
-            params: { screen: 'OrgRoleSelect', params: target },
-          });
-        }
-      }}
+      onScanned={qrCode =>
+        navigation.popTo('Main', {
+          screen: 'my',
+          params: { screen: 'OrgJoin', params: { qrCode } },
+        })
+      }
       onClose={() => navigation.goBack()}
     />
   );

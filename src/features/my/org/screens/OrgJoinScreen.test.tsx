@@ -12,9 +12,15 @@ import {
   Linking,
   PermissionsAndroid,
   Platform,
+  StyleSheet,
   type AlertButton,
 } from 'react-native';
-import { MIN_TOUCH_TARGET } from '../../../../shared/design-system';
+import {
+  colors,
+  MIN_TOUCH_TARGET,
+  typography,
+  withOpacity,
+} from '../../../../shared/design-system';
 import * as cameraPermissionModule from '../../../../shared/native/NativeCameraPermissionIOS';
 import {
   fail,
@@ -120,6 +126,94 @@ describe('OrgJoinScreen', () => {
       });
     },
   );
+
+  // 마이 › 조직 참여하기의 회사 찾기. Figma 회사찾기 3255:18315 의 본문(3255:18323), 3235:17242·51028:17074·3255:18149 도 같은 값.
+  // 이 화면 위에 QR 결과를 띄운다 (#195)
+  describe('마이 Figma 값 (3255:18323)', () => {
+    const hidden = (text: string) =>
+      screen.getByText(text, { includeHiddenElements: true });
+
+    it('소개: 제목 Body/L/Bold Gray900, 설명 Body/XS/Medium Gray600, 사이 6. 소개·입력·구분선·QR 사이 24', async () => {
+      await renderJoin();
+
+      const title = screen.getByRole('header', { name: '회사 찾기' });
+      expect(title).toHaveStyle({
+        ...typography['Body/L/Bold'],
+        color: colors.gray[900],
+      });
+      expect(
+        screen.getByText('회사 코드·참여 링크·QR로 회사를 찾을 수 있습니다.'),
+      ).toHaveStyle({
+        ...typography['Body/XS/Medium'],
+        color: colors.gray[600],
+      });
+      expect(title.parent).toHaveStyle({ gap: 6 });
+      // 소개·입력·구분선·QR 은 스크롤 내용 칸에 나란히 있다
+      const scroll = title.parent?.parent?.parent;
+      expect(scroll?.type).toBe('RCTScrollView');
+      expect(StyleSheet.flatten(scroll?.props.contentContainerStyle)).toEqual(
+        expect.objectContaining({ gap: 24 }),
+      );
+    });
+
+    it('회사 코드 입력: 라벨 Caption/M/Medium Gray700 아래 8, 입력줄 아래 12 에 도움말 Caption/S/Medium 라이브러리 Gray500', async () => {
+      await renderJoin();
+
+      const label = hidden('회사 코드 입력');
+      expect(label).toHaveStyle({
+        ...typography['Caption/M/Medium'],
+        color: colors.gray[700],
+      });
+      expect(label.parent).toHaveStyle({ gap: 8 });
+      const help = screen.getByText(
+        '회사 관리자에게 받은 코드를 입력해 주세요.',
+      );
+      expect(help).toHaveStyle({
+        ...typography['Caption/S/Medium'],
+        color: colors.libraryGray[500],
+      });
+      expect(help.parent).toHaveStyle({ gap: 12 });
+    });
+
+    // 3255:18332 입력칸 모서리 14·테두리 Gray100·플레이스홀더 Gray500, 회사 확인(3255:18334)과 사이 10, 버튼 좌우 16·폭 102
+    it('입력칸은 모서리 14·테두리 Gray100·플레이스홀더 Gray500 이고, 회사 확인과 10 떨어진다. 회사 확인은 좌우 16·폭 102', async () => {
+      await renderJoin();
+
+      expect(codeInput()).toHaveStyle({
+        borderRadius: 14,
+        borderColor: colors.gray[100],
+        marginRight: 10,
+      });
+      expect(codeInput().props.placeholderTextColor).toBe(colors.gray[500]);
+      expect(checkButton()).toHaveStyle({
+        paddingHorizontal: 16,
+        minWidth: 102,
+      });
+    });
+
+    // 3255:18336 Alternative divider: 선 Gray400 30%, '또는' Caption/M/Regular Gray400
+    it("구분선은 Gray400 30% 이고 '또는' 은 Caption/M/Regular Gray400 이다", async () => {
+      await renderJoin();
+
+      const or = hidden('또는');
+      expect(or).toHaveStyle({
+        ...typography['Caption/M/Regular'],
+        color: colors.gray[400],
+      });
+      const [line] = or.parent?.children ?? [];
+      expect(line).toHaveStyle({
+        height: 1,
+        backgroundColor: withOpacity(colors.gray[400], 0.3),
+      });
+    });
+
+    // 온보딩 회사 찾기(3205:6299 · 3278:23116)는 입력칸 46·모서리 12 로 따로다
+    it('온보딩 입력칸 모서리는 12 그대로다', async () => {
+      await renderJoin({ flow: 'onboarding' });
+
+      expect(codeInput()).toHaveStyle({ borderRadius: 12 });
+    });
+  });
 
   // 서버 규칙 (Dino CompanyCode): Crockford Base32 대문자 6자 (#97)
   describe('회사 코드 규칙', () => {
@@ -234,6 +328,30 @@ describe('OrgJoinScreen', () => {
       },
     );
 
+    // 권한을 묻는 동안(시스템 대화상자 없이 끝나는 Android 확인 포함) 회사 확인을 시작했으면, 카메라를 열어도 읽어 온 코드가
+    // 확인 중이라 바로 확인되지 못한다. 열지 않는다 (#195)
+    it('권한을 묻는 사이 회사 확인이 시작되면 카메라를 열지 않는다', async () => {
+      let grant: (granted: boolean) => void = () => {};
+      cameraPermission.getStatus.mockReturnValue('not-determined');
+      cameraPermission.request.mockImplementation(
+        () =>
+          new Promise<boolean>(done => {
+            grant = done;
+          }),
+      );
+      const { props, server } = await renderJoin();
+      const respond = holdLookup(server);
+
+      await userEvent.press(qrButton());
+      await userEvent.type(codeInput(), 'RBT124');
+      await userEvent.press(checkButton());
+      await act(async () => grant(true));
+
+      expect(props.onScanQr).not.toHaveBeenCalled();
+      await respond(ok(orbitFound));
+      expect(props.onFound).toHaveBeenCalledTimes(1);
+    });
+
     // 입력하던 키보드가 카메라 화면 위에 남지 않게 한다
     it('누르면 키보드를 내린다', async () => {
       cameraPermission.getStatus.mockReturnValue('granted');
@@ -321,6 +439,333 @@ describe('OrgJoinScreen', () => {
 
       expect(cameraPermission.request).toHaveBeenCalledTimes(1);
       expect(props.onScanQr).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // QR 스캔 화면은 회사 코드만 읽고 닫힌다 (#195). 바깥(내비게이션)이 그 코드를 넘기면 이 화면이 QR 경로로 회사를 확인하고,
+  // 결과는 카메라가 아니라 이 화면 위에 보인다. 찾은 회사는 역할 선택으로, 그 밖은 회사 코드 입력과 같은 안내 모달이다
+  describe('QR 로 읽어 온 회사 코드 (#195)', () => {
+    type JoinView = Awaited<ReturnType<typeof renderJoin>>;
+    const receive = (view: JoinView, scannedCode: string | undefined) =>
+      view.rerender(
+        <OrgJoinScreen {...view.props} scannedCode={scannedCode} />,
+      );
+    const qrButton = () => screen.getByRole('button', { name: 'QR 코드 인식' });
+    const INVALID_TITLE = '유효하지 않은 회사 코드입니다';
+    const INVALID_MESSAGE =
+      '회사에서 코드를 변경해\n이전 참여 경로를 사용할 수 없습니다.';
+
+    it('받으면 그 코드로 회사를 확인하고, 찾은 회사를 QR 경로의 참여 대상으로 역할 선택에 넘긴다', async () => {
+      const view = await renderJoin();
+
+      await receive(view, 'RBT124');
+
+      await waitFor(() =>
+        expect(view.props.onFound).toHaveBeenCalledWith({
+          ...orbit,
+          companyCode: 'RBT124',
+          requestChannel: 'QR_CODE',
+        }),
+      );
+      expect(lookups(view.server)).toHaveLength(1);
+      expect(lookups(view.server)[0].query).toEqual({ companyCode: 'RBT124' });
+      // 읽은 코드는 입력칸에 넣지 않는다 (코드 입력 경로로 보내지 않게)
+      expect(codeInput()).toHaveDisplayValue('');
+    });
+
+    it.each([
+      [
+        '이미 소속된 회사',
+        'BS0001',
+        '이미 참여 중인 회사예요',
+        '오빗 서비스에 이미 소속되어 있어\n참여 요청을 다시 보낼 수 없습니다.',
+      ],
+      [
+        '승인 대기 요청이 있는 회사',
+        'HB0010',
+        '이미 참여를 요청한 회사예요',
+        '한빛 설비에 보낸 참여 요청이\n승인을 기다리고 있어요.',
+      ],
+    ])(
+      '%s 면 이 화면 위에 안내 모달을 띄우고, 닫으면 회사 찾기에 머문다',
+      async (_, code, title, message) => {
+        const view = await renderJoin();
+
+        await receive(view, code);
+
+        expect(
+          await screen.findByRole('header', { name: title }),
+        ).toBeOnTheScreen();
+        expect(screen.getByText(message)).toBeOnTheScreen();
+        await userEvent.press(screen.getByRole('button', { name: '확인' }));
+        expect(header(title)).toBeNull();
+        expect(header('회사 찾기')).toBeOnTheScreen();
+        expect(qrButton()).toBeEnabled();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+      },
+    );
+
+    // Figma Spec_회사 참여 요청 플로우: 이전 코드·링크·QR 로 접근하면 최신 정보를 다시 확인하도록 안내(⑥ 이전 코드 차단).
+    // ⑥ 은 화면이고 모달이 아니다. 회사 코드 입력처럼 제목·설명만 바뀐다
+    it.each([
+      ['없는 코드(ORGANIZATION-011)', 'WRNG99'],
+      ['회사가 바꿔 폐기된 이전 코드(ORGANIZATION-012)', 'PRV014'],
+    ])(
+      '%s 면 안내 모달 없이 화면이 유효하지 않은 코드(⑥)로 바뀐다',
+      async (_, code) => {
+        const view = await renderJoin();
+
+        await receive(view, code);
+
+        expect(
+          await screen.findByRole('header', { name: INVALID_TITLE }),
+        ).toBeOnTheScreen();
+        expect(screen.getByText(INVALID_MESSAGE)).toBeOnTheScreen();
+        expect(header('회사 참여')).toBeOnTheScreen();
+        expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+        expect(qrButton()).toBeEnabled();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+      },
+    );
+
+    // Figma ⑥(마이 3255:18149 · 온보딩 3257:10685)의 입력칸은 비어 있다(플레이스홀더). 앞서 친 다른 코드를 남기지 않는다.
+    // 회사 코드 입력의 ⑥ 은 방금 친 코드라 그대로 둔다
+    it('QR 결과가 유효하지 않은 코드(⑥)면 앞서 입력하던 코드를 비운다', async () => {
+      const view = await renderJoin();
+      await userEvent.type(codeInput(), 'HB00');
+
+      await receive(view, 'PRV014');
+
+      await screen.findByRole('header', { name: INVALID_TITLE });
+      expect(codeInput()).toHaveDisplayValue('');
+      expect(checkButton()).toBeDisabled();
+    });
+
+    it('QR 결과가 안내 모달이면 입력하던 코드는 그대로 둔다', async () => {
+      const view = await renderJoin();
+      await userEvent.type(codeInput(), 'HB00');
+
+      await receive(view, 'BS0001');
+
+      await screen.findByRole('header', { name: '이미 참여 중인 회사예요' });
+      expect(codeInput()).toHaveDisplayValue('HB00');
+    });
+
+    // 회사 코드 입력과 같다. Android 는 바뀐 소개의 live region 이 읽는다
+    it.each([
+      ['ios', 1],
+      ['android', 0],
+    ] as const)(
+      '%s: 유효하지 않은 코드면 바뀐 제목·설명을 스크린리더로 %i번 따로 알린다',
+      async (os, times) => {
+        jest.replaceProperty(Platform, 'OS', os);
+        const announce = jest
+          .spyOn(AccessibilityInfo, 'announceForAccessibility')
+          .mockClear();
+        const view = await renderJoin();
+
+        await receive(view, 'PRV014');
+        await screen.findByRole('header', { name: INVALID_TITLE });
+
+        expect(announce).toHaveBeenCalledTimes(times);
+        if (times > 0) {
+          expect(announce).toHaveBeenCalledWith(
+            `${INVALID_TITLE}. ${INVALID_MESSAGE.replace('\n', ' ')}`,
+          );
+        }
+      },
+    );
+
+    it.each([
+      [
+        '실패 한도(429 ORGANIZATION-018)',
+        fail(429, OrganizationErrorCode.tooManyFailures),
+        '잠시 후 다시 시도해 주세요',
+      ],
+      ['네트워크 오류', networkError(), '회사를 확인하지 못했어요'],
+    ])('%s 면 이 화면 위에 안내 모달을 띄운다', async (_, response, title) => {
+      const view = await renderJoin();
+      view.server.on('GET', COMPANY_LOOKUP_PATH, response);
+
+      await receive(view, 'RBT124');
+
+      expect(
+        await screen.findByRole('header', { name: title }),
+      ).toBeOnTheScreen();
+      await userEvent.press(screen.getByRole('button', { name: '확인' }));
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(view.props.onFound).not.toHaveBeenCalled();
+    });
+
+    // 사용자는 '앱으로 돌아와서' 결과를 본다. 카메라 화면이 닫히는 전환 중에 모달이 뜨거나 다음 화면이 올라오지 않게,
+    // 결과(다음 화면·안내 모달·⑥)는 바깥이 알려 주는 전환 끝(waitForReturn) 뒤에 보인다. 확인 요청은 기다리지 않고 먼저 보낸다
+    describe('카메라 화면이 닫히는 전환', () => {
+      function renderReturning() {
+        let finish: () => void = () => {};
+        const waitForReturn = jest.fn(
+          () =>
+            new Promise<void>(done => {
+              finish = done;
+            }),
+        );
+        return renderJoin({ waitForReturn }).then(view => ({
+          ...view,
+          waitForReturn,
+          finishReturn: () => act(async () => finish()),
+        }));
+      }
+
+      it.each([
+        [
+          '찾은 회사면 역할 선택으로 넘기는 것',
+          ok(orbitFound),
+          (view: JoinView) => expect(view.props.onFound).toHaveBeenCalled(),
+          (view: JoinView) => expect(view.props.onFound).not.toHaveBeenCalled(),
+        ],
+        [
+          '없는 코드면 ⑥ 으로 바꾸는 것',
+          fail(404, OrganizationErrorCode.unknownCode),
+          () => expect(header(INVALID_TITLE)).toBeOnTheScreen(),
+          () => expect(header(INVALID_TITLE)).toBeNull(),
+        ],
+        [
+          '확인하지 못했으면 안내 모달을 띄우는 것',
+          networkError(),
+          () =>
+            expect(
+              screen.getByRole('header', { name: '회사를 확인하지 못했어요' }),
+            ).toBeOnTheScreen(),
+          () => expect(header('회사를 확인하지 못했어요')).toBeNull(),
+        ],
+      ])(
+        '%s 은 응답이 먼저 와도 전환이 끝난 뒤에 한다',
+        async (_, response, shown, notYet) => {
+          const view = await renderReturning();
+          const respond = holdLookup(view.server);
+
+          await receive(view, 'RBT124');
+          expect(view.waitForReturn).toHaveBeenCalledTimes(1);
+          expect(lookups(view.server)).toHaveLength(1);
+          await respond(response);
+          await act(async () => {});
+          notYet(view);
+          expect(header('회사 찾기')).toBeOnTheScreen();
+
+          await view.finishReturn();
+
+          shown(view);
+        },
+      );
+
+      it('전환이 먼저 끝났으면 응답이 오는 대로 보인다', async () => {
+        const view = await renderReturning();
+        const respond = holdLookup(view.server);
+        await receive(view, 'RBT124');
+
+        await view.finishReturn();
+        expect(view.props.onFound).not.toHaveBeenCalled();
+        await respond(ok(orbitFound));
+
+        expect(view.props.onFound).toHaveBeenCalledTimes(1);
+      });
+
+      // 회사 코드 입력은 화면이 그대로라 기다리지 않는다
+      it('회사 코드 입력은 전환을 기다리지 않는다', async () => {
+        const view = await renderReturning();
+
+        await userEvent.type(codeInput(), 'RBT124');
+        await userEvent.press(checkButton());
+
+        await waitFor(() => expect(view.props.onFound).toHaveBeenCalled());
+        expect(view.waitForReturn).not.toHaveBeenCalled();
+      });
+    });
+
+    // 확인 중에 읽어 온 코드는 버리지 않는다. 그 확인이 끝나면 이어서 확인한다.
+    // 카메라는 이미 닫혀 돌아온 지 오래라 전환 끝을 기다리는 구독은 만들지 않는다
+    it('확인하는 동안 받은 코드는 버리지 않고 그 확인이 끝난 뒤 QR 경로로 확인한다', async () => {
+      const waitForReturn = jest.fn(() => new Promise<void>(() => {}));
+      const view = await renderJoin({ waitForReturn });
+      const respond = holdLookup(view.server);
+      await userEvent.type(codeInput(), 'WRNG99');
+      await userEvent.press(checkButton());
+
+      await receive(view, 'RBT124');
+      expect(waitForReturn).not.toHaveBeenCalled();
+      expect(lookups(view.server)).toHaveLength(1);
+      await respond(fail(404, OrganizationErrorCode.unknownCode));
+      await waitFor(() => expect(lookups(view.server)).toHaveLength(2));
+      await respond(ok(orbitFound));
+
+      expect(lookups(view.server)[1].query).toEqual({ companyCode: 'RBT124' });
+      await waitFor(() =>
+        expect(view.props.onFound).toHaveBeenCalledWith({
+          ...orbit,
+          companyCode: 'RBT124',
+          requestChannel: 'QR_CODE',
+        }),
+      );
+      expect(waitForReturn).not.toHaveBeenCalled();
+    });
+
+    // 확인하는 동안 QR 을 다시 열면 그 결과가 돌아왔을 때 이미 확인 중이라 버려진다
+    it('확인하는 동안 회사 확인·QR 코드 인식을 잠근다', async () => {
+      const view = await renderJoin();
+      const respond = holdLookup(view.server);
+      await userEvent.type(codeInput(), 'HB0010');
+
+      await receive(view, 'RBT124');
+
+      expect(qrButton()).toBeDisabled();
+      expect(checkButton()).toBeDisabled();
+      await respond(ok(orbitFound));
+      expect(qrButton()).toBeEnabled();
+      expect(checkButton()).toBeEnabled();
+      expect(lookups(view.server)).toHaveLength(1);
+    });
+
+    // 바깥은 받은 코드를 넘긴 뒤 지운다. 같은 QR 을 다시 인식해 오면 다시 확인한다
+    it('지워졌다가 같은 코드를 다시 받으면 다시 확인한다. 지우는 것만으로는 확인하지 않는다', async () => {
+      const view = await renderJoin();
+      await receive(view, 'BS0001');
+      await userEvent.press(
+        await screen.findByRole('button', { name: '확인' }),
+      );
+
+      await receive(view, undefined);
+      expect(lookups(view.server)).toHaveLength(1);
+      await receive(view, 'BS0001');
+
+      await waitFor(() => expect(lookups(view.server)).toHaveLength(2));
+    });
+
+    // 온보딩은 회사 코드 입력과 같이 알림 대신 그 요청의 화면으로 간다
+    it('onPending·onAlreadyMember 를 주면 안내 대신 바깥에 맡긴다', async () => {
+      const onPending = jest.fn();
+      const onAlreadyMember = jest.fn(async () => true);
+      const view = await renderJoin({
+        flow: 'onboarding',
+        onPending,
+        onAlreadyMember,
+      });
+
+      await receive(view, 'HB0010');
+      await waitFor(() =>
+        expect(onPending).toHaveBeenCalledWith(
+          { organizationId: '10', organizationName: '한빛 설비' },
+          '1',
+        ),
+      );
+      await receive(view, undefined);
+      await receive(view, 'BS0001');
+      await waitFor(() =>
+        expect(onAlreadyMember).toHaveBeenCalledWith({
+          organizationId: '1',
+          organizationName: '오빗 서비스',
+        }),
+      );
+      expect(header('이미 참여를 요청한 회사예요')).toBeNull();
+      expect(header('이미 참여 중인 회사예요')).toBeNull();
     });
   });
 

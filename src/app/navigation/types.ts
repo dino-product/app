@@ -8,6 +8,12 @@ import type { JoinTarget, RequestChannel } from '../../features/my/org/model';
 import type { TermsType } from '../../features/onboarding/model';
 import type { MyPageTerms } from '../../features/terms/documents';
 
+/**
+ * 회사 찾기(마이 조직 참여·온보딩). qrCode: QR 코드 인식이 읽어 온 회사 코드 (#195).
+ * QR 화면이 닫히며 넘기고, 회사 찾기가 받아 QR 경로로 확인한 뒤 지운다
+ */
+type CompanyFindParams = { qrCode?: string } | undefined;
+
 /** 참여 요청 화면(요청 완료·승인 대기). 요청 경로는 서버가 돌려주지 않아 이 앱이 방금 보낸 요청에만 있다 (#116) */
 type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
 
@@ -30,7 +36,7 @@ export type OnboardingStackParamList = {
   TermsAgreement: undefined;
   /** 가입 약관 상세 (#193). 행은 그 약관 하나, '모든 약관에 동의합니다' 는 모든 약관 (행 순서) */
   TermsDetail: { types: readonly TermsType[] };
-  CompanyFind: undefined;
+  CompanyFind: CompanyFindParams;
   /** 회사 찾기 › QR 코드 인식 (#108) */
   CompanyQrScan: undefined;
   /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
@@ -82,7 +88,7 @@ export type MyStackParamList = {
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;
   // 조직 참여 (#73)
-  OrgJoin: undefined;
+  OrgJoin: CompanyFindParams;
   /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
   OrgRoleSelect: JoinTarget;
   OrgJoinRequested: JoinRequestParams;
@@ -94,8 +100,11 @@ export type MyStackParamList = {
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;
 
+/** 루트 스택 내비게이터 id. 하위 화면이 navigation.getParent(ROOT_NAVIGATOR_ID) 로 루트 스택의 자기 자리를 찾는다 (#195) */
+export const ROOT_NAVIGATOR_ID = 'root';
+
 export type RootScreenProps<T extends keyof RootStackParamList> =
-  NativeStackScreenProps<RootStackParamList, T>;
+  NativeStackScreenProps<RootStackParamList, T, typeof ROOT_NAVIGATOR_ID>;
 
 export type MainTabScreenProps<T extends keyof MainTabParamList> =
   CompositeScreenProps<

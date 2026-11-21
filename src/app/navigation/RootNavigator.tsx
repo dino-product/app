@@ -75,6 +75,7 @@ import {
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
   ONBOARDING_INITIAL_ROUTE,
+  ROOT_NAVIGATOR_ID,
   type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
@@ -83,7 +84,10 @@ import {
   type RootStackParamList,
 } from './types';
 
-const RootStack = createNativeStackNavigator<RootStackParamList>();
+const RootStack = createNativeStackNavigator<
+  RootStackParamList,
+  typeof ROOT_NAVIGATOR_ID
+>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
@@ -459,6 +463,7 @@ export function RootNavigator() {
   const { phase, nextStep } = useAuth();
   return (
     <RootStack.Navigator
+      id={ROOT_NAVIGATOR_ID}
       screenOptions={stackOptions}
       screenLayout={stackScreenLayout}
     >

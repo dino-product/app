@@ -24,8 +24,12 @@ import {
 } from 'react-native';
 import { mockAppState } from '../../jest/appState';
 import { scanQr } from '../../jest/qrCamera';
+import { finishReturnTo } from '../../jest/screenTransition';
 import { escapeFrom } from '../../jest/voiceOver';
-import { PARTICIPATION_REQUESTS_PATH } from '../features/my/org/participationApi';
+import {
+  COMPANY_LOOKUP_PATH,
+  PARTICIPATION_REQUESTS_PATH,
+} from '../features/my/org/participationApi';
 import {
   participationOf,
   REJECT_REASON,
@@ -1214,6 +1218,44 @@ describe('App — 온보딩', () => {
       );
       await screen.findByRole('header', { name: 'QR 코드 인식' });
     }
+    // 카메라(온보딩 스택의 QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 마친 것으로 한다. 결과는 그 뒤에 보인다 (#195)
+    async function scanAndReturn(value: string) {
+      await scanQr(value);
+      await finishReturnTo(button('QR 코드 인식'), 'inner');
+    }
+    // 결과는 전환 끝 바로 뒤에 보인다. 대비책(1초)으로 보인 것을 통과로 치지 않게 그보다 훨씬 짧게 기다린다
+    const AFTER_RETURN = { timeout: 200 };
+
+    // 전환 끝을 놓쳤을 때의 대비책(1초 타이머)이 끼어들지 않게 시간을 멈추고, 어느 스택의 전환 끝을 기다리는지 본다
+    it('결과는 응답이 먼저 와도 온보딩 스택의 카메라 화면이 닫히는 전환이 끝난 뒤에 보인다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+      jest.useFakeTimers();
+
+      await scanQr('123456');
+      await act(() => jest.advanceTimersByTimeAsync(100));
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
+      expect(header('QR 코드 인식')).toBeNull();
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(header('역할을 선택해주세요')).toBeNull();
+      // 루트 스택의 전환 끝은 기다리던 전환이 아니다
+      await finishReturnTo(button('QR 코드 인식'), 'root');
+      expect(header('역할을 선택해주세요')).toBeNull();
+
+      await finishReturnTo(button('QR 코드 인식'), 'inner');
+
+      expect(
+        await screen.findByRole(
+          'header',
+          { name: '역할을 선택해주세요' },
+          AFTER_RETURN,
+        ),
+      ).toBeOnTheScreen();
+    });
 
     it('회사 찾기에서 QR 로 회사를 찾아 요청하면 요청 경로가 QR 코드다', async () => {
       mockAppState('active');
@@ -1223,7 +1265,15 @@ describe('App — 온보딩', () => {
       await agreeTerms();
       await openQrScan();
 
-      await scanQr('https://orbit.example/join/123456');
+      await scanAndReturn('https://orbit.example/join/123456');
+      expect(
+        await screen.findByRole(
+          'header',
+          { name: '역할을 선택해주세요' },
+          AFTER_RETURN,
+        ),
+      ).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
       await requestAs('기사');
 
       expect(
@@ -1246,14 +1296,63 @@ describe('App — 온보딩', () => {
       await escapeFrom('승인 대기');
       await openQrScan();
 
-      await scanQr('123456');
+      await scanAndReturn('123456');
 
       expect(
-        await screen.findByRole('header', { name: '승인 대기' }),
+        await screen.findByRole('header', { name: '승인 대기' }, AFTER_RETURN),
       ).toBeOnTheScreen();
       await escapeFrom('승인 대기');
       expect(header('회사 찾기')).toBeOnTheScreen();
       expect(header('QR 코드 인식')).toBeNull();
+    });
+
+    // 인식하면 카메라를 닫고 회사 찾기로 돌아와 그 화면에서 확인한다 (#195).
+    // 이전 코드는 Figma ⑥(이전 코드 차단) 화면이라 회사 코드 입력처럼 모달 없이 제목·설명이 바뀐다
+    it('폐기된 이전 코드의 QR 이면 카메라를 닫고 회사 찾기가 유효하지 않은 코드(⑥)로 바뀐다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+
+      await scanAndReturn('https://orbit.example/join/PRV014');
+
+      expect(
+        await screen.findByRole(
+          'header',
+          { name: '유효하지 않은 회사 코드입니다' },
+          AFTER_RETURN,
+        ),
+      ).toBeOnTheScreen();
+      expect(header('회사 참여')).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+      expect(screen.queryByRole('button', { name: '확인' })).toBeNull();
+      expect(button('QR 코드 인식')).toBeOnTheScreen();
+      expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
+    });
+
+    it('회사를 확인하지 못하면(네트워크) 카메라를 닫고 회사 찾기 위에 안내를 띄운다', async () => {
+      mockAppState('active');
+      const app = await launch();
+      await login('카카오로 시작하기');
+      await registerProfile();
+      await agreeTerms();
+      await openQrScan();
+      app.server.on('GET', COMPANY_LOOKUP_PATH, networkError());
+
+      await scanAndReturn('123456');
+
+      expect(
+        await screen.findByRole(
+          'header',
+          { name: '회사를 확인하지 못했어요' },
+          AFTER_RETURN,
+        ),
+      ).toBeOnTheScreen();
+      expect(header('QR 코드 인식')).toBeNull();
+      await userEvent.press(button('확인'));
+      expect(header('회사 찾기')).toBeOnTheScreen();
     });
 
     it('닫으면 회사 찾기로 돌아온다', async () => {
