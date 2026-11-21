@@ -1,4 +1,4 @@
-import { useRef, useState, type Ref } from 'react';
+import { useRef, type Ref } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -33,7 +33,7 @@ export function RequestDetailScreen({
 }: {
   work: WorkDetail;
   onBack: () => void;
-  /** 수락한다. 서버가 받았으면 true (실패 안내는 부른 쪽이 한다) */
+  /** 수락한다. 서버가 받았으면 true (낙관 반영·실패 안내는 부른 쪽이 한다) */
   onAccept: () => Promise<boolean>;
   /** 거절 사유 화면으로 */
   onReject: () => void;
@@ -44,23 +44,26 @@ export function RequestDetailScreen({
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
 }) {
-  // 수락을 보내는 동안 수락·거절을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
-  const [accepting, setAccepting] = useState(false);
-  const acceptingRef = useRef(false);
+  // 수락(POST)은 낙관적으로 반영한다 (#197). 보내는 동안 버튼 모양(Figma 기본)은 그대로 두고, 다시 누른 수락과
+  // 거절만 받지 않는다. 비활성으로 바꾸면 거절이 Disabled 채움으로 까맣게 변한다. 결과가 오면(실패) 다시 받는다
+  const accepting = useRef(false);
   const accept = async () => {
-    if (acceptingRef.current) {
+    if (accepting.current) {
       return;
     }
-    acceptingRef.current = true;
-    setAccepting(true);
+    accepting.current = true;
     try {
       // 햅틱은 결과다: 서버가 수락을 받았을 때만 울린다 (#32)
       if (await onAccept()) {
         haptic.success();
       }
     } finally {
-      acceptingRef.current = false;
-      setAccepting(false);
+      accepting.current = false;
+    }
+  };
+  const reject = () => {
+    if (!accepting.current) {
+      onReject();
     }
   };
 
@@ -101,16 +104,10 @@ export function RequestDetailScreen({
         <CTA
           variant="outline"
           label="거절"
-          onPress={onReject}
-          disabled={accepting}
+          onPress={reject}
           style={styles.action}
         />
-        <CTA
-          label="수락"
-          onPress={accept}
-          disabled={accepting}
-          style={styles.action}
-        />
+        <CTA label="수락" onPress={accept} style={styles.action} />
       </View>
     </SafeAreaView>
   );

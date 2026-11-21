@@ -626,12 +626,14 @@ describe('RejectReasonScreen', () => {
     expect(otherInput()).toHaveProp('maxLength', 255);
   });
 
-  it('제출을 보내는 동안 거절 제출이 잠기고, 다시 눌러도 한 번만 보낸다. 실패하면 풀린다', async () => {
-    let finish: () => void = () => {};
+  // #197: 거절(POST)은 낙관적으로 반영하므로 보내는 동안 거절 제출을 비활성(Disabled 채움)으로 바꾸지 않는다.
+  // Figma 2714:12181 사유를 고른 거절 제출(2904:4304)은 Primary 채움·흰 글자다. Disabled 채움은 고르기 전(3239:9191)뿐이다
+  it('제출을 보내는 동안에도 거절 제출 모양이 그대로이고, 다시 눌러도 한 번만 보낸다. 실패하면 다시 보낼 수 있다', async () => {
+    let fail: () => void = () => {};
     const onSubmit = jest.fn(
       () =>
-        new Promise<void>(resolve => {
-          finish = resolve;
+        new Promise<void>((_resolve, reject) => {
+          fail = () => reject(new Error('실패'));
         }),
     );
     await renderReject({ onSubmit });
@@ -641,10 +643,15 @@ describe('RejectReasonScreen', () => {
     await userEvent.press(submitButton());
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(submitButton()).toBeDisabled();
-
-    await act(async () => finish());
     expect(submitButton()).toBeEnabled();
+    expect(submitButton()).toHaveStyle({ backgroundColor: colors.primary });
+    expect(within(submitButton()).getByText('거절 제출')).toHaveStyle({
+      color: colors.white[100],
+    });
+
+    await act(async () => fail());
+    await userEvent.press(submitButton());
+    expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 
   it('선택지 사유로 제출하고, 취소·뒤로는 onBack 을 부른다', async () => {

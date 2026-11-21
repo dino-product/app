@@ -270,29 +270,34 @@ function ScheduleScreenView({
     ),
     [today],
   );
-  // 수락을 보내는 동안 그 요청의 버튼을 잠근다. disabled 가 반영되기 전 같은 프레임의 두 번째 탭도 막는다
-  const [accepting, setAccepting] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const acceptingRef = useRef(new Set<string>());
+  // 수락(POST)은 낙관적으로 반영한다 (#197): 요청은 곧바로 응답 필요에서 빠지고, 실패하면 돌아온다.
+  // 보내는 동안 카드 버튼 모양(Figma 기본)은 그대로 두고, 그 요청의 수락·거절만 다시 받지 않는다.
+  // 비활성으로 바꾸면 거절이 Disabled 채움으로 까맣게 변한다. 결과가 오면(실패해 돌아온 요청) 다시 받는다
+  const accepting = useRef(new Set<string>());
   const accept = useCallback(
     async (id: string) => {
-      if (acceptingRef.current.has(id)) {
+      if (accepting.current.has(id)) {
         return;
       }
-      acceptingRef.current.add(id);
-      setAccepting(new Set(acceptingRef.current));
+      accepting.current.add(id);
       try {
         // 햅틱은 결과다: 서버가 수락을 받았을 때만 울린다 (#32)
         if (await onAccept(id)) {
           haptic.success();
         }
       } finally {
-        acceptingRef.current.delete(id);
-        setAccepting(new Set(acceptingRef.current));
+        accepting.current.delete(id);
       }
     },
     [onAccept],
+  );
+  const reject = useCallback(
+    (id: string) => {
+      if (!accepting.current.has(id)) {
+        onReject(id);
+      }
+    },
+    [onReject],
   );
   const renderPending = useCallback(
     ({ item }: { item: PendingRequest }) => (
@@ -300,12 +305,11 @@ function ScheduleScreenView({
         item={item}
         dayLabel={formatCardDay(item.dateKey, today)}
         onAccept={accept}
-        onReject={onReject}
+        onReject={reject}
         onOpen={onOpenRequest}
-        disabled={accepting.has(item.id)}
       />
     ),
-    [accept, onReject, onOpenRequest, accepting, today],
+    [accept, reject, onOpenRequest, today],
   );
 
   // 달력을 만져 리스트 스크롤을 막고 풀 때는 날짜 머리·달력을 다시 그리지 않는다 (손가락을 따라갈 JS 를 붙잡지 않게)
