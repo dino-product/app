@@ -72,35 +72,32 @@ export function UnderlineTabs<K extends string>({
 const TAB_PADDING_TOP = 8;
 const LABEL_GAP = 12;
 const INDICATOR_HEIGHT = 2;
-const BORDER_WIDTH = 1;
-/** 기본 글자 크기에서 탭 목록의 높이 (아래 선 포함). 위에 겹쳐 그리는 머리가 내용 위 여백을 미리 잡을 때 쓴다 (#148) */
+/** 기본 글자 크기에서 탭 목록의 높이. 위에 겹쳐 그리는 머리가 내용 위 여백을 미리 잡을 때 쓴다 (#148) */
 export const UNDERLINE_TABS_HEIGHT =
   TAB_PADDING_TOP +
   typography['Body/XS/SemiBold'].lineHeight +
   LABEL_GAP +
-  INDICATOR_HEIGHT +
-  BORDER_WIDTH;
-// 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 38.4, Android 39.0)
+  INDICATOR_HEIGHT;
+// 탭 높이는 글자 크기 설정이 가장 작을 때 가장 낮다 (iOS 40.4, Android 41.0)
 const MIN_TAB_HEIGHT =
   TAB_PADDING_TOP +
   smallestLineHeight('Body/XS/SemiBold') +
   LABEL_GAP +
   INDICATOR_HEIGHT;
-// 탭 높이를 최소 터치 영역으로 보완한다. 아래는 밑줄 테두리 안까지만 넓히고 나머지는 위로 넓힌다
+// 탭 높이를 최소 터치 영역으로 보완한다. 목록 아래에는 선이 없어(#201) 아래로 넓히면 목록 밖이라 받지 못하므로 위로만 넓힌다
 const TAB_HIT_SLOP = {
-  top: Math.ceil(MIN_TOUCH_TARGET - MIN_TAB_HEIGHT - BORDER_WIDTH),
-  bottom: BORDER_WIDTH,
+  top: Math.ceil(MIN_TOUCH_TARGET - MIN_TAB_HEIGHT),
+  bottom: 0,
 };
 // 부모 뷰 경계 밖의 터치는 자식에게 가지 않으므로, 탭이 위로 넓힌 만큼 목록도 넓힌다
 const LIST_HIT_SLOP = { top: TAB_HIT_SLOP.top };
 
 const styles = StyleSheet.create({
+  // Figma 내 일정 탑 내비(3754:6462·3754:6944)는 탭 목록 아래 선이 없다 (#201)
   container: {
     flexDirection: 'row',
     gap: 24,
     paddingHorizontal: 24,
-    borderBottomWidth: BORDER_WIDTH,
-    borderBottomColor: colors.gray[200],
   },
   tab: { gap: LABEL_GAP, paddingTop: TAB_PADDING_TOP },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
