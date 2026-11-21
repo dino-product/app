@@ -16,8 +16,8 @@ import {
 } from '../../../shared/design-system';
 import { collapseKeyframes } from '../headerCollapse';
 
-// Figma 작업이력 › 월 선택 (◀ 2026년 9월 ▶). 화살표는 #70 의 내 일정 달력 화살표와 같은 채운 삼각형이다.
-// 다음 달로 갈 수 없을 때(이번 달)는 ▶ 를 비활성으로 흐리게 둔다.
+// Figma 작업이력 › 월 선택 (◀ 2026년 9월 ▶). 화살표는 #70 의 내 일정 달력 화살표와 같은 채운 삼각형이고,
+// 색은 이 자리의 Figma 값 Gray400 이다 (50929:14830 · 50929:14833, #204). 다음 달로 갈 수 없을 때(이번 달)는 ▶ 를 비활성으로 흐리게 둔다.
 // 상단 바가 접히면(#175) 월 글자는 20 → 18 로 줄고 화살표는 월 글자 쪽으로 들어가며 사라진다. 접힌 동안 화살표는
 // 누를 수 없고(터치는 아래 리스트로 통과) 스크린리더에서도 빠진다. 월 글자는 그대로 읽는다
 export type MonthSwitcherProps = {
@@ -78,7 +78,7 @@ export function MonthSwitcher({
             <Icon
               name="triangle-left"
               size={ARROW_SIZE}
-              color={colors.gray[300]}
+              color={colors.gray[400]}
             />
           </Animated.View>
         </Pressable>
@@ -99,7 +99,7 @@ export function MonthSwitcher({
             <Icon
               name="triangle-right"
               size={ARROW_SIZE}
-              color={canGoNext ? colors.gray[300] : colors.gray[100]}
+              color={canGoNext ? colors.gray[400] : colors.gray[100]}
             />
           </Animated.View>
         </Pressable>
