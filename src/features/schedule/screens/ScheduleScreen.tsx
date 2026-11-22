@@ -61,6 +61,7 @@ import {
   type ConfirmedSchedule,
   type PendingRequest,
 } from '../model';
+import { loadScheduleView, saveScheduleView } from '../scheduleView';
 import type { YearMonth } from '../../history/model';
 
 // Figma 스케줄 › 내 일정 (확정 일정: 주간 / 달력 펼침, 응답 필요)
@@ -132,7 +133,10 @@ function ScheduleScreenView({
     }
   }, [requestedTab]);
   const [selected, setSelected] = useState(today);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  // 마지막으로 고른 보기(주간·월간)로 연다 (#222). 고른 날·보이는 달은 늘 오늘에서 시작한다
+  const [calendarOpen, setCalendarOpen] = useState(
+    () => loadScheduleView() === 'month',
+  );
   const [viewMonth, setViewMonth] = useState({
     year: today.getFullYear(),
     month: today.getMonth(),
@@ -207,11 +211,14 @@ function ScheduleScreenView({
     selectDate(today);
   }, [selectDate, today]);
 
-  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
+  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100).
+  // 고른 보기는 기기에 남겨 다음에 열 때도 그 보기로 연다 (#222)
   const toggleCalendar = useCallback(() => {
-    setCalendarOpen(open => !open);
+    const open = !calendarOpen;
+    setCalendarOpen(open);
+    saveScheduleView(open ? 'month' : 'week');
     selectDate(selected);
-  }, [selectDate, selected]);
+  }, [calendarOpen, selectDate, selected]);
 
   const moveMonth = useCallback(
     (delta: number) => {

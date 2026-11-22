@@ -212,6 +212,64 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     );
   });
 
+  // #222: 내 일정의 마지막 보기(주간·월간)를 기기에 남긴다. 홈 일정 보기(#147)와 같은 방식이다
+  describe('내 일정 보기 (#222)', () => {
+    const calendarToggle = () =>
+      screen.getByRole('button', { name: /^달력 (펼치기|접기)$/ });
+    async function openSchedule() {
+      await userEvent.press(tab('내 일정'));
+      await screen.findByRole('header', { name: '내 일정' });
+    }
+
+    it('처음 실행이면 주간 보기다', async () => {
+      await launch();
+      await findHomeLoaded();
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 펼치기');
+    });
+
+    it('월간으로 두고 다른 탭에 갔다 오면 월간 그대로다', async () => {
+      await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+
+      await userEvent.press(tab('작업 이력'));
+      await userEvent.press(tab('홈'));
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 접기');
+    });
+
+    it('월간으로 두고 종료했다 다시 열면, 내 일정을 열 때 월간으로 연다', async () => {
+      const kill = await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+      await userEvent.press(tab('홈'));
+
+      await relaunch(kill);
+      await findHomeLoaded();
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 접기');
+    });
+
+    it('주간으로 되돌리고 종료했다 다시 열면 주간으로 연다', async () => {
+      const kill = await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+      await userEvent.press(calendarToggle());
+
+      await relaunch(kill);
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(calendarToggle()).toHaveAccessibleName('달력 펼치기');
+    });
+  });
+
   describe('작업 상세에서 완료 보고를 작성하던 중', () => {
     it('다시 열면 같은 작업 상세가 열리고 사진·메모·결제 정보가 남아 있다', async () => {
       const kill = await launch();
