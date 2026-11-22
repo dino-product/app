@@ -1,11 +1,9 @@
-import {
-  createBottomTabNavigator,
-  type BottomTabBarProps,
-  type BottomTabNavigationOptions,
-  type BottomTabNavigationProp,
+import type {
+  BottomTabBarProps,
+  BottomTabNavigationOptions,
+  BottomTabNavigationProp,
 } from '@react-navigation/bottom-tabs';
 import {
-  TabActions,
   type ParamListBase,
   type RouteProp,
   type ScreenLayoutArgs,
@@ -19,10 +17,6 @@ import {
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { NextStep } from '../../features/onboarding/profileApi';
-import {
-  neighborIndex,
-  type SwipeDirection,
-} from '../../shared/gesture/tabSwipe';
 import { TabSwipeArea } from '../../shared/gesture/TabSwipeArea';
 import { useAuth } from '../AuthProvider';
 import { MainTabBar } from './MainTabBar';
@@ -69,7 +63,7 @@ import {
   WorkHistoryRoute,
   WorkHomeRoute,
 } from './routes';
-import { TabEnterLayout, TabEnterScope } from './TabEnterLayout';
+import { createCoverTabNavigator } from './coverTabs/createCoverTabNavigator';
 import { TabSwitchLockLayout, useTabSwitchLock } from './tabSwitchLock';
 import {
   HOME_INITIAL_ROUTE,
@@ -88,7 +82,7 @@ const RootStack = createNativeStackNavigator<
   RootStackParamList,
   typeof ROOT_NAVIGATOR_ID
 >();
-const Tab = createBottomTabNavigator<MainTabParamList>();
+const Tab = createCoverTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const MyStack = createNativeStackNavigator<MyStackParamList>();
@@ -118,11 +112,10 @@ function useStackOptions() {
   );
 }
 
-// 탭 화면(배경)은 장면 애니메이션 없이 바로 바뀐다. 그 안의 내용만 오른쪽 탭은 오른쪽에서, 왼쪽 탭은 왼쪽에서 찰나에 들어온다
-// (#176, TabEnterLayout·tabTransition.ts). 동작 줄이기면 내용도 옮기지 않는다
+// 탭을 옮기면 이웃 탭 화면이 덮으며 들어온다 (#216, coverTabs). 밀면 손가락을 따라 덮고, 탭 바를 누르면 같은 덮기로 들어온다
 const tabOptions: BottomTabNavigationOptions = { headerShown: false };
 
-// 탭 내비게이터 layout: 새로고침 중 탭 전환 잠금(#177)과 탭 내용이 들어오는 전환(#176)
+// 탭 내비게이터 layout: 새로고침 중 탭 전환 잠금(#177)
 const renderTabLayout = ({
   state,
   navigation,
@@ -133,7 +126,7 @@ const renderTabLayout = ({
   children: ReactNode;
 }) => (
   <TabSwitchLockLayout state={state} navigation={navigation}>
-    <TabEnterLayout state={state}>{children}</TabEnterLayout>
+    {children}
   </TabSwitchLockLayout>
 );
 
@@ -165,7 +158,7 @@ function stackScreenLayout({
 
 const renderTabBar = (props: BottomTabBarProps) => <MainTabBar {...props} />;
 
-// 탭 화면을 좌우로 밀면 이웃 탭으로 옮긴다 (#140, TabSwipeArea). 탭 바를 누를 때와 같은 전환으로 내용이 들어온다 (TabEnterScope).
+// 탭 화면을 좌우로 밀면 이웃 탭 화면이 손가락을 따라 덮고, 놓을 때 옮길지 정한다 (#140 → #216, TabSwipeArea·coverTabs).
 // 탭 안 스택이 첫 화면일 때만, 새로고침 중이 아닐 때만(#177) 받는다. 안쪽 화면은 iOS 26 화면 전체 뒤로 가기 밀기와 겹치고, 탭 메인 화면이 아니다
 function TabSwipeLayout({
   route,
@@ -189,25 +182,9 @@ function TabSwipeLayout({
       nested === undefined || (nested.index ?? nested.routes.length - 1) === 0
     );
   }, [lock, navigation, route.key]);
-  const onSwipe = useCallback(
-    (direction: SwipeDirection) => {
-      const { index, routes } = navigation.getState();
-      const next = neighborIndex(index, routes.length, direction);
-      if (next !== null) {
-        navigation.dispatch(
-          TabActions.jumpTo(routes[next].name, routes[next].params),
-        );
-      }
-    },
-    [navigation],
-  );
   return (
-    <TabSwipeArea
-      canSwipe={canSwipe}
-      onSwipe={onSwipe}
-      testID={`tab-swipe-${route.name}`}
-    >
-      <TabEnterScope routeKey={route.key}>{children}</TabEnterScope>
+    <TabSwipeArea canSwipe={canSwipe} testID={`tab-swipe-${route.name}`}>
+      {children}
     </TabSwipeArea>
   );
 }

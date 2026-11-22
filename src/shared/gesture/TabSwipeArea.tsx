@@ -12,17 +12,14 @@ import {
   View,
   type GestureResponderEvent,
 } from 'react-native';
-import {
-  startOwner,
-  type GestureOwner,
-  type Rect,
-  type SwipeDirection,
-} from './tabSwipe';
-import { useSwipeSwitch } from './useSwipeSwitch';
+import { TabCoverContext } from './tabCover';
+import { startOwner, type GestureOwner, type Rect } from './tabSwipe';
+import { useTabCoverSwipe } from './useTabCoverSwipe';
 
-// 메인 탭 좌우 밀기 (#140). 판정 규칙은 tabSwipe.ts, 넘기는 엔진은 useSwipeSwitch.ts 다.
+// 메인 탭 좌우 밀기 (#140 → #216). 판정 규칙은 tabSwipe.ts·swipeHesitation.ts, 밀기 엔진은 useTabCoverSwipe.ts 다.
 //
-// TabSwipeArea 는 탭 화면 하나를 통째로 감싸 좌우 밀기로 이웃 탭을 고른다 (응답자 잡기·임계값·reject 처리는 useSwipeSwitch).
+// TabSwipeArea 는 탭 화면 하나를 통째로 감싸 좌우 밀기를 받아, 메인 탭 내비게이터(TabCoverContext)가 이웃 탭 화면을
+// 손가락을 따라 덮게 한다 (놓을 때 바꿀지 정한다). 미는 동안에는 탭 화면 리스트의 세로 스크롤을 잠근다 (TabSwipeScrollLock).
 // RN 모달(Modal·BottomSheet)의 터치도 React 트리를 따라 이 영역까지 올라온다. 지금 탭 첫 화면에는 모달이 없다
 // (모달은 탭 안쪽 화면에 있고 거기서는 canSwipe 가 false 다). 탭 첫 화면에 모달을 두면 열린 동안 canSwipe 가 false 가 되게 한다.
 //
@@ -38,17 +35,31 @@ import { useSwipeSwitch } from './useSwipeSwitch';
 type RegionReport = { claimForComponent: () => void };
 
 const TabSwipeContext = createContext<RegionReport | null>(null);
+const ScrollLockContext = createContext(false);
+
+/**
+ * 탭을 좌우로 미는 동안 리스트의 세로 스크롤을 끈다. 탭 첫 화면 리스트를 children(scrollEnabled) 로 그린다.
+ * 잠금이 바뀌면 이 안(리스트)만 다시 그리고 화면은 다시 그리지 않는다 (탭 전환 렌더 예산).
+ * enabled 가 false 면 화면 자체 잠금으로 늘 끈다
+ */
+export function TabSwipeScrollLock({
+  enabled = true,
+  children,
+}: {
+  enabled?: boolean;
+  children: (scrollEnabled: boolean) => ReactNode;
+}) {
+  const locked = useContext(ScrollLockContext);
+  return children(enabled && !locked);
+}
 
 export function TabSwipeArea({
   canSwipe,
-  onSwipe,
   testID,
   children,
 }: {
   /** 지금 밀어서 탭을 바꿀 수 있는지. 밀 때마다 묻는다 (탭 안쪽 화면이면 false: iOS 뒤로 가기 밀기와 겹친다) */
   canSwipe: () => boolean;
-  /** 이웃 탭으로 옮긴다. 한 제스처에 한 번만 부른다 */
-  onSwipe: (direction: SwipeDirection) => void;
   testID?: string;
   children: ReactNode;
 }) {
@@ -58,9 +69,11 @@ export function TabSwipeArea({
   useLayoutEffect(() => {
     latestCanSwipe.current = canSwipe;
   });
-  const swipe = useSwipeSwitch({
+  const [scrollLocked, setScrollLocked] = useState(false);
+  const swipe = useTabCoverSwipe({
     canSwipe: () => !component.current && latestCanSwipe.current(),
-    onSwipe,
+    cover: useContext(TabCoverContext),
+    onTrackingChange: setScrollLocked,
   });
   const [area] = useState(() => ({
     onTouchStartCapture: (event: GestureResponderEvent) => {
@@ -76,14 +89,16 @@ export function TabSwipeArea({
 
   return (
     <TabSwipeContext.Provider value={area.report}>
-      <View
-        testID={testID}
-        style={styles.area}
-        onTouchStartCapture={area.onTouchStartCapture}
-        {...swipe.panHandlers}
-      >
-        {children}
-      </View>
+      <ScrollLockContext.Provider value={scrollLocked}>
+        <View
+          testID={testID}
+          style={styles.area}
+          onTouchStartCapture={area.onTouchStartCapture}
+          {...swipe.panHandlers}
+        >
+          {children}
+        </View>
+      </ScrollLockContext.Provider>
     </TabSwipeContext.Provider>
   );
 }

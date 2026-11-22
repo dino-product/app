@@ -85,8 +85,7 @@ const backgroundBehind = (node: HostElement | null | undefined) => {
   return undefined;
 };
 
-// 회색(Background/3) 바탕은 리스트가 아니라 그 뒤 화면 배경이다.
-// 탭을 옮길 때 리스트(내용)만 옆에서 들어오고 회색 바탕은 제자리다 (#176)
+// 회색(Background/3) 바탕은 리스트가 아니라 그 뒤 화면 배경이다
 function expectGrayBehind(list: HostElement) {
   expect(backgroundBehind(list)).toBe(colors.background[3]);
   expect(StyleSheet.flatten(list.props.style)?.backgroundColor).toBeUndefined();

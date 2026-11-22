@@ -27,6 +27,7 @@ import {
   LoadStateView,
   type LoadState,
 } from '../../../shared/layout/LoadStateView';
+import { TabSwipeScrollLock } from '../../../shared/gesture/TabSwipeArea';
 import { AutoHideHeaderLayout } from '../../../shared/layout/AutoHideHeaderLayout';
 import { EMPTY_GAP, EmptyMessage } from '../../../shared/layout/EmptyMessage';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -224,21 +225,26 @@ function WorkHomeScreenView({
             />
           </View>
         ) : (
-          <Animated.FlatList
-            ref={listRef}
-            testID="work-home-list"
-            {...autoHide.scrollProps}
-            data={block ? daySchedule : schedule}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            ListHeaderComponent={header}
-            ListEmptyComponent={block ? emptyDay : emptyWeek}
-            ItemSeparatorComponent={Separator}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            progressViewOffset={autoHide.progressViewOffset}
-            contentContainerStyle={contentStyle}
-          />
+          <TabSwipeScrollLock>
+            {scrollEnabled => (
+              <Animated.FlatList
+                ref={listRef}
+                testID="work-home-list"
+                {...autoHide.scrollProps}
+                scrollEnabled={scrollEnabled}
+                data={block ? daySchedule : schedule}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                ListHeaderComponent={header}
+                ListEmptyComponent={block ? emptyDay : emptyWeek}
+                ItemSeparatorComponent={Separator}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                progressViewOffset={autoHide.progressViewOffset}
+                contentContainerStyle={contentStyle}
+              />
+            )}
+          </TabSwipeScrollLock>
         )}
       </AutoHideHeaderLayout>
     </SafeAreaView>
