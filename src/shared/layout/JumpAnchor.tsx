@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { colors, CTA, Icon, withOpacity } from '../design-system';
 import { useReduceMotion } from '../accessibility/useReduceMotion';
@@ -16,6 +16,7 @@ export function JumpAnchor({
   accessibilityLabel,
   visible,
   onPress,
+  bottomInset = 0,
   testID,
 }: {
   /** 버튼 글자 */
@@ -24,6 +25,11 @@ export function JumpAnchor({
   accessibilityLabel?: string;
   visible: boolean;
   onPress: () => void;
+  /**
+   * 화면 아래 끝에서 비켜 둘 거리. 하단 탭 없이 열리는 화면(가입 약관 상세)은 아래 안전 영역(홈 인디케이터)이다.
+   * 버튼은 그만큼 올리고, 그라데이션은 모양을 그대로 둔 채 그만큼 아래로 늘린다
+   */
+  bottomInset?: number;
   /** 버튼 묶음의 testID. 그라데이션은 `${testID}-fade` */
   testID: string;
 }) {
@@ -33,11 +39,17 @@ export function JumpAnchor({
     setMounted(true);
   }
   // 제자리에서 아래로 내려간 거리. 숨은 자리는 그라데이션 높이만큼 아래(영역 밖)다
-  const [offset] = useState(
-    () => new Animated.Value(visible ? 0 : JUMP_FADE_HEIGHT),
+  const hidden = JUMP_FADE_HEIGHT + bottomInset;
+  const [offset] = useState(() => new Animated.Value(visible ? 0 : hidden));
+  // 렌더마다 새 노드를 만들지 않게 높이가 바뀔 때만 만든다
+  const fadeOffset = useMemo(
+    () => fadeFollowing(offset, hidden),
+    [offset, hidden],
   );
-  // 렌더마다 새 노드를 만들지 않게 한 번만 만든다
-  const [fadeOffset] = useState(() => fadeFollowing(offset, JUMP_FADE_HEIGHT));
+  const sized = useMemo(
+    () => (bottomInset === 0 ? tabBarSized : sizedStyles(bottomInset)),
+    [bottomInset],
+  );
   // 마지막으로 다 움직여 멈춘 상태와 지금 움직이는 중인지. 반대로 바뀌면 지금 자리에서 이어 간다
   const settled = useRef(visible);
   const moving = useRef(false);
@@ -54,16 +66,11 @@ export function JumpAnchor({
       }
     };
     if (reduceMotion.current) {
-      offset.setValue(visible ? 0 : JUMP_FADE_HEIGHT);
+      offset.setValue(visible ? 0 : hidden);
       settle();
       return;
     }
-    const animation = anchorAnimation(
-      offset,
-      visible,
-      JUMP_FADE_HEIGHT,
-      moving.current,
-    );
+    const animation = anchorAnimation(offset, visible, hidden, moving.current);
     moving.current = true;
     // 도중에 멈춘 애니메이션은 finished: false 로 끝나 마무리(숨었으면 내리기)를 하지 않는다
     animation.start(({ finished }) => {
@@ -73,20 +80,21 @@ export function JumpAnchor({
     });
     // 반대로 바뀌거나 화면을 떠나면(언마운트) 멈춘다
     return () => animation.stop();
-  }, [visible, mounted, offset, reduceMotion]);
+  }, [visible, mounted, offset, hidden, reduceMotion]);
 
   if (!mounted) {
     return null;
   }
 
   return (
-    <View pointerEvents="box-none" style={styles.area}>
+    <View pointerEvents="box-none" style={[styles.area, sized.area]}>
       {/* 버튼 뒤 그라데이션 (#95). 터치는 아래 스크롤 뷰로 넘기고, 스크린리더에서 숨긴다 */}
       <Animated.View
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         style={[
           styles.fade,
+          sized.fade,
           {
             transform: [{ translateY: fadeOffset }],
           },
@@ -101,6 +109,7 @@ export function JumpAnchor({
         style={[
           readableColumn,
           styles.jump,
+          sized.jump,
           { transform: [{ translateY: offset }] },
         ]}
         testID={testID}
@@ -130,8 +139,36 @@ const JUMP_FADE_HEIGHT = FIGMA_FADE_HEIGHT - FIGMA_TAB_BAR_HEIGHT;
 /** Figma 레이어 위에서 잰 투명 구간 끝 / 불투명 시작 (pt) */
 const JUMP_FADE_CLEAR_UNTIL = (FIGMA_FADE_HEIGHT * 0.065) / 1.065;
 const JUMP_FADE_SOLID_FROM = (FIGMA_FADE_HEIGHT * (0.5432692 + 0.065)) / 1.065;
-const fadeStop = (fromTop: number) =>
-  `${Math.round((fromTop / JUMP_FADE_HEIGHT) * 10000) / 100}%`;
+/** 버튼이 그라데이션 아래 끝(탭 바 위 또는 안전 영역 위)에서 떨어진 거리 */
+const JUMP_BOTTOM = 16;
+/** 높이 height 인 그라데이션에서 위에서 잰 거리의 비율 */
+const fadeStop = (fromTop: number, height: number) =>
+  `${Math.round((fromTop / height) * 10000) / 100}%`;
+
+/**
+ * 아래에서 비켜 둘 거리에 따라 정해지는 크기. 그라데이션 모양(위에서 잰 투명 구간 끝·불투명 시작)은 그대로이고
+ * 늘린 만큼 아래가 불투명이다
+ */
+function sizedStyles(bottomInset: number) {
+  const height = JUMP_FADE_HEIGHT + bottomInset;
+  return StyleSheet.create({
+    area: { height },
+    jump: { bottom: JUMP_BOTTOM + bottomInset },
+    fade: {
+      height,
+      backgroundImage: `linear-gradient(to bottom, ${withOpacity(
+        JUMP_FADE_COLOR,
+        0,
+      )} ${fadeStop(JUMP_FADE_CLEAR_UNTIL, height)}, ${withOpacity(
+        JUMP_FADE_COLOR,
+        1,
+      )} ${fadeStop(JUMP_FADE_SOLID_FROM, height)})`,
+    },
+  });
+}
+
+/** 하단 탭 바 위에 붙는 화면(작업 상세) */
+const tabBarSized = sizedStyles(0);
 
 const styles = StyleSheet.create({
   // 그라데이션 높이만큼 창 아래에 깔고, 숨으며 내려간 버튼·그라데이션이 탭 바 위로 비치지 않게 자른다
@@ -140,25 +177,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: JUMP_FADE_HEIGHT,
     overflow: 'hidden',
   },
   // 좌우를 정하지 않아 alignSelf 로 가운데에 놓인다
-  jump: { position: 'absolute', bottom: 16, paddingHorizontal: 24 },
+  jump: { position: 'absolute', paddingHorizontal: 24 },
   // 창 폭 전체에 깔고 버튼과 함께 탭 바 위에 붙는다
   fade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: JUMP_FADE_HEIGHT,
     pointerEvents: 'none',
-    backgroundImage: `linear-gradient(to bottom, ${withOpacity(
-      JUMP_FADE_COLOR,
-      0,
-    )} ${fadeStop(JUMP_FADE_CLEAR_UNTIL)}, ${withOpacity(
-      JUMP_FADE_COLOR,
-      1,
-    )} ${fadeStop(JUMP_FADE_SOLID_FROM)})`,
   },
 });

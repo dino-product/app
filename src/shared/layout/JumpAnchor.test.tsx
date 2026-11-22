@@ -1,0 +1,84 @@
+import { render, screen } from '@testing-library/react-native';
+import { JumpAnchor } from './JumpAnchor';
+
+// 바로가기 버튼(JumpAnchor). 작업 상세 '완료 보고 작성하기' 의 모양·애니메이션은 WorkDetailScreen.test 가 본다.
+// 여기서는 하단 탭 바 없이 열리는 화면(가입 약관 상세, #218)이 아래 안전 영역을 비켜 두는 것을 본다
+describe('JumpAnchor', () => {
+  const fade = () =>
+    screen.getByTestId('jump-fade', { includeHiddenElements: true });
+  const jump = () =>
+    screen.getByTestId('jump', { includeHiddenElements: true });
+
+  it('글자와 스크린리더 이름을 받는다', async () => {
+    await render(
+      <JumpAnchor
+        label="약관 동의하기"
+        accessibilityLabel="서비스 이용약관 동의하기"
+        visible
+        onPress={jest.fn()}
+        testID="jump"
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: '서비스 이용약관 동의하기' }),
+    ).toHaveTextContent('약관 동의하기');
+  });
+
+  it('아래 안전 영역이 없으면 버튼은 아래 16, 그라데이션은 218 이다 (작업 상세와 같다)', async () => {
+    await render(
+      <JumpAnchor label="이동" visible onPress={jest.fn()} testID="jump" />,
+    );
+
+    expect(jump()).toHaveStyle({ bottom: 16 });
+    expect(fade()).toHaveStyle({
+      height: 218,
+      backgroundImage:
+        'linear-gradient(to bottom, rgba(240, 240, 240, 0) 8.96%, rgba(240, 240, 240, 1) 83.84%)',
+    });
+  });
+
+  // 그라데이션 모양(위에서 잰 투명 구간 끝 19.5 · 불투명 시작 182.8)은 그대로 두고, 안전 영역만큼 아래를 불투명으로 늘린다
+  it('아래 안전 영역이 있으면 버튼을 그만큼 올리고 그라데이션을 안전 영역 끝까지 늘린다', async () => {
+    await render(
+      <JumpAnchor
+        label="이동"
+        visible
+        onPress={jest.fn()}
+        bottomInset={34}
+        testID="jump"
+      />,
+    );
+
+    expect(jump()).toHaveStyle({ bottom: 16 + 34 });
+    expect(fade()).toHaveStyle({
+      height: 218 + 34,
+      backgroundImage:
+        'linear-gradient(to bottom, rgba(240, 240, 240, 0) 7.75%, rgba(240, 240, 240, 1) 72.53%)',
+    });
+  });
+
+  it('숨은 자리는 늘린 그라데이션 높이만큼 아래다 (나타날 때 거기서 올라온다)', async () => {
+    await render(
+      <JumpAnchor
+        label="이동"
+        visible={false}
+        onPress={jest.fn()}
+        bottomInset={34}
+        testID="jump"
+      />,
+    );
+    await screen.rerender(
+      <JumpAnchor
+        label="이동"
+        visible
+        onPress={jest.fn()}
+        bottomInset={34}
+        testID="jump"
+      />,
+    );
+
+    // 네이티브 드라이버 애니메이션은 테스트에서 돌지 않아 시작 자리에 머문다
+    expect(jump()).toHaveStyle({ transform: [{ translateY: 252 }] });
+  });
+});

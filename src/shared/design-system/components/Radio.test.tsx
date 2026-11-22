@@ -1,4 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { createRef } from 'react';
+import type { PressableInstance } from 'react-native';
 import { iconSvgIn } from '../../testing/icon';
 import { iconSvgs } from '../icons/svgs';
 import { colors } from '../tokens/colors';
@@ -27,6 +29,17 @@ describe('Radio', () => {
     expect(screen.getByRole('radio')).not.toBeChecked();
     expect(svg().props.xml).toBe(iconSvgs['radio-off'].xml);
     expect(svg().props.color).toBe(colors.gray[200]);
+  });
+
+  // 가입 약관 상세는 '약관 동의하기' 로 고른 뒤 스크린리더 초점을 이 라디오로 옮긴다 (#218)
+  it('ref 로 라디오(누르는 영역)를 잡을 수 있다', async () => {
+    const ref = createRef<PressableInstance>();
+    await render(
+      <Radio ref={ref} label="동의합니다" checked onPress={jest.fn()} />,
+    );
+
+    expect(ref.current).not.toBeNull();
+    expect(screen.getByRole('radio', { name: '동의합니다' })).toBeOnTheScreen();
   });
 
   // 같은 라벨의 라디오가 여럿인 화면(약관 상세 '모든 약관')은 무엇의 라디오인지 이름에 넣는다 (#193)
