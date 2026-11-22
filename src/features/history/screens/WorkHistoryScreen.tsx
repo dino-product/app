@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -49,10 +50,12 @@ import {
 import { WorkRowsSkeleton } from '../../work/components/WorkSkeletons';
 import { CompletedWorkRow } from '../components/CompletedWorkRow';
 import { HistoryHeaderBar } from '../components/HistoryHeaderBar';
+import { MonthPickerOverlay } from '../components/MonthPickerOverlay';
 import { SummaryCard } from '../components/SummaryCard';
 import { visibleBar } from '../headerCollapse';
 import { monthStep, rowsArea } from '../monthSwipe';
 import { useHeaderCollapse } from '../useHeaderCollapse';
+import { useMonthPicker } from '../useMonthPicker';
 import {
   completedInMonth,
   isBeforeMonth,
@@ -176,22 +179,42 @@ function WorkHistoryScreenView({
     enter.start();
     return () => enter.stop();
   }, [monthShift]);
-  const moveMonth = (delta: number) => {
-    const next = addMonths(viewMonth.year, viewMonth.month, delta);
+  // 달을 옮긴다 (화살표·밀기·날짜 선택). 뒤 달이면 오른쪽에서, 앞 달이면 왼쪽에서 목록이 들어온다
+  const goToMonth = (next: YearMonth) => {
+    if (next.year === viewMonth.year && next.month === viewMonth.month) {
+      return;
+    }
+    const direction = isBeforeMonth(viewMonth, next) ? 1 : -1;
     setViewMonth(next);
     setMonthShift(
       reduceMotion.current
         ? null
         : // 처음부터 네이티브 값으로 만든다. 시작할 때 네이티브로 바뀌며 목록 칸을 한 번 더 그리지 않게 한다
-          new Animated.Value(delta * ENTER_OFFSET, { useNativeDriver: true }),
+          new Animated.Value(direction * ENTER_OFFSET, {
+            useNativeDriver: true,
+          }),
     );
     onMonthChange?.(next);
     announceMonth.current = true;
   };
+  const moveMonth = (delta: number) =>
+    goToMonth(addMonths(viewMonth.year, viewMonth.month, delta));
   const canGoNext = isBeforeMonth(viewMonth, monthOf(today));
+
+  // 월 글자를 누르면 날짜 선택 상자가 열린다 (#203). 휠에서 고른 달은 닫을 때 적용한다.
+  // 열린 동안(닫는 중 포함)은 목록 스크롤·상단 바 접힘을 멈추고, 겹친 상자 층이 탭 밀기·월 밀기 터치를 받는다
+  const picker = useMonthPicker({ today, viewMonth, onApply: goToMonth });
+  const pickerVisible = picker.phase !== 'closed';
+  const pickerOpen = picker.phase === 'open';
+  const headerMonth = pickerVisible ? picker.month : viewMonth;
+  const togglePicker = pickerOpen ? picker.close : picker.open;
 
   // 스크롤하면 상단 바가 접히고(제목이 사라지고 월 선택이 바에 흡수됨), 맨 위로 돌아오면 펼친다 (#175)
   const collapse = useHeaderCollapse();
+  const holdCollapse = collapse.hold;
+  useLayoutEffect(() => {
+    holdCollapse(pickerVisible);
+  }, [holdCollapse, pickerVisible]);
 
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
   // 목록 영역(리스트에서 보이는 상단 바·머리를 뺀 아래쪽, monthSwipe.ts rowsArea) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·
@@ -279,19 +302,30 @@ function WorkHistoryScreenView({
         <HistoryHeaderBar
           ref={barRef}
           collapse={collapse}
-          monthTitle={formatMonthTitle(viewMonth.year, viewMonth.month)}
+          monthTitle={formatMonthTitle(headerMonth.year, headerMonth.month)}
           canGoNext={canGoNext}
           onPrev={() => moveMonth(-1)}
           onNext={() => moveMonth(1)}
+          picker={{
+            progress: picker.progress,
+            open: pickerOpen,
+            visible: pickerVisible,
+            onPressMonth: togglePicker,
+          }}
         />
+        {/* 상자가 열린 동안 목록은 스크린리더에서 빠진다 (상자 층이 덮는다) */}
         <View
           style={styles.list}
           onTouchStartCapture={monthSwipe.onTouchStartCapture}
           onTouchStart={listRegion.onTouchStart}
+          accessibilityElementsHidden={pickerOpen}
+          importantForAccessibility={
+            pickerOpen ? 'no-hide-descendants' : 'auto'
+          }
           {...monthSwipe.panHandlers}
         >
           <MonthShiftContext.Provider value={monthShift}>
-            <TabSwipeScrollLock>
+            <TabSwipeScrollLock enabled={!pickerVisible}>
               {scrollEnabled => (
                 <Animated.FlatList
                   ref={listRef}
@@ -323,6 +357,17 @@ function WorkHistoryScreenView({
             </TabSwipeScrollLock>
           </MonthShiftContext.Provider>
         </View>
+        {pickerVisible ? (
+          <MonthPickerOverlay
+            progress={picker.progress}
+            open={pickerOpen}
+            today={today}
+            month={picker.month}
+            monthRow={collapse.monthRow}
+            onSelect={picker.select}
+            onClose={picker.close}
+          />
+        ) : null}
       </View>
     </SafeAreaView>
   );

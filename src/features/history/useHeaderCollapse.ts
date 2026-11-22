@@ -59,6 +59,10 @@ export type HeaderCollapse = {
   onBarLayout: (event: LayoutChangeEvent) => void;
   /** 바 안 월 줄의 onLayout */
   onMonthLayout: (event: LayoutChangeEvent) => void;
+  /** 펼친 바 안 월 줄의 자리 (날짜 선택 상자가 이 자리에 머리를 둔다, #203). 기본 글자 크기에서는 Figma 값이다 */
+  monthRow: { y: number; height: number };
+  /** 켜 둔 동안 스크롤해도 접거나 펼치지 않는다. 끄면 그때 위치로 다시 판단한다 (날짜 선택 상자가 열린 동안, #203) */
+  hold: (held: boolean) => void;
   /** 접힘 상태가 바뀌면 알린다 (useSyncExternalStore). 돌려준 함수로 구독을 푼다 */
   subscribe: (listener: () => void) => () => void;
   /** 접혔는지. 전환 중이면 향하는 상태다 (접기 시작하면 곧바로 true) */
@@ -91,6 +95,21 @@ export function useHeaderCollapse(): HeaderCollapse {
     [model],
   );
 
+  const [monthRow, setMonthRow] = useState(EXPANDED_MONTH_ROW);
+  const onMonthLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      model.onMonthLayout(event);
+      const { y, height: rowHeight } = event.nativeEvent.layout;
+      setMonthRow(current =>
+        Math.abs(y - current.y) < HEIGHT_TOLERANCE &&
+        Math.abs(rowHeight - current.height) < HEIGHT_TOLERANCE
+          ? current
+          : { y, height: rowHeight },
+      );
+    },
+    [model],
+  );
+
   return useMemo(
     () => ({
       progress: model.progress,
@@ -99,12 +118,14 @@ export function useHeaderCollapse(): HeaderCollapse {
       height,
       progressViewOffset: height,
       onBarLayout,
-      onMonthLayout: model.onMonthLayout,
+      onMonthLayout,
+      monthRow,
+      hold: model.hold,
       subscribe: model.subscribe,
       isCollapsed: model.isCollapsed,
       scrollProps: model.scrollProps,
     }),
-    [model, height, onBarLayout],
+    [model, height, onBarLayout, onMonthLayout, monthRow],
   );
 }
 
@@ -119,6 +140,8 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
   });
 
   let state: CollapseState = COLLAPSE_INITIAL;
+  // 날짜 선택 상자가 열린 동안은 판단하지 않는다 (#203)
+  let held = false;
   // 위치를 받기 전에는 스크롤할 수 없는 것으로 본다 (펼친 채)
   let metrics: ScrollMetrics = {
     offset: 0,
@@ -134,6 +157,9 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
 
   // 지금 위치로 다시 판단해, 바라는 상태가 다르면 전환을 시작한다
   function settle() {
+    if (held) {
+      return;
+    }
     const next = nextCollapseState(state, metrics);
     if (next === state) {
       return;
@@ -189,6 +215,15 @@ function createCollapse(reduceMotion: RefObject<boolean>) {
       };
     },
     isCollapsed: () => state.collapsed,
+    hold: (next: boolean) => {
+      if (held === next) {
+        return;
+      }
+      held = next;
+      if (!held) {
+        settle();
+      }
+    },
     scrollProps: {
       onScroll,
       scrollEventThrottle: 16,
