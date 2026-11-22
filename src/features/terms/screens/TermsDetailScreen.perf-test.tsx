@@ -16,6 +16,10 @@ const sections: readonly TermsDetailSection[] = [
   { key: 'service', title: '서비스 이용약관', document: 'service' },
 ];
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe('TermsDetailScreen 렌더 예산', () => {
   it('마운트 시 추가 렌더와 중복 렌더가 예산 이내다', async () => {
     // 캐시에 넣어 둔 전문으로 그린다 (전문은 받은 뒤 다시 받지 않는다: staleTime Infinity)
@@ -40,10 +44,10 @@ describe('TermsDetailScreen 렌더 예산', () => {
     );
   }, 30_000);
 
-  // #218 '약관 동의하기' 앵커. 읽는 약관·라디오가 보이는지가 바뀔 때만 화면을 다시 그리고, 목록(전문 칸)은 그대로다
+  // #218 '약관 동의하기' 앵커. 읽는 약관·라디오가 보이는지가 바뀔 때만 화면을 다시 그리고, 같은 자리를 다시 알려도 그리지 않는다
   it('약관 동의하기 앵커는 읽는 자리가 바뀔 때만 다시 그리고 중복 렌더가 없다', async () => {
     // 등장·퇴장 애니메이션(UI 스레드)이 끝나 버튼을 내리는 렌더는 빼고 화면이 다시 그리는 것만 잰다
-    const startAnimation = jest
+    jest
       .spyOn(NativeModules.NativeAnimatedModule, 'startAnimatingNode')
       .mockImplementation(() => {});
     const api = createTestApi({
@@ -98,6 +102,5 @@ describe('TermsDetailScreen 렌더 예산', () => {
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,
     );
-    startAnimation.mockRestore();
   }, 30_000);
 });

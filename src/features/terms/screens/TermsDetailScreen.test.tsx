@@ -7,24 +7,27 @@ import {
   waitFor,
   within,
 } from '@testing-library/react-native';
-import { AccessibilityInfo, SectionList, StyleSheet } from 'react-native';
+import { AccessibilityInfo, StyleSheet, VirtualizedList } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
 import { noTermsAgreed } from '../../onboarding/model';
 import { TermsAgreementScreen } from '../../onboarding/screens/TermsAgreementScreen';
 import {
   createFakeServer,
+  hang,
   rawResponse,
 } from '../../../shared/testing/fakeServer';
 import { renderWithApi } from '../../../shared/testing/renderWithApi';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { termsDocumentUrl } from '../documents';
 import { termsText, withTermsDocuments } from '../testing';
-import { TERMS_LOAD_FAILED } from '../termsQueries';
+import { TERMS_LOAD_FAILED, termsDocumentQueryKey } from '../termsQueries';
+import { toTermsBlocks } from '../termsText';
 import {
   TermsDetailScreen,
   type TermsDetailSection,
 } from './TermsDetailScreen';
+import { RADIOS_ITEM } from './useAgreeJump';
 
 // Figma 약관 상세 페이지 (51019:16927). 제목·안내 아래에 원격 전문을 보인다 (#192)
 const SERVICE_TEXT = [
@@ -273,7 +276,7 @@ describe('TermsDetailScreen', () => {
     });
   });
 
-  // #218 사용자 요청: 작업 상세 '완료 보고 작성하기' 앵커와 같은 모양(Secondary 버튼·#F0F0F0 그라데이션·카툰 등장)의
+  // #218 사용자 요청: 작업 상세 '완료 보고 작성하기' 앵커와 같은 모양(Secondary 채움·#F0F0F0 그라데이션·카툰 등장)의
   // '약관 동의하기' 를 두고, 누르면 동의 라디오로 스크롤한 다음 '동의합니다' 를 고른다
   describe('약관 동의하기 앵커 (#218)', () => {
     // 덩어리 6개 [제1조, 본문1, 제2조, 본문2, 제3조, 본문3] + 동의 라디오 = 약관 칸 7개
@@ -303,14 +306,21 @@ describe('TermsDetailScreen', () => {
         service: termsText(ARTICLES_TEXT),
         marketing: termsText('마케팅 동의\n\n본문입니다.'),
       });
-    const jumpButton = (name = '서비스 이용약관 동의하기') =>
+    // 스크린리더 이름은 어느 약관인지 앞에 붙이고 보이는 글자를 그대로 담는다 (음성 제어로 '약관 동의하기' 를 말해도 찾는다)
+    const jumpButton = (name = '서비스 이용약관, 약관 동의하기') =>
       screen.queryByRole('button', { name });
 
-    let scrollToLocation: jest.SpyInstance;
+    // SectionList 가 실제로 고른 칸(펼친 순서)을 본다. 마지막 스크롤이 간 칸과 그 칸의 위치 옵션
+    let scrollToIndex: jest.SpyInstance;
+    const lastScroll = () => {
+      const [params] = scrollToIndex.mock.lastCall ?? [];
+      const props = list().props;
+      return { ...params, item: props.getItem(props.data, params?.index) };
+    };
     let focus: jest.SpyInstance;
     beforeEach(() => {
-      scrollToLocation = jest
-        .spyOn(SectionList.prototype, 'scrollToLocation')
+      scrollToIndex = jest
+        .spyOn(VirtualizedList.prototype, 'scrollToIndex')
         .mockImplementation(() => {});
       focus = jest
         .spyOn(AccessibilityInfo, 'sendAccessibilityEvent')
@@ -326,15 +336,19 @@ describe('TermsDetailScreen', () => {
       agreement = { service: false },
       standalone = false,
       bottomInset = 0,
+      fakeServer = server(),
+      waitForText = true,
     }: {
       sections?: readonly TermsDetailSection[];
       agreement?: Readonly<Record<string, boolean>>;
       standalone?: boolean;
       /** 기기 아래 안전 영역 (홈 인디케이터) */
       bottomInset?: number;
+      fakeServer?: ReturnType<typeof createFakeServer>;
+      waitForText?: boolean;
     } = {}) {
       const onAgreeChange = jest.fn();
-      await renderWithApi(
+      const result = await renderWithApi(
         <SafeAreaProvider
           initialMetrics={{
             frame: { x: 0, y: 0, width: 393, height: 852 },
@@ -349,11 +363,23 @@ describe('TermsDetailScreen', () => {
             onBack={jest.fn()}
           />
         </SafeAreaProvider>,
-        { server: server() },
+        { server: fakeServer },
       );
-      await screen.findByText('본문 1.');
-      return onAgreeChange;
+      if (waitForText) {
+        await screen.findByText('본문 1.');
+      }
+      return { onAgreeChange, queryClient: result.queryClient };
     }
+
+    /** 누른 뒤 목록이 아직 재지 않은 칸이라 갈 수 없다고 알린다 (그려 둔 끝 칸: highest) */
+    const failScroll = (highest: number) =>
+      act(() =>
+        list().props.onScrollToIndexFailed({
+          index: flatIndex(0, RADIOS),
+          highestMeasuredFrameIndex: highest,
+          averageItemLength: 40,
+        }),
+      );
 
     it('아직 동의하지 않은 약관의 본문을 읽는 중이면 약관 동의하기 버튼이 나타난다', async () => {
       await renderSignUp();
@@ -367,7 +393,7 @@ describe('TermsDetailScreen', () => {
       expect(button).toHaveTextContent('약관 동의하기');
     });
 
-    it('작업 상세 완료 보고 앵커와 같은 Secondary 버튼과 #F0F0F0 그라데이션이다', async () => {
+    it('작업 상세 완료 보고 앵커와 같은 Secondary(#6452FD) 채움 버튼과 #F0F0F0 그라데이션이다', async () => {
       await renderSignUp();
       await viewItems(0, [0, 1]);
 
@@ -411,15 +437,14 @@ describe('TermsDetailScreen', () => {
       expect(jumpButton()).not.toBeOnTheScreen();
     });
 
-    it('동의 상태가 없는 읽기 전용 상세(마이 › 약관)에는 버튼이 없다', async () => {
+    it('동의 상태가 없는 읽기 전용 상세(마이 › 약관)는 버튼이 없고 보이는 칸을 따지지 않는다', async () => {
       await renderWithApi(
         <TermsDetailScreen sections={[service]} onBack={jest.fn()} />,
         { server: server() },
       );
       await screen.findByText('본문 1.');
 
-      await viewItems(0, [0, 1, 2]);
-
+      expect(list().props.onViewableItemsChanged).toBeUndefined();
       expect(
         screen.queryByRole('button', { name: /동의하기/ }),
       ).not.toBeOnTheScreen();
@@ -427,19 +452,20 @@ describe('TermsDetailScreen', () => {
 
     // 라디오를 화면 아래(본문 끝 아래 여백 40 위)에 둔다. 위에는 약관 끝 글이 보인다
     it('누르면 그 약관의 동의 라디오가 화면 아래에 오도록 스크롤하고, 아직 고르지는 않는다', async () => {
-      const onAgreeChange = await renderSignUp();
+      const { onAgreeChange } = await renderSignUp();
       await viewItems(0, [0, 1]);
 
       await userEvent.press(jumpButton()!);
 
-      // 라디오는 약관 칸 7번째(6). SectionList 위치는 머리(0) 다음부터라 7
-      expect(scrollToLocation).toHaveBeenLastCalledWith({
-        sectionIndex: 0,
-        itemIndex: RADIOS + 1,
-        viewPosition: 1,
-        viewOffset: -40,
-        animated: true,
-      });
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({
+          index: flatIndex(0, RADIOS),
+          item: RADIOS_ITEM,
+          viewPosition: 1,
+          viewOffset: -40,
+          animated: true,
+        }),
+      );
       expect(onAgreeChange).not.toHaveBeenCalled();
     });
 
@@ -449,13 +475,13 @@ describe('TermsDetailScreen', () => {
 
       await userEvent.press(jumpButton()!);
 
-      expect(scrollToLocation).toHaveBeenLastCalledWith(
-        expect.objectContaining({ viewOffset: -(40 + 34) }),
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ item: RADIOS_ITEM, viewOffset: -(40 + 34) }),
       );
     });
 
     it('스크롤해 라디오가 다 보이면 동의합니다를 고르고 그 라디오로 스크린리더 초점을 옮긴다', async () => {
-      const onAgreeChange = await renderSignUp();
+      const { onAgreeChange } = await renderSignUp();
       await viewItems(0, [0, 1]);
       await userEvent.press(jumpButton()!);
 
@@ -479,7 +505,7 @@ describe('TermsDetailScreen', () => {
     });
 
     it('스크롤하는 동안 손으로 끌면 고르지 않는다', async () => {
-      const onAgreeChange = await renderSignUp();
+      const { onAgreeChange } = await renderSignUp();
       await viewItems(0, [0, 1]);
       await userEvent.press(jumpButton()!);
 
@@ -489,8 +515,57 @@ describe('TermsDetailScreen', () => {
       expect(onAgreeChange).not.toHaveBeenCalled();
     });
 
+    // 스크린리더 요소 이동처럼 끌지 않고 움직이는 스크롤도 있어, 사용자가 고른 것을 나중에 덮어쓰지 않게 한다
+    it('누른 뒤 라디오를 직접 고르면 그 선택을 지키고 저절로 동의하지 않는다', async () => {
+      const { onAgreeChange } = await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent.press(jumpButton()!);
+
+      await userEvent.press(
+        screen.getByRole('radio', {
+          name: '서비스 이용약관, 동의하지 않습니다',
+        }),
+      );
+      await viewItems(0, [5, RADIOS]);
+
+      expect(onAgreeChange).toHaveBeenCalledTimes(1);
+      expect(onAgreeChange).toHaveBeenCalledWith('service', false);
+    });
+
+    it('누른 뒤 그 약관 전문이 도착해 라디오가 밀려나면 새 자리로 다시 스크롤한다', async () => {
+      const { queryClient } = await renderSignUp({
+        fakeServer: withTermsDocuments(createFakeServer(), { service: hang() }),
+        waitForText: false,
+      });
+      // 받는 중: [받는 중, 라디오]
+      await viewItems(0, [0]);
+      await userEvent.press(jumpButton()!);
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ index: flatIndex(0, 1), item: RADIOS_ITEM }),
+      );
+
+      await act(() =>
+        queryClient.setQueryData(
+          termsDocumentQueryKey('service'),
+          toTermsBlocks(ARTICLES_TEXT),
+        ),
+      );
+
+      // 전문 6덩어리 + 라디오. 라디오는 7번째 칸으로 밀려났다
+      await waitFor(() =>
+        expect(lastScroll()).toEqual(
+          expect.objectContaining({
+            index: flatIndex(0, RADIOS),
+            item: RADIOS_ITEM,
+            viewPosition: 1,
+          }),
+        ),
+      );
+      expect(scrollToIndex).toHaveBeenCalledTimes(2);
+    });
+
     it('여러 약관이면 화면 맨 위에서 읽는 약관의 라디오로 가서 그 약관에 동의한다', async () => {
-      const onAgreeChange = await renderSignUp({
+      const { onAgreeChange } = await renderSignUp({
         sections: [service, marketing],
         agreement: { service: true, MARKETING: false },
       });
@@ -505,10 +580,10 @@ describe('TermsDetailScreen', () => {
 
       await viewItems(1, [0, 1]);
       await userEvent.press(
-        jumpButton('(선택) 혜택 이벤트 알림 수신동의 동의하기')!,
+        jumpButton('(선택) 혜택 이벤트 알림 수신동의, 약관 동의하기')!,
       );
-      expect(scrollToLocation).toHaveBeenLastCalledWith(
-        expect.objectContaining({ sectionIndex: 1, itemIndex: 2 + 1 }),
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ index: flatIndex(1, 2), item: RADIOS_ITEM }),
       );
 
       await viewItems(1, [1, 2]);
@@ -525,25 +600,58 @@ describe('TermsDetailScreen', () => {
         .setup({ advanceTimers: jest.advanceTimersByTime })
         .press(jumpButton()!);
 
-      await act(() =>
-        list().props.onScrollToIndexFailed({
-          index: RADIOS + 1,
-          highestMeasuredFrameIndex: 3,
-          averageItemLength: 40,
+      await failScroll(3);
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ index: 3, viewPosition: 0, animated: true }),
+      );
+
+      scrollToIndex.mockClear();
+      await act(() => jest.advanceTimersByTime(100));
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({
+          index: flatIndex(0, RADIOS),
+          item: RADIOS_ITEM,
         }),
       );
-      expect(scrollToLocation).toHaveBeenLastCalledWith({
-        sectionIndex: 0,
-        itemIndex: 3,
-        viewPosition: 0,
-        animated: true,
-      });
+    });
 
-      scrollToLocation.mockClear();
-      await act(() => jest.advanceTimersByTime(100));
-      expect(scrollToLocation).toHaveBeenLastCalledWith(
-        expect.objectContaining({ sectionIndex: 0, itemIndex: RADIOS + 1 }),
+    it('그려 둔 끝이 늘어나는 동안은 몇 번이고 계속 찾아간다', async () => {
+      jest.useFakeTimers();
+      await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent
+        .setup({ advanceTimers: jest.advanceTimersByTime })
+        .press(jumpButton()!);
+
+      for (let highest = 1; highest <= 30; highest += 1) {
+        await failScroll(highest);
+        await act(() => jest.advanceTimersByTime(100));
+      }
+
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ item: RADIOS_ITEM }),
       );
+    });
+
+    it('그려 둔 끝이 더 늘지 않으면 멈추고, 나중에 라디오가 보여도 저절로 동의하지 않는다', async () => {
+      jest.useFakeTimers();
+      const { onAgreeChange } = await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent
+        .setup({ advanceTimers: jest.advanceTimersByTime })
+        .press(jumpButton()!);
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await failScroll(3);
+        await act(() => jest.advanceTimersByTime(100));
+      }
+      scrollToIndex.mockClear();
+      await failScroll(3);
+      await act(() => jest.advanceTimersByTime(100));
+      expect(scrollToIndex).not.toHaveBeenCalled();
+
+      await viewItems(0, [5, RADIOS]);
+      expect(onAgreeChange).not.toHaveBeenCalled();
     });
 
     it('화면을 떠나면 다시 찾아가기를 멈춘다', async () => {
@@ -553,19 +661,13 @@ describe('TermsDetailScreen', () => {
       await userEvent
         .setup({ advanceTimers: jest.advanceTimersByTime })
         .press(jumpButton()!);
-      await act(() =>
-        list().props.onScrollToIndexFailed({
-          index: RADIOS + 1,
-          highestMeasuredFrameIndex: 3,
-          averageItemLength: 40,
-        }),
-      );
-      scrollToLocation.mockClear();
+      await failScroll(3);
+      scrollToIndex.mockClear();
 
       await screen.unmount();
       jest.advanceTimersByTime(1000);
 
-      expect(scrollToLocation).not.toHaveBeenCalled();
+      expect(scrollToIndex).not.toHaveBeenCalled();
     });
   });
 });
@@ -579,21 +681,26 @@ function list() {
 }
 
 /**
- * 화면에 다 보이는 칸이 바뀐다. 칸은 약관(sectionIndex) 안의 순서다 (0 부터, 머리 제외).
- * SectionList 는 약관마다 [머리, 칸…, 꼬리] 로 펼친 순서를 쓰므로 그 순서로 바꿔 알린다
+ * 약관(sectionIndex) 안 칸 순서(0 부터, 머리 제외)를 목록이 펼친 순서로 바꾼다.
+ * SectionList 는 약관마다 [머리, 칸…, 꼬리] 로 펼친다
  */
-async function viewItems(sectionIndex: number, items: readonly number[]) {
-  const props = list().props;
-  const sections: readonly { data: readonly unknown[] }[] = props.data;
+function flatIndex(sectionIndex: number, item: number) {
+  const sections: readonly { data: readonly unknown[] }[] = list().props.data;
   const offset = sections
     .slice(0, sectionIndex)
     .reduce((sum, section) => sum + section.data.length + 2, 0);
+  return offset + 1 + item;
+}
+
+/** 화면에 다 보이는 칸이 바뀐다. 칸은 약관(sectionIndex) 안의 순서다 (0 부터, 머리 제외) */
+async function viewItems(sectionIndex: number, items: readonly number[]) {
+  const props = list().props;
   const tokens = items.map(item => {
-    const index = offset + 1 + item;
+    const index = flatIndex(sectionIndex, item);
     return {
       index,
       key: String(index),
-      item: props.getItem(sections, index),
+      item: props.getItem(props.data, index),
       isViewable: true,
     };
   });

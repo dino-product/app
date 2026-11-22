@@ -15,8 +15,11 @@ import {
 // 가입 약관 상세의 '약관 동의하기' 앵커 (#218, 사용자 요청: 작업 상세 '완료 보고 작성하기' 앵커와 같은 모양).
 // - 지금 읽는 약관(화면 맨 위에 다 보이는 칸의 약관)이 아직 동의 전이고 그 동의 라디오가 화면에 다 보이지 않으면 버튼을 보인다
 // - 누르면 그 라디오가 화면 아래(본문 끝 아래 여백 위)에 오도록 스크롤하고, 라디오가 화면에 다 보이면 '동의합니다' 를 고른 뒤
-//   스크린리더 초점을 그 라디오로 옮긴다. 스크롤하는 동안 손으로 끌면 고르지 않는다
-// - 목록은 화면 가까이만 그린다(가상화). 아직 재지 않은 먼 라디오면 그려 둔 끝까지 먼저 가고 잠시 뒤 다시 찾아간다
+//   스크린리더 초점을 그 라디오로 옮긴다. 스크롤하는 동안 손으로 끌거나 라디오를 직접 고르면 누른 것을 거둔다
+//   (스크린리더 요소 이동처럼 끌지 않는 스크롤로 라디오가 보여도 사용자가 고른 것을 덮어쓰지 않게)
+// - 누른 뒤 그 약관 전문이 도착해 라디오가 밀려나면 새 자리로 다시 스크롤한다
+// - 목록은 화면 가까이만 그린다(가상화). 아직 재지 않은 먼 라디오면 그려 둔 끝까지 먼저 가고 잠시 뒤 다시 찾아간다.
+//   그려 둔 끝이 늘어나는 동안은 계속하고, 더 늘지 않으면 멈추고 누른 것을 거둔다
 // 라디오는 약관마다 전문 다음 칸(RADIOS_ITEM)이다. 머리·꼬리는 목록이 알려 주는 보이는 칸에서 서로 구분되지 않아 칸으로 둔다
 
 /** 약관마다 전문 다음에 두는 동의 라디오 칸 */
@@ -25,9 +28,9 @@ export const RADIOS_ITEM = { kind: 'radios' } as const;
 /** 다 보여야 보이는 칸으로 친다. 라디오가 다 보여야 고른다 */
 export const AGREE_VIEWABILITY = { itemVisiblePercentThreshold: 100 };
 
-/** 먼 라디오를 다시 찾아가기까지 기다리는 시간(ms)과 최대 횟수 */
+/** 먼 라디오를 다시 찾아가기까지 기다리는 시간(ms)과, 그려 둔 끝이 늘지 않은 채 다시 찾아갈 최대 횟수 */
 const RETRY_MS = 100;
-const MAX_RETRIES = 10;
+const MAX_STALLED_RETRIES = 10;
 
 type JumpSection = {
   key: string;
@@ -43,8 +46,14 @@ const isRadios = (token: ListViewToken, section: number) =>
   token.item === RADIOS_ITEM &&
   (token.section as JumpSection | undefined)?.index === section;
 
-/** 목록이 펼친 순서(약관마다 머리·칸…·꼬리)를 scrollToLocation 의 자리로 바꾼다 (itemIndex 0 은 머리) */
-function toLocation(sections: readonly JumpSection[], flatIndex: number) {
+/**
+ * 목록이 펼친 순서(약관마다 머리·칸…·꼬리)를 scrollToLocation 의 자리로 바꾼다 (itemIndex 0 은 머리).
+ * 범위를 넘으면 마지막 약관의 꼬리다
+ */
+export function toLocation(
+  sections: readonly JumpSection[],
+  flatIndex: number,
+) {
   let start = 0;
   for (const [sectionIndex, section] of sections.entries()) {
     const size = section.data.length + 2;
@@ -53,7 +62,11 @@ function toLocation(sections: readonly JumpSection[], flatIndex: number) {
     }
     start += size;
   }
-  return { sectionIndex: 0, itemIndex: 0 };
+  const last = sections.length - 1;
+  return {
+    sectionIndex: Math.max(0, last),
+    itemIndex: last < 0 ? 0 : sections[last].data.length + 1,
+  };
 }
 
 export function useAgreeJump<ItemT, SectionT extends JumpSection>({
@@ -72,9 +85,6 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
   const listRef = useRef<SectionList<ItemT, SectionT>>(null);
   const [reading, setReading] = useState<Reading | null>(null);
   const latest = useRef({ sections, onAgreeChange, bottomSpace });
-  useLayoutEffect(() => {
-    latest.current = { sections, onAgreeChange, bottomSpace };
-  });
 
   // 목록에 주는 콜백은 바뀌면 안 된다 (VirtualizedList 는 onViewableItemsChanged 를 바꾸지 못한다). 한 번만 만든다
   const [jumper] = useState(() => {
@@ -82,7 +92,11 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
     let pending: number | null = null;
     /** 마지막으로 알린 읽는 자리. 같으면 상태를 건드리지 않는다 (같은 값으로 바꿔도 React 가 한 번 더 그릴 수 있다) */
     let current: Reading | null = null;
-    let retries = 0;
+    /** 누른 약관을 스크롤할 때의 칸 수. 전문이 도착해 바뀌면 다시 스크롤한다 */
+    let scrolledLength: number | null = null;
+    /** 그려 둔 끝 칸(펼친 순서)과 그것이 늘지 않은 채 다시 찾아간 횟수 */
+    let highest = -1;
+    let stalls = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const radios = new Map<string, PressableInstance>();
 
@@ -92,11 +106,16 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
         timer = null;
       }
     };
+    const cancel = () => {
+      pending = null;
+      stopRetry();
+    };
     const scrollToRadios = (sectionIndex: number) => {
       const section = latest.current.sections[sectionIndex];
       if (section === undefined) {
         return;
       }
+      scrolledLength = section.data.length;
       // 라디오는 약관의 마지막 칸이고 scrollToLocation 의 칸 번호는 머리(0) 다음부터다
       listRef.current?.scrollToLocation({
         sectionIndex,
@@ -123,8 +142,21 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
       jump(sectionIndex: number) {
         stopRetry();
         pending = sectionIndex;
-        retries = 0;
+        highest = -1;
+        stalls = 0;
         scrollToRadios(sectionIndex);
+      },
+      /** 전문이 도착해 누른 약관의 칸 수가 바뀌었으면 새 라디오 자리로 다시 스크롤한다 */
+      resync() {
+        const section =
+          pending === null ? undefined : latest.current.sections[pending];
+        if (
+          pending !== null &&
+          section !== undefined &&
+          section.data.length !== scrolledLength
+        ) {
+          scrollToRadios(pending);
+        }
       },
       onViewableItemsChanged({
         viewableItems,
@@ -150,8 +182,7 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
         }
         if (pending !== null && radiosVisible(pending)) {
           const target = pending;
-          pending = null;
-          stopRetry();
+          cancel();
           agree(target);
         }
       },
@@ -160,10 +191,19 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
       }: {
         highestMeasuredFrameIndex: number;
       }) {
-        if (pending === null || retries >= MAX_RETRIES) {
+        if (pending === null) {
           return;
         }
-        retries += 1;
+        if (highestMeasuredFrameIndex > highest) {
+          highest = highestMeasuredFrameIndex;
+          stalls = 0;
+        } else if (stalls >= MAX_STALLED_RETRIES) {
+          // 더 그리지 못한다. 누른 것을 거두어 나중에 라디오가 보여도 저절로 고르지 않는다
+          cancel();
+          return;
+        } else {
+          stalls += 1;
+        }
         listRef.current?.scrollToLocation({
           ...toLocation(latest.current.sections, highestMeasuredFrameIndex),
           viewPosition: 0,
@@ -178,9 +218,11 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
         }, RETRY_MS);
       },
       /** 손으로 끌면 누른 것을 거둔다 */
-      onScrollBeginDrag() {
-        pending = null;
-        stopRetry();
+      onScrollBeginDrag: cancel,
+      /** 라디오를 직접 고르면 누른 것을 거두고 그 선택을 알린다 */
+      choose(key: string, agreed: boolean) {
+        cancel();
+        latest.current.onAgreeChange?.(key, agreed);
       },
       registerRadio(key: string, radio: PressableInstance | null) {
         if (radio === null) {
@@ -191,6 +233,10 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
       },
       stop: stopRetry,
     };
+  });
+  useLayoutEffect(() => {
+    latest.current = { sections, onAgreeChange, bottomSpace };
+    jumper.resync();
   });
   // 화면을 떠나면 다시 찾아가기를 멈춘다
   useEffect(() => jumper.stop, [jumper]);
@@ -219,6 +265,8 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
     onViewableItemsChanged: jumper.onViewableItemsChanged,
     onScrollToIndexFailed: jumper.onScrollToIndexFailed,
     onScrollBeginDrag: jumper.onScrollBeginDrag,
+    /** 라디오의 onChange. 누른 것을 거두고 onAgreeChange 로 알린다 */
+    choose: jumper.choose,
     registerRadio: jumper.registerRadio,
   };
 }

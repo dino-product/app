@@ -55,7 +55,12 @@ export function JumpAnchor({
   const moving = useRef(false);
 
   useEffect(() => {
-    if (!mounted || (!moving.current && settled.current === visible)) {
+    if (!mounted) {
+      // 숨어 있는 동안 아래 거리(안전 영역)가 바뀌면 새 숨은 자리에서 올라오게 옮겨 둔다
+      offset.setValue(hidden);
+      return;
+    }
+    if (!moving.current && settled.current === visible) {
       return;
     }
     const settle = () => {

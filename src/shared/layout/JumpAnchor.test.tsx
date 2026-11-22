@@ -81,4 +81,23 @@ describe('JumpAnchor', () => {
     // 네이티브 드라이버 애니메이션은 테스트에서 돌지 않아 시작 자리에 머문다
     expect(jump()).toHaveStyle({ transform: [{ translateY: 252 }] });
   });
+
+  // 안전 영역은 화면이 뜬 뒤에 늦게 잡힐 수 있다. 숨어 있는 동안 바뀌면 새 자리에서 올라온다
+  it('숨어 있는 동안 아래 거리가 바뀌면 새 숨은 자리에서 올라온다', async () => {
+    const anchor = (visible: boolean, bottomInset: number) => (
+      <JumpAnchor
+        label="이동"
+        visible={visible}
+        onPress={jest.fn()}
+        bottomInset={bottomInset}
+        testID="jump"
+      />
+    );
+    await render(anchor(false, 0));
+    await screen.rerender(anchor(false, 34));
+
+    await screen.rerender(anchor(true, 34));
+
+    expect(jump()).toHaveStyle({ transform: [{ translateY: 252 }] });
+  });
 });

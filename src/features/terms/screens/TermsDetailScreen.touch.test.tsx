@@ -61,7 +61,7 @@ describe('TermsDetailScreen 터치 영역', () => {
     );
 
     const anchor = screen.getByRole('button', {
-      name: '서비스 이용약관 동의하기',
+      name: '서비스 이용약관, 약관 동의하기',
     });
     expectMinTouchTarget(anchor, { height: stylePt(anchor, 'minHeight') });
   });

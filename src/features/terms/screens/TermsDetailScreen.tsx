@@ -110,6 +110,7 @@ export function TermsDetailScreen({
     onViewableItemsChanged,
     onScrollToIndexFailed,
     onScrollBeginDrag,
+    choose,
     registerRadio,
   } = useAgreeJump<Item, Section>({
     sections: listSections,
@@ -140,7 +141,7 @@ export function TermsDetailScreen({
               termsKey={section.key}
               title={section.title}
               agreed={agreement[section.key] ?? false}
-              onChange={onAgreeChange}
+              onChange={choose}
               registerRadio={registerRadio}
             />
           );
@@ -148,7 +149,7 @@ export function TermsDetailScreen({
           return <BlockRow block={item} first={index === 0} />;
       }
     },
-    [agreement, onAgreeChange, registerRadio],
+    [agreement, onAgreeChange, choose, registerRadio],
   );
 
   // 앵커가 나타나고 숨을 때 화면만 다시 그리고 목록(PureComponent)은 그대로 두게 같은 값을 준다
@@ -173,17 +174,18 @@ export function TermsDetailScreen({
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         stickySectionHeadersEnabled={false}
-        viewabilityConfig={AGREE_VIEWABILITY}
-        onViewableItemsChanged={onViewableItemsChanged}
+        // 읽기 전용(마이 › 약관)은 앵커가 없어 보이는 칸을 따지지 않는다 (화면이 떠 있는 동안 바뀌지 않는다)
+        viewabilityConfig={agreeable ? AGREE_VIEWABILITY : undefined}
+        onViewableItemsChanged={agreeable ? onViewableItemsChanged : undefined}
         onScrollToIndexFailed={onScrollToIndexFailed}
-        onScrollBeginDrag={onScrollBeginDrag}
+        onScrollBeginDrag={agreeable ? onScrollBeginDrag : undefined}
         contentContainerStyle={contentContainerStyle}
       />
       {agreeable && (
         <JumpAnchor
           label={AGREE_JUMP_LABEL}
           accessibilityLabel={
-            jumpSection && `${jumpSection.title} ${AGREE_JUMP_ACTION}`
+            jumpSection && `${jumpSection.title}, ${AGREE_JUMP_LABEL}`
           }
           visible={target !== null}
           onPress={jump}
@@ -195,9 +197,8 @@ export function TermsDetailScreen({
   );
 }
 
+/** 스크린리더는 어느 약관인지 앞에 붙이고 보이는 글자를 그대로 읽는다 ('(필수) 서비스 이용약관, 약관 동의하기') */
 const AGREE_JUMP_LABEL = '약관 동의하기';
-/** 스크린리더는 어느 약관인지 앞에 붙여 읽는다 ('(필수) 서비스 이용약관 동의하기') */
-const AGREE_JUMP_ACTION = '동의하기';
 
 // 라디오 칸은 전문이 도착해 자리가 바뀌어도 같은 칸으로 남게(고른 상태·초점이 끊기지 않게) 따로 이름을 둔다
 const keyExtractor = (item: Item, index: number) =>
