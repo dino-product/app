@@ -28,7 +28,8 @@ import { useCancelParticipationRequest } from '../participationQueries';
 
 // Figma 회사찾기-요청완료. 마이는 3235:14886, 온보딩(#85)은 승인 대기 3227:8824 이고 머리 제목 '승인 대기', 버튼 위 안내 상자가 더 있다.
 // 마이페이지 소속 카드의 검토 줄에서 연 요청(stage 'reviewing', #199)은 같은 화면에 맥락에 맞는 제목을 달고,
-// 진행 표시를 '사무실 검토 중' 단계까지 채우고, 요약 첫 줄에 상태 칩(마이페이지의 검토 칩)을 더한다. 이 셋은 Figma 에 없다.
+// 진행 표시를 '사무실 검토 중' 단계까지 칠하고, 요약 첫 줄에 상태 칩(마이페이지의 검토 칩)을 더한다. 이 셋은 Figma 에 없다.
+// 칠한 단계만 다르고 진행 표시 모양(선·원)은 Figma 그대로다 (#219)
 // 신청 취소는 서버(POST /participation-requests/{requestId}/cancel)에 보낸다 (#116). 실패 안내는 Figma 에 없어 기본안이고,
 // 취소 모달이 닫히는 중에도 뜨도록 시스템 알림(Alert)으로 띄운다 (RN Modal 두 개를 겹쳐 띄우지 않는다)
 
@@ -38,11 +39,9 @@ import { useCancelParticipationRequest } from '../participationQueries';
  */
 export type JoinRequestStage = 'sent' | 'reviewing';
 
-// 첫 단계 이름은 Figma 마다 다르다 (마이 3235:14886 '검토 중', 온보딩 3227:8824 '요청 완료')
-const stepLabels = {
-  my: ['검토 중', '사무실 검토 중', '참여 완료'],
-  onboarding: ['요청 완료', '사무실 검토 중', '참여 완료'],
-} as const satisfies Record<JoinFlow, readonly [string, string, string]>;
+// 첫 단계 이름은 마이·온보딩 모두 '요청 완료' 다 (#219, 사용자 확인 · 온보딩 Figma 3227:8846).
+// 마이 Figma 3235:14908 의 '검토 중' 은 쓰지 않는다
+const STEP_LABELS = ['요청 완료', '사무실 검토 중', '참여 완료'] as const;
 
 /**
  * 머리 제목. 마이페이지 검토 줄에서 연 요청은 보낸 직후가 아니라 승인을 기다리는 요청을 보러 온 것이라,
@@ -265,43 +264,50 @@ export function JoinRequestedScreen({
 }
 
 /**
- * 3단계 진행 표시. reached 단계까지 Secondary 로 채운다 (첫 단계는 체크, 나머지는 번호).
- * 스크린리더는 채운 단계와 다음 단계를 한 줄로 읽는다
+ * 3단계 진행 표시. reached 단계까지 Secondary 로 칠한다 (첫 단계는 체크, 나머지는 번호).
+ * 스크린리더는 칠한 단계와 다음 단계를 한 줄로 읽는다
  */
 function Steps({ flow, reached }: { flow: JoinFlow; reached: 1 | 2 }) {
-  const labels = stepLabels[flow];
+  const labels = STEP_LABELS;
   const label = `진행 단계: ${labels
     .slice(0, reached)
     .join(', ')}, 다음은 ${labels.slice(reached).join(', ')}`;
   const items = labels.map((step, index) => {
     const done = index < reached;
+    const circle = (
+      <View
+        style={[
+          flow === 'my' ? myStepStyles.circle : onboardingStepStyles.circle,
+          done ? styles.stepDone : styles.stepTodo,
+        ]}
+        testID={`join-step-${index + 1}-circle`}
+      >
+        {index === 0 ? (
+          <Icon
+            name="check"
+            size={flow === 'my' ? MY_CHECK_SIZE : ONBOARDING_CHECK_SIZE}
+            color={colors.white[100]}
+          />
+        ) : (
+          <Text
+            variant={flow === 'my' ? 'Body/S/SemiBold' : 'Body/XS/SemiBold'}
+            color={colors.white[100]}
+          >
+            {index + 1}
+          </Text>
+        )}
+      </View>
+    );
     return (
       <View
         key={step}
         style={flow === 'my' ? myStepStyles.step : onboardingStepStyles.step}
       >
-        <View
-          style={[
-            flow === 'my' ? myStepStyles.circle : onboardingStepStyles.circle,
-            done ? styles.stepDone : styles.stepTodo,
-          ]}
-          testID={`join-step-${index + 1}-circle`}
-        >
-          {index === 0 ? (
-            <Icon
-              name="check"
-              size={flow === 'my' ? MY_CHECK_SIZE : ONBOARDING_CHECK_SIZE}
-              color={colors.white[100]}
-            />
-          ) : (
-            <Text
-              variant={flow === 'my' ? 'Body/S/SemiBold' : 'Body/XS/SemiBold'}
-              color={colors.white[100]}
-            >
-              {index + 1}
-            </Text>
-          )}
-        </View>
+        {flow === 'my' ? (
+          <View style={myStepStyles.disc}>{circle}</View>
+        ) : (
+          circle
+        )}
         <Text
           variant="Caption/M/SemiBold"
           color={done ? colors.gray[700] : colors.gray[500]}
@@ -339,9 +345,6 @@ function Steps({ flow, reached }: { flow: JoinFlow; reached: 1 | 2 }) {
     >
       <View style={myStepStyles.row}>
         <View style={myStepStyles.line} testID="join-steps-line" />
-        {reached > 1 && (
-          <View style={myStepStyles.fill} testID="join-steps-fill" />
-        )}
         {items}
       </View>
     </View>
@@ -382,7 +385,9 @@ const onboardingStepStyles = StyleSheet.create({
   },
 });
 
-// 마이 진행 표시 (Figma 3235:14903). 원 40 바깥에 흰 테 6 이 있어 뒤의 선이 원에 닿지 않는다.
+// 마이 진행 표시 (Figma 3235:14903). 원은 40 이고 둘레 6 은 배경(흰색)과 같은 색이라 보이지 않는다.
+// 그 6 이 뒤의 선을 가려 선이 원에 닿지 않는다. 테두리(borderWidth)로 그리면 둥근 가장자리에 원 색이 번져
+// Figma 에 없는 테두리가 보이므로(#219), 원 뒤에 배경색 원판(52)을 따로 둔다.
 // 단계는 폭 51·77·51 이 285 안에 놓여 가운데 사이가 117 이다 → 117 칸 셋(351)에 가운데 정렬한다.
 // 콘텐츠 폭(345)보다 6 넓어 좌우로 3 씩 내민다. 좁은 화면에서는 칸이 같이 줄어든다
 const MY_STEP_SIZE = 40;
@@ -402,33 +407,32 @@ const myStepStyles = StyleSheet.create({
     maxWidth: MY_STEP_PITCH * 3,
   },
   step: { flex: 1, alignItems: 'center', gap: 10 },
-  circle: {
+  // 원 둘레 6 을 칠한 배경색 원판. 자리는 원(40)만큼만 차지한다
+  disc: {
     width: MY_STEP_SIZE + MY_STEP_RING * 2,
     height: MY_STEP_SIZE + MY_STEP_RING * 2,
     borderRadius: MY_STEP_SIZE / 2 + MY_STEP_RING,
-    borderWidth: MY_STEP_RING,
-    borderColor: colors.white[100],
     margin: -MY_STEP_RING,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.white[100],
   },
-  // Figma Line 67: 1 두께 Gray200. 첫 원 가운데에서 마지막 원 가운데까지 (원 밖으로 나온 부분만 보인다)
+  circle: {
+    width: MY_STEP_SIZE,
+    height: MY_STEP_SIZE,
+    borderRadius: MY_STEP_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Figma Line 67: 1 두께 Gray200 실선 한 줄. 노드는 원 위쪽에서 20 이고 선은 그 위 19–20 에 그린다.
+  // 첫 원 가운데에서 마지막 원 가운데까지 원 뒤로 지나가, 원판 밖으로 나온 부분만 보인다
   line: {
     position: 'absolute',
-    top: MY_STEP_SIZE / 2 - 0.5,
+    top: MY_STEP_SIZE / 2 - 1,
     left: CENTER_OF_FIRST,
     right: CENTER_OF_FIRST,
     height: 1,
     backgroundColor: colors.gray[200],
-  },
-  // 사무실 검토 중까지 채운 선 (#199). 첫 원 가운데에서 둘째 원 가운데까지
-  fill: {
-    position: 'absolute',
-    top: MY_STEP_SIZE / 2 - 0.5,
-    left: CENTER_OF_FIRST,
-    width: `${100 / 3}%`,
-    height: 1,
-    backgroundColor: colors.secondary,
   },
 });
 

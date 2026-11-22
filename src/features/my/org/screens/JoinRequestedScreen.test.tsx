@@ -110,12 +110,14 @@ describe('JoinRequestedScreen', () => {
     expect(
       screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
     ).toBeOnTheScreen();
-    // 마이 Figma(3235:14886)의 첫 단계 이름은 '검토 중' 이다 (온보딩 3227:8824 는 '요청 완료')
+    // 첫 단계 이름은 마이·온보딩 모두 '요청 완료' 다 (#219, 사용자 확인 · 온보딩 Figma 3227:8846)
     expect(
       screen.getByLabelText(
-        '진행 단계: 검토 중, 다음은 사무실 검토 중, 참여 완료',
+        '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
       ),
     ).toBeOnTheScreen();
+    expect(screen.getByText('요청 완료')).toBeOnTheScreen();
+    expect(screen.queryByText('검토 중')).toBeNull();
   });
 
   it('요약에 회사, 희망 유형, 요청 경로, 요청 일시가 보인다', async () => {
@@ -572,23 +574,26 @@ describe('JoinRequestedScreen', () => {
       ).toMatchObject({ paddingTop: 36, paddingHorizontal: 24, gap: 42 });
     });
 
-    // 원은 40 이고 바깥 흰 테 6 이 뒤의 선을 가린다. 숫자 Body/S/SemiBold 흰색, 단계 이름 Caption/M/SemiBold 위 10
-    it('진행 표시 원은 40 에 흰 테 6, 숫자는 Body/S/SemiBold, 이름은 원 아래 10 이다', async () => {
+    // 원은 테두리 없이 칠한 40 이다. 둘레의 흰색 6 은 테두리가 아니라 원 뒤의 배경색 원판(52)이다.
+    // 테두리(borderWidth)로 그리면 둥근 가장자리에 원 색이 번져 보이는 테두리가 생긴다 (#219).
+    // 숫자 Body/S/SemiBold 흰색, 단계 이름 Caption/M/SemiBold 는 원 아래 10
+    it('진행 표시 원은 테두리 없는 40 이고, 선을 끊는 흰색 6 은 배경색 원판이다', async () => {
       await renderRequested();
 
       for (const step of [1, 2, 3]) {
         const node = circle(step);
-        expect(stylePt(node, 'width') - 2 * stylePt(node, 'borderWidth')).toBe(
-          40,
-        );
-        expect(node).toHaveStyle({
+        expect(node).toHaveStyle({ width: 40, height: 40, borderRadius: 20 });
+        expect(stylePt(node, 'borderWidth')).toBe(0);
+        const disc = node.parent as HostElement;
+        expect(disc).toHaveStyle({
+          width: 52,
           height: 52,
           borderRadius: 26,
-          borderWidth: 6,
-          borderColor: colors.white[100],
           margin: -6,
+          backgroundColor: colors.white[100],
         });
-        expect(node.parent).toHaveStyle({ gap: 10 });
+        expect(stylePt(disc, 'borderWidth')).toBe(0);
+        expect(disc.parent).toHaveStyle({ gap: 10 });
       }
       expect(circle(1)).toHaveStyle({ backgroundColor: colors.secondary });
       expect(circle(2)).toHaveStyle({ backgroundColor: colors.gray[200] });
@@ -596,7 +601,7 @@ describe('JoinRequestedScreen', () => {
         ...typography['Body/S/SemiBold'],
         color: colors.white[100],
       });
-      expect(screen.getByText('검토 중')).toHaveStyle({
+      expect(screen.getByText('요청 완료')).toHaveStyle({
         ...typography['Caption/M/SemiBold'],
         color: colors.gray[700],
       });
@@ -606,18 +611,22 @@ describe('JoinRequestedScreen', () => {
       });
     });
 
-    // Figma Line 67: 1 두께 Gray200(#DEDEDE), 첫 원 가운데에서 마지막 원 가운데까지. 단계 가운데 사이 117
-    it('단계 사이 선은 1 두께 Gray200 이고, 단계 가운데 사이는 117 이다', async () => {
+    // Figma Line 67: 1 두께 Gray200(#DEDEDE) 실선 한 줄, 원 위쪽에서 19–20 (원 가운데보다 0.5 위).
+    // 첫 원 가운데에서 마지막 원 가운데까지 원 뒤로 지나가 원판 밖으로 나온 부분만 보인다. 단계 가운데 사이 117
+    it('단계 사이 선은 1 두께 Gray200 한 줄이고, 단계 가운데 사이는 117 이다', async () => {
       await renderRequested();
 
       expect(screen.getByTestId('join-steps-line')).toHaveStyle({
         height: 1,
-        top: 19.5,
+        top: 19,
+        left: `${100 / 6}%`,
+        right: `${100 / 6}%`,
         backgroundColor: colors.gray[200],
       });
       expect(screen.queryByTestId('join-steps-fill')).toBeNull();
-      expect(circle(1).parent).toHaveStyle({ flex: 1 });
-      const row = circle(1).parent?.parent as HostElement;
+      const step = circle(1).parent?.parent as HostElement;
+      expect(step).toHaveStyle({ flex: 1 });
+      const row = step.parent as HostElement;
       expect(row).toHaveStyle({ maxWidth: 117 * 3 });
       // 콘텐츠 폭 345 보다 6 넓은 351 을 세 칸으로 나눈다
       expect(row.parent).toHaveStyle({ marginHorizontal: -3 });
@@ -652,12 +661,14 @@ describe('JoinRequestedScreen', () => {
       ).toBeNull();
     });
 
-    it('진행 표시는 사무실 검토 중 단계까지 채워져 있다', async () => {
+    // 진행만 다르고 모양은 요청 완료와 같다: 둘째 원까지 Secondary 로 칠할 뿐, 단계 사이 선은 Figma 그대로 Gray200 한 줄이다.
+    // 칠한 단계 사이에 색을 바꾼 선을 더 긋지 않고, 원에 테두리도 없다 (#219)
+    it('진행 표시는 사무실 검토 중 단계까지 채우되, Figma 에 없는 선·테두리는 없다', async () => {
       await renderReviewing();
 
       expect(
         screen.getByLabelText(
-          '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
+          '진행 단계: 요청 완료, 사무실 검토 중, 다음은 참여 완료',
         ),
       ).toBeOnTheScreen();
       expect(circle(2)).toHaveStyle({ backgroundColor: colors.secondary });
@@ -665,14 +676,17 @@ describe('JoinRequestedScreen', () => {
       expect(screen.getByText('사무실 검토 중')).toHaveStyle({
         color: colors.gray[700],
       });
-      // 첫 원 가운데에서 둘째 원 가운데까지 (세 칸 중 한 칸) Secondary
-      expect(screen.getByTestId('join-steps-fill')).toHaveStyle({
+      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
+      expect(screen.getByTestId('join-steps-line')).toHaveStyle({
         height: 1,
-        top: 19.5,
-        left: `${100 / 6}%`,
-        width: `${100 / 3}%`,
-        backgroundColor: colors.secondary,
+        backgroundColor: colors.gray[200],
       });
+      for (const step of [1, 2, 3]) {
+        expect(stylePt(circle(step), 'borderWidth')).toBe(0);
+        expect(stylePt(circle(step).parent as HostElement, 'borderWidth')).toBe(
+          0,
+        );
+      }
     });
 
     // 칩 값은 마이페이지 소속 카드의 검토 칩(Figma 3235:17157)과 같다. 요약 카드 첫 줄 '상태' 오른쪽에 둔다

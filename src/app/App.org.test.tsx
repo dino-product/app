@@ -98,7 +98,7 @@ describe('App — 조직 참여', () => {
       expect(header('승인 대기')).toBeOnTheScreen();
       expect(
         screen.getByLabelText(
-          '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
+          '진행 단계: 요청 완료, 사무실 검토 중, 다음은 참여 완료',
         ),
       ).toBeOnTheScreen();
       expect(screen.getByLabelText('회사, 그린 테크')).toBeOnTheScreen();
