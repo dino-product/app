@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import {
   Alert,
   ScrollView,
@@ -27,6 +27,7 @@ import { cancelFailure } from '../notices';
 import { useCancelParticipationRequest } from '../participationQueries';
 
 // Figma 회사찾기-요청완료. 마이는 3235:14886, 온보딩(#85)은 승인 대기 3227:8824 이고 머리 제목 '승인 대기', 버튼 위 안내 상자가 더 있다.
+// 두 Figma 는 안내·진행 표시·간격이 같고(#212), 요약 값 글자만 다르다.
 // 마이페이지 소속 카드의 검토 줄에서 연 요청(stage 'reviewing', #199)은 같은 화면에 맥락에 맞는 제목을 달고,
 // 진행 표시를 '사무실 검토 중' 단계까지 칠하고, 요약 첫 줄에 상태 칩(마이페이지의 검토 칩)을 더한다. 이 셋은 Figma 에 없다.
 // 칠한 단계만 다르고 진행 표시 모양(선·원)은 Figma 그대로다 (#219)
@@ -85,7 +86,6 @@ export function JoinRequestedScreen({
   const cancel = useCancelParticipationRequest();
   const onboarding = flow === 'onboarding';
   const reviewing = !onboarding && stage === 'reviewing';
-  const look = looks[flow];
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -182,12 +182,12 @@ export function JoinRequestedScreen({
       />
       <ScrollView
         {...noOverscroll}
-        contentContainerStyle={[readableColumn, styles.content, look.content]}
+        contentContainerStyle={[readableColumn, styles.content]}
       >
-        <View style={look.top}>
-          <View style={[styles.intro, look.intro]}>
+        <View style={styles.top}>
+          <View style={styles.intro}>
             <Icon name="modal-check" size={40} />
-            <View style={look.texts}>
+            <View style={styles.texts}>
               <Text
                 accessibilityRole="header"
                 variant="Body/L/Bold"
@@ -204,10 +204,10 @@ export function JoinRequestedScreen({
               </Text>
             </View>
           </View>
-          <Steps flow={flow} reached={reviewing ? 2 : 1} />
+          <Steps reached={reviewing ? 2 : 1} />
         </View>
 
-        <View style={look.summary}>
+        <View style={styles.summary}>
           {/* 값 글자는 마이(3235:14886)가 Medium, 온보딩(3227:8824)이 SemiBold 다 */}
           <SummaryCard
             valueVariant={
@@ -230,14 +230,7 @@ export function JoinRequestedScreen({
           <InfoNotice message="이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다." />
         </View>
       )}
-      <View
-        style={[
-          readableColumn,
-          styles.actions,
-          look.actions,
-          flowLayouts[flow].actions,
-        ]}
-      >
+      <View style={[readableColumn, styles.actions, flowLayouts[flow].actions]}>
         <CTA
           variant="outline"
           label="신청 취소"
@@ -267,160 +260,116 @@ export function JoinRequestedScreen({
  * 3단계 진행 표시. reached 단계까지 Secondary 로 칠한다 (첫 단계는 체크, 나머지는 번호).
  * 스크린리더는 칠한 단계와 다음 단계를 한 줄로 읽는다
  */
-function Steps({ flow, reached }: { flow: JoinFlow; reached: 1 | 2 }) {
-  const labels = STEP_LABELS;
-  const label = `진행 단계: ${labels
-    .slice(0, reached)
-    .join(', ')}, 다음은 ${labels.slice(reached).join(', ')}`;
-  const items = labels.map((step, index) => {
-    const done = index < reached;
-    const circle = (
-      <View
-        style={[
-          flow === 'my' ? myStepStyles.circle : onboardingStepStyles.circle,
-          done ? styles.stepDone : styles.stepTodo,
-        ]}
-        testID={`join-step-${index + 1}-circle`}
-      >
-        {index === 0 ? (
-          <Icon
-            name="check"
-            size={flow === 'my' ? MY_CHECK_SIZE : ONBOARDING_CHECK_SIZE}
-            color={colors.white[100]}
-          />
-        ) : (
-          <Text
-            variant={flow === 'my' ? 'Body/S/SemiBold' : 'Body/XS/SemiBold'}
-            color={colors.white[100]}
-          >
-            {index + 1}
-          </Text>
-        )}
-      </View>
-    );
-    return (
-      <View
-        key={step}
-        style={flow === 'my' ? myStepStyles.step : onboardingStepStyles.step}
-      >
-        {flow === 'my' ? (
-          <View style={myStepStyles.disc}>{circle}</View>
-        ) : (
-          circle
-        )}
-        <Text
-          variant="Caption/M/SemiBold"
-          color={done ? colors.gray[700] : colors.gray[500]}
-        >
-          {step}
-        </Text>
-      </View>
-    );
-  });
-
-  if (flow === 'onboarding') {
-    // 온보딩은 #85 의 모양 그대로다 (원 36, 단계 폭 88, 단계 사이 선 Gray100 2)
-    return (
-      <View
-        accessible
-        accessibilityLabel={label}
-        style={onboardingStepStyles.steps}
-        testID="join-steps"
-      >
-        {items.map((item, index) => (
-          <Fragment key={labels[index]}>
-            {index > 0 && <View style={onboardingStepStyles.line} />}
-            {item}
-          </Fragment>
-        ))}
-      </View>
-    );
-  }
+function Steps({ reached }: { reached: 1 | 2 }) {
+  const label = `진행 단계: ${STEP_LABELS.slice(0, reached).join(
+    ', ',
+  )}, 다음은 ${STEP_LABELS.slice(reached).join(', ')}`;
   return (
     <View
       accessible
       accessibilityLabel={label}
-      style={myStepStyles.bleed}
+      style={stepStyles.bleed}
       testID="join-steps"
     >
-      <View style={myStepStyles.row}>
-        <View style={myStepStyles.line} testID="join-steps-line" />
-        {items}
+      <View style={stepStyles.row}>
+        <View style={stepStyles.line} testID="join-steps-line" />
+        {STEP_LABELS.map((step, index) => {
+          const done = index < reached;
+          return (
+            <View key={step} style={stepStyles.step}>
+              <View style={stepStyles.disc}>
+                <View
+                  style={[
+                    stepStyles.circle,
+                    done ? styles.stepDone : styles.stepTodo,
+                  ]}
+                  testID={`join-step-${index + 1}-circle`}
+                >
+                  {index === 0 ? (
+                    <Icon
+                      name="check"
+                      size={STEP_CHECK_SIZE}
+                      color={colors.white[100]}
+                    />
+                  ) : (
+                    <Text variant="Body/S/SemiBold" color={colors.white[100]}>
+                      {index + 1}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <Text
+                variant="Caption/M/SemiBold"
+                color={done ? colors.gray[700] : colors.gray[500]}
+              >
+                {step}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
 }
 
+// 마이(3235:14886)·온보딩(3227:8824) 공통: 머리 아래 36 에 아이콘(40), 아이콘과 문구 사이 24, 제목과 설명(Body/XS/Medium) 사이 6,
+// 안내–진행 24, 진행–요약 42, 요약–아래 문구(라이브러리 Gray500) 12, 버튼 사이 10
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 24, paddingBottom: 24 },
-  intro: { alignItems: 'center' },
+  content: {
+    paddingTop: 36,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    gap: 42,
+  },
+  top: { gap: 24 },
+  intro: { alignItems: 'center', gap: 24 },
+  texts: { gap: 6 },
+  summary: { gap: 12 },
   center: { textAlign: 'center' },
   stepDone: { backgroundColor: colors.secondary },
   stepTodo: { backgroundColor: colors.gray[200] },
   // 안내 상자는 아래 버튼 줄 위 16 에 붙는다 (Figma 위치 684)
   notice: { paddingHorizontal: 24, paddingBottom: 16 },
-  actions: { flexDirection: 'row' },
+  actions: { flexDirection: 'row', gap: 10 },
   action: { flex: 1 },
 });
 
-// 온보딩(#85) 진행 표시. 이 작업에서 바꾸지 않는다
-const ONBOARDING_STEP_SIZE = 36;
-const ONBOARDING_CHECK_SIZE = 20;
-const onboardingStepStyles = StyleSheet.create({
-  steps: { flexDirection: 'row', alignItems: 'flex-start' },
-  step: { alignItems: 'center', gap: 8, width: 88 },
-  circle: {
-    width: ONBOARDING_STEP_SIZE,
-    height: ONBOARDING_STEP_SIZE,
-    borderRadius: ONBOARDING_STEP_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  line: {
-    flex: 1,
-    height: 2,
-    marginTop: ONBOARDING_STEP_SIZE / 2 - 1,
-    marginHorizontal: -16,
-    backgroundColor: colors.gray[100],
-  },
-});
-
-// 마이 진행 표시 (Figma 3235:14903). 원은 40 이고 둘레 6 은 배경(흰색)과 같은 색이라 보이지 않는다.
+// 진행 표시 (Figma 3235:14903 · 3227:8841). 원은 40 이고 둘레 6 은 배경(흰색)과 같은 색이라 보이지 않는다.
 // 그 6 이 뒤의 선을 가려 선이 원에 닿지 않는다. 테두리(borderWidth)로 그리면 둥근 가장자리에 원 색이 번져
 // Figma 에 없는 테두리가 보이므로(#219), 원 뒤에 배경색 원판(52)을 따로 둔다.
 // 단계는 폭 51·77·51 이 285 안에 놓여 가운데 사이가 117 이다 → 117 칸 셋(351)에 가운데 정렬한다.
 // 콘텐츠 폭(345)보다 6 넓어 좌우로 3 씩 내민다. 좁은 화면에서는 칸이 같이 줄어든다
-const MY_STEP_SIZE = 40;
-const MY_STEP_RING = 6;
-const MY_STEP_PITCH = 117;
-const MY_STEPS_BLEED = (MY_STEP_PITCH * 3 - 345) / 2;
+const STEP_SIZE = 40;
+const STEP_GAP = 6;
+const STEP_PITCH = 117;
+const STEPS_BLEED = (STEP_PITCH * 3 - 345) / 2;
 // Figma 체크는 원 안에서 Modal-check 와 같은 그림이다. 공용 체크 아이콘(24)을 원 크기에 맞춰 쓴다
-const MY_CHECK_SIZE = 24;
+const STEP_CHECK_SIZE = 24;
 const CENTER_OF_FIRST = `${100 / 6}%` as const;
-const myStepStyles = StyleSheet.create({
-  bleed: { marginHorizontal: -MY_STEPS_BLEED },
+const stepStyles = StyleSheet.create({
+  bleed: { marginHorizontal: -STEPS_BLEED },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     alignSelf: 'center',
     width: '100%',
-    maxWidth: MY_STEP_PITCH * 3,
+    maxWidth: STEP_PITCH * 3,
   },
   step: { flex: 1, alignItems: 'center', gap: 10 },
   // 원 둘레 6 을 칠한 배경색 원판. 자리는 원(40)만큼만 차지한다
   disc: {
-    width: MY_STEP_SIZE + MY_STEP_RING * 2,
-    height: MY_STEP_SIZE + MY_STEP_RING * 2,
-    borderRadius: MY_STEP_SIZE / 2 + MY_STEP_RING,
-    margin: -MY_STEP_RING,
+    width: STEP_SIZE + STEP_GAP * 2,
+    height: STEP_SIZE + STEP_GAP * 2,
+    borderRadius: STEP_SIZE / 2 + STEP_GAP,
+    margin: -STEP_GAP,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white[100],
   },
   circle: {
-    width: MY_STEP_SIZE,
-    height: MY_STEP_SIZE,
-    borderRadius: MY_STEP_SIZE / 2,
+    width: STEP_SIZE,
+    height: STEP_SIZE,
+    borderRadius: STEP_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -428,34 +377,10 @@ const myStepStyles = StyleSheet.create({
   // 첫 원 가운데에서 마지막 원 가운데까지 원 뒤로 지나가, 원판 밖으로 나온 부분만 보인다
   line: {
     position: 'absolute',
-    top: MY_STEP_SIZE / 2 - 1,
+    top: STEP_SIZE / 2 - 1,
     left: CENTER_OF_FIRST,
     right: CENTER_OF_FIRST,
     height: 1,
     backgroundColor: colors.gray[200],
   },
 });
-
-// 마이(3235:14886)와 온보딩(3227:8824)의 Figma 값이 자리마다 다르다.
-// 마이: 머리 아래 36 에 아이콘(40), 아이콘과 문구 사이 24, 제목과 설명(Body/XS/Medium) 사이 6, 안내–진행 24,
-//       진행–요약 42, 요약–아래 문구(라이브러리 Gray500) 12, 버튼 사이 10
-// 온보딩(#85, 그대로): 머리 아래 42 에 아이콘(40), 아이콘과 문구 사이 24, 제목과 설명 사이 6, 안내–진행 32, 나머지 24, 버튼 사이 10
-// 아이콘(40)·설명 글자(Body/XS/Medium Gray600)·아래 문구 색(라이브러리 Gray500)은 두 Figma 가 같다
-const looks = {
-  my: StyleSheet.create({
-    content: { paddingTop: 36, gap: 42 },
-    top: { gap: 24 },
-    intro: { gap: 24 },
-    texts: { gap: 6 },
-    summary: { gap: 12 },
-    actions: { gap: 10 },
-  }),
-  onboarding: StyleSheet.create({
-    content: { paddingTop: 42, gap: 24 },
-    top: { gap: 32 },
-    intro: { gap: 24 },
-    texts: { gap: 6 },
-    summary: { gap: 24 },
-    actions: { gap: 10 },
-  }),
-} satisfies Record<JoinFlow, unknown>;
