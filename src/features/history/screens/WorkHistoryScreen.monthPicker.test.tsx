@@ -373,6 +373,22 @@ describe('날짜 선택 — 고르기와 적용 (#203)', () => {
     expect(onMonthChange).not.toHaveBeenCalled();
   });
 
+  it('줄 위에서 손을 떼면(관성 없음) 그 줄에서 멈춘 것이고, 줄 사이에서 떼면 관성이 끝날 때까지 기다린다', async () => {
+    await renderHistory();
+    await userEvent.press(monthButton());
+    const endDrag = (y: number) =>
+      act(() => {
+        fireEvent(yearWheel(), 'scrollEndDrag', {
+          nativeEvent: { contentOffset: { x: 0, y } },
+        });
+      });
+
+    await endDrag(4.5 * WHEEL_ROW);
+    expect(monthText()).toHaveTextContent('2026년 9월');
+    await endDrag(4 * WHEEL_ROW);
+    expect(monthText()).toHaveTextContent('2024년 9월');
+  });
+
   it('상자 바깥을 누르면 고른 달을 적용하며 닫는다 (목록이 그 달로 바뀌고 알린다)', async () => {
     const onMonthChange = jest.fn();
     await renderHistory({ onMonthChange });
@@ -640,6 +656,38 @@ describe('날짜 선택 — 스크린리더 (#203)', () => {
     });
     expect(month()).toHaveAccessibilityValue({ text: '9월' });
     expect(monthText()).toHaveTextContent('2026년 9월');
+  });
+
+  it('연도 열도 한 줄씩 움직이고 끝에서 멈춘다. 지난해 12월에서 올해로 올리면 월이 이번 달로 맞춰진다', async () => {
+    await renderHistory();
+    await userEvent.press(monthButton());
+    const year = () => screen.getByRole('adjustable', { name: '연도' });
+    const adjust = (actionName: string) =>
+      act(() => {
+        fireEvent(year(), 'accessibilityAction', {
+          nativeEvent: { actionName },
+        });
+      });
+
+    await adjust('increment');
+    expect(year()).toHaveAccessibilityValue({ text: '2026년' });
+    await adjust('decrement');
+    expect(year()).toHaveAccessibilityValue({ text: '2025년' });
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      x: 0,
+      y: 5 * WHEEL_ROW,
+      animated: true,
+    });
+    await settleWheel(monthWheel(), 11);
+    expect(monthText()).toHaveTextContent('2025년 12월');
+
+    await adjust('increment');
+    expect(monthText()).toHaveTextContent('2026년 9월');
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      x: 0,
+      y: 8 * WHEEL_ROW,
+      animated: true,
+    });
   });
 
   // 열면 초점은 월 글자 버튼에 남는다. 거기서도 닫기 동작이 먹는다
