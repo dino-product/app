@@ -90,6 +90,22 @@ const withMyRoutes = (routes: unknown[]) =>
       },
     },
   ]);
+// 내 일정 탭 스택만 바꾼 상태 (#221)
+const withScheduleRoutes = (routes: unknown[]) =>
+  withRoot([
+    {
+      name: 'Main',
+      state: {
+        index: 0,
+        routes: [
+          {
+            name: 'schedule',
+            state: { index: routes.length - 1, routes },
+          },
+        ],
+      },
+    },
+  ]);
 const orbitTarget = {
   organizationId: '9',
   organizationName: 'Orbit',
@@ -113,6 +129,19 @@ describe('내비게이션 상태 저장', () => {
       ]);
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+    });
+
+    // #221: 내 일정에서 연 작업 상세는 내 일정 탭 안에 쌓인다
+    it('내 일정 탭 안의 작업 상세와 응답 필요로 옮긴 내 일정도 그대로 쓴다', () => {
+      for (const routes of [
+        [{ name: 'MySchedule' }, { name: 'WorkDetail', params: { id: 'w1' } }],
+        [{ name: 'MySchedule', params: { tab: 'pending' } }],
+        [{ name: 'MySchedule', params: {} }],
+      ]) {
+        const state = withScheduleRoutes(routes);
+
+        expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+      }
     });
 
     it.each([
@@ -210,7 +239,27 @@ describe('내비게이션 상태 저장', () => {
         withRoot([
           {
             name: 'Main',
-            params: { screen: 'schedule', params: { tab: 'done' } },
+            params: {
+              screen: 'schedule',
+              params: { screen: 'MySchedule', params: { tab: 'done' } },
+            },
+          },
+        ]),
+      ],
+      [
+        'id 가 없는 내 일정 탭 안 작업 상세 (#221)',
+        withScheduleRoutes([{ name: 'MySchedule' }, { name: 'WorkDetail' }]),
+      ],
+      // #221 전에는 내 일정 탭이 하위 스택 없는 화면이었다. 그때 남긴 하위 탭 값은 지금 구조에 맞지 않는다
+      [
+        '내 일정 탭에 하위 화면 없이 남은 하위 탭 값 (#221 전 구조)',
+        withRoot([
+          {
+            name: 'Main',
+            state: {
+              index: 0,
+              routes: [{ name: 'schedule', params: { tab: 'pending' } }],
+            },
           },
         ]),
       ],
@@ -224,12 +273,30 @@ describe('내비게이션 상태 저장', () => {
       const state = withRoot([
         {
           name: 'Main',
-          params: { screen: 'schedule', params: { tab: 'pending' } },
+          params: {
+            screen: 'schedule',
+            params: {
+              screen: 'MySchedule',
+              params: { tab: 'pending' },
+              pop: true,
+            },
+          },
           state: {
             index: 3,
             routes: [
               { name: 'home' },
-              { name: 'schedule', params: {} },
+              {
+                name: 'schedule',
+                params: {
+                  screen: 'MySchedule',
+                  params: { tab: 'pending' },
+                  pop: true,
+                },
+                state: {
+                  index: 0,
+                  routes: [{ name: 'MySchedule', params: {} }],
+                },
+              },
               { name: 'history' },
               {
                 name: 'my',
@@ -249,6 +316,7 @@ describe('내비게이션 상태 저장', () => {
 
       const restored = JSON.parse(JSON.stringify(state));
       delete restored.routes[0].params;
+      delete restored.routes[0].state.routes[1].params;
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
     });
@@ -308,14 +376,19 @@ describe('내비게이션 상태 저장', () => {
       const home = state.routes[0].state.routes[0] as Record<string, unknown>;
       home.params = { screen: 'WorkHome', initial: false };
       const tabs = state.routes[0].state.routes;
-      (tabs[1] as Record<string, unknown>).params = { tab: 'pending' };
+      const schedule = {
+        screen: 'MySchedule',
+        params: { tab: 'pending' },
+      };
+      (tabs[1] as Record<string, unknown>).params = schedule;
 
       const restored = parseSavedNavigation(saved(state), NOW) as typeof state;
 
       expect(restored.routes[0].state.routes[0]).not.toHaveProperty('params');
-      expect(restored.routes[0].state.routes[1]).toHaveProperty('params', {
-        tab: 'pending',
-      });
+      expect(restored.routes[0].state.routes[1]).toHaveProperty(
+        'params',
+        schedule,
+      );
     });
 
     it(`마지막 저장 뒤 ${

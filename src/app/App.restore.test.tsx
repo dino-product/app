@@ -391,6 +391,29 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     });
   });
 
+  // #221: 내 일정에서 연 작업 상세는 내 일정 탭 안에 있다. 다시 열어도 그 자리이고, 뒤로 가면 내 일정이다
+  it('내 일정에서 연 작업 상세를 복원하고, 뒤로 가면 내 일정으로 돌아간다', async () => {
+    const kill = await launch();
+    await findHomeLoaded();
+    await userEvent.press(tab('내 일정'));
+    await userEvent.press(
+      await screen.findByRole('button', { name: /^보일러 점검,/ }),
+    );
+    await screen.findByRole('header', { name: '작업 상세' });
+
+    await relaunch(kill);
+
+    expect(tab('내 일정')).toBeSelected();
+    // 상세를 다 불러올 때까지 기다린다 (불러오는 동안의 화면에도 같은 제목이 있다)
+    await screen.findByRole('button', { name: '작업 시작' });
+    expect(header('작업 상세')).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(
+      await screen.findByRole('header', { name: '내 일정' }),
+    ).toBeOnTheScreen();
+    expect(tab('내 일정')).toBeSelected();
+  });
+
   it('고른 탭과 탭마다 보던 화면을 복원한다', async () => {
     const kill = await launch();
     await openWorkDetail();
@@ -487,12 +510,30 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       routes: [
         {
           name: 'Main',
-          params: { screen: 'schedule', params: { tab: 'pending' } },
+          params: {
+            screen: 'schedule',
+            params: {
+              screen: 'MySchedule',
+              params: { tab: 'pending' },
+              pop: true,
+            },
+          },
           state: {
             index: 3,
             routes: [
               { name: 'home' },
-              { name: 'schedule', params: {} },
+              {
+                name: 'schedule',
+                params: {
+                  screen: 'MySchedule',
+                  params: { tab: 'pending' },
+                  pop: true,
+                },
+                state: {
+                  index: 0,
+                  routes: [{ name: 'MySchedule', params: {} }],
+                },
+              },
               { name: 'history' },
               {
                 name: 'my',

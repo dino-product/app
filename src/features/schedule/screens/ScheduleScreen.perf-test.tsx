@@ -40,6 +40,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
     );
 
@@ -61,6 +62,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         scenario: async () => {
@@ -92,6 +94,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -147,6 +150,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -174,6 +178,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -206,6 +211,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         // userEvent 는 Pressable 의 눌림 상태 렌더까지 세므로 onPress 만 부른다
@@ -242,6 +248,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -284,6 +291,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -319,6 +327,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         scenario: async () => {

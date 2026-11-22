@@ -100,6 +100,7 @@ const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
       onAccept={jest.fn(async () => true)}
       onReject={jest.fn()}
       onOpenRequest={jest.fn()}
+      onOpenWork={jest.fn()}
       {...overrides}
     />,
   );
@@ -1418,13 +1419,42 @@ describe('ScheduleScreen — 응답 필요', () => {
       expect(titles).toEqual(['이른 일정', '늦은 일정']);
     });
 
-    it('확정 일정 행은 누를 수 없으므로 버튼으로 노출하지 않는다', async () => {
-      await renderSchedule();
+    // 확정 일정 카드는 그 작업의 상세를 여는 버튼이다 (#221). 주간·월간 어느 보기에서도 같다
+    it.each([
+      ['주간', false],
+      ['월간', true],
+    ] as const)(
+      '%s: 확정 일정 카드를 누르면 그 작업을 연다',
+      async (_label, open) => {
+        const onOpenWork = jest.fn();
+        await renderSchedule({ onOpenWork });
+        if (open) {
+          await userEvent.press(
+            screen.getByRole('button', { name: '달력 펼치기' }),
+          );
+        }
 
-      expect(
-        screen.queryByRole('button', { name: /^세탁기 설치,/ }),
-      ).toBeNull();
-      expect(screen.getByLabelText(/^세탁기 설치, 배정됨/)).toBeOnTheScreen();
+        await userEvent.press(
+          screen.getByRole('button', { name: /^보일러 점검, 작업전/ }),
+        );
+
+        expect(onOpenWork).toHaveBeenCalledTimes(1);
+        expect(onOpenWork).toHaveBeenCalledWith('c2');
+      },
+    );
+
+    it('다른 날을 골라도 그 날의 카드를 누르면 그 작업을 연다', async () => {
+      const onOpenWork = jest.fn();
+      await renderSchedule({ onOpenWork });
+      await userEvent.press(
+        screen.getByRole('button', { name: '12월 16일 수요일' }),
+      );
+
+      await userEvent.press(
+        screen.getByRole('button', { name: /^도어록 교체, 배정됨/ }),
+      );
+
+      expect(onOpenWork).toHaveBeenCalledWith('c3');
     });
   });
 });
@@ -1470,6 +1500,7 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
       onAccept: jest.fn(),
       onReject: jest.fn(),
       onOpenRequest: jest.fn(),
+      onOpenWork: jest.fn(),
     };
     const { rerender } = await render(<ScheduleScreen {...props} />);
     expect(screen.getByRole('tab', { name: /^확정 일정/ })).toBeSelected();
@@ -1496,6 +1527,7 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
         onAccept={jest.fn()}
         onReject={jest.fn()}
         onOpenRequest={jest.fn()}
+        onOpenWork={jest.fn()}
         requestedTab="pending"
       />,
     );
@@ -1577,6 +1609,7 @@ describe('ScheduleScreen — 날짜가 바뀌면', () => {
     onAccept: jest.fn(async () => true),
     onReject: jest.fn(),
     onOpenRequest: jest.fn(),
+    onOpenWork: jest.fn(),
   };
 
   it('오늘을 고르고 있었으면 새 오늘을 고르고 그 달을 알린다', async () => {

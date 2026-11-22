@@ -20,6 +20,7 @@ import type {
   MyStackParamList,
   OnboardingStackParamList,
   RootStackParamList,
+  ScheduleStackParamList,
 } from './types';
 
 // 보던 화면(열린 화면 스택과 고른 탭)을 기기에 남겼다가 앱을 다시 열 때 복원한다 (#34).
@@ -85,6 +86,16 @@ const homeStack = {
   WorkDetail: workDetail,
   NotificationCenter: once,
 } satisfies Record<keyof HomeStackParamList, ScreenSchema>;
+// 내 일정 (#221). 바깥에서 고른 하위 탭(응답 필요)은 화면이 옮긴 뒤 지워 빈 객체로 남는다
+const scheduleStack = {
+  MySchedule: {
+    params: params =>
+      params === undefined ||
+      (isRecord(params) &&
+        (params.tab === undefined || params.tab === 'pending')),
+  },
+  WorkDetail: workDetail,
+} satisfies Record<keyof ScheduleStackParamList, ScreenSchema>;
 const historyStack = {
   WorkHistory: once,
   CompletedWorkDetail: byId,
@@ -138,13 +149,7 @@ const myStack = {
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
 const mainTabs = {
   home: nested(homeStack),
-  // 바깥에서 고른 하위 탭(응답 필요). 화면이 옮긴 뒤 지워 빈 객체로 남는다
-  schedule: {
-    params: params =>
-      params === undefined ||
-      (isRecord(params) &&
-        (params.tab === undefined || params.tab === 'pending')),
-  },
+  schedule: nested(scheduleStack),
   history: nested(historyStack),
   my: nested(myStack),
 } satisfies Record<keyof MainTabParamList, ScreenSchema>;

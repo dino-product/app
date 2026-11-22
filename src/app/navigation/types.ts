@@ -52,22 +52,34 @@ export const ONBOARDING_INITIAL_ROUTE =
 // 탭 이름은 하단 탭 키(MainTabKey)와 같다 (MainTabBar 가 컴파일 타임에 확인)
 export type MainTabParamList = {
   home: NavigatorScreenParams<HomeStackParamList> | undefined;
-  /** tab: 바깥에서 하위 탭을 고를 때 (탈퇴 불가 → 응답 필요). 화면이 옮긴 뒤 지운다 */
-  schedule: { tab?: 'pending' } | undefined;
+  schedule: NavigatorScreenParams<ScheduleStackParamList> | undefined;
   history: NavigatorScreenParams<HistoryStackParamList> | undefined;
   my: NavigatorScreenParams<MyStackParamList> | undefined;
 };
+
+/** 작업 상세. id: 작업 id. 알림에서 열면 알림이 생긴 발주사(organizationId)도 넘긴다 (#117) */
+export type WorkDetailParams = { id: string; organizationId?: string };
 
 // 작업 상세는 Figma 에서 하단 탭이 보이므로 홈 탭 안에 쌓는다.
 // 홈의 종으로 여는 알림센터도 홈 탭 안에 쌓아, 뒤로 가면 내 작업 홈으로 돌아온다 (#96)
 export type HomeStackParamList = {
   WorkHome: undefined;
-  /** id: 작업 id. 알림에서 열면 알림이 생긴 발주사(organizationId)도 넘긴다 (#117) */
-  WorkDetail: { id: string; organizationId?: string };
+  WorkDetail: WorkDetailParams;
   NotificationCenter: undefined;
 };
 
 export const HOME_INITIAL_ROUTE = 'WorkHome' satisfies keyof HomeStackParamList;
+
+// 내 일정의 확정 일정에서 연 작업 상세도(#221) 하단 탭이 보이는 같은 화면이라 내 일정 탭 안에 쌓는다.
+// 뒤로 가면 보던 내 일정(같은 보기·같은 날)으로 돌아온다. 응답 필요의 요청 상세는 탭 바 없는 결정 흐름이라 루트에 있다
+export type ScheduleStackParamList = {
+  /** tab: 바깥에서 하위 탭을 고를 때 (탈퇴 불가 → 응답 필요). 화면이 옮긴 뒤 지운다 */
+  MySchedule: { tab?: 'pending' } | undefined;
+  WorkDetail: WorkDetailParams;
+};
+
+export const SCHEDULE_INITIAL_ROUTE =
+  'MySchedule' satisfies keyof ScheduleStackParamList;
 
 // 완료 작업 상세도 작업 상세처럼 하단 탭이 보이므로 작업 이력 탭 안에 쌓는다
 export type HistoryStackParamList = {
@@ -116,6 +128,12 @@ export type HomeScreenProps<T extends keyof HomeStackParamList> =
   CompositeScreenProps<
     NativeStackScreenProps<HomeStackParamList, T>,
     MainTabScreenProps<'home'>
+  >;
+
+export type ScheduleStackScreenProps<T extends keyof ScheduleStackParamList> =
+  CompositeScreenProps<
+    NativeStackScreenProps<ScheduleStackParamList, T>,
+    MainTabScreenProps<'schedule'>
   >;
 
 export type HistoryScreenProps<T extends keyof HistoryStackParamList> =

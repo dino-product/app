@@ -73,6 +73,8 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
+  /** 확정 일정 카드를 누르면 그 작업의 상세를 연다 (#221) */
+  onOpenWork: (id: string) => void;
   /** 바깥에서 하위 탭을 고를 때 (탈퇴 불가 → 응답 필요). 값이 들어올 때마다 그 탭으로 옮긴다 */
   requestedTab?: ScheduleTab;
   /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 */
@@ -111,6 +113,7 @@ function ScheduleScreenView({
   onAccept,
   onReject,
   onOpenRequest,
+  onOpenWork,
   requestedTab,
   listRef,
   confirmedLoad = READY,
@@ -267,10 +270,11 @@ function ScheduleScreenView({
       <ConfirmedRow
         item={item}
         dayLabel={formatCardDay(item.dateKey, today)}
+        onPress={onOpenWork}
         style={styles.cardInset}
       />
     ),
-    [today],
+    [today, onOpenWork],
   );
   // 수락(POST)은 낙관적으로 반영한다 (#197): 요청은 곧바로 응답 필요에서 빠지고, 실패하면 돌아온다.
   // 보내는 동안 카드 버튼 모양(Figma 기본)은 그대로 두고, 그 요청의 수락·거절만 다시 받지 않는다.

@@ -50,6 +50,7 @@ import {
 import { useFocusTitleOnOpen } from './routes';
 import {
   HOME_INITIAL_ROUTE,
+  SCHEDULE_INITIAL_ROUTE,
   type HomeScreenProps,
   type MyScreenProps,
 } from './types';
@@ -403,7 +404,12 @@ export function WithdrawalBlockedRoute({
     if (reason === 'WORK_IN_PROGRESS') {
       navigation.navigate('home', { screen: HOME_INITIAL_ROUTE });
     } else if (reason === 'WORK_PENDING_ACCEPT') {
-      navigation.navigate('schedule', { tab: 'pending' });
+      // 내 일정 탭에 작업 상세가 쌓여 있으면 내 일정까지 돌아가 응답 필요를 보인다 (#221)
+      navigation.navigate('schedule', {
+        screen: SCHEDULE_INITIAL_ROUTE,
+        params: { tab: 'pending' },
+        pop: true,
+      });
     }
   };
 

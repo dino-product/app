@@ -446,6 +446,67 @@ describe('App — 기사 작업 API (#155)', () => {
       });
     });
 
+    // #221: 내 일정의 확정 일정에서도 작업 상세를 연다. 작업 상세는 하단 탭이 보이는 탭 안 화면이라(Figma 2741:2713)
+    // 내 일정 탭 안에 쌓고, 뒤로 가면 보던 내 일정(같은 보기·같은 날)으로 돌아온다
+    it('내 일정에서 확정 일정을 누르면 내 일정 탭 안에 작업 상세가 열려 작업을 시작할 수 있고, 뒤로 가면 같은 보기·같은 날이다', async () => {
+      const server = await launch();
+      await findCurrentWork();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: '달력 펼치기' }),
+      );
+
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업전/ }),
+      );
+
+      // 상세를 다 불러올 때까지 기다린다 (불러오는 동안의 화면에도 같은 제목이 있다)
+      const start = await screen.findByRole('button', { name: '작업 시작' });
+      expect(
+        screen.getByRole('header', { name: '작업 상세' }),
+      ).toBeOnTheScreen();
+      expect(tab('내 일정')).toBeSelected();
+      await userEvent.press(start);
+      expect(
+        await screen.findByRole('button', { name: '작업 전 사진 추가' }),
+      ).toBeOnTheScreen();
+      expect(
+        server.callsTo('POST', `${workPath(CURRENT.workId)}/start`)[0].body,
+      ).toEqual({ assignmentNumber: 1 });
+
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+      expect(
+        await screen.findByRole('header', { name: '내 일정' }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '달력 접기' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('2026년 10월 21일 (수)')).toBeOnTheScreen();
+      expect(tab('내 일정')).toBeSelected();
+      // 시작한 작업은 내 일정 카드에서도 작업중이다
+      expect(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      ).toBeOnTheScreen();
+    });
+
+    it('내 일정에서 연 작업 상세에서 내 일정 탭을 다시 누르면 내 일정으로 돌아간다', async () => {
+      await launch();
+      await findCurrentWork();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업전/ }),
+      );
+      await screen.findByRole('header', { name: '작업 상세' });
+
+      await userEvent.press(tab('내 일정'));
+
+      expect(
+        await screen.findByRole('header', { name: '내 일정' }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByRole('header', { name: '작업 상세' })).toBeNull();
+    });
+
     it('사진을 올리지 못하면 제출하지 않고 입력을 둔 채 알리며, 다시 내면 못 올린 사진만 올려 제출한다', async () => {
       const alert = spyAlert();
       const server = workServer().on(
