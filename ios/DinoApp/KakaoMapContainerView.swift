@@ -1,5 +1,6 @@
 import KakaoMapsSDK
 import UIKit
+import os
 
 /// 작업 위치 지도 (#67). 카카오맵 SDK v2(KakaoMapsSDK)로 좌표를 가운데에 둔 지도와 마커를 그린다.
 /// Fabric 컴포넌트 RCTKakaoMapView(ObjC++)가 감싸 쓴다 (JS 스펙 src/shared/native/KakaoMapViewNativeComponent.ts).
@@ -7,10 +8,12 @@ import UIKit
 /// - 움직이지 않는 표시용이라 제스처를 모두 끄고 터치도 받지 않는다 (스크롤·누르기는 RN 쪽이 받는다)
 /// - SDK 초기화는 처음 지도를 그릴 때 한다 (콜드 스타트에 넣지 않는다). 앱 키는 카카오 로그인과 같은 Info.plist KAKAO_APP_KEY
 /// - 생명주기는 자동이 아니다 (KakaoMapsSDK 주의사항): 창에 붙거나 앱이 활성일 때만 엔진을 켜고, 내려가면 resetEngine 으로 정리한다
+/// - SDK 는 인증 응답을 기다리지 않고 바탕·마커·로고부터 그린다. 인증이 성공해야 타일이 오므로, 지도 뷰가 붙고
+///   인증까지 성공한 뒤에만 준비됐다고 알린다 (#223). 그 전엔 JS 가 회색 자리로 덮어 둔다
 ///
 /// ObjC 헤더(DinoApp-Swift.h)에 SDK 타입이 드러나지 않게, 공개 면은 기본 타입과 블록만 쓴다.
 @objc public final class KakaoMapContainerView: UIView {
-  /// 지도와 마커를 다 그렸다
+  /// 지도와 마커를 다 그렸고 카카오 인증도 성공했다 (#223)
   @objc public var onReady: (() -> Void)?
   /// 지도를 그리지 못했다. 카카오 인증 오류 코드(401 등), 앱 키 없음 -2, 그 밖 -1
   @objc public var onError: ((Int) -> Void)?
@@ -63,6 +66,9 @@ private final class KakaoMapEngine: NSObject, MapControllerDelegate {
   private static let noAppKeyError = -2
   private static let unknownError = -1
   private static var sdkInitialized = false
+  /// Release 빌드에서도 Console.app(기기 로그)으로 인증 결과를 볼 수 있게 남긴다 (#223)
+  private static let log = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "DinoApp", category: "KakaoMap")
 
   private weak var host: KakaoMapContainerView?
   private let container = KMViewContainer()
@@ -75,6 +81,11 @@ private final class KakaoMapEngine: NSObject, MapControllerDelegate {
   private var observing = false
   private var failed = false
   private var destroyed = false
+  /// 지도 뷰를 붙이고 마커까지 찍었다
+  private var viewAdded = false
+  /// 카카오 인증이 성공했다 (KakaoMapsSDK 는 지도마다 인증을 요청하고 결과를 그 지도의 delegate 로 알린다)
+  private var authenticated = false
+  private var readySent = false
 
   func attach(to host: KakaoMapContainerView) {
     self.host = host
@@ -221,7 +232,8 @@ private final class KakaoMapEngine: NSObject, MapControllerDelegate {
       map.setGestureEnable(type: gesture, enable: false)
     }
     addMarker(on: map, at: center)
-    host?.emitReady()
+    viewAdded = true
+    emitReadyIfDone()
   }
 
   func addViewFailed(_ viewName: String, viewInfoName: String) {
@@ -232,9 +244,25 @@ private final class KakaoMapEngine: NSObject, MapControllerDelegate {
     kakaoMap?.viewRect = CGRect(origin: .zero, size: size)
   }
 
+  func authenticationSucceeded() {
+    Self.log.info("카카오맵 인증 성공")
+    authenticated = true
+    emitReadyIfDone()
+  }
+
   func authenticationFailed(_ errorCode: Int, desc: String) {
-    // 키·번들 ID 미등록(401·403)이나 네트워크 오류(499). 다시 시도하지 않고 회색 자리로 둔다 (무한 재시도 금지)
+    // 400·401·403·429 등 (SDK 는 이때 그리기를 멈춘다). 키·번들 ID 미등록, 카카오맵 사용 설정 꺼짐, 쿼터 초과.
+    // 다시 시도하지 않고 회색 자리로 둔다 (무한 재시도 금지. 네트워크 오류는 SDK 가 스스로 재시도한다)
+    Self.log.error(
+      "카카오맵 인증 실패 code=\(errorCode, privacy: .public) desc=\(desc, privacy: .public)")
     fail(errorCode)
+  }
+
+  /// 지도 뷰가 붙고 인증까지 성공해야 타일이 그려진다. 둘 다 끝났을 때 한 번만 알린다 (#223)
+  private func emitReadyIfDone() {
+    guard viewAdded, authenticated, !failed, !destroyed, !readySent else { return }
+    readySent = true
+    host?.emitReady()
   }
 
   private func fail(_ code: Int) {

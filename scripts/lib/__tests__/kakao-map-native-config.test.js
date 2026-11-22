@@ -90,6 +90,19 @@ describe('Android 지도 네이티브 뷰 연결 (#67)', () => {
     expect(container).toContain('emit("topMapError"');
   });
 
+  // #223 인증 오류(MapAuthException 401·403 등)는 Release 빌드에서도 logcat 으로 볼 수 있어야 원인(키 해시·패키지·사용 설정)을 가린다
+  it('지도 오류(코드·메시지)를 기기 로그(logcat)로 남긴다 (#223)', () => {
+    const container = code(read(CONTAINER));
+    const onMapError = mustMatch(
+      container,
+      /override fun onMapError\(error: Exception\) \{([\s\S]*?)\n {8}\}/,
+      'onMapError 본문',
+    )[1];
+
+    expect(container).toContain('import android.util.Log');
+    expect(onMapError).toMatch(/Log\.w\(TAG, [^\n]*\$code[^\n]*error\.message/);
+  });
+
   // 부르지 않으면 크래시가 날 수 있다 (카카오맵 SDK v2 개발 주의사항)
   it('화면 resume/pause 에 MapView.resume()/pause() 를 부르고, 뷰가 내려가면 finish() 한다', () => {
     const container = code(read(CONTAINER));
@@ -275,6 +288,57 @@ describe('iOS 지도 네이티브 뷰 연결 (#67)', () => {
     expect(swift.indexOf('guard !appKey.isEmpty')).toBeLessThan(
       swift.indexOf('SDKInitializer.InitSDK('),
     );
+  });
+
+  // #223 KakaoMapsSDK 는 인증 응답을 기다리지 않고 바탕·마커·kakao 로고부터 그린다 (prepareEngine 이 인증 요청과
+  // 엔진 시작을 함께 한다). addViewSucceeded 에서 바로 준비됐다고 알리면, 인증이 끝나지 않거나 토큰 없이 통과한
+  // 지도(타일 없음)가 회색 자리를 걷어 내고 그대로 보인다. 지도 뷰가 붙고 인증까지 성공한 뒤에만 알린다
+  it('지도 뷰가 붙고 카카오 인증이 성공한 뒤에만 onMapReady 를 보낸다 (#223)', () => {
+    const swift = code(read(IOS_MAP));
+    const body = name =>
+      mustMatch(
+        swift,
+        new RegExp(`func ${name}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`),
+        `${name} 본문`,
+      )[1];
+
+    // 준비 알림은 한 곳(두 조건을 모두 따지는 함수)에서만 보낸다
+    expect(swift.match(/host\?\.emitReady\(\)/g)).toHaveLength(1);
+    const gate = mustMatch(
+      swift,
+      /private func (\w+)\(\) \{\s*guard viewAdded, authenticated\b[^\n]*else \{ return \}[\s\S]*?host\?\.emitReady\(\)/,
+      '지도 뷰·인증을 모두 따지는 준비 알림 함수',
+    )[1];
+    expect(body('addViewSucceeded')).toMatch(
+      new RegExp(`viewAdded = true\\s*${gate}\\(\\)`),
+    );
+    expect(body('authenticationSucceeded')).toMatch(
+      new RegExp(`authenticated = true\\s*${gate}\\(\\)`),
+    );
+  });
+
+  // 인증 결과는 Release 빌드에서도 Console.app(기기 로그)으로 볼 수 있어야 원인(키·번들 ID·카카오맵 사용 설정)을 가린다
+  it('카카오 인증 성공·실패(코드·설명)를 기기 로그로 남긴다 (#223)', () => {
+    const swift = code(read(IOS_MAP));
+
+    expect(swift).toMatch(/import os\b/);
+    expect(swift).toMatch(/Logger\(\s*subsystem: [^)]*category: "KakaoMap"\)/);
+    expect(
+      mustMatch(
+        swift,
+        /func authenticationFailed\([^)]*\) \{([\s\S]*?)\n {2}\}/,
+        'authenticationFailed 본문',
+      )[1],
+    ).toMatch(
+      /log\.error\(\s*"[^\n]*errorCode, privacy: \.public[^\n]*desc, privacy: \.public/,
+    );
+    expect(
+      mustMatch(
+        swift,
+        /func authenticationSucceeded\(\) \{([\s\S]*?)\n {2}\}/,
+        'authenticationSucceeded 본문',
+      )[1],
+    ).toMatch(/log\.info\(/);
   });
 
   it('앱 시작(AppDelegate)에서 지도 SDK 를 켜지 않는다', () => {

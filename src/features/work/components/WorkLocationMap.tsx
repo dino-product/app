@@ -1,5 +1,11 @@
 import { memo, useCallback, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { colors } from '../../../shared/design-system';
 import KakaoMapView from '../../../shared/native/KakaoMapViewNativeComponent';
 import type { GeoPoint } from '../model';
@@ -17,6 +23,25 @@ const MAP_RADIUS = 10;
 type LoadState = 'loading' | 'ready' | 'failed';
 
 /**
+ * 개발 빌드 경고에 붙일 점검할 곳 (#223). 코드는 네이티브가 보낸 값: 앱 키 없음 -2, 그 밖 -1,
+ * 나머지는 카카오 인증 응답 (카카오맵 SDK v2 인증 오류 — 401 인증 오류, 403 권한 오류, 429 쿼터 초과)
+ */
+function mapErrorHint(code: number): string {
+  switch (code) {
+    case -2:
+      return '앱 키가 비었다 — iOS ios/Config/Secrets.xcconfig, Android ~/.gradle/gradle.properties 의 KAKAO_NATIVE_APP_KEY';
+    case 401:
+      return '인증 오류 — 카카오 디벨로퍼스 [앱] > [플랫폼 키] > [네이티브 앱 키] 의 iOS 번들 ID · Android 패키지·키 해시';
+    case 403:
+      return '권한 오류 — 카카오 디벨로퍼스 [앱] > [제품 설정] > [카카오맵] 사용 설정';
+    case 429:
+      return '쿼터 초과 — 카카오맵 API 사용량';
+    default:
+      return '네트워크·엔진 오류 — 기기 로그(iOS Console.app KakaoMap, Android logcat KakaoMap)';
+  }
+}
+
+/**
  * 작업 위치 카드의 지도. 서버 좌표를 가운데에 두고 마커를 찍은 카카오맵을 보여 준다 (움직이지 않는 표시용).
  * 누르면 카카오맵에서 그 위치를 연다 (onPress).
  * 좌표가 없으면 회색 자리만 두고, 불러오는 동안·실패하면 같은 크기의 회색 자리로 덮는다.
@@ -30,7 +55,20 @@ export const WorkLocationMap = memo(function LocationMap({
 }) {
   const [load, setLoad] = useState<LoadState>('loading');
   const onMapReady = useCallback(() => setLoad('ready'), []);
-  const onMapError = useCallback(() => setLoad('failed'), []);
+  const onMapError = useCallback(
+    (event: NativeSyntheticEvent<Readonly<{ code: number }>>) => {
+      if (__DEV__) {
+        const { code } = event.nativeEvent;
+        console.warn(
+          `[작업 위치 지도] 카카오맵을 그리지 못했다 (code ${code}): ${mapErrorHint(
+            code,
+          )}`,
+        );
+      }
+      setLoad('failed');
+    },
+    [],
+  );
 
   if (!location) {
     return (

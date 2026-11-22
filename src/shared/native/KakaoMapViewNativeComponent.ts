@@ -19,9 +19,12 @@ interface NativeProps extends ViewProps {
    */
   cornerRadius?: CodegenTypes.WithDefault<CodegenTypes.Float, 0>;
   cornerMaskColor?: ColorValue;
-  /** 지도와 마커를 다 그렸다 */
+  /**
+   * 지도와 마커를 다 그렸다. iOS 는 카카오 인증까지 성공한 뒤에 보낸다 — SDK 가 인증 전부터 바탕·마커·로고를 그려
+   * 인증이 안 되면 타일 없는 지도가 보이기 때문이다 (#223)
+   */
   onMapReady?: CodegenTypes.DirectEventHandler<Readonly<{}>>;
-  /** 지도를 그리지 못했다. code: 카카오 인증 오류 코드(401 등), 없으면 -1 */
+  /** 지도를 그리지 못했다. code: 카카오 인증 오류 코드(401·403·429 등), 앱 키 없음 -2, 그 밖 -1 */
   onMapError?: CodegenTypes.DirectEventHandler<
     Readonly<{ code: CodegenTypes.Int32 }>
   >;

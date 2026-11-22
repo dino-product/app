@@ -116,6 +116,42 @@ describe('WorkLocationMap', () => {
     ).toHaveStyle({ height: 202 });
   });
 
+  // #223 실기기에서 지도가 타일 없이 그려졌다. 원인이 앱 밖(키·콘솔 설정)이면 화면은 회색 자리로 두고,
+  // 개발 빌드에서는 오류 코드와 고칠 곳을 경고로 알린다 (Release 는 조용히 회색 자리)
+  describe('지도를 그리지 못하면 개발 빌드에서 오류 코드와 점검할 곳을 경고한다 (#223)', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it.each([
+      [-2, 'KAKAO_NATIVE_APP_KEY'],
+      [401, '플랫폼'],
+      [403, '[제품 설정] > [카카오맵]'],
+      [429, '쿼터'],
+      [-1, '네트워크'],
+    ])('code %d → %s', async (code, hint) => {
+      await renderMap();
+
+      await act(() => nativeMap().props.onMapError({ nativeEvent: { code } }));
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain(`code ${code}`);
+      expect(warn.mock.calls[0][0]).toContain(hint);
+    });
+
+    it('지도를 다 불러오면 경고하지 않는다', async () => {
+      await renderMap();
+
+      await act(() => nativeMap().props.onMapReady({ nativeEvent: {} }));
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
   // 지도는 움직이지 않는 표시용: 이동·확대·회전 제스처는 네이티브에서 끄고(설정 테스트 kakao-map-native-config),
   // 터치도 지도 뷰로 보내지 않아 지도 위에서 끌어도 화면이 세로로 스크롤되고 누르기는 바깥 Pressable 이 받는다
   it('지도 뷰는 터치를 받지 않는다', async () => {
