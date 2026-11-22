@@ -252,12 +252,11 @@ function WorkHistoryScreenView({
       testID="work-history-list-header"
       style={styles.header}
     >
-      {/* Figma 3753:4903: 이번 달 완료(Primary 강조)가 왼쪽, 누적 완료가 오른쪽 (#145). '이번 달 완료' 는 고른 달 기준이다 (기본안) */}
+      {/* Figma 51083:18504: 이번 달 완료가 왼쪽, 누적 완료가 오른쪽, 둘 다 흰 카드 (#220). '이번 달 완료' 는 고른 달 기준이다 (기본안) */}
       <View style={styles.summary}>
         <SummaryCard
           label="이번 달 완료"
           count={load.status === 'ready' ? monthWorks.length : null}
-          emphasis
           loading={loading}
         />
         <SummaryCard
