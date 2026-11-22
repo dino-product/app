@@ -7,11 +7,19 @@ import {
   scrollDownFromTop,
   scrollListTo,
 } from '../../../shared/testing/autoHideHeader';
+import { appStorage } from '../../../shared/storage/appStorage';
 import { makeScheduleMock } from '../mockData';
+import { SCHEDULE_VIEW_KEY } from '../scheduleView';
 import { ScheduleScreen } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15);
 const { confirmed, pending } = makeScheduleMock(today);
+
+// 고른 보기(주간·월간)는 기기에 남는다 (#222). 한 시나리오를 여러 번 재므로, 달력을 펼치는 시나리오는 매번 처음 설치한
+// 기기(주간)에서 시작한다. 그러지 않으면 앞 회에 펼친 월간으로 열려 '달력 펼치기' 가 없다
+const forgetCalendarView = () => {
+  appStorage.remove(SCHEDULE_VIEW_KEY);
+};
 
 // 폭을 재야 미끄러져 넘긴다 (재기 전에는 바로 넘긴다)
 const layoutTrack = (testID: string) =>
@@ -97,6 +105,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
@@ -181,6 +190,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             await fireEvent.press(
               screen.getByRole('button', { name: '달력 펼치기' }),
@@ -215,6 +225,7 @@ describe('ScheduleScreen 렌더 예산', () => {
       />,
       {
         // userEvent 는 Pressable 의 눌림 상태 렌더까지 세므로 onPress 만 부른다
+        beforeEach: forgetCalendarView,
         scenario: async () => {
           await fireEvent.press(
             screen.getByRole('button', { name: '달력 펼치기' }),
@@ -251,6 +262,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
@@ -294,6 +306,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
