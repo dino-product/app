@@ -38,9 +38,9 @@ import {
   PaymentMethodSelect,
   ReportField,
 } from '../components/ReportFields';
-import { ReportJumpAnchor } from '../components/ReportJumpAnchor';
 import { ResultModal } from '../components/ResultModal';
 import { haptic } from '../../../shared/haptics';
+import { JumpAnchor } from '../../../shared/layout/JumpAnchor';
 import {
   canSubmitReport,
   emptyReport,
@@ -342,9 +342,11 @@ export function WorkDetailScreen({
         </ScrollView>
 
         {/* 제출을 마친 작업·쓸 수 없는 작업은 작성할 보고가 없다 */}
-        <ReportJumpAnchor
+        <JumpAnchor
+          label="완료 보고 작성하기"
           visible={showJump && writable}
           onPress={jumpToReport}
+          testID="work-detail-jump"
         />
       </KeyboardAvoidingArea>
 

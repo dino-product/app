@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { colors, CTA, Icon, withOpacity } from '../../../shared/design-system';
-import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
-import { readableColumn } from '../../../shared/layout/readableColumn';
-import { anchorAnimation, fadeFollowing } from './reportAnchorMotion';
+import { colors, CTA, Icon, withOpacity } from '../design-system';
+import { useReduceMotion } from '../accessibility/useReduceMotion';
+import { anchorAnimation, fadeFollowing } from './jumpAnchorMotion';
+import { readableColumn } from './readableColumn';
 
-// '완료 보고 작성하기' 떠 있는 버튼(앵커)과 그 뒤 그라데이션 (#95). 보이고 숨을 때 카툰처럼 움직인다 (#149, reportAnchorMotion).
+// 아래쪽에 떠 있는 바로가기 버튼(앵커)과 그 뒤 그라데이션. 누르면 쓰는 화면이 그 자리로 스크롤한다.
+// 작업 상세 '완료 보고 작성하기'(#95) 로 처음 만들었고, 가입 약관 상세 '약관 동의하기'(#218) 가 같은 모양으로 쓴다.
+// 보이고 숨을 때 카툰처럼 움직인다 (#149, jumpAnchorMotion).
 // 숨는 애니메이션 동안에도 그려야 해서 visible 과 따로 mounted 를 둔다. 숨기 시작하면 바로 누를 수 없고 스크린리더에서도 숨는다.
 // 처음 그릴 때는 애니메이션 없이 제자리다. 동작 줄이기면 애니메이션 없이 바로 보이고 숨는다.
 // 그라데이션은 버튼과 함께 내려가고 올라오지만 제자리보다 위로는 가지 않는다 (아래 끝이 들려 틈이 보이지 않게)
-export function ReportJumpAnchor({
+export function JumpAnchor({
+  label,
+  accessibilityLabel,
   visible,
   onPress,
+  testID,
 }: {
+  /** 버튼 글자 */
+  label: string;
+  /** 스크린리더 이름 (없으면 label) */
+  accessibilityLabel?: string;
   visible: boolean;
   onPress: () => void;
+  /** 버튼 묶음의 testID. 그라데이션은 `${testID}-fade` */
+  testID: string;
 }) {
   const reduceMotion = useReduceMotion();
   const [mounted, setMounted] = useState(visible);
@@ -80,7 +91,7 @@ export function ReportJumpAnchor({
             transform: [{ translateY: fadeOffset }],
           },
         ]}
-        testID="work-detail-jump-fade"
+        testID={`${testID}-fade`}
       />
       {/* 버튼 양옆 여백까지 덮으므로 그 터치는 아래 스크롤 뷰로 넘긴다. 숨는 중에는 누를 수 없고 스크린리더에서도 숨는다 */}
       <Animated.View
@@ -92,14 +103,15 @@ export function ReportJumpAnchor({
           styles.jump,
           { transform: [{ translateY: offset }] },
         ]}
-        testID="work-detail-jump"
+        testID={testID}
       >
         <CTA
           variant="brand"
           icon={
             <Icon name="chevrons-down" size={20} color={colors.white[100]} />
           }
-          label="완료 보고 작성하기"
+          label={label}
+          accessibilityLabel={accessibilityLabel}
           onPress={onPress}
         />
       </Animated.View>
@@ -107,7 +119,7 @@ export function ReportJumpAnchor({
   );
 }
 
-// '완료 보고 작성하기' 뒤 그라데이션. Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417):
+// 버튼 뒤 그라데이션. Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417):
 // 393×320, 프레임 위 532 에서 아래 끝(852)까지, 채움 #F0F0F0 (변수 없음) 투명 0% → 불투명 54.3%, 위→아래.
 // 변환 행렬(위치 = 1.065 × 높이 비율 − 0.065)로 레이어 높이의 6.1% 까지 투명, 57.1% 부터 불투명이다.
 // 앱 화면은 탭 바(Figma 102) 위에서 끝나므로 그 위로 보이는 218 만 그리고, 정지점은 레이어 위에서 잰 거리로 옮긴다

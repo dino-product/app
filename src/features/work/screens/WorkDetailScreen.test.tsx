@@ -20,7 +20,7 @@ import { workDetail } from '../mockData';
 import {
   ANCHOR_ANTICIPATION,
   ANCHOR_OVERSHOOT,
-} from '../components/reportAnchorMotion';
+} from '../../../shared/layout/jumpAnchorMotion';
 import type { WorkDetail } from '../model';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -767,7 +767,7 @@ describe('WorkDetailScreen', () => {
       });
     });
 
-    // #149 카툰 등장·퇴장. 값은 버튼이 제자리에서 아래로 내려간 거리 (reportAnchorMotion)
+    // #149 카툰 등장·퇴장. 값은 버튼이 제자리에서 아래로 내려간 거리 (jumpAnchorMotion)
     describe('등장·퇴장 애니메이션', () => {
       const HIDDEN = 218;
       const targets = (timing: jest.SpyInstance) =>

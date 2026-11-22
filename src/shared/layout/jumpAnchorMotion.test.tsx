@@ -6,13 +6,13 @@ import {
   anchorAnimation,
   anchorKeyframes,
   fadeFollowing,
-} from './reportAnchorMotion';
+} from './jumpAnchorMotion';
 
 const HIDDEN = 218;
 const targets = (visible: boolean, interrupted?: boolean) =>
   anchorKeyframes(visible, HIDDEN, interrupted).map(frame => frame.toValue);
 
-// #149 '완료 보고 작성하기' 앵커의 카툰 등장·퇴장. 값은 제자리에서 아래로 내려간 거리(음수는 위로 넘침)
+// #149 바로가기 버튼(JumpAnchor) 의 카툰 등장·퇴장. 값은 제자리에서 아래로 내려간 거리(음수는 위로 넘침)
 describe('anchorKeyframes', () => {
   it('나타날 때는 제자리보다 위로 살짝 넘쳤다가 제자리로 내려앉는다', () => {
     expect(ANCHOR_OVERSHOOT).toBeGreaterThan(0);
