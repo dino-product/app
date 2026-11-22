@@ -133,6 +133,8 @@ export function PushNotifications({
       }
       if (route.name === 'RequestDetail') {
         navigation.navigate('RequestDetail', route.params);
+      } else if (route.name === 'OrgJoinRejected') {
+        navigation.navigate('OrgJoinRejected', route.params);
       } else {
         navigation.navigate('Main', route.params);
       }

@@ -503,7 +503,6 @@ export function JoinPendingRoute({
   return (
     <ParticipationRequestGate
       requestId={requestId}
-      flow="onboarding"
       title="승인 대기"
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
@@ -540,7 +539,6 @@ export function JoinApprovedRoute({
     <ParticipationRequestGate
       requestId={route.params.requestId}
       status="APPROVED"
-      flow="onboarding"
       title="참여 완료"
       titleRef={titleRef}
       onBack={() => navigation.goBack()}
@@ -570,7 +568,6 @@ export function JoinRejectedRoute({
     <ParticipationRequestGate
       requestId={route.params.requestId}
       status="REJECTED"
-      flow="onboarding"
       title="참여 요청 결과"
       titleRef={titleRef}
       onBack={() => navigation.goBack()}

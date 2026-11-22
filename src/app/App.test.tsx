@@ -378,7 +378,8 @@ describe('App', () => {
       expect(tab('홈')).toBeSelected();
     });
 
-    it('참여 거절 알림을 누르면 마이 탭의 거절 화면을 연다', async () => {
+    // 회사 참여 흐름 화면은 탭 바 없이 연다 (#219). 거절 화면은 탭 위 루트 스택이라 탭을 옮기지 않고, 확인하면 홈의 알림센터다
+    it('참여 거절 알림을 누르면 탭 바 없이 거절 화면을 열고, 확인하면 홈 알림센터로 돌아온다', async () => {
       await renderSignedInHome();
 
       await userEvent.press(screen.getByRole('button', { name: '알림센터' }));
@@ -391,7 +392,11 @@ describe('App', () => {
       expect(
         await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
       ).toBeOnTheScreen();
-      expect(tab('마이')).toBeSelected();
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(screen.getByRole('button', { name: '확인' }));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(tab('홈')).toBeSelected();
     });
   });
 

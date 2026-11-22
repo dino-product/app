@@ -497,20 +497,8 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
               {
                 name: 'my',
                 state: {
-                  index: 2,
-                  routes: [
-                    { name: 'MyPage' },
-                    { name: 'OrgJoin' },
-                    {
-                      name: 'OrgRoleSelect',
-                      params: {
-                        organizationId: '9',
-                        organizationName: 'Orbit',
-                        companyCode: 'RBT124',
-                        requestChannel: 'COMPANY_CODE',
-                      },
-                    },
-                  ],
+                  index: 1,
+                  routes: [{ name: 'MyPage' }, { name: 'OrgJoinRequests' }],
                 },
               },
             ],
@@ -522,7 +510,46 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     await launch();
 
     expect(tab('마이')).toBeSelected();
+    expect(header('참여 신청 현황')).toBeOnTheScreen();
+  });
+
+  // 회사 참여 흐름은 하단 탭 바 없이 메인 위 루트 스택에 쌓는다 (#219)
+  it('회사 찾기·역할 선택을 연 채 종료했으면 탭 바 없이 역할 선택으로 열고, 뒤로 가면 회사 찾기다', async () => {
+    seedNavigation({
+      index: 2,
+      routes: [
+        {
+          name: 'Main',
+          state: {
+            index: 3,
+            routes: [
+              { name: 'home' },
+              { name: 'schedule' },
+              { name: 'history' },
+              { name: 'my' },
+            ],
+          },
+        },
+        { name: 'OrgJoin' },
+        {
+          name: 'OrgRoleSelect',
+          params: {
+            organizationId: '9',
+            organizationName: 'Orbit',
+            companyCode: 'RBT124',
+            requestChannel: 'COMPANY_CODE',
+          },
+        },
+      ],
+    });
+
+    await launch();
+
     expect(header('역할을 선택해주세요')).toBeOnTheScreen();
+    expect(tabBar()).not.toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(header('회사 찾기')).toBeOnTheScreen();
+    expect(tabBar()).not.toBeOnTheScreen();
   });
 
   it('복원한 거절 사유의 요청이 없으면(이미 처리됨) 이전 화면으로 돌아가고 고르던 사유도 지운다', async () => {

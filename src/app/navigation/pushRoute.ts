@@ -12,7 +12,8 @@ import type { MainTabParamList } from './types';
 // 문자열로 준다. organizationId 는 담지 않는다(#112 G8): 작업 상세는 발주사 없이 열고, 상세가 활성 기사 소속으로 정한다(#114).
 // 작업 알림은 상세를 먼저 받아(notificationWorkScreen, 알림센터와 같은 규칙) 수락 대기면 요청 상세로 연다.
 // 알림 종류는 알림센터(#117)의 NotificationType 을 같이 쓰고, 앱이 모르는 종류는 버린다(이을 수 없어 알림센터를 연다).
-// 탭 안 화면은 initial: false 로 열어 뒤로 가면 그 탭의 첫 화면(내 작업·마이페이지)이다
+// 탭 안 화면은 initial: false 로 열어 뒤로 가면 그 탭의 첫 화면(내 작업·마이페이지)이다.
+// 참여 거절 화면은 탭 바 없이 메인 위 루트 스택에 연다 (#219)
 
 /** FCM data 에서 앱이 쓰는 값 */
 export type PushData = {
@@ -60,7 +61,8 @@ export function pushWorkIdOf({ type, workId }: PushData): string | undefined {
 /** 루트에서 열 화면 (navigate(name, params)) */
 export type PushRoute =
   | { name: 'Main'; params: NavigatorScreenParams<MainTabParamList> }
-  | { name: 'RequestDetail'; params: { id: string } };
+  | { name: 'RequestDetail'; params: { id: string } }
+  | { name: 'OrgJoinRejected'; params: { requestId: string } };
 
 const inMain = (
   params: NavigatorScreenParams<MainTabParamList>,
@@ -90,14 +92,10 @@ export function pushRouteOf(
     type === 'PARTICIPATION_REQUEST_REJECTED' &&
     participationRequestId !== undefined
   ) {
-    return inMain({
-      screen: 'my',
-      params: {
-        screen: 'OrgJoinRejected',
-        params: { requestId: participationRequestId },
-        initial: false,
-      },
-    });
+    return {
+      name: 'OrgJoinRejected',
+      params: { requestId: participationRequestId },
+    };
   }
   if (type === 'PARTICIPATION_REQUEST_APPROVED') {
     return inMain({

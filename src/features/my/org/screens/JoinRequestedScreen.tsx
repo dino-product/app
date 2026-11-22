@@ -10,10 +10,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
+import {
+  STANDALONE_SCREEN_EDGES,
+  standaloneScreen,
+} from '../../../../shared/layout/standaloneScreen';
 import { MembershipChip } from '../../components/MembershipChip';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestModal } from '../components/CancelRequestModal';
-import { flowLayouts } from '../components/flowLayouts';
 import { InfoNotice } from '../components/InfoNotice';
 import { SummaryCard, type SummaryRow } from '../components/SummaryCard';
 import {
@@ -172,8 +175,8 @@ export function JoinRequestedScreen({
 
   return (
     <SafeAreaView
-      edges={flowLayouts[flow].edges}
-      style={flowLayouts[flow].screen}
+      edges={STANDALONE_SCREEN_EDGES}
+      style={standaloneScreen.screen}
     >
       <SubScreenHeader
         title={joinRequestedTitle(flow, stage)}
@@ -230,7 +233,7 @@ export function JoinRequestedScreen({
           <InfoNotice message="이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다." />
         </View>
       )}
-      <View style={[readableColumn, styles.actions, flowLayouts[flow].actions]}>
+      <View style={[readableColumn, standaloneScreen.actions, styles.actions]}>
         <CTA
           variant="outline"
           label="신청 취소"

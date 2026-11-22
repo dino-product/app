@@ -26,8 +26,11 @@ import {
 } from '../../../../shared/native/cameraPermission';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
+import {
+  STANDALONE_SCREEN_EDGES,
+  standaloneScreen,
+} from '../../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
-import { flowLayouts } from '../components/flowLayouts';
 import { NoticeModal } from '../components/NoticeModal';
 import {
   isCompanyCodeComplete,
@@ -179,8 +182,8 @@ export function OrgJoinScreen({
 
   return (
     <SafeAreaView
-      edges={flowLayouts[flow].edges}
-      style={flowLayouts[flow].screen}
+      edges={STANDALONE_SCREEN_EDGES}
+      style={standaloneScreen.screen}
     >
       {/* 마이에서는 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
       <SubScreenHeader

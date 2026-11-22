@@ -18,7 +18,7 @@ type CompanyFindParams = { qrCode?: string } | undefined;
 type JoinRequestParams = { requestId: string; requestChannel?: RequestChannel };
 
 // 루트 스택은 로그인 상태에 따라 화면 묶음을 바꾼다 (#85, #113, React Navigation 인증 흐름).
-// 로그아웃: 로그인 / 가입 단계: 온보딩 / 가입 완료: 메인과 탭 바가 없는 화면(요청 상세·거절 사유)
+// 로그아웃: 로그인 / 가입 단계: 온보딩 / 가입 완료: 메인과 탭 바가 없는 화면(요청 상세·거절 사유·회사 참여 흐름)
 export type RootStackParamList = {
   Login: undefined;
   /** 가입 단계. 열 화면은 서버 프로필의 nextStep 으로 정한다 (약관 동의면 그 아래에 프로필 등록) */
@@ -26,8 +26,17 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   RequestDetail: { id: string };
   RejectReason: { id: string };
-  /** 마이 › 조직 참여 › QR 코드 인식 (#108). 전체 화면 카메라라 하단 탭 없이 루트에 둔다 */
+  // 마이 › 조직 참여 (#73). 회사 참여 흐름은 Figma 대로 하단 탭 바 없이 메인 위에 쌓는다 (#219).
+  // 신청 현황(OrgJoinRequests)은 Figma 에 탭 바가 있어 마이 탭 안에 둔다
+  OrgJoin: CompanyFindParams;
+  /** 마이 › 조직 참여 › QR 코드 인식 (#108). 전체 화면 카메라다 */
   OrgQrScan: undefined;
+  /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
+  OrgRoleSelect: JoinTarget;
+  OrgJoinRequested: JoinRequestParams;
+  OrgJoinRejected: { requestId: string };
+  /** 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199) */
+  OrgJoinReview: { requestId: string };
 };
 
 // 온보딩 (#85). 하단 탭이 없는 가입 흐름이라 루트 스택에 따로 둔다
@@ -87,20 +96,13 @@ export type MyStackParamList = {
   Account: undefined;
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;
-  // 조직 참여 (#73)
-  OrgJoin: CompanyFindParams;
-  /** 참여를 요청할 회사 (회사 코드·찾은 방법) */
-  OrgRoleSelect: JoinTarget;
-  OrgJoinRequested: JoinRequestParams;
-  OrgJoinRejected: { requestId: string };
+  /** 조직 참여 신청 현황 (#73). 회사 참여 흐름의 다른 화면은 루트 스택에 있다 (#219) */
   OrgJoinRequests: undefined;
-  /** 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199) */
-  OrgJoinReview: { requestId: string };
 };
 
 export const MY_INITIAL_ROUTE = 'MyPage' satisfies keyof MyStackParamList;
 
-/** 루트 스택 내비게이터 id. 하위 화면이 navigation.getParent(ROOT_NAVIGATOR_ID) 로 루트 스택의 자기 자리를 찾는다 (#195) */
+/** 루트 스택 내비게이터 id. 하위 화면이 navigation.getParent(ROOT_NAVIGATOR_ID) 로 루트 스택을 찾을 때 쓴다 */
 export const ROOT_NAVIGATOR_ID = 'root';
 
 export type RootScreenProps<T extends keyof RootStackParamList> =

@@ -593,6 +593,24 @@ describe('JoinRequestedScreen', () => {
         // 콘텐츠 폭 345 보다 6 넓은 351 을 세 칸으로 나눈다
         expect(row.parent).toHaveStyle({ marginHorizontal: -3 });
       });
+
+      // 하단 탭 바 없이 연다 (#219). 아래 버튼 줄은 Figma 하단 바(3235:14892 · 3227:8830, 높이 102)대로
+      // 버튼 위 14, 좌우 24, 버튼 사이 10, 버튼 아래 32 (홈 인디케이터. 안전 영역이 더 크면 그만큼)
+      it('아래 버튼 줄은 탭 바 없는 Figma 하단 바(버튼 위 14, 아래 32)다', async () => {
+        await renderFlow();
+
+        expect(screen.getByRole('button', { name: '확인' }).parent).toHaveStyle(
+          {
+            paddingTop: 14,
+            paddingHorizontal: 24,
+            gap: 10,
+          },
+        );
+        expect(screen.root?.props.edges).toEqual(
+          expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+        );
+        expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+      });
     },
   );
 

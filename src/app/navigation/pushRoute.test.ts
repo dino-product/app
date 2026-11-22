@@ -98,23 +98,15 @@ describe('pushRouteOf', () => {
     ).toEqual({ name: 'RequestDetail', params: { id: '10' } });
   });
 
-  it('참여 거절 → 마이 탭의 그 요청 거절 화면', () => {
+  // 회사 참여 흐름 화면은 탭 바 없이 연다 (#219). 거절 화면은 탭 위 루트 스택에 있다
+  it('참여 거절 → 탭 위 루트 스택의 그 요청 거절 화면', () => {
     expect(
       pushRouteOf({
         notificationId: '32',
         type: 'PARTICIPATION_REQUEST_REJECTED',
         participationRequestId: '3',
       }),
-    ).toEqual(
-      main({
-        screen: 'my',
-        params: {
-          screen: 'OrgJoinRejected',
-          params: { requestId: '3' },
-          initial: false,
-        },
-      }),
-    );
+    ).toEqual({ name: 'OrgJoinRejected', params: { requestId: '3' } });
   });
 
   it('참여 승인 → 마이 탭의 신청 현황', () => {

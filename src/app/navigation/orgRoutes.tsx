@@ -9,9 +9,7 @@ import {
 import type { TextInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SubScreenHeader } from '../../features/my/components/SubScreenHeader';
-import { flowLayouts } from '../../features/my/org/components/flowLayouts';
 import type {
-  JoinFlow,
   ParticipationRequest,
   ParticipationStatus,
 } from '../../features/my/org/model';
@@ -27,17 +25,32 @@ import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
 import { LoadStateView } from '../../shared/layout/LoadStateView';
 import { readableColumn } from '../../shared/layout/readableColumn';
+import {
+  STANDALONE_SCREEN_EDGES,
+  standaloneScreen,
+} from '../../shared/layout/standaloneScreen';
 import { useFocusTitleOnOpen } from './routes';
 import {
   MY_INITIAL_ROUTE,
-  ROOT_NAVIGATOR_ID,
   type MyScreenProps,
-  type MyStackParamList,
   type RootScreenProps,
+  type RootStackParamList,
 } from './types';
 
 // 마이 › 조직 참여 화면들 (#73). 서버 상태(회사 확인·참여 요청·취소·신청 현황, #116)는 화면이 participationQueries 로
-// 읽고 보내며, 여기서는 화면 사이 이동을 잇는다
+// 읽고 보내며, 여기서는 화면 사이 이동을 잇는다.
+// 회사 참여 흐름(회사 찾기·QR·역할 선택·요청 완료·승인 대기·거절)은 Figma 대로 하단 탭 바 없이 메인 위 루트 스택에 쌓는다 (#219).
+// 신청 현황은 Figma 에 탭 바가 있어 마이 탭 스택에 있다
+
+/** 마이 탭의 마이페이지로 돌아간다. 메인 위에 쌓인 회사 참여 화면과 마이 탭에 쌓인 화면(신청 현황 등)을 모두 뺀다 */
+function popToMyPage(navigation: {
+  popTo: RootScreenProps<'OrgJoin'>['navigation']['popTo'];
+}) {
+  navigation.popTo('Main', {
+    screen: 'my',
+    params: { screen: MY_INITIAL_ROUTE, pop: true },
+  });
+}
 
 /**
  * 신청 현황에서 찾은 참여 요청 하나로 화면을 그린다 (요청 완료·거절·참여 완료).
@@ -49,7 +62,6 @@ import {
 export function ParticipationRequestGate({
   requestId,
   status,
-  flow = 'my',
   title,
   onBack,
   onMissing,
@@ -59,7 +71,6 @@ export function ParticipationRequestGate({
   requestId: string;
   /** 이 상태의 요청만 그린다 (거절 화면은 REJECTED). 없으면 상태를 보지 않는다 */
   status?: ParticipationStatus;
-  flow?: JoinFlow;
   /** 받는 동안·받지 못했을 때의 머리 제목 (그릴 화면의 제목) */
   title: string;
   onBack: () => void;
@@ -90,8 +101,8 @@ export function ParticipationRequestGate({
   }
   return (
     <SafeAreaView
-      edges={flowLayouts[flow].edges}
-      style={flowLayouts[flow].screen}
+      edges={STANDALONE_SCREEN_EDGES}
+      style={standaloneScreen.screen}
     >
       <SubScreenHeader title={title} onBack={onBack} titleRef={titleRef} />
       <LoadStateView
@@ -111,14 +122,15 @@ export function ParticipationRequestGate({
   );
 }
 
-export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
+export function OrgJoinRoute({
+  navigation,
+  route,
+}: RootScreenProps<'OrgJoin'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
   const scannedCode = useScannedCode(navigation, route.params?.qrCode);
-  // QR 코드 인식은 루트 스택 화면이라, 닫히면 루트 스택에서 메인(하단 탭)이 다시 보인다
-  const waitForReturn = useAwaitReturnTransition(
-    navigation.getParent<TransitionSource>(ROOT_NAVIGATOR_ID),
-  );
+  // QR 코드 인식과 회사 찾기는 같은 루트 스택 화면이라, 카메라가 닫히면 이 화면이 다시 보인다
+  const waitForReturn = useAwaitReturnTransition(navigation);
 
   return (
     <OrgJoinScreen
@@ -132,7 +144,7 @@ export function OrgJoinRoute({ navigation, route }: MyScreenProps<'OrgJoin'>) {
           navigation.navigate('OrgRoleSelect', target);
         }
       }}
-      // 카메라 권한을 받았다. 전체 화면 카메라라 하단 탭이 없는 루트 화면으로 연다
+      // 카메라 권한을 받았다. 전체 화면 카메라를 이 화면 위에 연다
       onScanQr={() => navigation.navigate('OrgQrScan')}
       onBack={() => navigation.goBack()}
     />
@@ -200,7 +212,7 @@ export function useAwaitReturnTransition(source: TransitionSource | undefined) {
   );
 }
 
-// QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고(스택에서 빼고) 마이 탭의 회사 찾기로 돌아가 그 코드를 넘긴다 (#195).
+// QR 코드 인식 (#108). 회사 코드를 읽으면 카메라를 닫고(스택에서 빼고) 회사 찾기로 돌아가 그 코드를 넘긴다 (#195).
 // 회사 확인과 결과(역할 선택·안내 모달)는 회사 찾기가 앱 화면 위에 보인다. 역할 선택에서 뒤로 가면 카메라가 아니라 회사 찾기로 간다
 export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
@@ -210,38 +222,31 @@ export function OrgQrScanRoute({ navigation }: RootScreenProps<'OrgQrScan'>) {
     <QrScanScreen
       focused={focused}
       titleRef={titleRef}
-      onScanned={qrCode =>
-        navigation.popTo('Main', {
-          screen: 'my',
-          params: { screen: 'OrgJoin', params: { qrCode } },
-        })
-      }
+      onScanned={qrCode => navigation.popTo('OrgJoin', { qrCode })}
       onClose={() => navigation.goBack()}
     />
   );
 }
 
-// 요청을 보냈으면 회사 찾기·역할 선택을 스택에서 빼고 다음 화면을 올린다.
-// 뒤로 가기·스와이프로 같은 요청을 다시 보내는 화면에 돌아가지 않게 한다. 같은 화면이 스택에 있으면 그것을 맨 위로 옮긴다
+// 요청을 보냈으면 회사 찾기·역할 선택을 스택에서 빼고 요청 완료를 올린다.
+// 뒤로 가기·스와이프로 같은 요청을 다시 보내는 화면에 돌아가지 않게 한다
 const JOIN_FLOW: ReadonlySet<string> = new Set(['OrgJoin', 'OrgRoleSelect']);
 
 function replaceJoinFlow(
-  navigation: MyScreenProps<'OrgRoleSelect'>['navigation'],
+  navigation: RootScreenProps<'OrgRoleSelect'>['navigation'],
   next: {
     key: string;
-    name: 'OrgJoinRequested' | 'OrgJoinRequests';
-    params?: MyStackParamList['OrgJoinRequested'];
+    name: 'OrgJoinRequested';
+    params: RootStackParamList['OrgJoinRequested'];
   },
 ) {
   navigation.dispatch(state => {
-    const existing = state.routes.find(item => item.name === next.name);
     const routes = state.routes.filter(
       item => !JOIN_FLOW.has(item.name) && item.name !== next.name,
     );
-    const top = existing && next.name === 'OrgJoinRequests' ? existing : next;
     return CommonActions.reset({
       ...state,
-      routes: [...routes, top],
+      routes: [...routes, next],
       index: routes.length,
     });
   });
@@ -250,7 +255,7 @@ function replaceJoinFlow(
 export function RoleSelectRoute({
   navigation,
   route,
-}: MyScreenProps<'OrgRoleSelect'>) {
+}: RootScreenProps<'OrgRoleSelect'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const screenFocused = useIsFocused();
 
@@ -271,12 +276,13 @@ export function RoleSelectRoute({
         })
       }
       // 이미 참여 중인 회사는 마이페이지의 소속 목록에 있다
-      onAlreadyMember={() => navigation.popTo(MY_INITIAL_ROUTE)}
-      // 승인 대기 요청이 있는 회사는 신청 현황에서 그 요청을 보고 취소할 수 있다
+      onAlreadyMember={() => popToMyPage(navigation)}
+      // 승인 대기 요청이 있는 회사는 신청 현황(마이 탭)에서 그 요청을 보고 취소할 수 있다.
+      // 회사 찾기·역할 선택을 빼고, 마이 탭에 신청 현황이 있으면 그것으로 돌아간다
       onPendingExists={() =>
-        replaceJoinFlow(navigation, {
-          key: 'OrgJoinRequests-pending',
-          name: 'OrgJoinRequests',
+        navigation.popTo('Main', {
+          screen: 'my',
+          params: { screen: 'OrgJoinRequests', pop: true },
         })
       }
     />
@@ -285,7 +291,7 @@ export function RoleSelectRoute({
 
 // 없는 요청(이미 처리됐거나 서버에서 사라짐)으로 열렸으면 빈 화면 대신 이전 화면으로 돌아간다
 function useLeaveRequest(
-  navigation: MyScreenProps<
+  navigation: RootScreenProps<
     'OrgJoinRequested' | 'OrgJoinRejected'
   >['navigation'],
 ) {
@@ -293,7 +299,7 @@ function useLeaveRequest(
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate(MY_INITIAL_ROUTE);
+      popToMyPage(navigation);
     }
   }, [navigation]);
 }
@@ -301,12 +307,12 @@ function useLeaveRequest(
 export function JoinRequestedRoute({
   navigation,
   route,
-}: MyScreenProps<'OrgJoinRequested'>) {
+}: RootScreenProps<'OrgJoinRequested'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const leave = useLeaveRequest(navigation);
   const { requestId, requestChannel } = route.params;
   // 확인·취소 모두 조직 참여 화면들을 빼고 마이페이지로 돌아간다. 이미 처리된 요청이면 마이페이지 배지가 새 목록이다
-  const backToMyPage = () => navigation.popTo(MY_INITIAL_ROUTE);
+  const backToMyPage = () => popToMyPage(navigation);
 
   return (
     <ParticipationRequestGate
@@ -333,15 +339,15 @@ export function JoinRequestedRoute({
 
 // 마이페이지 소속 카드의 검토 줄에서 연 승인 대기 요청의 진행 상황 (#199). 요청 완료 화면에 맥락 제목·사무실 검토 중 진행·상태 칩을 더한다.
 // 그사이 사무실이 결정했으면(승인 대기가 아님) 빈 화면 대신 마이페이지로 돌아간다. 참여 완료 화면은 참여 승인 알림으로만 연다.
-// 떠날 때는 이 화면만 마이 스택에서 뺀다 (한 번만):
-// - 신청을 취소하면 게이트의 '없는 요청'(onMissing)과 취소 결과(onCanceled)가 함께 온다. 뒤로 가기(goBack)는 스택에
-//   마이페이지만 남은 뒤 다시 불리면 탭 내비게이터가 받아 홈 탭으로 간다
+// 떠날 때는 이 화면만 루트 스택에서 뺀다 (한 번만). 아래는 이 화면을 연 마이페이지(메인)다:
+// - 신청을 취소하면 게이트의 '없는 요청'(onMissing)과 취소 결과(onCanceled)가 함께 온다. 뒤로 가기(goBack)는 두 번
+//   불리면 메인까지 빼려 한다
 // - 이 화면 위에 다른 화면이 쌓인 채 결정이 나면(알림으로 연 같은 요청의 거절 화면 등, 리뷰 #210) 아래의 이 화면이 떠난다.
-//   popTo(마이페이지)는 위의 화면까지 지운다
+//   popTo(메인)는 위의 화면까지 지운다
 export function JoinReviewRoute({
   navigation,
   route,
-}: MyScreenProps<'OrgJoinReview'>) {
+}: RootScreenProps<'OrgJoinReview'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const left = useRef(false);
   const backToMyPage = useCallback(() => {
@@ -352,10 +358,7 @@ export function JoinReviewRoute({
     navigation.dispatch(state => {
       const routes = state.routes.filter(item => item.key !== route.key);
       if (routes.length === 0) {
-        return CommonActions.reset({
-          index: 0,
-          routes: [{ name: MY_INITIAL_ROUTE }],
-        });
+        return CommonActions.reset({ index: 0, routes: [{ name: 'Main' }] });
       }
       return CommonActions.reset({
         ...state,
@@ -392,7 +395,7 @@ export function JoinReviewRoute({
 export function JoinRejectedRoute({
   navigation,
   route,
-}: MyScreenProps<'OrgJoinRejected'>) {
+}: RootScreenProps<'OrgJoinRejected'>) {
   const titleRef = useFocusTitleOnOpen(navigation);
   const leave = useLeaveRequest(navigation);
 

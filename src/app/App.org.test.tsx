@@ -38,6 +38,8 @@ import { fixAppTestClock, renderSignedInApp } from './testing';
 const header = (name: string) => screen.queryByRole('header', { name });
 const tab = (name: string) => screen.getByRole('tab', { name });
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
+// 하단 탭 바. 회사 참여 흐름 화면은 탭 바 없이 연다 (#219). 가려진 화면의 요소는 접근성 트리에 없다
+const tabBar = () => screen.queryByRole('tab', { name: '마이' });
 
 // 바텀시트 애니메이션(프리셋의 네이티브 애니메이션 목)은 테스트가 끝낸다
 let runningAnimations: Array<(result: { finished: boolean }) => void> = [];
@@ -103,10 +105,11 @@ describe('App — 조직 참여', () => {
       ).toBeOnTheScreen();
       expect(screen.getByLabelText('회사, 그린 테크')).toBeOnTheScreen();
       expect(screen.getByLabelText('상태, 검토')).toBeOnTheScreen();
-      expect(tab('마이')).toBeSelected();
+      expect(tabBar()).toBeNull();
 
       await userEvent.press(button('뒤로 가기'));
       expect(header('마이페이지')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
     });
 
     it('승인된 소속 줄은 눌러도 마이페이지에 머문다', async () => {
@@ -150,56 +153,7 @@ describe('App — 조직 참여', () => {
       expect(screen.queryByLabelText('그린 테크, 기사, 검토')).toBeNull();
     });
 
-    // 리뷰(#210) 재현: 검토 화면을 연 채 사무실이 거절하고, 홈의 알림센터에서 거절 알림을 누르면 마이 스택은
-    // [마이페이지, 검토 화면, 거절 화면] 이다. 아래 검토 화면이 '승인 대기 아님' 으로 떠날 때 위의 거절 화면까지 지우면 안 된다
-    it('검토 화면을 연 채 거절 알림으로 연 거절 화면은 아래 검토 화면이 떠나도 남는다', async () => {
-      const app = await renderSignedInApp({
-        requests: EXISTING_REQUESTS.map(item =>
-          item.requestId === 3
-            ? {
-                ...item,
-                status: 'PENDING',
-                rejectReason: null,
-                decidedAt: null,
-              }
-            : item,
-        ),
-      });
-      await userEvent.press(tab('마이'));
-      await userEvent.press(
-        await screen.findByRole('button', {
-          name: '스마트 홈케어, 직원, 검토',
-        }),
-      );
-      expect(header('승인 대기')).toBeOnTheScreen();
-      participationOf(app.server).decide(
-        { status: 'REJECTED', rejectReason: '이번 달 채용이 마감되었습니다' },
-        3,
-      );
-
-      await userEvent.press(tab('홈'));
-      await userEvent.press(
-        await screen.findByRole('button', { name: '알림센터' }),
-      );
-      await userEvent.press(
-        await screen.findByRole('button', {
-          name: /참여 요청이 거절되었습니다/,
-        }),
-      );
-
-      expect(
-        await screen.findByText('이번 달 채용이 마감되었습니다'),
-      ).toBeOnTheScreen();
-      // 거절 화면이 받은 새 목록으로 아래 검토 화면의 문지기가 판단할 때까지 기다린다
-      await act(() => new Promise<void>(resolve => setTimeout(resolve, 200)));
-      expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
-      expect(header('마이페이지')).toBeNull();
-      expect(tab('마이')).toBeSelected();
-      // 거절 화면에서 뒤로 가면 검토 화면이 아니라 마이페이지다
-      await userEvent.press(button('뒤로 가기'));
-      expect(header('마이페이지')).toBeOnTheScreen();
-      expect(header('승인 대기')).toBeNull();
-    });
+    // 검토 화면 위에 거절 화면이 쌓이는 경우(리뷰 #210)는 푸시로만 생긴다. App.push.test 가 본다
 
     // 리뷰(#210) 재현: 마이페이지를 본 뒤 사무실이 승인하고 다른 탭에 갔다 오면, 소속과 함께 신청 현황도 다시 받는다.
     // 같은 회사가 승인 줄과 검토 줄로 함께 보이지 않는다
@@ -236,6 +190,83 @@ describe('App — 조직 참여', () => {
       ).toBeOnTheScreen();
       await waitFor(() => expect(button('신청 현황, 1건')).toBeOnTheScreen());
       expect(screen.queryByLabelText('그린 테크, 기사, 검토')).toBeNull();
+    });
+  });
+
+  // #219: 회사 참여 흐름(Figma 마이 섹션의 회사찾기·역할 선택·요청완료·거절·이미 참여 프레임)에는 하단 탭 바가 없다.
+  // 신청 현황(Figma 마이페이지-신청현황 2874:14773 · 2880:15194)은 탭 바가 있어 탭 안에 둔다
+  describe('회사 참여 흐름의 하단 탭 바 (#219)', () => {
+    it('회사 찾기·역할 선택·요청 완료에서는 탭 바가 없고, 확인하고 마이페이지로 돌아오면 다시 보인다', async () => {
+      await openMyPage();
+      expect(tab('마이')).toBeSelected();
+
+      await userEvent.press(button('조직 참여'));
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(tabBar()).toBeNull();
+
+      await findCompany('RBT124');
+      await screen.findByRole('header', { name: '역할을 선택해주세요' });
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(screen.getByRole('radio', { name: /^기사/ }));
+      await userEvent.press(button('참여 요청하기'));
+      expect(header('참여 요청을 보냈어요')).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText(
+          '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
+        ),
+      ).toBeOnTheScreen();
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(button('확인'));
+      expect(header('마이페이지')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+    });
+
+    it('회사 찾기에서 뒤로 가면 탭 바가 있는 마이페이지다', async () => {
+      await openMyPage();
+      await userEvent.press(button('조직 참여'));
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(button('뒤로 가기'));
+
+      expect(header('마이페이지')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+    });
+
+    it('신청 현황은 탭 바가 있고, 거기서 연 회사 찾기는 탭 바가 없으며 뒤로 가면 신청 현황이다', async () => {
+      await openMyPage();
+
+      await userEvent.press(button('신청 현황, 2건'));
+      expect(header('참여 신청 현황')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+
+      await userEvent.press(button('조직 참여하기'));
+      expect(header('회사 찾기')).toBeOnTheScreen();
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(button('뒤로 가기'));
+      expect(header('참여 신청 현황')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
+    });
+
+    it('마이 알림센터에서 연 참여 거절 화면에는 탭 바가 없고, 확인하면 탭 바가 있는 알림센터다', async () => {
+      await openMyPage();
+      await userEvent.press(button('알림센터'));
+      await userEvent.press(
+        await screen.findByRole('button', {
+          name: /참여 요청이 거절되었습니다/,
+        }),
+      );
+
+      expect(
+        await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
+      ).toBeOnTheScreen();
+      expect(tabBar()).toBeNull();
+
+      await userEvent.press(button('확인'));
+      expect(header('알림센터')).toBeOnTheScreen();
+      expect(tab('마이')).toBeSelected();
     });
   });
 
@@ -383,7 +414,8 @@ describe('App — 조직 참여', () => {
       await userEvent.press(button('QR 코드 인식'));
       return app;
     }
-    // 카메라(루트 스택의 QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 마친 것으로 한다. 결과는 그 뒤에 보인다 (#195)
+    // 카메라(루트 스택의 QR 코드 인식)가 닫히며 회사 찾기가 다시 보이는 전환을 마친 것으로 한다. 결과는 그 뒤에 보인다 (#195).
+    // 회사 찾기도 탭 바 없는 루트 스택 화면이다 (#219)
     const finishReturn = () => finishReturnTo(button('QR 코드 인식'), 'root');
     // 결과는 전환 끝 바로 뒤에 보인다. 대비책(1초)으로 보인 것을 통과로 치지 않게 그보다 훨씬 짧게 기다린다
     const AFTER_RETURN = { timeout: 200 };
@@ -419,9 +451,6 @@ describe('App — 조직 참여', () => {
       expect(app.server.callsTo('GET', COMPANY_LOOKUP_PATH)).toHaveLength(1);
       expect(camera()).toBeNull();
       expect(header('회사 찾기')).toBeOnTheScreen();
-      expect(header('이미 참여 중인 회사예요')).toBeNull();
-      // 마이 스택 안의 전환 끝은 기다리던 전환이 아니다
-      await finishReturnTo(button('QR 코드 인식'), 'inner');
       expect(header('이미 참여 중인 회사예요')).toBeNull();
 
       await finishReturn();
@@ -478,7 +507,7 @@ describe('App — 조직 참여', () => {
 
       expect(header('회사 찾기')).toBeOnTheScreen();
       expect(camera()).toBeNull();
-      expect(tab('마이')).toBeSelected();
+      expect(tabBar()).toBeNull();
     });
 
     // 결과 안내는 카메라 위가 아니라 돌아온 회사 찾기 위에 뜬다 (#195)
@@ -502,7 +531,7 @@ describe('App — 조직 참여', () => {
         await userEvent.press(button('확인'));
         expect(header(title)).toBeNull();
         expect(header('회사 찾기')).toBeOnTheScreen();
-        expect(tab('마이')).toBeSelected();
+        expect(tabBar()).toBeNull();
       },
     );
 
@@ -758,7 +787,7 @@ describe('App — 조직 참여', () => {
         await screen.findByText('참여 요청을 불러오지 못했어요.'),
       ).toBeOnTheScreen();
       expect(header('조직 참여하기')).toBeOnTheScreen();
-      expect(tab('마이')).toBeSelected();
+      expect(tabBar()).toBeNull();
 
       reachable = true;
       await userEvent.press(button('다시 시도'));
