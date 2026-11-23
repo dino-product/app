@@ -313,7 +313,10 @@ const styles = StyleSheet.create({
     transformOrigin: 'right',
   },
   yearText: { position: 'absolute', top: 0, right: 0 },
-  // 왼쪽 맞춤 · 왼쪽 가운데를 축으로 줄고 기운다
+  // 왼쪽 맞춤 · 왼쪽 가운데를 축으로 줄고 기운다.
+  // Figma 는 ±2·±3 월 줄만 가운데 맞춤·자간 0 이다 ('6월'·'10월' 이 가운데를 맞춤). 한 줄은 굴리는 동안 이 자리들을 지나므로
+  // 맞춤을 바꾸면 두 자리 달이 옆으로 미끄러지고, 자간은 UI 스레드에서 보간할 수 없어 모든 줄을 왼쪽 맞춤·자간 -0.95 하나로 둔다
+  // (왼쪽 끝 차이: 6월 0.7 · 5월 1.7 · 10월 4.3)
   monthRow: { left: MONTH_TEXT_PAST_CENTER, right: 0, transformOrigin: 'left' },
   // Figma SF Pro Text Regular 22.17 #000. iOS 는 시스템 글꼴(SF Pro), Android 는 SF Pro 를 넣을 수 없어(라이선스) Pretendard Regular.
   // 휠은 줄 높이 32 고정이라 iOS 기본 휠처럼 글자 크기 설정을 따르지 않는다

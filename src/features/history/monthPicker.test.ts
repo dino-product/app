@@ -84,21 +84,22 @@ describe('휠 줄 모양 — Figma 값 (#203)', () => {
   });
 
   it.each([
-    // 가운데에서 몇 줄, Figma 위아래 자리의 평균, 글자 배율(22.17 → 18.37 · 14.57 · 11.40)
-    [1, 30.55, 18.37 / 22.17],
-    [2, 55.3, 14.57 / 22.17],
-    [3, 74.1, 11.4 / 22.17],
+    // 가운데에서 몇 줄, Figma 위(-)·아래(+) 줄 자리(두 열 같음), 글자 배율(22.17 → 18.37 · 14.57 · 11.40)
+    [1, 30.92, 30.2, 18.37 / 22.17],
+    [2, 55.26, 55.35, 14.57 / 22.17],
+    [3, 75.32, 72.98, 11.4 / 22.17],
   ])(
-    '가운데에서 %i 줄 떨어지면 %f 만큼 떨어지고 배율 %f, 투명도 0.35 다',
-    (distance, y, scale) => {
-      const frames = wheelRowKeyframes(index, 'year');
-      // 아래(+)와 위(-)가 같은 거리다
-      expect(valueAt(frames.translateY, at(distance))).toBeCloseTo(y, 5);
-      expect(valueAt(frames.translateY, at(-distance))).toBeCloseTo(-y, 5);
-      expect(valueAt(frames.scale, at(distance))).toBeCloseTo(scale, 3);
-      expect(valueAt(frames.scale, at(-distance))).toBeCloseTo(scale, 3);
-      expect(valueAt(frames.opacity, at(distance))).toBeCloseTo(0.35, 5);
-      expect(valueAt(frames.opacity, at(-distance))).toBeCloseTo(0.35, 5);
+    '가운데에서 %i 줄 떨어지면 위로 %f · 아래로 %f 떨어지고 배율 %f, 투명도 0.35 다',
+    (distance, up, down, scale) => {
+      for (const column of ['year', 'month'] as const) {
+        const frames = wheelRowKeyframes(index, column);
+        expect(valueAt(frames.translateY, at(distance))).toBeCloseTo(down, 5);
+        expect(valueAt(frames.translateY, at(-distance))).toBeCloseTo(-up, 5);
+        expect(valueAt(frames.scale, at(distance))).toBeCloseTo(scale, 3);
+        expect(valueAt(frames.scale, at(-distance))).toBeCloseTo(scale, 3);
+        expect(valueAt(frames.opacity, at(distance))).toBeCloseTo(0.35, 5);
+        expect(valueAt(frames.opacity, at(-distance))).toBeCloseTo(0.35, 5);
+      }
     },
   );
 
@@ -108,18 +109,22 @@ describe('휠 줄 모양 — Figma 값 (#203)', () => {
     expect(valueAt(frames.opacity, at(-3.6))).toBe(0);
   });
 
-  it('원통처럼 가운데 쪽으로 기운다: 연도 열은 아래가 +, 월 열은 그 반대이고 멀수록 더 기운다', () => {
-    const year = wheelRowKeyframes(index, 'year');
-    const month = wheelRowKeyframes(index, 'month');
-    expect(valueAt(year.skewX, at(1))).toBeCloseTo(2.7, 5);
-    expect(valueAt(year.skewX, at(-2))).toBeCloseTo(-4.5, 5);
-    expect(valueAt(year.skewX, at(3))).toBeCloseTo(7.5, 5);
-    expect(valueAt(month.skewX, at(1))).toBeCloseTo(-2.7, 5);
-    expect(valueAt(month.skewX, at(-3))).toBeCloseTo(7.5, 5);
-    expect(year.skewX.outputRange.every(value => /deg$/.test(value))).toBe(
-      true,
-    );
-  });
+  // Figma 줄마다 기울기가 다르다 (위아래가 고르지 않고, 연도 바로 위 줄은 기울지 않는다). 줄별 값을 그대로 쓴다
+  it.each([
+    ['year', [-7.58, -3.32, 0, 0, 3.32, 3.79, 7.11]],
+    ['month', [7.58, 6.63, 2.37, 0, -2.37, -4.26, -7.58]],
+  ] as const)(
+    '%s 열은 가운데에서 -3 ~ +3 줄마다 Figma 기울기(deg)로 기운다',
+    (column, skews) => {
+      const frames = wheelRowKeyframes(index, column);
+      skews.forEach((skew, row) => {
+        expect(valueAt(frames.skewX, at(row - 3))).toBeCloseTo(skew, 5);
+      });
+      expect(frames.skewX.outputRange.every(value => /deg$/.test(value))).toBe(
+        true,
+      );
+    },
+  );
 
   // Figma 가운데 줄은 '2023년', 위아래 줄은 '2022'·'2024' 로 '년' 이 없다
   it("연도는 가운데 줄(반 줄 안)에서만 '년' 을 붙인다", () => {
@@ -136,7 +141,7 @@ describe('휠 줄 모양 — Figma 값 (#203)', () => {
 });
 
 describe('휠 줄 누르기 (#203)', () => {
-  // 가운데 줄 글자 상자는 휠 위 74.9 · 높이 26 (가운데 87.9). 위아래 줄은 30.55 · 55.3 · 74.1 떨어져 있다
+  // 가운데 줄 글자 상자는 휠 위 74.9 · 높이 26 (가운데 87.9). 위 줄은 30.92 · 55.26 · 75.32, 아래 줄은 30.2 · 55.35 · 72.98 떨어져 있다
   it.each([
     [87.9, 0],
     [87.9 + 30, 1],

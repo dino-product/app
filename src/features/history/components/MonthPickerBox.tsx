@@ -121,7 +121,8 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   column: { flex: 1, paddingHorizontal: BOX_INSET },
-  // Figma 50867:5275: White/100 · 반경 24.68 · 그림자 0 4.94 흐림 9.87 검정 6%. 배경을 어둡게 하지 않는다
+  // Figma 50867:5275: White/100 · 반경 24.68 · 그림자 0 4.94 흐림 9.87 검정 6%. 배경을 어둡게 하지 않는다.
+  // 흐림은 패널 값이다. MCP 코드의 drop-shadow 흐림(4.94)은 패널 값의 절반으로 나온다 (메인 카드 3255:17680 도 MCP 9 → CARD_SHADOW 18)
   box: {
     flex: 1,
     borderRadius: BOX_RADIUS,

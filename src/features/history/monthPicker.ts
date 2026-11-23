@@ -44,17 +44,21 @@ export function wheelIndexAt(offset: number, count: number): number {
 }
 
 // ---- 줄 모양 (Figma .atm_wheelPicker 51030:18404 · 51030:18405 의 가운데·±1~3 줄) ----
-// 가운데에서 0~4 줄 떨어진 자리. 위아래 값이 조금 달라(예: -30.9 / +30.2) 평균을 쓴다 (시안과 같음).
-// ±4 줄은 컴포넌트에만 있고 화면에서는 지웠다: 3 줄 바깥에서 사라진다
-const DISTANCE = [0, 1, 2, 3, 4];
-const ROW_Y = [0, 30.55, 55.3, 74.1, 83.5];
-/** 가운데 글자 22.17 에 대한 배율: 18.37 · 14.57 · 11.40 · 5.07 */
+// 가운데에서 -4 ~ +4 줄(아래가 +) 떨어진 자리마다 Figma 줄별 값을 그대로 쓴다. 위아래가 고르지 않다.
+// ±4 줄은 컴포넌트에만 있고 화면에서는 지웠다: 3 줄 바깥에서 사라진다 (±4 값은 이어지게 둔 것)
+const DISTANCES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+/** 가운데 줄 글자 상자 가운데에서 그 줄 글자 상자 가운데까지 (두 열 차이 0.03 이하라 같은 값) */
+const ROW_Y = [-83.5, -75.32, -55.26, -30.92, 0, 30.2, 55.35, 72.98, 83.5];
+/** 가운데 글자 22.17 에 대한 배율: 18.37 · 14.57 · 11.40 · 5.07 (위아래 같음) */
 export const WHEEL_FONT_SIZE = 22.17;
-const ROW_SCALE = [22.17, 18.37, 14.57, 11.4, 5.07].map(
-  size => size / WHEEL_FONT_SIZE,
-);
-/** 원통처럼 가운데 쪽으로 기우는 각도 (deg). Figma 두 열의 위아래 값을 고르게 편 것 (시안과 같음) */
-const ROW_SKEW = [0, 2.7, 4.5, 7.5, 9];
+const ROW_SCALE = [
+  5.07, 11.4, 14.57, 18.37, 22.17, 18.37, 14.57, 11.4, 5.07,
+].map(size => size / WHEEL_FONT_SIZE);
+/** 원통처럼 가운데 쪽으로 기우는 각도 (deg). 연도 열은 아래가 +, 월 열은 그 반대다 (연도 바로 위 줄은 기울지 않는다) */
+const ROW_SKEW = {
+  year: [-9, -7.58, -3.32, 0, 0, 3.32, 3.79, 7.11, 9],
+  month: [9, 7.58, 6.63, 2.37, 0, -2.37, -4.26, -7.58, -9],
+};
 /** 가운데 줄 밖의 투명도 (Figma opacity-35) */
 const SIDE_OPACITY = 0.35;
 /** 가운데 줄 글자 상자 (휠 안 위 74.9 · 높이 26, Figma I51030:18404;432:5713) */
@@ -87,39 +91,18 @@ function byDistance<T>(
   };
 }
 
-/** 가운데 줄과 위아래 ±1~4 줄의 값 */
-function symmetric<T>(
-  values: readonly number[],
-  map: (value: number, sign: number) => T,
-): Array<readonly [number, T]> {
-  return DISTANCE.flatMap(distance =>
-    distance === 0
-      ? [[0, map(values[0], 0)] as const]
-      : [
-          [distance, map(values[distance], 1)] as const,
-          [-distance, map(values[distance], -1)] as const,
-        ],
-  );
-}
+/** -4 ~ +4 줄 자리마다 정한 값 */
+const byRow = <T>(values: readonly T[]): Array<readonly [number, T]> =>
+  DISTANCES.map((distance, row) => [distance, values[row]] as const);
 
-/**
- * 휠 줄 index 의 모양을 스크롤 위치로 보간하는 keyframes (Animated interpolate 설정).
- * 연도 열은 오른쪽 맞춤이라 아래 줄이 + 로, 월 열은 왼쪽 맞춤이라 그 반대로 기운다
- */
+/** 휠 줄 index 의 모양을 스크롤 위치로 보간하는 keyframes (Animated interpolate 설정) */
 export function wheelRowKeyframes(index: number, column: 'year' | 'month') {
-  const skewSign = column === 'year' ? 1 : -1;
   return {
-    translateY: byDistance(
-      index,
-      symmetric(ROW_Y, (value, sign) => value * sign),
-    ),
-    scale: byDistance(
-      index,
-      symmetric(ROW_SCALE, value => value),
-    ),
+    translateY: byDistance(index, byRow(ROW_Y)),
+    scale: byDistance(index, byRow(ROW_SCALE)),
     skewX: byDistance(
       index,
-      symmetric(ROW_SKEW, (value, sign) => `${value * sign * skewSign}deg`),
+      byRow(ROW_SKEW[column].map(value => `${value}deg`)),
     ),
     opacity: byDistance(index, [
       [-VISIBLE_DISTANCE, 0],
@@ -137,10 +120,9 @@ export function wheelRowKeyframes(index: number, column: 'year' | 'month') {
 export function wheelRowAt(y: number): number {
   const offset = y - WHEEL_CENTER;
   let best = 0;
+  const rowY = (distance: number) => ROW_Y[DISTANCES.indexOf(distance)];
   for (const distance of [-3, -2, -1, 0, 1, 2, 3]) {
-    const at = Math.sign(distance) * ROW_Y[Math.abs(distance)];
-    const bestAt = Math.sign(best) * ROW_Y[Math.abs(best)];
-    if (Math.abs(at - offset) < Math.abs(bestAt - offset)) {
+    if (Math.abs(rowY(distance) - offset) < Math.abs(rowY(best) - offset)) {
       best = distance;
     }
   }
