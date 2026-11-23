@@ -1275,6 +1275,32 @@ describe('App', () => {
   describe('내 일정에서 연 작업 상세', () => {
     const memo = () => screen.getByLabelText('수행 메모 입력');
 
+    it('다른 날을 골라 연 작업 상세에서 뒤로 가면 같은 보기·같은 날이다', async () => {
+      await renderSignedInHome();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        screen.getByRole('button', { name: '달력 펼치기' }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '10월 22일 목요일' }),
+      );
+
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^세탁기 설치, 작업전/ }),
+      );
+      await screen.findByRole('header', { name: '작업 상세' });
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '달력 접기' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('2026년 10월 22일 (목)')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '10월 22일 목요일' }),
+      ).toBeSelected();
+    });
+
     it('내 일정에 열어 둔 작업을 홈에서 다시 열면 내 일정의 그 화면으로 가 쓰던 보고를 이어 쓴다', async () => {
       await renderSignedInHome();
       await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
