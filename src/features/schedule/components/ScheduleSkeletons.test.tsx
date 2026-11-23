@@ -24,7 +24,9 @@ const item: ConfirmedSchedule = {
 // 받은 내용으로 바뀔 때 높이가 크게 튀지 않도록 (#139) 실제 카드(#143 흰 카드)와 같은 상자를 쓴다
 describe('내 일정 스켈레톤', () => {
   it('확정 일정 카드 스켈레톤은 실제 확정 일정 카드(ConfirmedRow)와 같은 상자다', async () => {
-    await render(<ConfirmedRow item={item} dayLabel="12.15 (화)" />);
+    await render(
+      <ConfirmedRow item={item} dayLabel="12.15 (화)" onPress={jest.fn()} />,
+    );
     const real = boxOf(screen.getByLabelText(/^에어컨 필터 교체, /));
 
     await render(<ConfirmedCardsSkeleton />);
