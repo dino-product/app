@@ -38,40 +38,39 @@ describe('coverMotion — 덮기 움직임 값 (#216)', () => {
   });
 });
 
-describe('nextFollow — 임계에서 딸깍 (#216)', () => {
-  it('임계를 넘는 순간 손가락 위치로 따라붙고 햅틱, 넘은 채로는 그대로', () => {
+describe('nextFollow — 임계에서 딸깍 (#216, 보이는 따라붙기만. 햅틱은 탭이 바뀔 때)', () => {
+  it('임계를 넘는 순간 손가락 위치로 따라붙고(햅틱은 울리지 않는다), 넘은 채로는 그대로', () => {
     const first = nextFollow(null, 9, 8);
-    expect(first).toMatchObject({ snap: 'in', haptic: true });
+    expect(first).toEqual({
+      follow: { crossed: true, threshold: 8 },
+      snap: 'in',
+    });
     expect(nextFollow(first.follow, 40, 8)).toMatchObject({
       snap: null,
-      haptic: false,
     });
   });
 
   it('첫 이동이 임계 전이면 그대로 80% 로 따라온다', () => {
-    expect(nextFollow(null, 5, 8)).toMatchObject({ snap: null, haptic: false });
+    expect(nextFollow(null, 5, 8)).toMatchObject({ snap: null });
   });
 
   it('손가락이 임계 안으로 돌아오면 다시 80% 로 물러난다', () => {
     const crossed = nextFollow(null, 30, 8).follow;
     expect(nextFollow(crossed, 6, 8)).toMatchObject({
       snap: 'out',
-      haptic: false,
     });
   });
 
   it('망설여 임계가 커지면(8 → 196) 화면은 그 자리에 있다. 새 임계를 넘으면 다시 딸깍', () => {
     const crossed = nextFollow(null, 60, 8).follow;
     const hesitated = nextFollow(crossed, 60, 196);
-    expect(hesitated).toMatchObject({ snap: null, haptic: false });
+    expect(hesitated).toMatchObject({ snap: null });
     expect(hesitated.follow.crossed).toBe(false);
     expect(nextFollow(hesitated.follow, 120, 196)).toMatchObject({
       snap: null,
-      haptic: false,
     });
     expect(nextFollow(hesitated.follow, 196, 196)).toMatchObject({
       snap: 'in',
-      haptic: true,
     });
   });
 });

@@ -42,23 +42,24 @@ export function edgeResistance(distance: number) {
 export type Follow = { crossed: boolean; threshold: number };
 
 /**
- * 임계를 넘었는지로 따라오는 비율을 정한다. snap 'in' 은 손가락 위치로 따라붙기(+햅틱), 'out' 은 80% 로 물러나기다.
+ * 임계를 넘었는지로 따라오는 비율을 정한다. snap 'in' 은 손가락 위치로 따라붙기, 'out' 은 80% 로 물러나기다.
+ * 보이는 딸깍일 뿐 햅틱은 울리지 않는다 (햅틱은 탭이 실제로 바뀔 때 한 번, CoverTabView).
  * 망설여 임계가 커져서 넘지 않게 된 것은 손가락이 움직인 것이 아니므로 화면을 그 자리에 둔다
  */
 export function nextFollow(
   previous: Follow | null,
   distance: number,
   threshold: number,
-): { follow: Follow; snap: 'in' | 'out' | null; haptic: boolean } {
+): { follow: Follow; snap: 'in' | 'out' | null } {
   const crossed = distance >= threshold;
   const follow = { crossed, threshold };
   if (crossed && !previous?.crossed) {
-    return { follow, snap: 'in', haptic: true };
+    return { follow, snap: 'in' };
   }
   if (!crossed && previous?.crossed && threshold <= previous.threshold) {
-    return { follow, snap: 'out', haptic: false };
+    return { follow, snap: 'out' };
   }
-  return { follow, snap: null, haptic: false };
+  return { follow, snap: null };
 }
 
 type Values = {

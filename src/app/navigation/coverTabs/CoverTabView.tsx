@@ -6,6 +6,7 @@ import {
 } from '@react-navigation/native';
 import {
   memo,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -293,9 +294,6 @@ export function CoverTabView({
         if (next.snap) {
           snapFollow(drag.motion, next.snap === 'in' ? 1 : FOLLOW_BEFORE);
         }
-        if (next.haptic) {
-          haptic.threshold();
-        }
       },
       end: (dx, commit) => {
         if (!dragging) {
@@ -397,6 +395,15 @@ export function CoverTabView({
   useLayoutEffect(() => {
     cover.sync(transition);
   }, [cover, transition]);
+  // 탭이 실제로 바뀌는 순간에만 햅틱을 한 번 울린다 (밀어서 놓은 덮기가 끝날 때·탭 바를 누를 때).
+  // 미는 도중·놓기만 한 때·원래 탭으로 돌아갈 때·지금 탭을 다시 누를 때는 울리지 않는다
+  const switchedFrom = useRef(state.index);
+  useEffect(() => {
+    if (switchedFrom.current !== state.index) {
+      switchedFrom.current = state.index;
+      haptic.tabSwitch();
+    }
+  }, [state.index]);
   useLayoutEffect(() => cover.dispose, [cover]);
   useLayoutEffect(
     () =>

@@ -14,7 +14,7 @@ type Kind =
   | 'longPress'
   | 'contextClick'
   | 'clockTick'
-  | 'impactLight';
+  | 'impactHeavy';
 
 // 옵션은 넘기지 않는다: enableVibrateFallback·ignoreAndroidSystemSettings 기본값(false)으로
 // 시스템 햅틱·터치 진동 설정을 그대로 따른다. 햅틱이 없는 기기에서는 라이브러리가 아무것도 하지 않는다
@@ -51,8 +51,13 @@ export const haptic = {
   warning: () => fire(pick('notificationWarning', 'reject', 'longPress')),
   /** 결제 방식·거절 사유 선택 */
   selection: () => fire(pick('selection', 'segmentTick', 'contextClick')),
-  /** 메인 탭 덮기 밀기가 임계를 넘는 순간 (딸깍, #216) */
-  threshold: () => fire(pick('impactLight', 'segmentTick', 'clockTick')),
+  /**
+   * 메인 탭이 실제로 바뀌는 순간 (덮기 전환이 끝날 때·탭 바를 누를 때). 가장 센 단발 충격이다.
+   * iOS impactHeavy: 라이브러리가 Core Haptics 로 강도 1.0 (impactLight 0.3, impactMedium 0.6).
+   * Android LONG_PRESS: 시스템이 EFFECT_HEAVY_CLICK 으로 울린다 (CLOCK_TICK·SEGMENT_TICK 은 가장 약한 EFFECT_TEXTURE_TICK).
+   * 모든 API 레벨의 View 상수라 시스템 터치 진동 설정을 따른다
+   */
+  tabSwitch: () => fire(isIOS() ? 'impactHeavy' : 'longPress'),
   /** 토글. iOS 는 켬/끔 구분이 없다 */
   toggle: (on: boolean) => {
     if (isIOS()) {

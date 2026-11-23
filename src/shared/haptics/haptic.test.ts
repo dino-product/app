@@ -38,9 +38,9 @@ describe('ios', () => {
     expect(trigger.mock.calls[0]).toHaveLength(1);
   });
 
-  it('탭 밀기 임계(딸깍)는 가벼운 충격이다', () => {
-    haptic.threshold();
-    expect(trigger.mock.calls).toEqual([['impactLight']]);
+  it('메인 탭이 바뀌는 순간은 가장 센 충격(impactHeavy: Core Haptics 강도 1.0, 가벼운 충격 0.3 의 3배 넘게)이다', () => {
+    haptic.tabSwitch();
+    expect(trigger.mock.calls).toEqual([['impactHeavy']]);
   });
 });
 
@@ -71,14 +71,14 @@ describe('android — API 레벨별 View 상수', () => {
     expect(trigger.mock.calls).toEqual([[on], [off]]);
   });
 
-  it.each([
-    [24, 'clockTick'],
-    [30, 'segmentTick'],
-  ])('API %i: 탭 밀기 임계(딸깍)', (v, kind) => {
-    asAndroid(v);
-    haptic.threshold();
-    expect(trigger.mock.calls).toEqual([[kind]]);
-  });
+  it.each([24, 30, 34])(
+    'API %i: 메인 탭이 바뀌는 순간은 LONG_PRESS(EFFECT_HEAVY_CLICK, 틱보다 센 묵직한 클릭)다',
+    v => {
+      asAndroid(v);
+      haptic.tabSwitch();
+      expect(trigger.mock.calls).toEqual([['longPress']]);
+    },
+  );
 
   it('시스템 설정을 따르도록 옵션을 넘기지 않는다', () => {
     asAndroid(34);
