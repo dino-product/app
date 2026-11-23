@@ -90,6 +90,23 @@ const settleWheel = (wheel: HostElement, index: number) =>
       nativeEvent: { contentOffset: { x: 0, y: index * WHEEL_ROW } },
     });
   });
+/** 손가락으로 휠을 굴리기 시작한다 */
+const beginDrag = (wheel: HostElement) =>
+  act(() => {
+    fireEvent(wheel, 'scrollBeginDrag', {
+      nativeEvent: { contentOffset: { x: 0, y: 0 } },
+    });
+  });
+/** y 에서 손을 뗀다. velocity 가 0 이 아니면 관성이 이어진다 */
+const endDrag = (wheel: HostElement, y: number, velocity = 0) =>
+  act(() => {
+    fireEvent(wheel, 'scrollEndDrag', {
+      nativeEvent: {
+        contentOffset: { x: 0, y },
+        velocity: { x: 0, y: velocity },
+      },
+    });
+  });
 const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
 
 /** 한 자리에서 누르고 뗀다 (상자 바깥·머리 글자·상자 안) */
@@ -373,19 +390,19 @@ describe('날짜 선택 — 고르기와 적용 (#203)', () => {
     expect(onMonthChange).not.toHaveBeenCalled();
   });
 
-  it('줄 위에서 손을 떼면(관성 없음) 그 줄에서 멈춘 것이고, 줄 사이에서 떼면 관성이 끝날 때까지 기다린다', async () => {
+  it('줄 위에서 멈춘 채 손을 떼면(관성 없음) 그 줄에서 멈춘 것이고, 줄 사이에서 떼거나 관성이 있으면 관성이 끝날 때까지 기다린다', async () => {
     await renderHistory();
     await userEvent.press(monthButton());
-    const endDrag = (y: number) =>
-      act(() => {
-        fireEvent(yearWheel(), 'scrollEndDrag', {
-          nativeEvent: { contentOffset: { x: 0, y } },
-        });
-      });
 
-    await endDrag(4.5 * WHEEL_ROW);
+    await endDrag(yearWheel(), 4.5 * WHEEL_ROW);
     expect(monthText()).toHaveTextContent('2026년 9월');
-    await endDrag(4 * WHEEL_ROW);
+    // 튕기며 손을 뗀 자리가 마침 줄 위여도 지나가는 줄이다 (머리 글자가 두 번 바뀌지 않는다)
+    await endDrag(yearWheel(), 4 * WHEEL_ROW, -3);
+    expect(monthText()).toHaveTextContent('2026년 9월');
+    await settleWheel(yearWheel(), 1);
+    expect(monthText()).toHaveTextContent('2021년 9월');
+
+    await endDrag(yearWheel(), 4 * WHEEL_ROW);
     expect(monthText()).toHaveTextContent('2024년 9월');
   });
 
@@ -405,6 +422,63 @@ describe('날짜 선택 — 고르기와 적용 (#203)', () => {
     expect(picker()).toBeNull();
     expect(screen.queryByTestId('work-history-month-picker-box')).toBeNull();
     expect(monthText()).toHaveStyle({ color: colors.gray[800] });
+  });
+
+  it('휠이 관성으로 도는 중에 바깥을 누르면, 닫는 동안 휠이 멈춘 줄의 달을 한 번만 적용한다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
+    await userEvent.press(monthButton());
+    await finishAnimations();
+    await beginDrag(yearWheel());
+    await endDrag(yearWheel(), 4.5 * WHEEL_ROW, -3);
+
+    await tap(part('work-history-month-picker-backdrop'));
+    expect(onMonthChange).not.toHaveBeenCalled();
+    expect(monthButton()).toBeCollapsed();
+
+    await settleWheel(yearWheel(), 1);
+    expect(onMonthChange).toHaveBeenCalledTimes(1);
+    expect(onMonthChange).toHaveBeenCalledWith({ year: 2021, month: 8 });
+    expect(monthText()).toHaveTextContent('2021년 9월');
+    await finishAnimations();
+    expect(picker()).toBeNull();
+    expect(onMonthChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('닫는 전환이 끝날 때까지 휠이 멈추지 않으면 그때 머리 글자의 달을 적용한다', async () => {
+    const onMonthChange = jest.fn();
+    await renderHistory({ onMonthChange });
+    await userEvent.press(monthButton());
+    await settleWheel(monthWheel(), 7);
+    await beginDrag(yearWheel());
+    await endDrag(yearWheel(), 4.5 * WHEEL_ROW, -3);
+
+    await tap(part('work-history-month-picker-backdrop'));
+    expect(onMonthChange).not.toHaveBeenCalled();
+    await finishAnimations();
+
+    expect(onMonthChange).toHaveBeenCalledTimes(1);
+    expect(onMonthChange).toHaveBeenCalledWith({ year: 2026, month: 7 });
+    expect(picker()).toBeNull();
+  });
+
+  it('닫는 중에 다시 열면 휠을 고른 달에서 새로 시작한다', async () => {
+    await renderHistory();
+    await userEvent.press(monthButton());
+    await settleWheel(yearWheel(), 5);
+    await tap(part('work-history-month-picker-backdrop'));
+
+    await userEvent.press(monthButton('2025년 9월'));
+
+    expect(monthButton('2025년 9월')).toBeExpanded();
+    expect(yearWheel()).toHaveProp('contentOffset', {
+      x: 0,
+      y: 5 * WHEEL_ROW,
+    });
+    expect(monthWheel()).toHaveProp('contentOffset', {
+      x: 0,
+      y: 8 * WHEEL_ROW,
+    });
   });
 
   it('머리 글자(월 글자)를 누르면 적용하며 닫는다', async () => {

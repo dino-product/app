@@ -367,12 +367,14 @@ function WorkHistoryScreenView({
         </View>
         {pickerVisible ? (
           <MonthPickerOverlay
+            key={picker.session}
             progress={picker.progress}
             open={pickerOpen}
             today={today}
             month={picker.month}
             monthRow={collapse.monthRow}
             onSelect={picker.select}
+            onMovingChange={picker.setMoving}
             onClose={picker.close}
           />
         ) : null}

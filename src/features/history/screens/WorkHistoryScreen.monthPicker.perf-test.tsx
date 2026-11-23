@@ -60,14 +60,22 @@ describe('WorkHistoryScreen 날짜 선택 렌더 예산 (#203)', () => {
             nativeEvent: { contentOffset: { x: 0, y: 165 } },
           });
           await scrollWheel(160);
+          // 다시 잡아 튕기면, 손을 뗀 자리가 마침 줄 위(2025)여도 관성으로 지나가는 줄이라 그리지 않는다
+          await fireEvent(wheel(), 'scrollEndDrag', {
+            nativeEvent: {
+              contentOffset: { x: 0, y: 160 },
+              velocity: { x: 0, y: -2 },
+            },
+          });
+          await scrollWheel(140);
           await fireEvent(wheel(), 'momentumScrollEnd', {
-            nativeEvent: { contentOffset: { x: 0, y: 160 } },
+            nativeEvent: { contentOffset: { x: 0, y: 128 } },
           });
         },
       },
     );
 
-    // 마운트 1 + 열기 1 + 멈춤(2025년) 1
+    // 마운트 1 + 열기 1 + 멈춤(2024년) 1
     expect(Math.max(...result.counts)).toBe(3);
     expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
       perfBudget.render.maxRedundantUpdates,

@@ -32,6 +32,8 @@ export type MonthPickerOverlayProps = {
   /** 펼친 바 안 월 줄 자리 */
   monthRow: { y: number; height: number };
   onSelect: (month: YearMonth) => void;
+  /** 휠이 도는지(손가락·관성). 멈출 때는 멈춘 달을 onSelect 로 먼저 준다 */
+  onMovingChange: (moving: boolean) => void;
   onClose: () => void;
 };
 
@@ -46,6 +48,7 @@ export function MonthPickerOverlay({
   month,
   monthRow,
   onSelect,
+  onMovingChange,
   onClose,
 }: MonthPickerOverlayProps) {
   const geometry = pickerBoxGeometry(monthRow);
@@ -76,18 +79,46 @@ export function MonthPickerOverlay({
     },
     [onSelect],
   );
+  // 손가락으로 굴리기 시작한 휠. 모두 멈추면 알린다 (닫는 중이면 상자가 멈춘 달을 적용한다)
+  const moving = useRef(new Set<'year' | 'month'>());
+  const startMoving = useCallback(
+    (column: 'year' | 'month') => {
+      if (moving.current.size === 0) {
+        onMovingChange(true);
+      }
+      moving.current.add(column);
+    },
+    [onMovingChange],
+  );
+  const stopMoving = useCallback(
+    (column: 'year' | 'month') => {
+      if (moving.current.delete(column) && moving.current.size === 0) {
+        onMovingChange(false);
+      }
+    },
+    [onMovingChange],
+  );
+  const onYearMoveStart = useCallback(() => startMoving('year'), [startMoving]);
+  const onMonthMoveStart = useCallback(
+    () => startMoving('month'),
+    [startMoving],
+  );
   const onYearSettle = useCallback(
-    (index: number) =>
+    (index: number) => {
       choose({
         year: latest.current.years[index],
         month: latest.current.month.month,
-      }),
-    [choose],
+      });
+      stopMoving('year');
+    },
+    [choose, stopMoving],
   );
   const onMonthSettle = useCallback(
-    (index: number) =>
-      choose({ year: latest.current.month.year, month: index }),
-    [choose],
+    (index: number) => {
+      choose({ year: latest.current.month.year, month: index });
+      stopMoving('month');
+    },
+    [choose, stopMoving],
   );
   // 스크린리더 조절: 한 줄씩, 끝에서 이어지지 않는다. 월은 이번 달 뒤로 가지 않고, 연도를 올해로 올리면 월이 이번 달로 맞춰진다
   const onYearAdjust = useCallback(
@@ -183,6 +214,7 @@ export function MonthPickerOverlay({
                 selectedIndex={Math.max(0, years.indexOf(month.year))}
                 accessibilityLabel="연도"
                 format={formatYear}
+                onMoveStart={onYearMoveStart}
                 onSettle={onYearSettle}
                 onAdjust={onYearAdjust}
               />
@@ -194,6 +226,7 @@ export function MonthPickerOverlay({
                 selectedIndex={month.month}
                 accessibilityLabel="월"
                 format={formatMonth}
+                onMoveStart={onMonthMoveStart}
                 onSettle={onMonthSettle}
                 onAdjust={onMonthAdjust}
               />

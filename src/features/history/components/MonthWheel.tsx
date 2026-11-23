@@ -55,6 +55,8 @@ export type MonthWheelProps = {
   accessibilityLabel: string;
   /** 줄 글자 ('2026년' · '9월') */
   format: (value: number) => string;
+  /** 손가락으로 굴리기 시작했다 */
+  onMoveStart: () => void;
   /** 휠이 멈춰 index 줄이 가운데에 왔다 */
   onSettle: (index: number) => void;
   /** 스크린리더 조절 동작 (+1 다음 값, -1 이전 값) */
@@ -69,6 +71,7 @@ export const MonthWheel = memo(function MonthWheelView({
   selectedIndex,
   accessibilityLabel,
   format,
+  onMoveStart,
   onSettle,
   onAdjust,
   ref,
@@ -113,9 +116,14 @@ export const MonthWheel = memo(function MonthWheelView({
   const onScrollEndDrag = ({
     nativeEvent,
   }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // 줄 위에서 손을 떼면 관성 없이 멈춘다 (iOS). 줄 사이면 붙을 줄까지 관성으로 가서 onMomentumScrollEnd 가 온다
+    // 줄 위에서 멈춘 채 손을 떼면 관성 없이 그 줄에서 멈춘다 (iOS). 튕기며 떼면(속도가 있으면) 그 줄은 지나가는 줄이고,
+    // 줄 사이면 붙을 줄까지 간다. 둘 다 관성이 끝날 때 onMomentumScrollEnd 가 온다
     const offset = nativeEvent.contentOffset.y;
-    if (Math.abs(offset - Math.round(offset / WHEEL_ROW) * WHEEL_ROW) < 0.5) {
+    const still = (nativeEvent.velocity?.y ?? 0) === 0;
+    if (
+      still &&
+      Math.abs(offset - Math.round(offset / WHEEL_ROW) * WHEEL_ROW) < 0.5
+    ) {
       report(offset);
     }
   };
@@ -192,6 +200,7 @@ export const MonthWheel = memo(function MonthWheelView({
         overScrollMode="never"
         scrollEventThrottle={16}
         onScroll={onScroll}
+        onScrollBeginDrag={() => onMoveStart()}
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
         importantForAccessibility="no-hide-descendants"
