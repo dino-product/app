@@ -61,6 +61,7 @@ import {
   type ConfirmedSchedule,
   type PendingRequest,
 } from '../model';
+import { loadScheduleView, saveScheduleView } from '../scheduleView';
 import type { YearMonth } from '../../history/model';
 
 // Figma 스케줄 › 내 일정 (확정 일정: 주간 / 달력 펼침, 응답 필요)
@@ -73,6 +74,8 @@ export type ScheduleScreenProps = {
   /** 거절 사유 화면으로 */
   onReject: (id: string) => void;
   onOpenRequest: (id: string) => void;
+  /** 확정 일정 카드를 누르면 그 작업의 상세를 연다 (#221) */
+  onOpenWork: (id: string) => void;
   /** 바깥에서 하위 탭을 고를 때 (탈퇴 불가 → 응답 필요). 값이 들어올 때마다 그 탭으로 옮긴다 */
   requestedTab?: ScheduleTab;
   /** 바깥에서 지금 보이는 리스트(확정 일정 / 응답 필요)를 맨 위로 올릴 때 쓴다 */
@@ -111,6 +114,7 @@ function ScheduleScreenView({
   onAccept,
   onReject,
   onOpenRequest,
+  onOpenWork,
   requestedTab,
   listRef,
   confirmedLoad = READY,
@@ -129,7 +133,10 @@ function ScheduleScreenView({
     }
   }, [requestedTab]);
   const [selected, setSelected] = useState(today);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  // 마지막으로 고른 보기(주간·월간)로 연다 (#222). 고른 날·보이는 달은 늘 오늘에서 시작한다
+  const [calendarOpen, setCalendarOpen] = useState(
+    () => loadScheduleView() === 'month',
+  );
   const [viewMonth, setViewMonth] = useState({
     year: today.getFullYear(),
     month: today.getMonth(),
@@ -204,11 +211,14 @@ function ScheduleScreenView({
     selectDate(today);
   }, [selectDate, today]);
 
-  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100)
+  // 주간 ↔ 달력을 바꾸면 넘겨 보던 주·달 대신 고른 날의 주·달을 보여 준다 (#100).
+  // 고른 보기는 기기에 남겨 다음에 열 때도 그 보기로 연다 (#222)
   const toggleCalendar = useCallback(() => {
-    setCalendarOpen(open => !open);
+    const open = !calendarOpen;
+    setCalendarOpen(open);
+    saveScheduleView(open ? 'month' : 'week');
     selectDate(selected);
-  }, [selectDate, selected]);
+  }, [calendarOpen, selectDate, selected]);
 
   const moveMonth = useCallback(
     (delta: number) => {
@@ -267,10 +277,11 @@ function ScheduleScreenView({
       <ConfirmedRow
         item={item}
         dayLabel={formatCardDay(item.dateKey, today)}
+        onPress={onOpenWork}
         style={styles.cardInset}
       />
     ),
-    [today],
+    [today, onOpenWork],
   );
   // 수락(POST)은 낙관적으로 반영한다 (#197): 요청은 곧바로 응답 필요에서 빠지고, 실패하면 돌아온다.
   // 보내는 동안 카드 버튼 모양(Figma 기본)은 그대로 두고, 그 요청의 수락·거절만 다시 받지 않는다.

@@ -212,6 +212,64 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     );
   });
 
+  // #222: 내 일정의 마지막 보기(주간·월간)를 기기에 남긴다. 홈 일정 보기(#147)와 같은 방식이다
+  describe('내 일정 보기 (#222)', () => {
+    const calendarToggle = () =>
+      screen.getByRole('button', { name: /^달력 (펼치기|접기)$/ });
+    async function openSchedule() {
+      await userEvent.press(tab('내 일정'));
+      await screen.findByRole('header', { name: '내 일정' });
+    }
+
+    it('처음 실행이면 주간 보기다', async () => {
+      await launch();
+      await findHomeLoaded();
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 펼치기');
+    });
+
+    it('월간으로 두고 다른 탭에 갔다 오면 월간 그대로다', async () => {
+      await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+
+      await userEvent.press(tab('작업 이력'));
+      await userEvent.press(tab('홈'));
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 접기');
+    });
+
+    it('월간으로 두고 종료했다 다시 열면, 내 일정을 열 때 월간으로 연다', async () => {
+      const kill = await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+      await userEvent.press(tab('홈'));
+
+      await relaunch(kill);
+      await findHomeLoaded();
+      await openSchedule();
+
+      expect(calendarToggle()).toHaveAccessibleName('달력 접기');
+    });
+
+    it('주간으로 되돌리고 종료했다 다시 열면 주간으로 연다', async () => {
+      const kill = await launch();
+      await findHomeLoaded();
+      await openSchedule();
+      await userEvent.press(calendarToggle());
+      await userEvent.press(calendarToggle());
+
+      await relaunch(kill);
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(calendarToggle()).toHaveAccessibleName('달력 펼치기');
+    });
+  });
+
   describe('작업 상세에서 완료 보고를 작성하던 중', () => {
     it('다시 열면 같은 작업 상세가 열리고 사진·메모·결제 정보가 남아 있다', async () => {
       const kill = await launch();
@@ -391,6 +449,29 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
     });
   });
 
+  // #221: 내 일정에서 연 작업 상세는 내 일정 탭 안에 있다. 다시 열어도 그 자리이고, 뒤로 가면 내 일정이다
+  it('내 일정에서 연 작업 상세를 복원하고, 뒤로 가면 내 일정으로 돌아간다', async () => {
+    const kill = await launch();
+    await findHomeLoaded();
+    await userEvent.press(tab('내 일정'));
+    await userEvent.press(
+      await screen.findByRole('button', { name: /^보일러 점검,/ }),
+    );
+    await screen.findByRole('header', { name: '작업 상세' });
+
+    await relaunch(kill);
+
+    expect(tab('내 일정')).toBeSelected();
+    // 상세를 다 불러올 때까지 기다린다 (불러오는 동안의 화면에도 같은 제목이 있다)
+    await screen.findByRole('button', { name: '작업 시작' });
+    expect(header('작업 상세')).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(
+      await screen.findByRole('header', { name: '내 일정' }),
+    ).toBeOnTheScreen();
+    expect(tab('내 일정')).toBeSelected();
+  });
+
   it('고른 탭과 탭마다 보던 화면을 복원한다', async () => {
     const kill = await launch();
     await openWorkDetail();
@@ -487,12 +568,30 @@ describe('App — 종료 후 다시 열기 (#34)', () => {
       routes: [
         {
           name: 'Main',
-          params: { screen: 'schedule', params: { tab: 'pending' } },
+          params: {
+            screen: 'schedule',
+            params: {
+              screen: 'MySchedule',
+              params: { tab: 'pending' },
+              pop: true,
+            },
+          },
           state: {
             index: 3,
             routes: [
               { name: 'home' },
-              { name: 'schedule', params: {} },
+              {
+                name: 'schedule',
+                params: {
+                  screen: 'MySchedule',
+                  params: { tab: 'pending' },
+                  pop: true,
+                },
+                state: {
+                  index: 0,
+                  routes: [{ name: 'MySchedule', params: {} }],
+                },
+              },
               { name: 'history' },
               {
                 name: 'my',

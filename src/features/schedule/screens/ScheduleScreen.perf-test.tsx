@@ -7,11 +7,19 @@ import {
   scrollDownFromTop,
   scrollListTo,
 } from '../../../shared/testing/autoHideHeader';
+import { appStorage } from '../../../shared/storage/appStorage';
 import { makeScheduleMock } from '../mockData';
+import { saveScheduleView, SCHEDULE_VIEW_KEY } from '../scheduleView';
 import { ScheduleScreen } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15);
 const { confirmed, pending } = makeScheduleMock(today);
+
+// 고른 보기(주간·월간)는 기기에 남는다 (#222). 한 시나리오를 여러 번 재므로, 달력을 펼치는 시나리오는 매번 처음 설치한
+// 기기(주간)에서 시작한다. 그러지 않으면 앞 회에 펼친 월간으로 열려 '달력 펼치기' 가 없다
+const forgetCalendarView = () => {
+  appStorage.remove(SCHEDULE_VIEW_KEY);
+};
 
 // 폭을 재야 미끄러져 넘긴다 (재기 전에는 바로 넘긴다)
 const layoutTrack = (testID: string) =>
@@ -40,6 +48,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
     );
 
@@ -52,6 +61,38 @@ describe('ScheduleScreen 렌더 예산', () => {
     // FlatList 화면을 10회 반복 측정하므로 CI 러너에서는 기본 5초를 넘긴다
   }, 30_000);
 
+  // #222: 마지막 보기가 월간이면 처음부터 달력 격자로 그린다. 저장값은 첫 렌더 전에 동기로 읽어 주간을 그렸다 바꾸지 않는다
+  it('저장된 월간으로 처음 열어도 한 번만 그리고 추가 렌더·중복 렌더가 예산 이내다', async () => {
+    const result = await measureRenders(
+      <ScheduleScreen
+        today={today}
+        confirmed={confirmed}
+        pending={pending}
+        onAccept={async () => true}
+        onReject={() => {}}
+        onOpenRequest={() => {}}
+        onOpenWork={() => {}}
+      />,
+      {
+        beforeEach: () => {
+          saveScheduleView('month');
+        },
+        scenario: async () => {
+          // 달력으로 열렸는지만 본다 (다시 그리는 동작 없음)
+          screen.getByTestId('month-calendar');
+        },
+      },
+    );
+
+    expect(Math.max(...result.counts)).toBe(1);
+    expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
+      perfBudget.render.maxInitialUpdateCount,
+    );
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
+  }, 30_000);
+
   it('주간 줄을 밀어 주를 넘기면 한 번만 다시 그린다', async () => {
     const result = await measureRenders(
       <ScheduleScreen
@@ -61,6 +102,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         scenario: async () => {
@@ -92,8 +134,10 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
@@ -147,6 +191,7 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
           scenario: async () => {
@@ -174,8 +219,10 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             await fireEvent.press(
               screen.getByRole('button', { name: '달력 펼치기' }),
@@ -206,9 +253,11 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         // userEvent 는 Pressable 의 눌림 상태 렌더까지 세므로 onPress 만 부른다
+        beforeEach: forgetCalendarView,
         scenario: async () => {
           await fireEvent.press(
             screen.getByRole('button', { name: '달력 펼치기' }),
@@ -242,8 +291,10 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
@@ -284,8 +335,10 @@ describe('ScheduleScreen 렌더 예산', () => {
           onAccept={async () => true}
           onReject={() => {}}
           onOpenRequest={() => {}}
+          onOpenWork={() => {}}
         />,
         {
+          beforeEach: forgetCalendarView,
           scenario: async () => {
             if (open) {
               await fireEvent.press(
@@ -319,6 +372,7 @@ describe('ScheduleScreen 렌더 예산', () => {
         onAccept={async () => true}
         onReject={() => {}}
         onOpenRequest={() => {}}
+        onOpenWork={() => {}}
       />,
       {
         scenario: async () => {

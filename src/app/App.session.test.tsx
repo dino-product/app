@@ -20,6 +20,7 @@ import {
 } from '../features/onboarding/login';
 import { profileQueryKey } from '../features/onboarding/profileApi';
 import { saveRejectDraft } from '../features/schedule/rejectDraft';
+import { loadScheduleView } from '../features/schedule/scheduleView';
 import { loadHomeView } from '../features/work/homeView';
 import { saveReportDraft } from '../features/work/reportDraft';
 import { createTestApi } from '../shared/testing/renderWithApi';
@@ -707,6 +708,21 @@ describe('App — 로그아웃 (#113)', () => {
       await screen.findByRole('header', { name: LOGIN_TITLE }),
     ).toBeOnTheScreen();
     expect(loadHomeView()).toBe('list');
+  });
+
+  // #222: 내 일정 보기(주간·월간)도 이 기기의 화면 설정이라 남긴다
+  it('내 일정에서 고른 보기는 로그아웃해도 기기에 남는다', async () => {
+    await renderSignedInApp();
+    await findHomeLoaded();
+    await userEvent.press(screen.getByRole('tab', { name: '내 일정' }));
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+
+    await logout();
+
+    expect(
+      await screen.findByRole('header', { name: LOGIN_TITLE }),
+    ).toBeOnTheScreen();
+    expect(loadScheduleView()).toBe('month');
   });
 
   it('로그아웃 API 가 실패해도 기기 세션을 지우고 로그인 화면으로 간다', async () => {

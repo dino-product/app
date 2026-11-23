@@ -20,6 +20,7 @@ import type {
   MyStackParamList,
   OnboardingStackParamList,
   RootStackParamList,
+  ScheduleStackParamList,
 } from './types';
 
 // 보던 화면(열린 화면 스택과 고른 탭)을 기기에 남겼다가 앱을 다시 열 때 복원한다 (#34).
@@ -85,6 +86,16 @@ const homeStack = {
   WorkDetail: workDetail,
   NotificationCenter: once,
 } satisfies Record<keyof HomeStackParamList, ScreenSchema>;
+// 내 일정 (#221). 바깥에서 고른 하위 탭(응답 필요)은 화면이 옮긴 뒤 지워 빈 객체로 남는다
+const scheduleStack = {
+  MySchedule: {
+    params: params =>
+      params === undefined ||
+      (isRecord(params) &&
+        (params.tab === undefined || params.tab === 'pending')),
+  },
+  WorkDetail: workDetail,
+} satisfies Record<keyof ScheduleStackParamList, ScreenSchema>;
 const historyStack = {
   WorkHistory: once,
   CompletedWorkDetail: byId,
@@ -131,15 +142,20 @@ const myStack = {
   WithdrawalBlocked: once,
   OrgJoinRequests: once,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
+// #221 전 앱은 내 일정 탭을 하위 스택 없는 화면으로 두고, 바깥에서 고른 하위 탭 값(응답 필요)을 남겼다(옮긴 뒤 지워 빈 객체).
+// 업데이트 직후 이 값 하나로 다른 탭의 보던 화면까지 버리지 않게 받아 주고, 지금 구조에는 뜻이 없어 복원할 때 뺀다 (#226 리뷰)
+const isLegacyScheduleParams = (params: unknown) =>
+  isRecord(params) &&
+  !('screen' in params) &&
+  (params.tab === undefined || params.tab === 'pending');
+const scheduleTab: ScreenSchema = {
+  navigator: scheduleStack,
+  params: params =>
+    nested(scheduleStack).params(params) || isLegacyScheduleParams(params),
+};
 const mainTabs = {
   home: nested(homeStack),
-  // 바깥에서 고른 하위 탭(응답 필요). 화면이 옮긴 뒤 지워 빈 객체로 남는다
-  schedule: {
-    params: params =>
-      params === undefined ||
-      (isRecord(params) &&
-        (params.tab === undefined || params.tab === 'pending')),
-  },
+  schedule: scheduleTab,
   history: nested(historyStack),
   my: nested(myStack),
 } satisfies Record<keyof MainTabParamList, ScreenSchema>;
@@ -248,6 +264,42 @@ function withoutConsumedNestedParams(state: unknown): unknown {
   };
 }
 
+// 메인 탭 상태에서 #221 전 앱이 내 일정 탭에 남긴 하위 탭 값을 뺀다 (isLegacyScheduleParams)
+function withoutLegacyScheduleParams(state: unknown): unknown {
+  if (!isRecord(state) || !Array.isArray(state.routes)) {
+    return state;
+  }
+  return {
+    ...state,
+    routes: state.routes.map((route: Record<string, unknown>) => {
+      if (route.name !== 'Main' || !isRecord(route.state)) {
+        return route;
+      }
+      const tabs = route.state;
+      if (!Array.isArray(tabs.routes)) {
+        return route;
+      }
+      return {
+        ...route,
+        state: {
+          ...tabs,
+          routes: tabs.routes.map((tab: Record<string, unknown>) => {
+            if (
+              tab.name !== 'schedule' ||
+              !isLegacyScheduleParams(tab.params)
+            ) {
+              return tab;
+            }
+            const rest = { ...tab };
+            delete rest.params;
+            return rest;
+          }),
+        },
+      };
+    }),
+  };
+}
+
 /** 저장한 값이 지금 구조에 맞고 오래되지 않았으면 복원할 상태를 돌려준다 */
 export function parseSavedNavigation(
   value: unknown,
@@ -261,7 +313,9 @@ export function parseSavedNavigation(
     return undefined;
   }
   return isValidState(value.state, navigationSchema)
-    ? (withoutConsumedNestedParams(value.state) as InitialState)
+    ? (withoutLegacyScheduleParams(
+        withoutConsumedNestedParams(value.state),
+      ) as InitialState)
     : undefined;
 }
 

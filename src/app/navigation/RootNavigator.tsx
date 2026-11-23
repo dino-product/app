@@ -66,16 +66,19 @@ import {
 import { createCoverTabNavigator } from './coverTabs/createCoverTabNavigator';
 import { TabSwitchLockLayout, useTabSwitchLock } from './tabSwitchLock';
 import {
+  HISTORY_INITIAL_ROUTE,
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
   ONBOARDING_INITIAL_ROUTE,
   ROOT_NAVIGATOR_ID,
+  SCHEDULE_INITIAL_ROUTE,
   type HistoryStackParamList,
   type HomeStackParamList,
   type MainTabParamList,
   type MyStackParamList,
   type OnboardingStackParamList,
   type RootStackParamList,
+  type ScheduleStackParamList,
 } from './types';
 
 const RootStack = createNativeStackNavigator<
@@ -84,6 +87,7 @@ const RootStack = createNativeStackNavigator<
 >();
 const Tab = createCoverTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const ScheduleStack = createNativeStackNavigator<ScheduleStackParamList>();
 const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const MyStack = createNativeStackNavigator<MyStackParamList>();
 const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
@@ -241,10 +245,30 @@ function HomeTab() {
   );
 }
 
+// 내 일정 (#221). 확정 일정에서 연 작업 상세를 탭 안에 쌓아, 뒤로 가면 보던 내 일정(같은 보기·같은 날)으로 돌아온다
+function ScheduleTab() {
+  const stackOptions = useStackOptions();
+  return (
+    <ScheduleStack.Navigator
+      initialRouteName={SCHEDULE_INITIAL_ROUTE}
+      screenOptions={stackOptions}
+      screenLayout={stackScreenLayout}
+    >
+      <ScheduleStack.Screen name="MySchedule" component={ScheduleRoute} />
+      <ScheduleStack.Screen
+        name="WorkDetail"
+        component={WorkDetailRoute}
+        getId={byId}
+      />
+    </ScheduleStack.Navigator>
+  );
+}
+
 function HistoryTab() {
   const stackOptions = useStackOptions();
   return (
     <HistoryStack.Navigator
+      initialRouteName={HISTORY_INITIAL_ROUTE}
       screenOptions={stackOptions}
       screenLayout={stackScreenLayout}
     >
@@ -404,7 +428,7 @@ function MainTabs() {
       layout={renderTabLayout}
     >
       <Tab.Screen name="home" component={HomeTab} />
-      <Tab.Screen name="schedule" component={ScheduleRoute} />
+      <Tab.Screen name="schedule" component={ScheduleTab} />
       <Tab.Screen name="history" component={HistoryTab} />
       <Tab.Screen name="my" component={MyTab} />
     </Tab.Navigator>
