@@ -86,6 +86,7 @@ import { useToday } from '../../shared/time/useToday';
 import { useAuth } from '../AuthProvider';
 import { callPhone, openDirections, openMap } from '../externalLinks';
 import { useHoldTabSwitchWhile } from './tabSwitchLock';
+import { workDetailInTabs } from './workDetailTabs';
 import type {
   HistoryScreenProps,
   HomeScreenProps,
@@ -279,12 +280,22 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
       alertWorkError('start', error);
     }
   }, [current, startWork]);
-  // 수락 대기 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 연다
+  // 수락 대기 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 연다.
+  // 내 일정 탭에 같은 작업 상세가 열려 있으면 홈에 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
   const openWork = useCallback(
     (id: string) => {
       const work = works?.find(item => String(item.workId) === id);
       if (work?.status === 'PENDING_ACCEPT') {
         navigation.navigate('RequestDetail', { id });
+        return;
+      }
+      const target = workDetailInTabs(
+        navigation.getParent()?.getState(),
+        'home',
+        { id },
+      );
+      if (target.screen === 'schedule') {
+        navigation.navigate('schedule', target.params);
       } else {
         navigation.navigate('WorkDetail', { id });
       }
@@ -483,9 +494,21 @@ export function ScheduleRoute({
     (id: string) => navigation.navigate('RequestDetail', { id }),
     [navigation],
   );
-  // 확정 일정은 홈에서 연 것과 같은 작업 상세로 연다 (#221). 내 일정 탭 안에 쌓아 하단 탭은 내 일정에 머문다
+  // 확정 일정은 홈에서 연 것과 같은 작업 상세로 연다 (#221). 내 일정 탭 안에 쌓아 하단 탭은 내 일정에 머문다.
+  // 홈 탭에 같은 작업 상세가 열려 있으면 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
   const openWork = useCallback(
-    (id: string) => navigation.navigate('WorkDetail', { id }),
+    (id: string) => {
+      const target = workDetailInTabs(
+        navigation.getParent()?.getState(),
+        'schedule',
+        { id },
+      );
+      if (target.screen === 'home') {
+        navigation.navigate('home', target.params);
+      } else {
+        navigation.navigate('WorkDetail', { id });
+      }
+    },
     [navigation],
   );
   const openReject = useCallback(

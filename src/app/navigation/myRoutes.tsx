@@ -54,6 +54,7 @@ import {
   type HomeScreenProps,
   type MyScreenProps,
 } from './types';
+import { workDetailInTabs } from './workDetailTabs';
 
 // 마이 탭 스택에 올리는 화면들 (#72). 앱 상태를 화면 props 로 이어 준다.
 // 프로필·소속 발주사·탈퇴는 서버 API 다 (#115). 마이페이지는 경로가 조회해 넘기고, 하위 화면은 화면이 직접 받는다
@@ -219,13 +220,20 @@ export function NotificationCenterRoute({
       (id: string) => navigation.navigate('RequestDetail', { id }),
       [navigation],
     ),
+    // 내 일정 탭에 같은 작업 상세가 열려 있으면 그 화면으로 간다 (#226 리뷰, workDetailTabs)
     openDetail: useCallback(
-      (target: WorkTarget) =>
-        navigation.navigate('home', {
-          screen: 'WorkDetail',
-          params: workDetailParams(target),
-          initial: false,
-        }),
+      (target: WorkTarget) => {
+        const detail = workDetailInTabs(
+          navigation.getParent()?.getState(),
+          'home',
+          workDetailParams(target),
+        );
+        if (detail.screen === 'schedule') {
+          navigation.navigate('schedule', detail.params);
+        } else if (detail.screen === 'home') {
+          navigation.navigate('home', detail.params);
+        }
+      },
       [navigation],
     ),
   });
@@ -256,9 +264,21 @@ export function HomeNotificationCenterRoute({
       (id: string) => navigation.navigate('RequestDetail', { id }),
       [navigation],
     ),
+    // 내 일정 탭에 같은 작업 상세가 열려 있으면 홈에 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
     openDetail: useCallback(
-      (target: WorkTarget) =>
-        navigation.navigate('WorkDetail', workDetailParams(target)),
+      (target: WorkTarget) => {
+        const params = workDetailParams(target);
+        const detail = workDetailInTabs(
+          navigation.getParent()?.getState(),
+          'home',
+          params,
+        );
+        if (detail.screen === 'schedule') {
+          navigation.navigate('schedule', detail.params);
+        } else {
+          navigation.navigate('WorkDetail', params);
+        }
+      },
       [navigation],
     ),
   });

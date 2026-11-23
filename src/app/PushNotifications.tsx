@@ -34,6 +34,7 @@ import {
   type PushRoute,
 } from './navigation/pushRoute';
 import type { RootStackParamList } from './navigation/types';
+import { mainTabsOf } from './navigation/workDetailTabs';
 
 // 앱 푸시를 앱에 잇는다 (#118). 아무것도 그리지 않고, 상태를 두지 않아 다시 그리게 하지 않는다.
 // - 메인(가입 완료)에 들어올 때마다 권한을 확인하고 기기를 등록한다. 토큰이 바뀌면 다시 등록한다 (가입 전엔 PROFILE-005)
@@ -96,18 +97,22 @@ export function PushNotifications({
       }
       // 작업 알림은 상세를 먼저 받아 수락 대기면 요청 상세로 연다 (알림센터와 같은 규칙)
       const workId = pushWorkIdOf(data);
-      return pushRouteOf(
-        data,
+      const workScreen =
         workId === undefined
           ? undefined
           : await notificationWorkScreen(
               queryClient,
               repository,
               Number(workId),
-            ),
+            );
+      // 고른 뒤 바로 연다. 그때의 메인 탭 상태로 이미 연 작업 상세가 있는 탭을 본다 (#226 리뷰)
+      return pushRouteOf(
+        data,
+        workScreen,
+        mainTabsOf(navigation.getRootState()),
       );
     },
-    [api, queryClient, repository],
+    [api, navigation, queryClient, repository],
   );
 
   // 마지막에 누른 알림만 열고, 고르는 사이 사용자가 화면을 옮겼거나 로그아웃했으면 열지 않는다 (#117 알림센터와 같은 규칙).

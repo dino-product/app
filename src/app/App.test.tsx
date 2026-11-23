@@ -1260,6 +1260,55 @@ describe('App', () => {
     );
   });
 
+  // #221 리뷰: 작업 상세는 홈 탭과 내 일정 탭 스택에 쌓인다. 같은 작업을 두 탭에 따로 열면 두 화면이 같은 기기 초안에
+  // 따로 써 서로 덮으므로, 다른 탭에 이미 열린 같은 작업 상세가 있으면 그 탭의 그 화면으로 옮긴다
+  describe('내 일정에서 연 작업 상세', () => {
+    const memo = () => screen.getByLabelText('수행 메모 입력');
+
+    it('내 일정에 열어 둔 작업을 홈에서 다시 열면 내 일정의 그 화면으로 가 쓰던 보고를 이어 쓴다', async () => {
+      await renderSignedInHome();
+      await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+      await screen.findByRole('button', { name: '작업 수행중' });
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      );
+      await findWorkDetailLoaded();
+      await userEvent.type(memo(), '일정');
+
+      await userEvent.press(tab('홈'));
+      await userEvent.press(await findHomeLoaded());
+
+      expect(tab('내 일정')).toBeSelected();
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(memo()).toHaveDisplayValue('일정');
+      // 홈 탭에는 작업 상세를 쌓지 않았다
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await userEvent.press(tab('홈'));
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).toBeNull();
+    });
+
+    it('홈에 열어 둔 작업을 내 일정에서 다시 열면 홈의 그 화면으로 가 쓰던 보고를 이어 쓴다', async () => {
+      await renderSignedInHome();
+      await openStartedWorkDetail();
+      await userEvent.type(memo(), '홈');
+
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      );
+
+      expect(tab('홈')).toBeSelected();
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(memo()).toHaveDisplayValue('홈');
+      await userEvent.type(memo(), '+일정');
+      await userEvent.press(tab('내 일정'));
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(header('작업 상세')).toBeNull();
+    });
+  });
+
   describe('내 일정', () => {
     async function openPending() {
       await renderSignedInHome();
