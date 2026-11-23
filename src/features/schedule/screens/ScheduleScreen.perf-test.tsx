@@ -9,7 +9,7 @@ import {
 } from '../../../shared/testing/autoHideHeader';
 import { appStorage } from '../../../shared/storage/appStorage';
 import { makeScheduleMock } from '../mockData';
-import { SCHEDULE_VIEW_KEY } from '../scheduleView';
+import { saveScheduleView, SCHEDULE_VIEW_KEY } from '../scheduleView';
 import { ScheduleScreen } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15);
@@ -59,6 +59,38 @@ describe('ScheduleScreen 렌더 예산', () => {
       perfBudget.render.maxRedundantUpdates,
     );
     // FlatList 화면을 10회 반복 측정하므로 CI 러너에서는 기본 5초를 넘긴다
+  }, 30_000);
+
+  // #222: 마지막 보기가 월간이면 처음부터 달력 격자로 그린다. 저장값은 첫 렌더 전에 동기로 읽어 주간을 그렸다 바꾸지 않는다
+  it('저장된 월간으로 처음 열어도 한 번만 그리고 추가 렌더·중복 렌더가 예산 이내다', async () => {
+    const result = await measureRenders(
+      <ScheduleScreen
+        today={today}
+        confirmed={confirmed}
+        pending={pending}
+        onAccept={async () => true}
+        onReject={() => {}}
+        onOpenRequest={() => {}}
+        onOpenWork={() => {}}
+      />,
+      {
+        beforeEach: () => {
+          saveScheduleView('month');
+        },
+        scenario: async () => {
+          // 달력으로 열렸는지만 본다 (다시 그리는 동작 없음)
+          screen.getByTestId('month-calendar');
+        },
+      },
+    );
+
+    expect(Math.max(...result.counts)).toBe(1);
+    expect(result.issues.initialUpdateCount).toBeLessThanOrEqual(
+      perfBudget.render.maxInitialUpdateCount,
+    );
+    expect(result.issues.redundantUpdates.length).toBeLessThanOrEqual(
+      perfBudget.render.maxRedundantUpdates,
+    );
   }, 30_000);
 
   it('주간 줄을 밀어 주를 넘기면 한 번만 다시 그린다', async () => {
