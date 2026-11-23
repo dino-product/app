@@ -34,7 +34,7 @@ import { AGREE_VIEWABILITY, RADIOS_ITEM, useAgreeJump } from './useAgreeJump';
 // 여러 약관을 한 페이지에 차례로 보일 수 있다 (가입 약관 '모두 동의', #193). 본문 덩어리는 길이가 가변이라 SectionList 로 그린다.
 // 가입 약관은 전문 아래에 '동의합니다'·'동의하지 않습니다' 라디오(디자인 시스템)를 둔다 (#193, Figma 에 없는 자리라 기본안).
 // 가입 약관은 아래에 작업 상세 '완료 보고 작성하기' 와 같은 모양의 '약관 동의하기' 앵커를 띄운다. 누르면 읽는 약관의
-// 라디오로 스크롤한 다음 '동의합니다' 를 고른다 (#218 사용자 요청, useAgreeJump)
+// 라디오로 스크롤한 다음 '동의합니다' 를 고른다 (#218 사용자 요청, useAgreeJump). 전문을 받는 중·실패한 약관에는 띄우지 않는다
 
 export type TermsDetailSection = {
   /** 약관을 가리키는 키 (가입: TermsType, 마이: MyPageTerms) */
@@ -54,7 +54,11 @@ type Item =
   | TermsBlock
   | { kind: 'state'; state: PendingState }
   | typeof RADIOS_ITEM;
-type Section = TermsDetailSection & { index: number; data: readonly Item[] };
+type Section = TermsDetailSection & {
+  index: number;
+  data: readonly Item[];
+  readable: boolean;
+};
 
 export const AGREE_LABEL = '동의합니다';
 export const DISAGREE_LABEL = '동의하지 않습니다';
@@ -96,6 +100,8 @@ export function TermsDetailScreen({
           ...section,
           index,
           data: agreeable ? [...body, RADIOS_ITEM] : body,
+          // 받는 중·실패한 약관에는 '약관 동의하기' 를 띄우지 않는다. 전문이 없는 약관은 준비 중 안내가 보일 글 전부다
+          readable: state.status !== 'loading' && state.status !== 'error',
         };
       }),
     [sections, states, agreeable],

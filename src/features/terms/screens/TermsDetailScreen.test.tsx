@@ -585,17 +585,15 @@ describe('TermsDetailScreen', () => {
       expect(onAgreeChange).toHaveBeenCalledWith('service', false);
     });
 
-    it('누른 뒤 그 약관 전문이 도착해 라디오가 밀려나면 새 자리로 다시 스크롤한다', async () => {
+    // 보지 못한 약관에 버튼 하나로 동의하지 않게 한다 (#228 리뷰). 라디오는 지금처럼 직접 고를 수 있다
+    it('전문을 받는 중인 약관에는 버튼이 없고, 전문이 도착하면 나타난다', async () => {
       const { queryClient } = await renderSignUp({
         fakeServer: withTermsDocuments(createFakeServer(), { service: hang() }),
         waitForText: false,
       });
       // 받는 중: [받는 중, 라디오]
       await viewItems(0, [0]);
-      await userEvent.press(jumpButton()!);
-      expect(lastScroll()).toEqual(
-        expect.objectContaining({ index: flatIndex(0, 1), item: RADIOS_ITEM }),
-      );
+      expect(jumpButton()).not.toBeOnTheScreen();
 
       await act(() =>
         queryClient.setQueryData(
@@ -604,17 +602,24 @@ describe('TermsDetailScreen', () => {
         ),
       );
 
-      // 전문 6덩어리 + 라디오. 라디오는 7번째 칸으로 밀려났다
-      await waitFor(() =>
-        expect(lastScroll()).toEqual(
-          expect.objectContaining({
-            index: flatIndex(0, RADIOS),
-            item: RADIOS_ITEM,
-            viewPosition: 1,
-          }),
-        ),
-      );
-      expect(scrollToIndex).toHaveBeenCalledTimes(2);
+      expect(await screen.findByText('본문 1.')).toBeOnTheScreen();
+      await viewItems(0, [0, 1]);
+      expect(jumpButton()).toBeOnTheScreen();
+    });
+
+    it('전문을 받지 못한 약관에는 버튼이 없다', async () => {
+      await renderSignUp({
+        fakeServer: withTermsDocuments(createFakeServer(), {
+          service: rawResponse(500, ''),
+        }),
+        waitForText: false,
+      });
+      expect(await screen.findByText(TERMS_LOAD_FAILED)).toBeOnTheScreen();
+
+      // [실패, 라디오]
+      await viewItems(0, [0]);
+
+      expect(jumpButton()).not.toBeOnTheScreen();
     });
 
     it('누른 약관 앞 약관의 전문이 늦게 도착해 라디오가 밀려도 새 자리로 다시 스크롤한다', async () => {

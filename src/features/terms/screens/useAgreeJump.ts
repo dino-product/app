@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 
 // 가입 약관 상세의 '약관 동의하기' 앵커 (#218, 사용자 요청: 작업 상세 '완료 보고 작성하기' 앵커와 같은 모양).
-// - 지금 읽는 약관(화면 맨 위에 다 보이는 칸의 약관)이 아직 동의 전이고 그 동의 라디오가 화면에 다 보이지 않으면 버튼을 보인다
+// - 지금 읽는 약관(화면 맨 위에 다 보이는 칸의 약관)이 아직 동의 전이고 그 동의 라디오가 화면에 다 보이지 않으면 버튼을 보인다.
+//   전문을 받는 중이거나 받지 못한 약관에는 보이지 않는다 (보지 못한 약관에 버튼 하나로 동의하지 않게, #228 리뷰)
 // - 누르면 그 라디오가 화면 아래(본문 끝 아래 여백 위)에 오도록 스크롤하고, 라디오가 화면에 다 보이면 '동의합니다' 를 고른다.
 //   '동의합니다' 가 골라진 채 그려진 뒤 스크린리더 초점을 그 라디오로 옮긴다 (먼저 옮기면 고르기 전 상태를 읽는다)
 // - 누른 것은 오래 남기지 않는다. 스크롤하는 동안 손으로 끌거나 라디오를 직접 고르면 거두고, 마지막으로 스크롤하고 나서
@@ -41,6 +42,8 @@ type JumpSection = {
   /** 목록 안 순서 */
   index: number;
   data: readonly unknown[];
+  /** 보일 글을 다 보였는지. 전문을 받는 중이거나 받지 못했으면 false 라 버튼이 없다 */
+  readable: boolean;
 };
 
 /** 지금 읽는 약관과 그 라디오가 화면에 다 보이는지 */
@@ -55,7 +58,7 @@ const isRadios = (token: ListViewToken, section: number) =>
  * 범위를 넘으면 마지막 약관의 꼬리다
  */
 export function toLocation(
-  sections: readonly JumpSection[],
+  sections: readonly Pick<JumpSection, 'data'>[],
   flatIndex: number,
 ) {
   let start = 0;
@@ -75,7 +78,7 @@ export function toLocation(
 
 /** 약관(sectionIndex)의 라디오(마지막 칸)가 목록이 펼친 순서에서 몇 번째인지. 앞 약관의 칸 수가 바뀌어도 바뀐다 */
 export function radiosFlatIndex(
-  sections: readonly JumpSection[],
+  sections: readonly Pick<JumpSection, 'data'>[],
   sectionIndex: number,
 ) {
   let start = 0;
@@ -294,6 +297,7 @@ export function useAgreeJump<ItemT, SectionT extends JumpSection>({
   const target =
     reading !== null &&
     section !== undefined &&
+    section.readable &&
     agreement !== undefined &&
     onAgreeChange !== undefined &&
     !reading.radiosVisible &&
