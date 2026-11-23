@@ -610,7 +610,6 @@ describe('App — 쓰는 중 세션 만료 (#113)', () => {
       '서비스 이용약관',
       '개인정보 처리방침',
       '제3자 제공 동의',
-      '위치기반 서비스 이용약관',
     ]) {
       await userEvent.press(
         screen.getByRole('button', { name: `${name} (필수)` }),

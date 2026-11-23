@@ -43,8 +43,8 @@ describe('useTermsAgreementState', () => {
     const { result } = await renderState();
 
     await act(() => result.current.agreeAll(true));
+    // 약관 넷 (위치기반은 뺐다, #232)
     expect(Object.values(result.current.agreement)).toEqual([
-      true,
       true,
       true,
       true,

@@ -1,4 +1,5 @@
 import {
+  ALL_TERMS_TYPES,
   allTermsAgreed,
   allTermsAgreedWith,
   canRegisterProfile,
@@ -36,14 +37,21 @@ describe('canRegisterProfile', () => {
 });
 
 describe('약관', () => {
-  it('Figma 대로 필수 4개, 선택 1개다', () => {
+  // Figma 는 위치기반 서비스 이용약관을 더한 다섯이지만 사용자 지시로 뺐다 (#232)
+  it('필수 3개, 선택 1개다. 위치기반 서비스 이용약관은 없다', () => {
     expect(termsList.map(terms => [terms.title, terms.required])).toEqual([
       ['서비스 이용약관', true],
       ['개인정보 처리방침', true],
       ['제3자 제공 동의', true],
-      ['위치기반 서비스 이용약관', true],
       ['혜택 이벤트 알림 수신동의', false],
     ]);
+    expect(ALL_TERMS_TYPES).toEqual([
+      'SERVICE',
+      'PRIVACY',
+      'THIRD_PARTY',
+      'MARKETING',
+    ]);
+    expect(isTermsType('LOCATION')).toBe(false);
   });
 
   const agreeing = (...types: (keyof TermsAgreement)[]): TermsAgreement =>
@@ -52,8 +60,8 @@ describe('약관', () => {
       noTermsAgreed,
     );
 
-  it('필수 네 개에 모두 동의하면 가입할 수 있다. 선택은 꺼져 있어도 된다', () => {
-    const required = agreeing('SERVICE', 'PRIVACY', 'THIRD_PARTY', 'LOCATION');
+  it('필수 세 개에 모두 동의하면 가입할 수 있다. 선택은 꺼져 있어도 된다', () => {
+    const required = agreeing('SERVICE', 'PRIVACY', 'THIRD_PARTY');
 
     expect(canSignUp(required)).toBe(true);
     expect(allTermsAgreed(required)).toBe(false);
@@ -61,10 +69,8 @@ describe('약관', () => {
 
   it('필수 하나라도 빠지면 가입할 수 없다', () => {
     expect(canSignUp(noTermsAgreed)).toBe(false);
-    expect(canSignUp(agreeing('SERVICE', 'PRIVACY', 'THIRD_PARTY'))).toBe(
-      false,
-    );
-    expect(canSignUp(agreeing('PRIVACY', 'THIRD_PARTY', 'LOCATION'))).toBe(
+    expect(canSignUp(agreeing('SERVICE', 'PRIVACY', 'MARKETING'))).toBe(false);
+    expect(canSignUp(agreeing('PRIVACY', 'THIRD_PARTY', 'MARKETING'))).toBe(
       false,
     );
   });
@@ -74,6 +80,8 @@ describe('약관 모두 같은 값으로 (#193)', () => {
   it('모두 동의·모두 끄기', () => {
     expect(allTermsAgreed(allTermsAgreedWith(true))).toBe(true);
     expect(allTermsAgreedWith(false)).toEqual(noTermsAgreed);
+    expect(Object.keys(allTermsAgreedWith(true))).toEqual(ALL_TERMS_TYPES);
+    expect(Object.keys(noTermsAgreed)).toEqual(ALL_TERMS_TYPES);
   });
 
   it('약관 종류인지', () => {

@@ -15,15 +15,11 @@ export function canRegisterProfile(input: ProfileInput): boolean {
 }
 
 /**
- * 약관 종류. 백엔드 TermsType 은 SERVICE·PRIVACY(필수)·MARKETING(선택) 셋이고,
- * Figma 는 제3자 제공·위치기반 서비스를 더한 다섯이다. 앱은 Figma 대로 보이고, 서버에는 셋만 보낸다 (toTermsAgreementRequest, #112 G10)
+ * 약관 종류. 백엔드 TermsType 은 SERVICE·PRIVACY(필수)·MARKETING(선택) 셋이고, 앱은 제3자 제공을 더한 넷을 보인다.
+ * 서버에는 셋만 보낸다 (toTermsAgreementRequest, #112 G10).
+ * Figma 는 위치기반 서비스 이용약관까지 다섯이지만 사용자 지시로 뺐다 (#232)
  */
-export type TermsType =
-  | 'SERVICE'
-  | 'PRIVACY'
-  | 'THIRD_PARTY'
-  | 'LOCATION'
-  | 'MARKETING';
+export type TermsType = 'SERVICE' | 'PRIVACY' | 'THIRD_PARTY' | 'MARKETING';
 
 export type Terms = {
   type: TermsType;
@@ -45,7 +41,6 @@ export const termsList: readonly Terms[] = [
   },
   { type: 'PRIVACY', title: '개인정보 처리방침', required: true },
   { type: 'THIRD_PARTY', title: '제3자 제공 동의', required: true },
-  { type: 'LOCATION', title: '위치기반 서비스 이용약관', required: true },
   { type: 'MARKETING', title: '혜택 이벤트 알림 수신동의', required: false },
 ];
 
@@ -68,7 +63,6 @@ export const noTermsAgreed: TermsAgreement = {
   SERVICE: false,
   PRIVACY: false,
   THIRD_PARTY: false,
-  LOCATION: false,
   MARKETING: false,
 };
 
@@ -82,7 +76,6 @@ export function allTermsAgreedWith(agreed: boolean): TermsAgreement {
     SERVICE: agreed,
     PRIVACY: agreed,
     THIRD_PARTY: agreed,
-    LOCATION: agreed,
     MARKETING: agreed,
   };
 }

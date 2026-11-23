@@ -99,7 +99,7 @@ describe('parseProfile', () => {
 });
 
 describe('toTermsAgreementRequest', () => {
-  it('서비스·개인정보·마케팅만 서버 항목으로 보낸다 (제3자 제공·위치기반은 서버에 없다)', () => {
+  it('서비스·개인정보·마케팅만 서버 항목으로 보낸다 (제3자 제공은 서버에 없다)', () => {
     expect(toTermsAgreementRequest(allTermsAgreedWith(true))).toEqual({
       serviceTerms: true,
       privacyPolicy: true,
