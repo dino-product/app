@@ -54,7 +54,8 @@ export const haptic = {
   /**
    * 메인 탭이 실제로 바뀌는 순간 (덮기 전환이 끝날 때·탭 바를 누를 때). 가장 센 단발 충격이다.
    * iOS impactHeavy: 라이브러리가 Core Haptics 로 강도 1.0 (impactLight 0.3, impactMedium 0.6).
-   * Android LONG_PRESS: 시스템이 EFFECT_HEAVY_CLICK 으로 울린다 (CLOCK_TICK·SEGMENT_TICK 은 가장 약한 EFFECT_TEXTURE_TICK).
+   * Android LONG_PRESS: API 29+ 는 시스템이 EFFECT_HEAVY_CLICK 으로 울린다 (CLOCK_TICK·SEGMENT_TICK 은 가장 약한
+   * EFFECT_TEXTURE_TICK). API 28 이하는 제조사의 긴 누름 진동 패턴이라 세기가 기기마다 다르다.
    * 모든 API 레벨의 View 상수라 시스템 터치 진동 설정을 따른다
    */
   tabSwitch: () => fire(isIOS() ? 'impactHeavy' : 'longPress'),

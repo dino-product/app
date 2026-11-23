@@ -1,5 +1,10 @@
 import { act, screen, userEvent } from '@testing-library/react-native';
-import { AccessibilityInfo, Dimensions, StyleSheet } from 'react-native';
+import {
+  AccessibilityInfo,
+  BackHandler,
+  Dimensions,
+  StyleSheet,
+} from 'react-native';
 import { holdNativeAnimations } from '../../../jest/nativeAnimation';
 import { swipeFrom } from '../../../jest/responder';
 import { haptic } from '../../shared/haptics/haptic';
@@ -421,15 +426,15 @@ describe('탭 전환 — 이웃 탭 화면이 덮는다 (#216)', () => {
   });
 });
 
-// 햅틱은 밀기 도중(임계를 넘을 때)이 아니라 탭이 실제로 바뀌는 순간에 한 번만 울린다
-describe('탭 전환 햅틱', () => {
+// 햅틱은 밀기 도중(임계를 넘을 때)이 아니라, 사용자가 밀거나 탭 바를 눌러 탭이 실제로 바뀌는 순간에 한 번만 울린다
+describe('탭 전환 햅틱 (#230)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('밀어서 놓으면 덮기가 끝나 탭이 바뀌는 순간 한 번 울린다 (미는 동안·놓은 직후에는 울리지 않는다)', async () => {
-    await renderSignedInHome();
+  it('밀어서 놓으면 덮기가 끝나 탭이 바뀌는 순간 한 번 울린다 (처음 그릴 때·미는 동안·놓은 직후에는 울리지 않는다)', async () => {
     const tabSwitch = jest.spyOn(haptic, 'tabSwitch');
+    await renderSignedInHome();
     const animations = holdNativeAnimations();
 
     await swipeFrom(tabArea('home'), { from: MIDDLE, dx: -FAR });
@@ -440,9 +445,33 @@ describe('탭 전환 햅틱', () => {
     expect(tabSwitch).toHaveBeenCalledTimes(1);
   });
 
-  it('원래 탭으로 돌아가면(짧게 스침·끝 탭 바깥) 울리지 않는다', async () => {
-    await renderSignedInHome();
+  it('이웃 탭이 덮었다가 되돌려 원래 탭으로 돌아가면 울리지 않는다', async () => {
     const tabSwitch = jest.spyOn(haptic, 'tabSwitch');
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
+
+    // 60pt 까지 밀어 내 일정 화면이 덮다가 거의 처음 자리로 되돌려 놓는다 (되돌림 → 화면 절반이 필요)
+    await swipeFrom(tabArea('home'), {
+      from: MIDDLE,
+      path: [
+        { x: 0, y: 0 },
+        { x: -20, y: 0 },
+        { x: -40, y: 0 },
+        { x: -60, y: 0 },
+        { x: -30, y: 0 },
+        { x: -2, y: 0 },
+      ],
+    });
+    expect(layerOf('schedule')).toBe('over');
+    await animations.finish();
+
+    expectSelected('home');
+    expect(tabSwitch).not.toHaveBeenCalled();
+  });
+
+  it('짧게 스치거나 끝 탭 바깥으로 밀면 울리지 않는다', async () => {
+    const tabSwitch = jest.spyOn(haptic, 'tabSwitch');
+    await renderSignedInHome();
 
     await swipeTab('home', -TAB_TRACK_DISTANCE);
     await swipeTab('home', FAR);
@@ -451,14 +480,45 @@ describe('탭 전환 햅틱', () => {
     expect(tabSwitch).not.toHaveBeenCalled();
   });
 
-  it('탭 바를 눌러 바꿀 때도 한 번 울린다 (지금 탭을 다시 누르면 울리지 않는다)', async () => {
-    await renderSignedInHome();
+  it('탭 바로 다른 탭을 누르면 한 번 울리고, 덮기가 끝나도 그대로 한 번이다 (지금 탭을 다시 누르면 울리지 않는다)', async () => {
     const tabSwitch = jest.spyOn(haptic, 'tabSwitch');
+    await renderSignedInHome();
+    const animations = holdNativeAnimations();
 
     await userEvent.press(screen.getByRole('tab', { name: '홈' }));
     expect(tabSwitch).not.toHaveBeenCalled();
 
     await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    expect(tabSwitch).toHaveBeenCalledTimes(1);
+    await animations.finish();
+    expect(tabSwitch).toHaveBeenCalledTimes(1);
+  });
+
+  it('밀기·탭 바가 아닌 길(Android 뒤로가기)로 탭이 바뀌면 울리지 않는다 (시스템 뒤로가기 햅틱과 겹치지 않게)', async () => {
+    type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+    const handlers = new Set<Handler>();
+    jest
+      .spyOn(BackHandler, 'addEventListener')
+      .mockImplementation((_event, handler) => {
+        handlers.add(handler);
+        return { remove: () => handlers.delete(handler) };
+      });
+    const pressBack = () =>
+      act(() => {
+        [...handlers]
+          .reverse()
+          .some(handler => handler(undefined as never) === true);
+      });
+    const tabSwitch = jest.spyOn(haptic, 'tabSwitch');
+    await renderSignedInHome();
+    await userEvent.press(screen.getByRole('tab', { name: '작업 이력' }));
+    await settle();
+    expect(tabSwitch).toHaveBeenCalledTimes(1);
+
+    await pressBack();
+    await settle();
+
+    expectSelected('home');
     expect(tabSwitch).toHaveBeenCalledTimes(1);
   });
 });
