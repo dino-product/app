@@ -24,6 +24,7 @@
   - 신원 확인을 마친 계정이면 Google 이 새 앱도 자동으로 등록하려고 한다.
   - 상태는 Play Console 홈의 앱 목록 위 알림과 Android 개발자 인증 페이지에서 본다. 자동 등록이 안 됐으면 그 페이지의 안내대로 등록한다.
 - **업로드 키:** 아래 '처음 한 번: 업로드 키'를 마쳐야 한다. 키가 없으면 release 도 debug 키로 서명되고, Play 는 debug 키로 서명한 앱을 받지 않는다.
+- **앱 빌드 값:** 아래 '처음 한 번: 앱 빌드 값'을 마쳐야 한다. 값이 없어도 빌드는 되지만, 그 앱은 서버 요청·카카오 로그인·지도가 모두 실패한다.
 
 ## 처음 한 번: 업로드 키
 
@@ -81,6 +82,28 @@
    - CI 에서 업로드 키로 서명하려면 같은 이름 앞에 `ORG_GRADLE_PROJECT_` 를 붙인 환경 변수를 CI 비밀값으로 준다. 지금 CI 는 업로드 키로 서명하지 않는다. 켤 때 주의할 점:
      - `ORBIT_UPLOAD_STORE_FILE` 은 러너의 파일 경로여야 한다. 키 파일을 base64 비밀값으로 넣고 임시 파일로 풀어 그 경로를 준다.
      - PR 브랜치는 `build.gradle` 을 고쳐 키를 빼낼 수 있다. 서명은 `pull_request` 가 아니라 수동 실행(`workflow_dispatch`)과 보호된 environment 에서만 한다.
+
+## 처음 한 번: 앱 빌드 값
+
+업로드 키와 같은 `~/.gradle/gradle.properties` 에 iOS 와 같은 값을 적는다. 저장소에는 넣지 않는다.
+
+```properties
+ORBIT_API_BASE_URL=<https API 서버 주소>
+KAKAO_NATIVE_APP_KEY=<카카오 네이티브 앱 키>
+```
+
+| 속성                   | iOS 에서 같은 값이 있는 곳                      | 빠지면                                |
+| ---------------------- | ----------------------------------------------- | ------------------------------------- |
+| `ORBIT_API_BASE_URL`   | `ios/.xcode.env.local` 의 `export`              | 서버 요청이 모두 설정 오류로 실패한다 |
+| `KAKAO_NATIVE_APP_KEY` | `ios/Config/Secrets.xcconfig`                   | 카카오 로그인(KOE101)·지도가 실패한다 |
+| `DEVELOP_ONLY` (선택)  | 없으면 운영 웹. `true` 면 개발 웹(약관 전문 등) | -                                     |
+
+- 빌드하는 셸에 같은 이름의 환경 변수를 export 하면 그 값이 먼저다.
+- `ORBIT_API_BASE_URL` 은 Release 번들에 들어간다. 값만 바꿔 빌드해도 번들을 다시 만든다.
+- 카카오 디벨로퍼스 › 앱 › 플랫폼 › Android 에 패키지 이름과 키 해시가 있어야 카카오 로그인·지도가 된다.
+  - 키 해시는 서명 키마다 하나씩 더한다 (이미 있는 값은 지우지 않는다).
+  - 저장소 debug 키(로컬 빌드): `Xo8WBi6jzSxKDVR4drqm84yr9iU=`
+  - 업로드 키·Play 앱 서명 키: 인증서 SHA-1 을 `echo <콜론 뺀 SHA-1> | xxd -r -p | openssl base64` 로 바꾼다. Play 앱 서명 키의 SHA-1 은 Play Console › 앱 무결성 › 앱 서명에 있다.
 
 ## 처음 한 번: Play Console 에 앱 만들기
 
