@@ -65,5 +65,3 @@ export const openDirections = ({ address, location }: WorkPlace) => {
     }${encodeURIComponent(address)}`,
   );
 };
-
-export const openWebPage = (url: string) => openExternal(url);

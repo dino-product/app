@@ -27,6 +27,7 @@ import {
   NotificationCenterRoute,
   NotificationSettingsRoute,
   MyTermsDetailRoute,
+  OpenSourceLicensesRoute,
   ProfileEditRoute,
   TermsRoute,
   WithdrawalBlockedRoute,
@@ -288,6 +289,11 @@ function MyTab() {
         name="TermsDetail"
         component={MyTermsDetailRoute}
         getId={byTerms}
+      />
+      <MyStack.Screen
+        name="OpenSourceLicenses"
+        component={OpenSourceLicensesRoute}
+        getId={once}
       />
       <MyStack.Screen name="Account" component={AccountRoute} getId={once} />
       <MyStack.Screen

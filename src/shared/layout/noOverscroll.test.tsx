@@ -14,6 +14,7 @@ import { AccountScreen } from '../../features/my/screens/AccountScreen';
 import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
 import { NotificationCenterScreen } from '../../features/my/screens/NotificationCenterScreen';
 import { NotificationSettingsScreen } from '../../features/my/screens/NotificationSettingsScreen';
+import { OpenSourceLicensesScreen } from '../../features/my/screens/OpenSourceLicensesScreen';
 import { ProfileEditScreen } from '../../features/my/screens/ProfileEditScreen';
 import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
@@ -93,13 +94,13 @@ const blocked: [string, ReactElement][] = [
   [
     '약관 및 앱 정보',
     <TermsScreen
-      links={{ openSource: '' }}
       appVersion="1.0"
-      onOpenLink={noop}
       onOpenTerms={noop}
+      onOpenLicenses={noop}
       onBack={noop}
     />,
   ],
+  ['오픈소스 라이선스', <OpenSourceLicensesScreen onBack={noop} />],
   [
     '약관 상세',
     <TermsDetailScreen

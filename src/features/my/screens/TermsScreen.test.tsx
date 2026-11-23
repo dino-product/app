@@ -1,23 +1,18 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
-import { TermsScreen, type TermsLinks } from './TermsScreen';
-
-const noLinks: TermsLinks = { openSource: '' };
+import { TermsScreen } from './TermsScreen';
 
 const renderTerms = ({
-  links = noLinks,
-  onOpenLink = jest.fn(),
   onOpenTerms = jest.fn(),
+  onOpenLicenses = jest.fn(),
 }: {
-  links?: TermsLinks;
-  onOpenLink?: jest.Mock;
   onOpenTerms?: jest.Mock;
+  onOpenLicenses?: jest.Mock;
 } = {}) =>
   render(
     <TermsScreen
-      links={links}
       appVersion="1.0"
-      onOpenLink={onOpenLink}
       onOpenTerms={onOpenTerms}
+      onOpenLicenses={onOpenLicenses}
       onBack={jest.fn()}
     />,
   );
@@ -57,25 +52,15 @@ describe('TermsScreen', () => {
     expect(onOpenTerms).toHaveBeenCalledWith(terms);
   });
 
-  it('오픈소스 라이선스는 주소가 아직 없으면 비활성이다', async () => {
-    await renderTerms();
+  // 앱에 싣는 고지 문서를 앱 안 화면으로 연다 (#232)
+  it('오픈소스 라이선스는 켜져 있고, 누르면 오픈소스 라이선스 화면을 연다', async () => {
+    const onOpenLicenses = jest.fn();
+    await renderTerms({ onOpenLicenses });
 
-    expect(
-      screen.getByRole('button', { name: '오픈소스 라이선스' }),
-    ).toBeDisabled();
-  });
+    const row = screen.getByRole('button', { name: '오픈소스 라이선스' });
+    expect(row).toBeEnabled();
+    await userEvent.press(row);
 
-  it('오픈소스 라이선스 주소가 있으면 누를 때 그 주소를 연다', async () => {
-    const onOpenLink = jest.fn();
-    await renderTerms({
-      links: { openSource: 'https://example.com/oss' },
-      onOpenLink,
-    });
-
-    await userEvent.press(
-      screen.getByRole('button', { name: '오픈소스 라이선스' }),
-    );
-
-    expect(onOpenLink).toHaveBeenCalledWith('https://example.com/oss');
+    expect(onOpenLicenses).toHaveBeenCalledTimes(1);
   });
 });
