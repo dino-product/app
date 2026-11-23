@@ -20,7 +20,7 @@ import { workDetail } from '../mockData';
 import {
   ANCHOR_ANTICIPATION,
   ANCHOR_OVERSHOOT,
-} from '../components/reportAnchorMotion';
+} from '../../../shared/layout/jumpAnchorMotion';
 import type { WorkDetail } from '../model';
 import { WorkDetailScreen } from './WorkDetailScreen';
 
@@ -688,6 +688,19 @@ describe('WorkDetailScreen', () => {
       ).toBeOnTheScreen();
     });
 
+    // Figma 작업수행-상세 (2741:2713): 버튼(2741:3444)은 y670 높이 56 이라 탭 바(2829:3637, y750) 위 24 에서 끝나고,
+    // 아이콘 charm:chevrons-down(2741:3450)은 24×24 다
+    it('Figma 대로 탭 바 위 24 에 띄우고 아이콘은 24 다', async () => {
+      await renderDetail();
+
+      expect(anchorWrapper()).toHaveStyle({ bottom: 24 });
+      expect(
+        screen.getByTestId('work-detail-jump-icon', {
+          includeHiddenElements: true,
+        }),
+      ).toHaveStyle({ width: 24, height: 24 });
+    });
+
     // #95: Figma 작업수행-상세 (2741:2713) 의 Frame 2147238742 (2741:3417)
     describe('버튼 뒤 그라데이션', () => {
       const fade = () =>
@@ -767,7 +780,7 @@ describe('WorkDetailScreen', () => {
       });
     });
 
-    // #149 카툰 등장·퇴장. 값은 버튼이 제자리에서 아래로 내려간 거리 (reportAnchorMotion)
+    // #149 카툰 등장·퇴장. 값은 버튼이 제자리에서 아래로 내려간 거리 (jumpAnchorMotion)
     describe('등장·퇴장 애니메이션', () => {
       const HIDDEN = 218;
       const targets = (timing: jest.SpyInstance) =>
