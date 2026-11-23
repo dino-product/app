@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.util.Log
 import android.view.MotionEvent
 import android.widget.FrameLayout
 import com.dinoproduct.app.R
@@ -146,6 +147,8 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
 
         override fun onMapError(error: Exception) {
           val code = (error as? MapAuthException)?.getErrorCode() ?: UNKNOWN_ERROR
+          // Release 빌드에서도 logcat 으로 원인(키 해시·패키지 미등록, 카카오맵 사용 설정)을 가릴 수 있게 남긴다 (#223)
+          Log.w(TAG, "카카오맵 오류 code=$code ${error.message}")
           post { emitError(code) }
         }
       }
@@ -288,6 +291,7 @@ class KakaoMapContainer(private val reactContext: ThemedReactContext) :
   }
 
   companion object {
+    private const val TAG = "KakaoMap"
     private const val DEFAULT_ZOOM_LEVEL = 16
     private const val MARKER_SIZE_DP = 52f
     private const val MARKER_ANCHOR_Y = 45.5f / 52f

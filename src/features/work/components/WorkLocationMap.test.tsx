@@ -103,6 +103,8 @@ describe('WorkLocationMap', () => {
 
   // 키·플랫폼 인증 실패, 네트워크 오류, 엔진 오류
   it('지도를 그리지 못하면 지도 뷰를 내리고 회색 자리를 남긴다 (높이는 그대로)', async () => {
+    // 개발 빌드 경고(아래 #223)는 따로 본다. 여기서는 테스트 출력에 새지 않게만 막는다
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     await renderMap();
 
     await act(() =>
@@ -114,6 +116,56 @@ describe('WorkLocationMap', () => {
     expect(
       screen.getByRole('imagebutton', { name: '작업 위치 지도' }),
     ).toHaveStyle({ height: 202 });
+    warn.mockRestore();
+  });
+
+  // #223 실기기에서 지도가 타일 없이 그려졌다. 원인이 앱 밖(키·콘솔 설정)이면 화면은 회색 자리로 두고,
+  // 개발 빌드에서는 오류 코드와 고칠 곳을 경고로 알린다 (Release 는 조용히 회색 자리)
+  describe('지도를 그리지 못하면 개발 빌드에서 오류 코드와 점검할 곳을 경고한다 (#223)', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warn.mockRestore();
+      jest.restoreAllMocks();
+    });
+
+    // 코드 출처: 카카오 인증 응답(두 플랫폼 공통 400·401·403·429), 앱이 정한 코드(iOS KakaoMapContainerView ·
+    // Android KakaoMapContainer 의 -2·-1), Android SDK MapAuthException 상수(-1·-2·-3·-4·499·1001·1002·1003).
+    // Android 의 -2 는 앱의 'SDK·지도 뷰를 켜지 못함' 과 SDK 의 CONNECT_INITIATE_FAILURE 가 겹친다
+    it.each([
+      ['ios', 401, '[플랫폼 키]'],
+      ['ios', 403, '[제품 설정] > [카카오맵]'],
+      ['ios', 429, '쿼터'],
+      ['ios', -2, 'Secrets.xcconfig'],
+      ['ios', -1, '지도 엔진'],
+      ['android', 401, '키 해시'],
+      ['android', -2, 'CONNECT_INITIATE_FAILURE'],
+      ['android', -2, 'gradle.properties'],
+      ['android', -1, 'UNKNOWN_ERROR'],
+      ['android', -3, '시간 초과'],
+      ['android', 499, 'CONNECT_ERROR'],
+      ['android', 1001, 'INITIALIZE_FAILURE'],
+      ['android', 1003, 'APP_KEY_INVALID_ERROR'],
+    ] as const)('%s code %d → %s', async (os, code, hint) => {
+      jest.replaceProperty(Platform, 'OS', os);
+      await renderMap();
+
+      await act(() => nativeMap().props.onMapError({ nativeEvent: { code } }));
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain(`code ${code}`);
+      expect(warn.mock.calls[0][0]).toContain(hint);
+    });
+
+    it('지도를 다 불러오면 경고하지 않는다', async () => {
+      await renderMap();
+
+      await act(() => nativeMap().props.onMapReady({ nativeEvent: {} }));
+
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 
   // 지도는 움직이지 않는 표시용: 이동·확대·회전 제스처는 네이티브에서 끄고(설정 테스트 kakao-map-native-config),

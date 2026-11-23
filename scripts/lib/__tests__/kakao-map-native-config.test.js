@@ -34,6 +34,27 @@ const specName = mustMatch(
 const code = text =>
   text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
+// Swift 함수 본문. `func 이름(` 뒤 첫 `{` 부터 짝이 맞는 `}` 까지 (들여쓰기·줄바꿈 서식에 기대지 않는다)
+function swiftFuncBody(source, name) {
+  const start = source.search(new RegExp(`func ${name}\\(`));
+  if (start < 0) {
+    throw new Error(`func ${name} 를 찾지 못했다`);
+  }
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === '{') {
+      depth += 1;
+    } else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(open + 1, i);
+      }
+    }
+  }
+  throw new Error(`func ${name} 본문이 닫히지 않았다`);
+}
+
 describe('카카오맵 SDK 의존성 (#67)', () => {
   it('Android 는 카카오 Maven 저장소에서 지도 SDK v2 를 받는다', () => {
     const gradle = code(read('android/app/build.gradle'));
@@ -88,6 +109,19 @@ describe('Android 지도 네이티브 뷰 연결 (#67)', () => {
     );
     expect(container).toContain('emit("topMapReady"');
     expect(container).toContain('emit("topMapError"');
+  });
+
+  // #223 인증 오류(MapAuthException 401·403 등)는 Release 빌드에서도 logcat 으로 볼 수 있어야 원인(키 해시·패키지·사용 설정)을 가린다
+  it('지도 오류(코드·메시지)를 기기 로그(logcat)로 남긴다 (#223)', () => {
+    const container = code(read(CONTAINER));
+    const onMapError = mustMatch(
+      container,
+      /override fun onMapError\(error: Exception\) \{([\s\S]*?)\n {8}\}/,
+      'onMapError 본문',
+    )[1];
+
+    expect(container).toContain('import android.util.Log');
+    expect(onMapError).toMatch(/Log\.w\(TAG, [^\n]*\$code[^\n]*error\.message/);
   });
 
   // 부르지 않으면 크래시가 날 수 있다 (카카오맵 SDK v2 개발 주의사항)
@@ -274,6 +308,72 @@ describe('iOS 지도 네이티브 뷰 연결 (#67)', () => {
     expect(swift.indexOf('guard !appKey.isEmpty')).toBeGreaterThan(-1);
     expect(swift.indexOf('guard !appKey.isEmpty')).toBeLessThan(
       swift.indexOf('SDKInitializer.InitSDK('),
+    );
+  });
+
+  // #223 KakaoMapsSDK 2.12.19 는 인증 응답 전부터 바탕·마커·kakao 로고를 그린다 (prepareEngine 이 인증 요청과 엔진 시작을
+  // 함께 한다). 인증 응답이 200·201(5xx 통과)·202(네트워크 3회 실패 통과)면 authenticationSucceeded, 그 밖은
+  // authenticationFailed 다. 준비 알림은 지도 뷰가 붙고 성공 콜백이 온 뒤, 실패·해제 전일 때 한 번만 보낸다.
+  // (201·202 는 토큰 없이 통과한 것이라 이 조건으로도 타일 없는 지도를 막지 못한다 — 기기 로그로 가린다)
+  // 서식(조건 순서·줄바꿈·로그 위치)이 아니라 이 불변식만 본다
+  it('지도 뷰가 붙고 인증 성공 콜백이 온 뒤, 실패·해제 전에 한 번만 onMapReady 를 보낸다 (#223)', () => {
+    const swift = code(read(IOS_MAP));
+
+    // 준비 알림은 한 곳에서만 보낸다
+    expect(swift.match(/host\?\.emitReady\(\)/g)).toHaveLength(1);
+    const emitAt = swift.indexOf('host?.emitReady()');
+    const gate = [...swift.slice(0, emitAt).matchAll(/func (\w+)\(/g)].pop()[1];
+    const gateBody = swiftFuncBody(swift, gate);
+    const guard = mustMatch(
+      gateBody,
+      /guard ([\s\S]+?) else \{\s*return\s*\}/,
+      `${gate} 의 guard`,
+    );
+    const conditions = guard[1].split(',').map(condition => condition.trim());
+    const emitInGate = gateBody.indexOf('host?.emitReady()');
+
+    expect(guard.index).toBeLessThan(emitInGate);
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        'viewAdded',
+        'authenticated',
+        '!failed',
+        '!destroyed',
+      ]),
+    );
+    // 한 번만: guard 가 막는 플래그를 알림 전에 세운다
+    const once = [...gateBody.slice(0, emitInGate).matchAll(/(\w+) = true/g)]
+      .map(match => match[1])
+      .filter(flag => conditions.includes(`!${flag}`));
+    expect(once).toHaveLength(1);
+
+    // 두 조건은 각각 지도 뷰 추가·인증 성공 콜백에서만 세우고, 세운 뒤 준비 알림을 따진다
+    for (const [flag, callback] of [
+      ['viewAdded', 'addViewSucceeded'],
+      ['authenticated', 'authenticationSucceeded'],
+    ]) {
+      const body = swiftFuncBody(swift, callback);
+      expect(swift.match(new RegExp(`\\b${flag} = true`, 'g'))).toHaveLength(1);
+      expect(body.indexOf(`${flag} = true`)).toBeGreaterThan(-1);
+      expect(body.indexOf(`${gate}()`)).toBeGreaterThan(
+        body.indexOf(`${flag} = true`),
+      );
+    }
+  });
+
+  // 인증 결과는 Release 빌드에서도 Console.app(기기 로그)으로 볼 수 있어야 원인(키·번들 ID·카카오맵 사용 설정)을 가린다.
+  // 성공도 notice 로 남겨 Console.app 기본 설정(정보 메시지 제외)에서 보이게 한다
+  it('카카오 인증 성공·실패(코드·설명)를 기기 로그로 남긴다 (#223)', () => {
+    const swift = code(read(IOS_MAP));
+    const failed = swiftFuncBody(swift, 'authenticationFailed');
+
+    expect(swift).toMatch(/import os\b/);
+    expect(swift).toMatch(/Logger\(\s*subsystem: [^)]*category: "KakaoMap"\)/);
+    expect(failed).toMatch(/\blog\.error\(/);
+    expect(failed).toContain('\\(errorCode, privacy: .public)');
+    expect(failed).toContain('\\(desc, privacy: .public)');
+    expect(swiftFuncBody(swift, 'authenticationSucceeded')).toMatch(
+      /\blog\.notice\(/,
     );
   });
 
