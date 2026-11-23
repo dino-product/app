@@ -73,35 +73,24 @@ export const ConfirmedRow = memo(function ConfirmedRowView({
   item: ConfirmedSchedule;
   /** 시간 뒤의 날짜 (formatCardDay) */
   dayLabel: string;
-  onPress?: (id: string) => void;
+  /** 그 작업의 상세를 연다 (#221) */
+  onPress: (id: string) => void;
   /** 리스트가 주는 바깥 여백 */
   style?: StyleProp<ViewStyle>;
 }) {
-  // 누를 수 있는 카드(onPress)는 안쪽에서 시작한 가로 밀기로 탭을 바꾸지 않는다 (#140). 카드끼리 12 떨어져 있어
-  // 위·아래 변에도 여유를 둔다. 누를 수 없는 정보 카드는 탭 밀기를 그대로 둔다
+  // 누르는 카드라 안쪽에서 시작한 가로 밀기로 탭을 바꾸지 않는다 (#140). 카드끼리 12 떨어져 있어 위·아래 변에도 여유를 둔다
   const tabSwipe = useTabSwipeRegion();
-  const label = `${item.title}, ${workStatusLabels[item.status]}, ${
-    item.timeRange
-  } ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`;
-  const content = <CardSummary item={item} dayLabel={dayLabel} />;
-
-  // 누를 동작이 없으면 버튼이 아니라 한 덩어리 정보로 읽히게 한다
-  if (!onPress) {
-    return (
-      <View accessible accessibilityLabel={label} style={[styles.card, style]}>
-        {content}
-      </View>
-    );
-  }
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={`${item.title}, ${workStatusLabels[item.status]}, ${
+        item.timeRange
+      } ${dayLabel}, ${item.company} ${item.customerName} · ${item.address}`}
       onPress={() => onPress(item.id)}
       onTouchStart={tabSwipe.onTouchStart}
       style={state => [confirmedCardStyle(state), style]}
     >
-      {content}
+      <CardSummary item={item} dayLabel={dayLabel} />
     </Pressable>
   );
 });

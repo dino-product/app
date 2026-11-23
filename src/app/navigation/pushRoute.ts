@@ -7,6 +7,7 @@ import { isNotificationType } from '../../features/my/notificationApi';
 import { isRecord } from '../../shared/isRecord';
 import type { NotificationWorkScreen } from './notificationWork';
 import type { MainTabParamList } from './types';
+import { workDetailInTabs, type mainTabsOf } from './workDetailTabs';
 
 // 푸시를 눌렀을 때 열 화면 (#118). 백엔드 FCM data 는 notificationId·type 과, 있을 때만 workId·participationRequestId 를
 // 문자열로 준다. organizationId 는 담지 않는다(#112 G8): 작업 상세는 발주사 없이 열고, 상세가 활성 기사 소속으로 정한다(#114).
@@ -70,23 +71,18 @@ const inMain = (
 
 /**
  * 열 화면. workScreen 은 작업 알림이면 먼저 고른 화면(notificationWorkScreen, 없으면 작업 상세).
+ * 작업 상세는 홈 탭에 열되, 내 일정 탭에 같은 작업 상세가 열려 있으면 그 화면이다 (mainTabs: 지금 메인 탭 상태, #226 리뷰).
  * 이을 수 없는 알림(모르는 종류·id 없음)은 메인의 알림센터
  */
 export function pushRouteOf(
   { type, workId, participationRequestId }: PushData,
   workScreen?: NotificationWorkScreen,
+  mainTabs?: ReturnType<typeof mainTabsOf>,
 ): PushRoute {
   if (isWorkType(type) && workId !== undefined) {
     return workScreen === 'request'
       ? { name: 'RequestDetail', params: { id: workId } }
-      : inMain({
-          screen: 'home',
-          params: {
-            screen: 'WorkDetail',
-            params: { id: workId },
-            initial: false,
-          },
-        });
+      : inMain(workDetailInTabs(mainTabs, 'home', { id: workId }));
   }
   if (
     type === 'PARTICIPATION_REQUEST_REJECTED' &&

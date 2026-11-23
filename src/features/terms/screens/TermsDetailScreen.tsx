@@ -4,6 +4,7 @@ import {
   StyleSheet,
   View,
   type SectionListData,
+  type PressableInstance,
   type SectionListRenderItem,
   type TextInstance,
 } from 'react-native';
@@ -18,6 +19,7 @@ import {
   SkeletonLine,
   Text,
 } from '../../../shared/design-system';
+import { JumpAnchor } from '../../../shared/layout/JumpAnchor';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -25,11 +27,14 @@ import { SubScreenHeader } from '../../my/components/SubScreenHeader';
 import type { TermsDocument } from '../documents';
 import { useTermsDocuments, type TermsDocumentState } from '../termsQueries';
 import type { TermsBlock } from '../termsText';
+import { AGREE_VIEWABILITY, RADIOS_ITEM, useAgreeJump } from './useAgreeJump';
 
 // Figma 약관 상세 페이지 (51019:16927). 뒤로 가기만 있는 머리 아래에 큰 제목, (있으면) 안내, 원격 전문을 보인다 (#192).
 // 전문은 '제N조' 를 글머리표 줄로, 그 아래 글을 18 들여 쓴다. 받는 동안은 본문 자리에 스켈레톤, 실패하면 다시 시도.
 // 여러 약관을 한 페이지에 차례로 보일 수 있다 (가입 약관 '모두 동의', #193). 본문 덩어리는 길이가 가변이라 SectionList 로 그린다.
-// 가입 약관은 전문 아래에 '동의합니다'·'동의하지 않습니다' 라디오(디자인 시스템)를 둔다 (#193, Figma 에 없는 자리라 기본안)
+// 가입 약관은 전문 아래에 '동의합니다'·'동의하지 않습니다' 라디오(디자인 시스템)를 둔다 (#193, Figma 에 없는 자리라 기본안).
+// 가입 약관은 아래에 작업 상세 '완료 보고 작성하기' 와 같은 모양의 '약관 동의하기' 앵커를 띄운다. 누르면 읽는 약관의
+// 라디오로 스크롤한 다음 '동의합니다' 를 고른다 (#218 사용자 요청, useAgreeJump). 전문을 받는 중·실패한 약관에는 띄우지 않는다
 
 export type TermsDetailSection = {
   /** 약관을 가리키는 키 (가입: TermsType, 마이: MyPageTerms) */
@@ -45,8 +50,15 @@ export type TermsDetailSection = {
 export const TERMS_UNAVAILABLE = '약관 전문을 준비하고 있어요.';
 
 type PendingState = Exclude<TermsDocumentState, { status: 'ready' }>;
-type Item = TermsBlock | { kind: 'state'; state: PendingState };
-type Section = TermsDetailSection & { index: number; data: readonly Item[] };
+type Item =
+  | TermsBlock
+  | { kind: 'state'; state: PendingState }
+  | typeof RADIOS_ITEM;
+type Section = TermsDetailSection & {
+  index: number;
+  data: readonly Item[];
+  readable: boolean;
+};
 
 export const AGREE_LABEL = '동의합니다';
 export const DISAGREE_LABEL = '동의하지 않습니다';
@@ -76,21 +88,42 @@ export function TermsDetailScreen({
     [sections],
   );
   const states = useTermsDocuments(documents);
+  const agreeable = agreement !== undefined && onAgreeChange !== undefined;
   const listSections = useMemo<Section[]>(
     () =>
       sections.map((section, index) => {
         const state = states[index];
+        const body: readonly Item[] =
+          state.status === 'ready' ? state.blocks : [{ kind: 'state', state }];
+        // 가입 약관은 전문 다음 칸에 동의 라디오를 둔다 (보이는지를 목록이 칸으로 알려 준다)
         return {
           ...section,
           index,
-          data:
-            state.status === 'ready'
-              ? state.blocks
-              : [{ kind: 'state', state }],
+          data: agreeable ? [...body, RADIOS_ITEM] : body,
+          // 받는 중·실패한 약관에는 '약관 동의하기' 를 띄우지 않는다. 전문이 없는 약관은 준비 중 안내가 보일 글 전부다
+          readable: state.status !== 'loading' && state.status !== 'error',
         };
       }),
-    [sections, states],
+    [sections, states, agreeable],
   );
+
+  const insets = useSafeAreaInsets();
+  const bottom = standalone ? insets.bottom : 0;
+  const {
+    listRef,
+    target,
+    jump,
+    onViewableItemsChanged,
+    onScrollToIndexFailed,
+    onScrollBeginDrag,
+    choose,
+    registerRadio,
+  } = useAgreeJump<Item, Section>({
+    sections: listSections,
+    agreement,
+    onAgreeChange,
+    bottomSpace: CONTENT_BOTTOM + bottom,
+  });
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: SectionListData<Item, Section> }) => (
@@ -102,55 +135,80 @@ export function TermsDetailScreen({
     [titleRef],
   );
 
-  const renderSectionFooter = useCallback(
-    ({ section }: { section: SectionListData<Item, Section> }) =>
-      agreement === undefined || onAgreeChange === undefined ? null : (
-        <AgreementRadios
-          termsKey={section.key}
-          title={section.title}
-          agreed={agreement[section.key] ?? false}
-          onChange={onAgreeChange}
-        />
-      ),
-    [agreement, onAgreeChange],
+  const renderItem = useCallback<SectionListRenderItem<Item, Section>>(
+    ({ item, index, section }) => {
+      switch (item.kind) {
+        case 'state':
+          return <PendingBody sectionKey={section.key} state={item.state} />;
+        case 'radios':
+          return agreement === undefined ||
+            onAgreeChange === undefined ? null : (
+            <AgreementRadios
+              termsKey={section.key}
+              title={section.title}
+              agreed={agreement[section.key] ?? false}
+              onChange={choose}
+              registerRadio={registerRadio}
+            />
+          );
+        default:
+          return <BlockRow block={item} first={index === 0} />;
+      }
+    },
+    [agreement, onAgreeChange, choose, registerRadio],
   );
 
-  const insets = useSafeAreaInsets();
-  const bottom = standalone ? insets.bottom : 0;
+  // 앵커가 나타나고 숨을 때 화면만 다시 그리고 목록(PureComponent)은 그대로 두게 같은 값을 준다
+  const contentContainerStyle = useMemo(
+    () => [
+      readableColumn,
+      styles.content,
+      { paddingBottom: CONTENT_BOTTOM + bottom },
+    ],
+    [bottom],
+  );
+  const jumpSection = target === null ? undefined : listSections[target];
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SubScreenHeader onBack={onBack} />
       <SectionList<Item, Section>
         {...noOverscroll}
+        ref={listRef}
         sections={listSections}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
-        renderSectionFooter={renderSectionFooter}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={[
-          readableColumn,
-          styles.content,
-          { paddingBottom: CONTENT_BOTTOM + bottom },
-        ]}
+        // 읽기 전용(마이 › 약관)은 앵커가 없어 보이는 칸을 따지지 않는다 (화면이 떠 있는 동안 바뀌지 않는다)
+        viewabilityConfig={agreeable ? AGREE_VIEWABILITY : undefined}
+        onViewableItemsChanged={agreeable ? onViewableItemsChanged : undefined}
+        onScrollToIndexFailed={onScrollToIndexFailed}
+        onScrollBeginDrag={agreeable ? onScrollBeginDrag : undefined}
+        contentContainerStyle={contentContainerStyle}
       />
+      {agreeable && (
+        <JumpAnchor
+          label={AGREE_JUMP_LABEL}
+          accessibilityLabel={
+            jumpSection && `${jumpSection.title}, ${AGREE_JUMP_LABEL}`
+          }
+          visible={target !== null}
+          onPress={jump}
+          bottomInset={bottom}
+          testID="terms-agree-jump"
+        />
+      )}
     </SafeAreaView>
   );
 }
 
-const keyExtractor = (_item: Item, index: number) => String(index);
+/** 스크린리더는 어느 약관인지 앞에 붙이고 보이는 글자를 그대로 읽는다 ('(필수) 서비스 이용약관, 약관 동의하기') */
+const AGREE_JUMP_LABEL = '약관 동의하기';
 
-const renderItem: SectionListRenderItem<Item, Section> = ({
-  item,
-  index,
-  section,
-}) =>
-  item.kind === 'state' ? (
-    <PendingBody sectionKey={section.key} state={item.state} />
-  ) : (
-    <BlockRow block={item} first={index === 0} />
-  );
+// 라디오 칸은 전문이 도착해 자리가 바뀌어도 같은 칸으로 남게(고른 상태·초점이 끊기지 않게) 따로 이름을 둔다
+const keyExtractor = (item: Item, index: number) =>
+  item === RADIOS_ITEM ? 'radios' : String(index);
 
 /** 큰 제목과 안내. 두 번째 약관부터는 위에 구분선을 둔다 */
 function SectionHeader({
@@ -193,11 +251,14 @@ const AgreementRadios = memo(function TermsAgreementRadios({
   title,
   agreed,
   onChange,
+  registerRadio,
 }: {
   termsKey: string;
   title: string;
   agreed: boolean;
   onChange: (key: string, agreed: boolean) => void;
+  /** '약관 동의하기' 로 고른 뒤 스크린리더 초점을 옮길 '동의합니다' 라디오를 알린다 */
+  registerRadio: (key: string, radio: PressableInstance | null) => void;
 }) {
   return (
     <View
@@ -207,6 +268,7 @@ const AgreementRadios = memo(function TermsAgreementRadios({
       testID={`terms-agreement-${termsKey}`}
     >
       <Radio
+        ref={radio => registerRadio(termsKey, radio)}
         label={AGREE_LABEL}
         accessibilityLabel={`${title}, ${AGREE_LABEL}`}
         checked={agreed}

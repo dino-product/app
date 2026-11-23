@@ -1,4 +1,5 @@
 import {
+  StackActions,
   useIsFocused,
   usePreventRemove,
   useScrollToTop,
@@ -49,9 +50,11 @@ import {
 import { useFocusTitleOnOpen } from './routes';
 import {
   HOME_INITIAL_ROUTE,
+  SCHEDULE_INITIAL_ROUTE,
   type HomeScreenProps,
   type MyScreenProps,
 } from './types';
+import { workDetailInTabs } from './workDetailTabs';
 
 // 마이 탭 스택에 올리는 화면들 (#72). 앱 상태를 화면 props 로 이어 준다.
 // 프로필·소속 발주사·탈퇴는 서버 API 다 (#115). 마이페이지는 경로가 조회해 넘기고, 하위 화면은 화면이 직접 받는다
@@ -217,13 +220,20 @@ export function NotificationCenterRoute({
       (id: string) => navigation.navigate('RequestDetail', { id }),
       [navigation],
     ),
+    // 내 일정 탭에 같은 작업 상세가 열려 있으면 그 화면으로 간다 (#226 리뷰, workDetailTabs)
     openDetail: useCallback(
-      (target: WorkTarget) =>
-        navigation.navigate('home', {
-          screen: 'WorkDetail',
-          params: workDetailParams(target),
-          initial: false,
-        }),
+      (target: WorkTarget) => {
+        const detail = workDetailInTabs(
+          navigation.getParent()?.getState(),
+          'home',
+          workDetailParams(target),
+        );
+        if (detail.screen === 'schedule') {
+          navigation.navigate('schedule', detail.params);
+        } else if (detail.screen === 'home') {
+          navigation.navigate('home', detail.params);
+        }
+      },
       [navigation],
     ),
   });
@@ -255,9 +265,21 @@ export function HomeNotificationCenterRoute({
       (id: string) => navigation.navigate('RequestDetail', { id }),
       [navigation],
     ),
+    // 내 일정 탭에 같은 작업 상세가 열려 있으면 홈에 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
     openDetail: useCallback(
-      (target: WorkTarget) =>
-        navigation.navigate('WorkDetail', workDetailParams(target)),
+      (target: WorkTarget) => {
+        const params = workDetailParams(target);
+        const detail = workDetailInTabs(
+          navigation.getParent()?.getState(),
+          'home',
+          params,
+        );
+        if (detail.screen === 'schedule') {
+          navigation.navigate('schedule', detail.params);
+        } else {
+          navigation.navigate('WorkDetail', params);
+        }
+      },
       [navigation],
     ),
   });
@@ -409,12 +431,37 @@ export function WithdrawalBlockedRoute({
   const titleRef = useFocusTitleOnOpen(navigation);
   // 사유를 정리하러 다른 탭에 갔다가 돌아오면 가능 여부를 다시 묻는다
   const focused = useIsFocused();
+  // 내 일정의 응답 필요로 간다. 내 일정 탭에 작업 상세가 쌓여 있으면 내 일정까지 돌아간다 (#221).
+  // 그 스택에 popTo 를 보내야 작성 중인 완료 보고가 있을 때 먼저 묻는다(beforeRemove, 탭을 다시 누를 때와 같다).
+  // 하위 이동 파라미터(pop)로 보내면 하위 내비게이터가 묻지 않고 닫는다 (#226 리뷰).
+  // 내 일정 스택이 아직 없으면(처음 여는 탭·복원만 하고 열지 않은 탭) 닫을 화면이 마운트돼 있지 않아 파라미터로 연다
+  const openPendingRequests = () => {
+    const schedule = navigation
+      .getParent()
+      ?.getState()
+      .routes.find(route => route.name === 'schedule')?.state;
+    if (schedule?.key === undefined) {
+      navigation.navigate('schedule', {
+        screen: SCHEDULE_INITIAL_ROUTE,
+        params: { tab: 'pending' },
+        pop: true,
+      });
+      return;
+    }
+    navigation.navigate('schedule');
+    navigation.dispatch({
+      ...StackActions.popTo(SCHEDULE_INITIAL_ROUTE, { tab: 'pending' }),
+      // 보낸 화면(마이 스택)이 아니라 내 일정 스택의 지금 화면에서 돌아간다
+      source: undefined,
+      target: schedule.key,
+    });
+  };
   // 진행 중인 작업은 홈, 미완료 작업 배정은 내 일정의 응답 필요로 간다 (기본안, 디자인 확인 항목)
   const openBlock = (reason: WithdrawalBlockReason) => {
     if (reason === 'WORK_IN_PROGRESS') {
       navigation.navigate('home', { screen: HOME_INITIAL_ROUTE });
     } else if (reason === 'WORK_PENDING_ACCEPT') {
-      navigation.navigate('schedule', { tab: 'pending' });
+      openPendingRequests();
     }
   };
 

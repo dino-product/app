@@ -234,6 +234,7 @@ const refreshable: [string, ReactElement][] = [
       onAccept={async () => true}
       onReject={noop}
       onOpenRequest={noop}
+      onOpenWork={noop}
     />,
   ],
   [

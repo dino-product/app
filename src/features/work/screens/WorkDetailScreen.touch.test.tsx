@@ -30,7 +30,7 @@ describe('WorkDetailScreen 터치 영역', () => {
     );
   });
 
-  // #149 등장·퇴장 애니메이션을 넣으며 앵커를 따로 뺐다 (ReportJumpAnchor)
+  // #149 등장·퇴장 애니메이션을 넣으며 앵커를 따로 뺐다 (JumpAnchor)
   it('"완료 보고 작성하기" 앵커는 최소 터치 영역 이상이다', async () => {
     await render(
       <WorkDetailScreen

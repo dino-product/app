@@ -1233,18 +1233,28 @@ describe('App', () => {
     });
   });
 
-  // 마이페이지도 회색이다 (App.my.test)
-  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인은 회색)', async () => {
+  // 마이페이지도 회색이다 (App.my.test). 내 일정(Figma 3754:6269)·작업 이력(3753:4890) 첫 화면도 바탕이 Background/3 이다
+  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인·내 일정·작업 이력은 회색, 작업 상세는 흰색)', async () => {
     await renderSignedInHome();
     const backdrop = () => screen.getByTestId('main-tab-bar');
+    const gray = { backgroundColor: colors.background[3] };
+    const white = { backgroundColor: colors.white[100] };
 
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.background[3] });
+    expect(backdrop()).toHaveStyle(gray);
 
     await openStartedWorkDetail();
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.white[100] });
+    expect(backdrop()).toHaveStyle(white);
 
     await userEvent.press(tab('내 일정'));
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.white[100] });
+    expect(backdrop()).toHaveStyle(gray);
+    await userEvent.press(
+      await screen.findByRole('button', { name: /^세탁기 설치, 작업전/ }),
+    );
+    await screen.findByRole('header', { name: '작업 상세' });
+    expect(backdrop()).toHaveStyle(white);
+
+    await userEvent.press(tab('작업 이력'));
+    expect(backdrop()).toHaveStyle(gray);
   });
 
   it('전화·길찾기 링크를 열지 못해도 앱이 처리되지 않은 오류를 내지 않는다', async () => {
@@ -1263,6 +1273,81 @@ describe('App', () => {
     expect(openURL).toHaveBeenLastCalledWith(
       expect.stringMatching(/^(https:\/\/maps\.apple\.com\/\?q=|geo:0,0\?q=)/),
     );
+  });
+
+  // #221 리뷰: 작업 상세는 홈 탭과 내 일정 탭 스택에 쌓인다. 같은 작업을 두 탭에 따로 열면 두 화면이 같은 기기 초안에
+  // 따로 써 서로 덮으므로, 다른 탭에 이미 열린 같은 작업 상세가 있으면 그 탭의 그 화면으로 옮긴다
+  describe('내 일정에서 연 작업 상세', () => {
+    const memo = () => screen.getByLabelText('수행 메모 입력');
+
+    it('다른 날을 골라 연 작업 상세에서 뒤로 가면 같은 보기·같은 날이다', async () => {
+      await renderSignedInHome();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        screen.getByRole('button', { name: '달력 펼치기' }),
+      );
+      await userEvent.press(
+        screen.getByRole('button', { name: '10월 22일 목요일' }),
+      );
+
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^세탁기 설치, 작업전/ }),
+      );
+      await screen.findByRole('header', { name: '작업 상세' });
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '달력 접기' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('2026년 10월 22일 (목)')).toBeOnTheScreen();
+      expect(
+        screen.getByRole('button', { name: '10월 22일 목요일' }),
+      ).toBeSelected();
+    });
+
+    it('내 일정에 열어 둔 작업을 홈에서 다시 열면 내 일정의 그 화면으로 가 쓰던 보고를 이어 쓴다', async () => {
+      await renderSignedInHome();
+      await userEvent.press(screen.getByRole('button', { name: '작업 시작' }));
+      await screen.findByRole('button', { name: '작업 수행중' });
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      );
+      await findWorkDetailLoaded();
+      await userEvent.type(memo(), '일정');
+
+      await userEvent.press(tab('홈'));
+      await userEvent.press(await findHomeLoaded());
+
+      expect(tab('내 일정')).toBeSelected();
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(memo()).toHaveDisplayValue('일정');
+      // 홈 탭에는 작업 상세를 쌓지 않았다
+      await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+      await userEvent.press(tab('홈'));
+      expect(header('내 작업')).toBeOnTheScreen();
+      expect(header('작업 상세')).toBeNull();
+    });
+
+    it('홈에 열어 둔 작업을 내 일정에서 다시 열면 홈의 그 화면으로 가 쓰던 보고를 이어 쓴다', async () => {
+      await renderSignedInHome();
+      await openStartedWorkDetail();
+      await userEvent.type(memo(), '홈');
+
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      );
+
+      expect(tab('홈')).toBeSelected();
+      expect(header('작업 상세')).toBeOnTheScreen();
+      expect(memo()).toHaveDisplayValue('홈');
+      await userEvent.type(memo(), '+일정');
+      await userEvent.press(tab('내 일정'));
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(header('작업 상세')).toBeNull();
+    });
   });
 
   describe('내 일정', () => {

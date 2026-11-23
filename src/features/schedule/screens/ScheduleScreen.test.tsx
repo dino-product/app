@@ -30,6 +30,7 @@ import { isInsideScrollView } from '../../../shared/testing/scroll';
 import { expectOnlySkeletons } from '../../../shared/testing/skeleton';
 import { stylePt, type HostElement } from '../../../shared/testing/touchTarget';
 import type { ConfirmedSchedule, PendingRequest } from '../model';
+import { loadScheduleView, saveScheduleView } from '../scheduleView';
 import { ScheduleScreen, type ScheduleScreenProps } from './ScheduleScreen';
 
 const today = new Date(2026, 11, 15); // 화요일
@@ -100,6 +101,7 @@ const renderSchedule = (overrides: Partial<ScheduleScreenProps> = {}) =>
       onAccept={jest.fn(async () => true)}
       onReject={jest.fn()}
       onOpenRequest={jest.fn()}
+      onOpenWork={jest.fn()}
       {...overrides}
     />,
   );
@@ -586,6 +588,68 @@ describe('ScheduleScreen — 확정 일정', () => {
 
 // #202: Figma 3754:6269(주간)·3754:6457(월간) 날짜 줄 오른쪽에 '오늘' 버튼이 있다.
 // 주간 보기는 오늘이 있는 주, 월간 보기는 이번 달로 돌아오고 오늘을 고른다
+// 마지막으로 고른 보기(주간 줄 / 펼친 달력)를 기기에 남겨, 화면을 다시 그려도(앱을 다시 열어도) 그 보기로 연다 (#222).
+// 고른 날·보이는 달은 남기지 않는다: 다시 열면 오늘을 고르고 오늘의 주·달을 보인다 (기존 동작, Figma 에 저장 없음)
+describe('ScheduleScreen — 보기 기억 (#222)', () => {
+  const reopen = async (unmount: () => Promise<void>) => {
+    await unmount();
+    return renderSchedule();
+  };
+
+  it('저장한 보기가 없으면(처음 설치) 주간 보기로 연다', async () => {
+    await renderSchedule();
+
+    expect(
+      screen.getByRole('button', { name: '달력 펼치기' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByTestId('week-strip')).toBeOnTheScreen();
+  });
+
+  it('달력을 펼치면 월간을 기억하고, 다시 열면 오늘의 달 달력으로 연다', async () => {
+    const { unmount } = await renderSchedule();
+    await userEvent.press(screen.getByRole('button', { name: '달력 펼치기' }));
+    expect(loadScheduleView()).toBe('month');
+    // 다른 달로 넘기고 다른 날을 골라 두어도 다시 열면 오늘이다
+    await userEvent.press(screen.getByRole('button', { name: '다음 달' }));
+    await userEvent.press(
+      screen.getByRole('button', { name: '1월 4일 월요일' }),
+    );
+
+    await reopen(unmount);
+
+    expect(screen.getByRole('button', { name: '달력 접기' })).toBeOnTheScreen();
+    expect(screen.getByTestId('month-calendar')).toBeOnTheScreen();
+    expect(screen.queryByTestId('week-strip')).toBeNull();
+    expect(screen.getByText('2026년 12월')).toBeOnTheScreen();
+    expect(screen.getByText('2026년 12월 15일 (화)')).toBeOnTheScreen();
+    expect(selectedDays()).toEqual(['12월 15일 화요일']);
+  });
+
+  it('월간에서 달력을 접으면 주간을 기억하고, 다시 열면 주간 보기로 연다', async () => {
+    saveScheduleView('month');
+    const { unmount } = await renderSchedule();
+    expect(screen.getByRole('button', { name: '달력 접기' })).toBeOnTheScreen();
+
+    await userEvent.press(screen.getByRole('button', { name: '달력 접기' }));
+    expect(loadScheduleView()).toBe('week');
+    await reopen(unmount);
+
+    expect(
+      screen.getByRole('button', { name: '달력 펼치기' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByTestId('week-strip')).toBeOnTheScreen();
+  });
+
+  it('월간으로 열면 처음부터 그 달의 일정만 부른다 (보이는 달이 바뀌었다고 알리지 않는다)', async () => {
+    saveScheduleView('month');
+    const onVisibleMonthsChange = jest.fn();
+
+    await renderSchedule({ onVisibleMonthsChange });
+
+    expect(onVisibleMonthsChange).not.toHaveBeenCalled();
+  });
+});
+
 describe('ScheduleScreen — 오늘 버튼 (#202)', () => {
   const pressToday = () =>
     userEvent.press(screen.getByRole('button', { name: '오늘' }));
@@ -1418,13 +1482,42 @@ describe('ScheduleScreen — 응답 필요', () => {
       expect(titles).toEqual(['이른 일정', '늦은 일정']);
     });
 
-    it('확정 일정 행은 누를 수 없으므로 버튼으로 노출하지 않는다', async () => {
-      await renderSchedule();
+    // 확정 일정 카드는 그 작업의 상세를 여는 버튼이다 (#221). 주간·월간 어느 보기에서도 같다
+    it.each([
+      ['주간', false],
+      ['월간', true],
+    ] as const)(
+      '%s: 확정 일정 카드를 누르면 그 작업을 연다',
+      async (_label, open) => {
+        const onOpenWork = jest.fn();
+        await renderSchedule({ onOpenWork });
+        if (open) {
+          await userEvent.press(
+            screen.getByRole('button', { name: '달력 펼치기' }),
+          );
+        }
 
-      expect(
-        screen.queryByRole('button', { name: /^세탁기 설치,/ }),
-      ).toBeNull();
-      expect(screen.getByLabelText(/^세탁기 설치, 배정됨/)).toBeOnTheScreen();
+        await userEvent.press(
+          screen.getByRole('button', { name: /^보일러 점검, 작업전/ }),
+        );
+
+        expect(onOpenWork).toHaveBeenCalledTimes(1);
+        expect(onOpenWork).toHaveBeenCalledWith('c2');
+      },
+    );
+
+    it('다른 날을 골라도 그 날의 카드를 누르면 그 작업을 연다', async () => {
+      const onOpenWork = jest.fn();
+      await renderSchedule({ onOpenWork });
+      await userEvent.press(
+        screen.getByRole('button', { name: '12월 16일 수요일' }),
+      );
+
+      await userEvent.press(
+        screen.getByRole('button', { name: /^도어록 교체, 배정됨/ }),
+      );
+
+      expect(onOpenWork).toHaveBeenCalledWith('c3');
     });
   });
 });
@@ -1470,6 +1563,7 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
       onAccept: jest.fn(),
       onReject: jest.fn(),
       onOpenRequest: jest.fn(),
+      onOpenWork: jest.fn(),
     };
     const { rerender } = await render(<ScheduleScreen {...props} />);
     expect(screen.getByRole('tab', { name: /^확정 일정/ })).toBeSelected();
@@ -1496,6 +1590,7 @@ describe('ScheduleScreen — 바깥에서 하위 탭 고르기', () => {
         onAccept={jest.fn()}
         onReject={jest.fn()}
         onOpenRequest={jest.fn()}
+        onOpenWork={jest.fn()}
         requestedTab="pending"
       />,
     );
@@ -1577,6 +1672,7 @@ describe('ScheduleScreen — 날짜가 바뀌면', () => {
     onAccept: jest.fn(async () => true),
     onReject: jest.fn(),
     onOpenRequest: jest.fn(),
+    onOpenWork: jest.fn(),
   };
 
   it('오늘을 고르고 있었으면 새 오늘을 고르고 그 달을 알린다', async () => {

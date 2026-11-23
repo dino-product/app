@@ -41,7 +41,13 @@ describe.each([
     time: '08:00 - 09:00',
     day: '오늘 · 12. 15. (화)',
     renderCard: () =>
-      render(<ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />),
+      render(
+        <ConfirmedRow
+          item={confirmed}
+          dayLabel="오늘 · 12. 15. (화)"
+          onPress={jest.fn()}
+        />,
+      ),
   },
   {
     label: 'PendingRequestCard',
@@ -122,7 +128,11 @@ describe('ConfirmedRow', () => {
   // Figma 3754:6312: 흰 카드(Gray0), 모서리 16, 사방 20, 줄 사이 6, 아래만 Gray50 선
   it('흰 카드에 모서리 16, 사방 20, 줄 사이 6, 아래 Gray50 선이다', async () => {
     await render(
-      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+      <ConfirmedRow
+        item={confirmed}
+        dayLabel="오늘 · 12. 15. (화)"
+        onPress={jest.fn()}
+      />,
     );
 
     expect(screen.getByLabelText(/^세탁기 설치, /)).toHaveStyle({
@@ -137,7 +147,11 @@ describe('ConfirmedRow', () => {
 
   it('스크린리더는 제목, 상태, 시간과 날짜, 업체·고객·주소를 한 번에 읽는다', async () => {
     await render(
-      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+      <ConfirmedRow
+        item={confirmed}
+        dayLabel="오늘 · 12. 15. (화)"
+        onPress={jest.fn()}
+      />,
     );
 
     expect(
@@ -149,7 +163,11 @@ describe('ConfirmedRow', () => {
 
   it('달력 아이콘 없이 시간 줄을 보인다', async () => {
     await render(
-      <ConfirmedRow item={confirmed} dayLabel="오늘 · 12. 15. (화)" />,
+      <ConfirmedRow
+        item={confirmed}
+        dayLabel="오늘 · 12. 15. (화)"
+        onPress={jest.fn()}
+      />,
     );
 
     const timeLine = screen.getByText('08:00 - 09:00  오늘 · 12. 15. (화)');

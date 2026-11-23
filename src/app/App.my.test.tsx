@@ -45,6 +45,7 @@ import {
   renderApp,
   renderSignedInApp,
   signedInSession,
+  startCurrentWork,
   WITHDRAWALS_PATH,
 } from './testing';
 
@@ -477,6 +478,75 @@ describe('App — 마이 탭', () => {
 
       expect(header('내 일정')).toBeOnTheScreen();
       expect(tab('내 일정')).toBeSelected();
+      expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+    });
+
+    // #221: 내 일정 탭 안에 작업 상세가 쌓여 있어도 내 일정(응답 필요)으로 돌아가 보인다
+    it('내 일정에 작업 상세를 열어 둔 채여도 > 를 누르면 내 일정의 응답 필요로 간다', async () => {
+      const app = await renderSignedInApp();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검,/ }),
+      );
+      await screen.findByRole('header', { name: '작업 상세' });
+      await userEvent.press(tab('마이'));
+      app.server.on(
+        'GET',
+        ELIGIBILITY_PATH,
+        ok(blockedBy('WORK_PENDING_ACCEPT', 2)),
+      );
+      await userEvent.press(button('계정 관리'));
+      await userEvent.press(button('계정 탈퇴'));
+
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^미완료 작업 배정/ }),
+      );
+
+      expect(header('내 일정')).toBeOnTheScreen();
+      expect(header('작업 상세')).toBeNull();
+      expect(tab('내 일정')).toBeSelected();
+      expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
+    });
+
+    // #221 리뷰: 내 일정 스택을 닫는 이동도 작성 중인 완료 보고가 있으면 먼저 묻는다 (탭을 다시 누를 때와 같다)
+    it('내 일정 작업 상세에 쓰던 보고가 있으면 > 를 눌렀을 때 먼저 묻고, 나가기로 하면 응답 필요로 간다', async () => {
+      const app = await renderSignedInApp();
+      await startCurrentWork();
+      await userEvent.press(tab('내 일정'));
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^보일러 점검, 작업중/ }),
+      );
+      await userEvent.type(
+        await screen.findByLabelText('수행 메모 입력'),
+        '교체',
+      );
+      await userEvent.press(tab('마이'));
+      app.server.on(
+        'GET',
+        ELIGIBILITY_PATH,
+        ok(blockedBy('WORK_PENDING_ACCEPT', 2)),
+      );
+      await userEvent.press(button('계정 관리'));
+      await userEvent.press(button('계정 탈퇴'));
+      const alert = spyAlert();
+
+      await userEvent.press(
+        await screen.findByRole('button', { name: /^미완료 작업 배정/ }),
+      );
+
+      expect(alert).toHaveBeenCalledWith(
+        '작성 중인 완료 보고가 있어요',
+        expect.any(String),
+        expect.any(Array),
+        expect.anything(),
+      );
+      expect(tab('내 일정')).toBeSelected();
+      expect(header('작업 상세')).toBeOnTheScreen();
+
+      await pressAlertButton(alert, '나가기');
+
+      expect(header('작업 상세')).toBeNull();
+      expect(header('내 일정')).toBeOnTheScreen();
       expect(screen.getByRole('tab', { name: /^응답 필요/ })).toBeSelected();
     });
 

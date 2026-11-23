@@ -86,11 +86,12 @@ import { useToday } from '../../shared/time/useToday';
 import { useAuth } from '../AuthProvider';
 import { callPhone, openDirections, openMap } from '../externalLinks';
 import { useHoldTabSwitchWhile, useTabSwitchHold } from './tabSwitchLock';
+import { workDetailInTabs } from './workDetailTabs';
 import type {
   HistoryScreenProps,
   HomeScreenProps,
-  MainTabScreenProps,
   RootScreenProps,
+  ScheduleStackScreenProps,
 } from './types';
 
 // 내비게이터에 올리는 화면들. 작업 저장소(React Query 훅, features/work/data)의 값을 화면 컴포넌트 props 로 이어 준다.
@@ -279,12 +280,22 @@ export function WorkHomeRoute({ navigation }: HomeScreenProps<'WorkHome'>) {
       alertWorkError('start', error);
     }
   }, [current, startWork]);
-  // 수락 대기 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 연다
+  // 수락 대기 작업은 수락·거절하는 요청 상세로, 나머지는 작업 상세로 연다.
+  // 내 일정 탭에 같은 작업 상세가 열려 있으면 홈에 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
   const openWork = useCallback(
     (id: string) => {
       const work = works?.find(item => String(item.workId) === id);
       if (work?.status === 'PENDING_ACCEPT') {
         navigation.navigate('RequestDetail', { id });
+        return;
+      }
+      const target = workDetailInTabs(
+        navigation.getParent()?.getState(),
+        'home',
+        { id },
+      );
+      if (target.screen === 'schedule') {
+        navigation.navigate('schedule', target.params);
       } else {
         navigation.navigate('WorkDetail', { id });
       }
@@ -328,10 +339,11 @@ function confirmDiscardReport(onDiscard: () => void) {
   );
 }
 
+// 홈에서 연 작업 상세와 내 일정에서 연 작업 상세(#221)는 같은 화면이다. 각자 탭 안에 쌓여 뒤로 가면 연 곳으로 돌아간다
 export function WorkDetailRoute({
   navigation,
   route,
-}: HomeScreenProps<'WorkDetail'>) {
+}: HomeScreenProps<'WorkDetail'> | ScheduleStackScreenProps<'WorkDetail'>) {
   const draftId = route.params.id;
   const { workId, detail, status, unavailable, missing } = useRouteWorkDetail(
     draftId,
@@ -439,7 +451,7 @@ const sameMonths = (a: readonly YearMonth[], b: readonly YearMonth[]) =>
 export function ScheduleRoute({
   navigation,
   route,
-}: MainTabScreenProps<'schedule'>) {
+}: ScheduleStackScreenProps<'MySchedule'>) {
   const listRef = useTabScrollToTop();
   const today = useToday();
   const subscribed = useIsFocused();
@@ -482,6 +494,23 @@ export function ScheduleRoute({
     (id: string) => navigation.navigate('RequestDetail', { id }),
     [navigation],
   );
+  // 확정 일정은 홈에서 연 것과 같은 작업 상세로 연다 (#221). 내 일정 탭 안에 쌓아 하단 탭은 내 일정에 머문다.
+  // 홈 탭에 같은 작업 상세가 열려 있으면 또 쌓지 않고 그 화면으로 간다 (#226 리뷰, workDetailTabs)
+  const openWork = useCallback(
+    (id: string) => {
+      const target = workDetailInTabs(
+        navigation.getParent()?.getState(),
+        'schedule',
+        { id },
+      );
+      if (target.screen === 'home') {
+        navigation.navigate('home', target.params);
+      } else {
+        navigation.navigate('WorkDetail', { id });
+      }
+    },
+    [navigation],
+  );
   const openReject = useCallback(
     (id: string) => navigation.navigate('RejectReason', { id }),
     [navigation],
@@ -521,6 +550,7 @@ export function ScheduleRoute({
       onAccept={accept}
       onReject={openReject}
       onOpenRequest={openRequest}
+      onOpenWork={openWork}
       requestedTab={requestedTab}
       listRef={listRef}
       confirmedLoad={confirmedSchedule.load}

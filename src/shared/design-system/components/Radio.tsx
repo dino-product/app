@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { memo, type Ref } from 'react';
+import { Pressable, StyleSheet, type PressableInstance } from 'react-native';
 import { colors } from '../tokens/colors';
 import { touchSlop } from '../tokens/touchTarget';
 import { Icon } from './Icon';
@@ -16,6 +16,8 @@ export type RadioProps = {
   checked: boolean;
   onPress: () => void;
   testID?: string;
+  /** 쓰는 쪽이 스크린리더 초점을 옮길 때 쓴다 (가입 약관 '약관 동의하기' 로 고른 뒤, #218) */
+  ref?: Ref<PressableInstance>;
 };
 
 export const Radio = memo(function DesignSystemRadio({
@@ -24,9 +26,11 @@ export const Radio = memo(function DesignSystemRadio({
   checked,
   onPress,
   testID,
+  ref,
 }: RadioProps) {
   return (
     <Pressable
+      ref={ref}
       accessibilityRole="radio"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked }}

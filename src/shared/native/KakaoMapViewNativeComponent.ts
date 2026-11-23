@@ -19,9 +19,16 @@ interface NativeProps extends ViewProps {
    */
   cornerRadius?: CodegenTypes.WithDefault<CodegenTypes.Float, 0>;
   cornerMaskColor?: ColorValue;
-  /** 지도와 마커를 다 그렸다 */
+  /**
+   * 지도와 마커를 다 그렸다. iOS 는 인증 성공 콜백이 온 뒤에 보낸다 — SDK 가 인증 응답 전부터 바탕·마커·로고를
+   * 그리기 때문이다 (#223). 다만 SDK 는 서버 5xx(201)·네트워크 3회 실패(202)도 성공으로 넘기므로,
+   * 이 이벤트가 와도 타일이 없을 수 있다 (그 경우는 기기 로그로 가린다)
+   */
   onMapReady?: CodegenTypes.DirectEventHandler<Readonly<{}>>;
-  /** 지도를 그리지 못했다. code: 카카오 인증 오류 코드(401 등), 없으면 -1 */
+  /**
+   * 지도를 그리지 못했다. code: 카카오 인증 응답(400·401·403·429 등), 앱이 정한 값(-2 앱 키 없음·SDK 를 켜지 못함,
+   * -1 그 밖), Android 는 SDK MapAuthException 상수(-1~-4, 499, 1001~1003)도 온다 — WorkLocationMap 의 안내 표 참고
+   */
   onMapError?: CodegenTypes.DirectEventHandler<
     Readonly<{ code: CodegenTypes.Int32 }>
   >;

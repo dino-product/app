@@ -133,3 +133,39 @@ describe('pushRouteOf', () => {
     expect(pushRouteOf(data)).toEqual(homeScreen('NotificationCenter'));
   });
 });
+
+// #221 리뷰: 같은 작업 상세를 두 탭에 따로 열지 않는다. 내 일정 탭에 이미 열려 있으면 그 화면으로 간다
+describe('pushRouteOf — 이미 연 작업 상세', () => {
+  it('내 일정 탭에 같은 작업 상세가 열려 있으면 홈 대신 그 화면을 연다', () => {
+    const tabs = {
+      routes: [
+        { name: 'home', state: { routes: [{ name: 'WorkHome' }] } },
+        {
+          name: 'schedule',
+          state: {
+            routes: [
+              { name: 'MySchedule' },
+              { name: 'WorkDetail', params: { id: '10' } },
+            ],
+          },
+        },
+      ],
+    };
+
+    expect(
+      pushRouteOf({ type: 'WORK_RESCHEDULED', workId: '10' }, 'detail', tabs),
+    ).toEqual(
+      main({
+        screen: 'schedule',
+        params: {
+          screen: 'WorkDetail',
+          params: { id: '10' },
+          initial: false,
+        },
+      }),
+    );
+    expect(
+      pushRouteOf({ type: 'WORK_RESCHEDULED', workId: '11' }, 'detail', tabs),
+    ).toEqual(homeScreen('WorkDetail', { id: '11' }));
+  });
+});

@@ -96,6 +96,22 @@ const withMyRoutes = (routes: unknown[]) =>
       },
     },
   ]);
+// 내 일정 탭 스택만 바꾼 상태 (#221)
+const withScheduleRoutes = (routes: unknown[]) =>
+  withRoot([
+    {
+      name: 'Main',
+      state: {
+        index: 0,
+        routes: [
+          {
+            name: 'schedule',
+            state: { index: routes.length - 1, routes },
+          },
+        ],
+      },
+    },
+  ]);
 const orbitTarget = {
   organizationId: '9',
   organizationName: 'Orbit',
@@ -119,6 +135,19 @@ describe('내비게이션 상태 저장', () => {
       ]);
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+    });
+
+    // #221: 내 일정에서 연 작업 상세는 내 일정 탭 안에 쌓인다
+    it('내 일정 탭 안의 작업 상세와 응답 필요로 옮긴 내 일정도 그대로 쓴다', () => {
+      for (const routes of [
+        [{ name: 'MySchedule' }, { name: 'WorkDetail', params: { id: 'w1' } }],
+        [{ name: 'MySchedule', params: { tab: 'pending' } }],
+        [{ name: 'MySchedule', params: {} }],
+      ]) {
+        const state = withScheduleRoutes(routes);
+
+        expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+      }
     });
 
     it.each([
@@ -216,7 +245,26 @@ describe('내비게이션 상태 저장', () => {
         withRoot([
           {
             name: 'Main',
-            params: { screen: 'schedule', params: { tab: 'done' } },
+            params: {
+              screen: 'schedule',
+              params: { screen: 'MySchedule', params: { tab: 'done' } },
+            },
+          },
+        ]),
+      ],
+      [
+        'id 가 없는 내 일정 탭 안 작업 상세 (#221)',
+        withScheduleRoutes([{ name: 'MySchedule' }, { name: 'WorkDetail' }]),
+      ],
+      [
+        '#221 전 구조의 내 일정 하위 탭 값이 없는 값',
+        withRoot([
+          {
+            name: 'Main',
+            state: {
+              index: 0,
+              routes: [{ name: 'schedule', params: { tab: 'done' } }],
+            },
           },
         ]),
       ],
@@ -230,12 +278,30 @@ describe('내비게이션 상태 저장', () => {
       const state = withRoot([
         {
           name: 'Main',
-          params: { screen: 'schedule', params: { tab: 'pending' } },
+          params: {
+            screen: 'schedule',
+            params: {
+              screen: 'MySchedule',
+              params: { tab: 'pending' },
+              pop: true,
+            },
+          },
           state: {
             index: 3,
             routes: [
               { name: 'home' },
-              { name: 'schedule', params: {} },
+              {
+                name: 'schedule',
+                params: {
+                  screen: 'MySchedule',
+                  params: { tab: 'pending' },
+                  pop: true,
+                },
+                state: {
+                  index: 0,
+                  routes: [{ name: 'MySchedule', params: {} }],
+                },
+              },
               { name: 'history' },
               {
                 name: 'my',
@@ -251,9 +317,35 @@ describe('내비게이션 상태 저장', () => {
 
       const restored = JSON.parse(JSON.stringify(state));
       delete restored.routes[0].params;
+      delete restored.routes[0].state.routes[1].params;
 
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
     });
+
+    // #221 전 앱은 내 일정 탭에 하위 스택 없이 하위 탭 값을 남겼다 (응답 필요로 옮긴 뒤 지워 빈 객체). 업데이트 직후 한 번
+    // 이 값 때문에 다른 탭의 보던 화면까지 버리지 않게 받아 주고, 지금 구조에는 뜻이 없어 복원할 때 뺀다
+    it.each([{}, { tab: 'pending' }])(
+      '#221 전 앱이 내 일정 탭에 남긴 %j 는 받고 복원할 때 뺀다',
+      params => {
+        const state = withHomeRoutes([
+          { name: 'WorkHome' },
+          { name: 'WorkDetail', params: { id: '201' } },
+        ]);
+        const tabs = state.routes[0].state.routes;
+        (tabs[1] as Record<string, unknown>).params = params;
+
+        const restored = parseSavedNavigation(
+          saved(state),
+          NOW,
+        ) as typeof state;
+
+        expect(restored.routes[0].state.routes[0]).toEqual(tabs[0]);
+        expect(restored.routes[0].state.routes[1]).toEqual({
+          key: 'schedule-1',
+          name: 'schedule',
+        });
+      },
+    );
 
     // QR 코드 인식(#195)은 읽은 회사 코드를 회사 찾기 파라미터로 넘기며 닫히고, 회사 찾기는 받은 뒤 지운다.
     // 회사 참여 흐름은 탭 바 없이 메인 위 루트 스택에 쌓는다 (#219)
@@ -310,14 +402,19 @@ describe('내비게이션 상태 저장', () => {
       const home = state.routes[0].state.routes[0] as Record<string, unknown>;
       home.params = { screen: 'WorkHome', initial: false };
       const tabs = state.routes[0].state.routes;
-      (tabs[1] as Record<string, unknown>).params = { tab: 'pending' };
+      const schedule = {
+        screen: 'MySchedule',
+        params: { tab: 'pending' },
+      };
+      (tabs[1] as Record<string, unknown>).params = schedule;
 
       const restored = parseSavedNavigation(saved(state), NOW) as typeof state;
 
       expect(restored.routes[0].state.routes[0]).not.toHaveProperty('params');
-      expect(restored.routes[0].state.routes[1]).toHaveProperty('params', {
-        tab: 'pending',
-      });
+      expect(restored.routes[0].state.routes[1]).toHaveProperty(
+        'params',
+        schedule,
+      );
     });
 
     it(`마지막 저장 뒤 ${

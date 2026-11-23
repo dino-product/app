@@ -20,6 +20,7 @@ const renderSchedule = () =>
       onAccept={jest.fn()}
       onReject={jest.fn()}
       onOpenRequest={jest.fn()}
+      onOpenWork={jest.fn()}
     />,
   );
 
