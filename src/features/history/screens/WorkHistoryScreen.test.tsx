@@ -1063,7 +1063,7 @@ describe('WorkHistoryScreen — Figma 값', () => {
     });
   });
 
-  // 요약 카드는 새 Figma 작업이력 (기본) 3753:4890 › 3753:4903 기준이다 (#145)
+  // 요약 카드는 최신 Figma 작업이력 (기본) 50929:14822 › 51083:18504 · 3753:4890 › 51083:18464 기준이다 (#220)
   it('요약 카드는 모서리 16, 카드 사이 10, 누적 완료는 회색 바탕 위 흰 카드(White/100)이고 설명은 Gray600', async () => {
     await renderHistory();
 
@@ -1078,15 +1078,18 @@ describe('WorkHistoryScreen — Figma 값', () => {
     });
   });
 
-  it('요약 카드는 이번 달 완료(Primary 강조)가 왼쪽, 누적 완료가 오른쪽이다', async () => {
+  // Figma 51083:18504: 두 카드 모두 흰 바탕이다. 예전 이번 달 완료의 Primary 강조는 빠졌다 (#220)
+  it('요약 카드는 이번 달 완료가 왼쪽, 누적 완료가 오른쪽이고 둘 다 흰 바탕이다', async () => {
     await renderHistory();
 
     const month = screen.getByLabelText('이번 달 완료 3건');
     const total = screen.getByLabelText('누적 완료 4건');
     expect(parentOf(month)).toBe(parentOf(total));
     expect(parentOf(month).children).toEqual([month, total]);
-    expect(month).toHaveStyle({ backgroundColor: colors.primary });
-    expect(total).not.toHaveStyle({ backgroundColor: colors.primary });
+    for (const card of [month, total]) {
+      expect(card).toHaveStyle({ backgroundColor: colors.white[100] });
+    }
+    expect(screen.getByText('3건')).toHaveStyle({ color: colors.gray[800] });
   });
 
   it('스크린리더도 이번 달 완료 → 누적 완료 순서로 읽는다', async () => {
@@ -1235,12 +1238,14 @@ describe('WorkHistoryScreen — 불러오기', () => {
       }),
     ).toHaveLength(2);
     expect(screen.queryByText('-')).not.toBeOnTheScreen();
-    // 이번 달 완료(왼쪽)는 Primary 카드라 막대를 흰색 토큰으로 옅게, 누적 완료는 회색이다
-    const [month, total] = screen.getAllByTestId('summary-count-line-bar', {
+    // 두 카드 모두 흰 바탕이라 막대도 같은 회색이다 (#220)
+    const bars = screen.getAllByTestId('summary-count-line-bar', {
       includeHiddenElements: true,
     });
-    expect(month).toHaveStyle({ backgroundColor: colors.white[9] });
-    expect(total).toHaveStyle({ backgroundColor: colors.gray[100] });
+    expect(bars).toHaveLength(2);
+    for (const line of bars) {
+      expect(line).toHaveStyle({ backgroundColor: colors.gray[100] });
+    }
   });
 
   it('달을 바꿔 그 달을 불러오는 동안 누적 완료는 그대로이고 이번 달 완료만 스켈레톤이다', async () => {

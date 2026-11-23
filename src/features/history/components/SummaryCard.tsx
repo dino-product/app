@@ -8,19 +8,17 @@ import {
   Text,
 } from '../../../shared/design-system';
 
-// Figma 작업이력 (기본) 3753:4890 › 요약 카드 (18건 / 이번 달 완료, 132건 / 누적 완료).
-// emphasis 는 이번 달 완료 카드의 Primary 강조 변형이다 (#145). 스크린리더는 카드 하나로 "누적 완료 132건" 처럼 읽는다.
-// 달을 바꿔도 숫자가 같은 카드(누적)는 다시 그리지 않는다. 받는 동안은 숫자 자리가 스켈레톤이고 (#139),
-// 수를 모르면(서버가 주지 않음·받지 못함) '-' 다 (기본안)
+// Figma 작업이력 (기본) 50929:14822 · 3753:4890 › 요약 카드 51083:18504 (18건 / 이번 달 완료, 132건 / 누적 완료).
+// 두 카드 모두 흰 바탕에 숫자 Gray800, 설명 Gray600 이다 (#220: 예전 이번 달 완료의 Primary 강조 #145 는 Figma 에서 빠졌다).
+// 스크린리더는 카드 하나로 "누적 완료 132건" 처럼 읽는다. 달을 바꿔도 숫자가 같은 카드(누적)는 다시 그리지 않는다.
+// 받는 동안은 숫자 자리가 스켈레톤이고 (#139), 수를 모르면(서버가 주지 않음·받지 못함) '-' 다 (기본안)
 export const SummaryCard = memo(function SummaryCardView({
   label,
   count,
-  emphasis = false,
   loading = false,
 }: {
   label: string;
   count: number | null;
-  emphasis?: boolean;
   /** 수를 받는 중이다. 숫자 대신 스켈레톤을 보이고 카드는 '…, 불러오는 중' 으로 읽는다 */
   loading?: boolean;
 }) {
@@ -34,29 +32,22 @@ export const SummaryCard = memo(function SummaryCardView({
           ? `${label}, 알 수 없음`
           : `${label} ${count}건`
       }
-      style={[styles.card, emphasis && styles.emphasis]}
+      style={styles.card}
     >
       {loading ? (
         <Skeleton accessible={false} testID="summary-count-skeleton">
           <SkeletonLine
             variant="Body/L/Bold"
             width={64}
-            inverse={emphasis}
             testID="summary-count-line"
           />
         </Skeleton>
       ) : (
-        <Text
-          variant="Body/L/Bold"
-          color={emphasis ? colors.white[100] : colors.gray[700]}
-        >
+        <Text variant="Body/L/Bold" color={colors.gray[800]}>
           {count === null ? '-' : `${count}건`}
         </Text>
       )}
-      <Text
-        variant="Body/XS/Medium"
-        color={emphasis ? colors.white[60] : colors.gray[600]}
-      >
+      <Text variant="Body/XS/Medium" color={colors.gray[600]}>
         {label}
       </Text>
     </View>
@@ -64,15 +55,15 @@ export const SummaryCard = memo(function SummaryCardView({
 });
 
 const styles = StyleSheet.create({
-  // Figma 3753:4904: 회색(Background/3) 화면 위 흰 카드 (White/100)
+  // Figma 51083:18505 · 51083:18508: 회색(Background/3) 화면 위 흰 카드 (White/100), 세로 가운데
   card: {
     flex: 1,
     gap: 4,
+    justifyContent: 'center',
     paddingLeft: 20,
     paddingRight: 46,
     paddingVertical: 20,
     borderRadius: 16,
     backgroundColor: colors.white[100],
   },
-  emphasis: { backgroundColor: colors.primary },
 });

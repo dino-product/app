@@ -85,7 +85,7 @@ import { ApiErrorCode, isApiError } from '../../shared/api';
 import { useToday } from '../../shared/time/useToday';
 import { useAuth } from '../AuthProvider';
 import { callPhone, openDirections, openMap } from '../externalLinks';
-import { useHoldTabSwitchWhile } from './tabSwitchLock';
+import { useHoldTabSwitchWhile, useTabSwitchHold } from './tabSwitchLock';
 import { workDetailInTabs } from './workDetailTabs';
 import type {
   HistoryScreenProps,
@@ -731,6 +731,8 @@ export function WorkHistoryRoute({
   );
   const { refreshing, onRefresh } = useRefresh(history.refetch);
   useHoldTabSwitchWhile(refreshing);
+  // 날짜 선택 상자가 보이는 동안도 탭을 옮기지 않는다 (#203)
+  const holdTabSwitch = useTabSwitchHold();
   const historyLoad = useLoadState(history);
   // 달을 바꾸는 동안 보이는 앞 달 결과는 목록에 쓰지 않는다 (누적 완료 수만 그대로 둔다)
   const ready = !history.isPlaceholderData;
@@ -756,6 +758,7 @@ export function WorkHistoryRoute({
       onMonthChange={setMonth}
       refreshing={refreshing}
       onRefresh={onRefresh}
+      onPickerVisibleChange={holdTabSwitch}
     />
   );
 }
