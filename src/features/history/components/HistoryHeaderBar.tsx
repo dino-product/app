@@ -1,11 +1,18 @@
-import { useMemo, useSyncExternalStore, type Ref } from 'react';
-import { Animated, StyleSheet, View, type ViewInstance } from 'react-native';
+import { useMemo, useState, useSyncExternalStore, type Ref } from 'react';
+import {
+  Animated,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type ViewInstance,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { collapseKeyframes } from '../headerCollapse';
 import type { HeaderCollapse } from '../useHeaderCollapse';
+import { MonthPickerBox } from './MonthPickerBox';
 import { MonthSwitcher } from './MonthSwitcher';
 
 // 작업 이력 상단 바 (#175). 리스트 위에 겹쳐 그린다 (화면이 리스트 앞에 두어 읽는 순서를 지키고 zIndex 로 위에 쌓는다).
@@ -14,13 +21,26 @@ import { MonthSwitcher } from './MonthSwitcher';
 // 접힘 — Figma 작업이력 (스크롤) 50833:6839: 제목이 없고, 월 글자(18)가 상태 표시줄 아래 19 에 가운데로 온다.
 //        바는 높이 68(상태 표시줄 포함 128)로 줄어든 회색(Background/3) 바이고 그림자 0 4 8 4% 가 진다. 리스트가 그 아래로 지나간다.
 // 바 뷰 자체는 펼친 크기 그대로 두고 그리는 것만 옮긴다 (레이아웃이 바뀌지 않아 스크롤 중·전환 중에 다시 그리지 않는다).
-// 빈 곳 터치는 아래 리스트로 통과한다 (끌면 리스트가 스크롤되고, 바 자리에서 민 것은 탭 전환이다)
+// 빈 곳 터치는 아래 리스트로 통과한다 (끌면 리스트가 스크롤되고, 바 자리에서 민 것은 탭 전환이다).
+// 날짜 선택 상자(#203)가 열리면 상자의 흰 바탕을 제목 위·월 줄 아래에 그린다. 월 글자가 그대로 상자의 머리 글자가 되고,
+// 접힌 바에서 열면 월 줄이 접힌 자리에서 펼친 자리(머리 줄)로 내려온다. 바 자체는 접힌 채다
 export type HistoryHeaderBarProps = {
   collapse: HeaderCollapse;
   monthTitle: string;
   canGoNext: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** 날짜 선택 상자 (#203) */
+  picker: {
+    /** 열림 진행도 (0 닫힘, 1 열림) */
+    progress: Animated.Value;
+    /** 열려 있는지 (닫는 중이면 false) */
+    open: boolean;
+    /** 보이는지 (닫는 중 포함) */
+    visible: boolean;
+    /** 월 글자를 눌렀다 */
+    onPressMonth: () => void;
+  };
   /** 바의 화면 위 자리를 잰다 (탭·월 밀기 판정) */
   ref?: Ref<ViewInstance>;
 };
@@ -31,6 +51,7 @@ export function HistoryHeaderBar({
   canGoNext,
   onPrev,
   onNext,
+  picker,
   ref,
 }: HistoryHeaderBarProps) {
   const collapsed = useSyncExternalStore(
@@ -40,6 +61,17 @@ export function HistoryHeaderBar({
   // 접힌 바 배경은 상태 표시줄 자리까지 덮는다 (Figma 바 높이 128 은 상태 표시줄 60 을 포함한다)
   const { top: statusBar } = useSafeAreaInsets();
   const { progress, barShift, monthShift } = collapse;
+  // 상자는 월 글자 폭·자리에서 펼쳐진다. 잰 폭은 상자를 치운 뒤에도 남겨 다음에 열 때 첫 프레임부터 쓴다 (Figma 99 · 345)
+  const [measured] = useState(() => {
+    const titleWidth = new Animated.Value(99, { useNativeDriver: true });
+    return {
+      titleWidth,
+      boxWidth: new Animated.Value(345, { useNativeDriver: true }),
+      onTitleLayout: (event: LayoutChangeEvent) => {
+        titleWidth.setValue(event.nativeEvent.layout.width);
+      },
+    };
+  });
   // 화면이 다시 그려져도 같은 스타일을 넘겨 애니메이션 값의 연결을 다시 만들지 않는다
   const animated = useMemo(
     () => ({
@@ -56,14 +88,24 @@ export function HistoryHeaderBar({
           ],
         },
       ],
-      // 큰 화면에서도 월 선택은 제목·목록과 같은 읽기 좋은 폭 안에 둔다 (바 배경은 창 전체 폭)
+      // 큰 화면에서도 월 선택은 제목·목록과 같은 읽기 좋은 폭 안에 둔다 (바 배경은 창 전체 폭).
+      // 상자를 열면 접힌 자리에서 펼친 자리(상자 머리 줄)로 내려온다
       month: [
         readableColumn,
         styles.month,
-        { transform: [{ translateY: monthShift }] },
+        {
+          transform: [
+            {
+              translateY: Animated.multiply(
+                monthShift,
+                Animated.subtract(1, picker.progress),
+              ),
+            },
+          ],
+        },
       ],
     }),
-    [progress, monthShift],
+    [progress, monthShift, picker.progress],
   );
   const backgroundStyle = useMemo(
     () => [
@@ -95,14 +137,24 @@ export function HistoryHeaderBar({
           <Animated.View
             testID="work-history-title"
             style={animated.title}
-            accessibilityElementsHidden={collapsed}
+            accessibilityElementsHidden={collapsed || picker.open}
             importantForAccessibility={
-              collapsed ? 'no-hide-descendants' : 'auto'
+              collapsed || picker.open ? 'no-hide-descendants' : 'auto'
             }
           >
             <TabHeader title="작업 이력" style={styles.title} />
           </Animated.View>
         </View>
+        {picker.visible ? (
+          <MonthPickerBox
+            open={picker.progress}
+            fold={progress}
+            monthShift={monthShift}
+            monthRow={collapse.monthRow}
+            titleWidth={measured.titleWidth}
+            boxWidth={measured.boxWidth}
+          />
+        ) : null}
         <MonthSwitcher
           testID="work-history-month"
           title={monthTitle}
@@ -111,6 +163,11 @@ export function HistoryHeaderBar({
           onNext={onNext}
           progress={progress}
           collapsed={collapsed}
+          pickerProgress={picker.progress}
+          pickerOpen={picker.open}
+          pickerVisible={picker.visible}
+          onPressTitle={picker.onPressMonth}
+          onTitleLayout={measured.onTitleLayout}
           style={animated.month}
           onLayout={collapse.onMonthLayout}
         />
