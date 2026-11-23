@@ -23,22 +23,43 @@ const MAP_RADIUS = 10;
 type LoadState = 'loading' | 'ready' | 'failed';
 
 /**
- * 개발 빌드 경고에 붙일 점검할 곳 (#223). 코드는 네이티브가 보낸 값: 앱 키 없음 -2, 그 밖 -1,
- * 나머지는 카카오 인증 응답 (카카오맵 SDK v2 인증 오류 — 401 인증 오류, 403 권한 오류, 429 쿼터 초과)
+ * 개발 빌드 경고에 붙일 점검할 곳 (#223). onMapError 의 code 출처는 셋이다
+ * - 카카오 인증 응답 (두 플랫폼 공통): 400 요청 오류, 401 인증 오류, 403 권한 오류, 429 쿼터 초과
+ * - 앱이 정한 값: iOS KakaoMapContainerView(-2 앱 키 없음, -1 엔진 준비·지도 뷰 추가 실패),
+ *   Android KakaoMapContainer(-2 앱 키 없음·SDK·MapView 를 켜지 못함, -1 MapAuthException 이 아닌 오류)
+ * - Android SDK MapAuthException 상수 (2.15.2): -1 UNKNOWN_ERROR, -2 CONNECT_INITIATE_FAILURE,
+ *   -3 SOCKET_TIMEOUT_EXCEPTION, -4 CONNECT_TIMEOUT_EXCEPTION, 499 CONNECT_ERROR,
+ *   1001 INITIALIZE_FAILURE, 1002 RENDER_VIEW_FAILURE, 1003 APP_KEY_INVALID_ERROR
+ * Android 의 -1·-2 는 앱 값과 SDK 상수가 겹쳐 둘 다 적는다
  */
+const AUTH_HINTS: Record<number, string> = {
+  400: '인증 요청 오류 — 필수 파라미터',
+  401: '인증 오류 — 앱 키와 카카오 디벨로퍼스 [앱] > [플랫폼 키] > [네이티브 앱 키] 의 iOS 번들 ID · Android 패키지·키 해시',
+  403: '권한 오류 — 카카오 디벨로퍼스 [앱] > [제품 설정] > [카카오맵] 사용 설정',
+  429: '쿼터 초과 — 카카오맵 API 사용량',
+};
+const IOS_HINTS: Record<number, string> = {
+  [-2]: '앱 키가 비었다 — ios/Config/Secrets.xcconfig 의 KAKAO_NATIVE_APP_KEY',
+  [-1]: '지도 엔진 준비 또는 지도 뷰 추가 실패',
+};
+const ANDROID_HINTS: Record<number, string> = {
+  [-2]: '앱 키가 비었거나(~/.gradle/gradle.properties 의 KAKAO_NATIVE_APP_KEY) SDK·지도 뷰를 켜지 못했다(지원하지 않는 ABI 등), 또는 통신 연결 시작 실패(CONNECT_INITIATE_FAILURE)',
+  [-1]: '원인 불명 (UNKNOWN_ERROR 또는 MapAuthException 이 아닌 오류)',
+  [-3]: '통신 시간 초과 (SOCKET_TIMEOUT_EXCEPTION)',
+  [-4]: '연결 시간 초과 (CONNECT_TIMEOUT_EXCEPTION)',
+  499: '통신 실패 — 인터넷 연결 (CONNECT_ERROR)',
+  1001: '지도 엔진 초기화 실패 (INITIALIZE_FAILURE)',
+  1002: '지도 렌더 뷰 실패 (RENDER_VIEW_FAILURE)',
+  1003: '앱 키가 올바르지 않다 — gradle.properties 의 KAKAO_NATIVE_APP_KEY 와 콘솔 네이티브 앱 키 (APP_KEY_INVALID_ERROR)',
+};
+
 function mapErrorHint(code: number): string {
-  switch (code) {
-    case -2:
-      return '앱 키가 비었다 — iOS ios/Config/Secrets.xcconfig, Android ~/.gradle/gradle.properties 의 KAKAO_NATIVE_APP_KEY';
-    case 401:
-      return '인증 오류 — 카카오 디벨로퍼스 [앱] > [플랫폼 키] > [네이티브 앱 키] 의 iOS 번들 ID · Android 패키지·키 해시';
-    case 403:
-      return '권한 오류 — 카카오 디벨로퍼스 [앱] > [제품 설정] > [카카오맵] 사용 설정';
-    case 429:
-      return '쿼터 초과 — 카카오맵 API 사용량';
-    default:
-      return '네트워크·엔진 오류 — 기기 로그(iOS Console.app KakaoMap, Android logcat KakaoMap)';
-  }
+  const platformHints = Platform.OS === 'android' ? ANDROID_HINTS : IOS_HINTS;
+  return (
+    AUTH_HINTS[code] ??
+    platformHints[code] ??
+    '알 수 없는 코드 — 기기 로그(iOS Console.app · Android logcat 의 KakaoMap)'
+  );
 }
 
 /**
