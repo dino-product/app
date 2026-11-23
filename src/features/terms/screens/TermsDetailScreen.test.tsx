@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react-native';
+import { useCallback, useState } from 'react';
 import { AccessibilityInfo, StyleSheet, VirtualizedList } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
@@ -355,12 +356,11 @@ describe('TermsDetailScreen', () => {
             insets: { top: 0, bottom: bottomInset, left: 0, right: 0 },
           }}
         >
-          <TermsDetailScreen
+          <SignUpDetail
             sections={sections}
-            agreement={agreement}
+            initial={agreement}
             onAgreeChange={onAgreeChange}
             standalone={standalone}
-            onBack={jest.fn()}
           />
         </SafeAreaProvider>,
         { server: fakeServer },
@@ -504,6 +504,59 @@ describe('TermsDetailScreen', () => {
       expect(onAgreeChange).toHaveBeenCalledTimes(1);
     });
 
+    // 초점을 먼저 옮기면 스크린리더가 고르기 전 상태('선택 안 됨')를 읽을 수 있다
+    it('동의합니다가 골라진 채 그려진 뒤에 스크린리더 초점을 옮긴다', async () => {
+      const checkedWhenFocused: unknown[] = [];
+      focus.mockImplementation(
+        (radio: { props: { accessibilityState?: { checked?: boolean } } }) => {
+          checkedWhenFocused.push(radio.props.accessibilityState?.checked);
+        },
+      );
+      await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent.press(jumpButton()!);
+
+      await viewItems(0, [5, RADIOS]);
+
+      expect(
+        screen.getByRole('radio', { name: '서비스 이용약관, 동의합니다' }),
+      ).toBeChecked();
+      expect(checkedWhenFocused).toEqual([true]);
+    });
+
+    // 스크린리더 세 손가락 스크롤·상태 바 누르기처럼 끌지 않는 스크롤로 점프가 라디오 앞에서 멈출 수 있다.
+    // 누른 것을 남겨 두면 한참 뒤 라디오가 보일 때 저절로 동의한다 (법적 동의라 막는다)
+    it('누른 뒤 1.5초 안에 라디오가 다 보이지 않으면 거두고, 나중에 보여도 고르지 않는다', async () => {
+      jest.useFakeTimers();
+      const { onAgreeChange } = await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent
+        .setup({ advanceTimers: jest.advanceTimersByTime })
+        .press(jumpButton()!);
+      // 스크롤이 라디오 앞에서 멈췄다
+      await viewItems(0, [2, 3]);
+
+      await act(() => jest.advanceTimersByTime(1500));
+      await viewItems(0, [5, RADIOS]);
+
+      expect(onAgreeChange).not.toHaveBeenCalled();
+    });
+
+    it('누른 뒤 1.5초가 되기 전에 라디오가 다 보이면 고른다', async () => {
+      jest.useFakeTimers();
+      const { onAgreeChange } = await renderSignUp();
+      await viewItems(0, [0, 1]);
+      await userEvent
+        .setup({ advanceTimers: jest.advanceTimersByTime })
+        .press(jumpButton()!);
+      await viewItems(0, [2, 3]);
+
+      await act(() => jest.advanceTimersByTime(1400));
+      await viewItems(0, [5, RADIOS]);
+
+      expect(onAgreeChange).toHaveBeenCalledWith('service', true);
+    });
+
     it('스크롤하는 동안 손으로 끌면 고르지 않는다', async () => {
       const { onAgreeChange } = await renderSignUp();
       await viewItems(0, [0, 1]);
@@ -564,6 +617,46 @@ describe('TermsDetailScreen', () => {
       expect(scrollToIndex).toHaveBeenCalledTimes(2);
     });
 
+    it('누른 약관 앞 약관의 전문이 늦게 도착해 라디오가 밀려도 새 자리로 다시 스크롤한다', async () => {
+      const { queryClient } = await renderSignUp({
+        sections: [service, marketing],
+        agreement: { service: false, MARKETING: false },
+        fakeServer: withTermsDocuments(createFakeServer(), {
+          service: hang(),
+          marketing: termsText('마케팅 동의\n\n본문입니다.'),
+        }),
+        waitForText: false,
+      });
+      await waitFor(() => expect(list().props.data[1].data).toHaveLength(3));
+      await viewItems(1, [0, 1]);
+      await userEvent.press(
+        jumpButton('(선택) 혜택 이벤트 알림 수신동의, 약관 동의하기')!,
+      );
+      const before = flatIndex(1, 2);
+      expect(lastScroll()).toEqual(
+        expect.objectContaining({ index: before, item: RADIOS_ITEM }),
+      );
+
+      // 서비스 이용약관 [받는 중] 1칸 → 전문 6칸. 마케팅 라디오는 5칸 뒤로 밀린다
+      await act(() =>
+        queryClient.setQueryData(
+          termsDocumentQueryKey('service'),
+          toTermsBlocks(ARTICLES_TEXT),
+        ),
+      );
+
+      await waitFor(() =>
+        expect(lastScroll()).toEqual(
+          expect.objectContaining({
+            index: before + 5,
+            item: RADIOS_ITEM,
+            viewPosition: 1,
+          }),
+        ),
+      );
+      expect(scrollToIndex).toHaveBeenCalledTimes(2);
+    });
+
     it('여러 약관이면 화면 맨 위에서 읽는 약관의 라디오로 가서 그 약관에 동의한다', async () => {
       const { onAgreeChange } = await renderSignUp({
         sections: [service, marketing],
@@ -615,9 +708,10 @@ describe('TermsDetailScreen', () => {
       );
     });
 
-    it('그려 둔 끝이 늘어나는 동안은 몇 번이고 계속 찾아간다', async () => {
+    // 다시 찾아갈 때마다 1.5초를 새로 잰다 (먼 라디오는 1.5초보다 오래 걸릴 수 있다)
+    it('그려 둔 끝이 늘어나는 동안은 몇 번이고 계속 찾아가고, 닿으면 고른다', async () => {
       jest.useFakeTimers();
-      await renderSignUp();
+      const { onAgreeChange } = await renderSignUp();
       await viewItems(0, [0, 1]);
       await userEvent
         .setup({ advanceTimers: jest.advanceTimersByTime })
@@ -631,6 +725,8 @@ describe('TermsDetailScreen', () => {
       expect(lastScroll()).toEqual(
         expect.objectContaining({ item: RADIOS_ITEM }),
       );
+      await viewItems(0, [5, RADIOS]);
+      expect(onAgreeChange).toHaveBeenCalledWith('service', true);
     });
 
     it('그려 둔 끝이 더 늘지 않으면 멈추고, 나중에 라디오가 보여도 저절로 동의하지 않는다', async () => {
@@ -671,6 +767,39 @@ describe('TermsDetailScreen', () => {
     });
   });
 });
+
+/** 가입 약관 상세처럼 고른 동의 상태를 다시 내려 준다 (onAgreeChange 로 무엇을 골랐는지 본다) */
+function SignUpDetail({
+  sections,
+  initial,
+  onAgreeChange,
+  standalone,
+}: {
+  sections: readonly TermsDetailSection[];
+  initial: Readonly<Record<string, boolean>>;
+  onAgreeChange: (key: string, agreed: boolean) => void;
+  standalone: boolean;
+}) {
+  const [agreement, setAgreement] = useState(initial);
+  const change = useCallback(
+    (key: string, agreed: boolean) => {
+      onAgreeChange(key, agreed);
+      setAgreement(current => ({ ...current, [key]: agreed }));
+    },
+    [onAgreeChange],
+  );
+  return (
+    <TermsDetailScreen
+      sections={sections}
+      agreement={agreement}
+      onAgreeChange={change}
+      standalone={standalone}
+      onBack={noop}
+    />
+  );
+}
+
+const noop = () => {};
 
 /** 상세의 스크롤 목록(SectionList 가 그린 ScrollView). jest 목은 VirtualizedList 의 props 를 그대로 넘긴다 */
 function list() {
