@@ -74,6 +74,12 @@ const withHomeRoutes = (routes: unknown[], index = routes.length - 1) => {
 
 const withRoot = (routes: unknown[]) => ({ index: 0, routes });
 
+// 메인 위 루트 스택에 화면을 쌓은 상태. 회사 참여 흐름 화면은 탭 바 없이 루트 스택에 있다 (#219)
+const overMain = (...routes: unknown[]) => ({
+  index: routes.length,
+  routes: [{ name: 'Main' }, ...routes],
+});
+
 // 마이 탭 스택만 바꾼 상태
 const withMyRoutes = (routes: unknown[]) =>
   withRoot([
@@ -178,32 +184,35 @@ describe('내비게이션 상태 저장', () => {
       // 참여 요청은 회사 코드로 보낸다 (#116). 그 전에 저장한 역할 선택(회사 id·이름만)은 열 수 없다
       [
         '회사 코드가 없는 역할 선택',
-        withMyRoutes([
-          { name: 'MyPage' },
-          {
-            name: 'OrgRoleSelect',
-            params: { organizationId: 'org-1', organizationName: 'Orbit' },
-          },
-        ]),
+        overMain({
+          name: 'OrgRoleSelect',
+          params: { organizationId: 'org-1', organizationName: 'Orbit' },
+        }),
       ],
       [
         '찾은 방법이 목록 밖인 역할 선택',
-        withMyRoutes([
-          { name: 'MyPage' },
-          {
-            name: 'OrgRoleSelect',
-            params: { ...orbitTarget, requestChannel: 'EMAIL' },
-          },
-        ]),
+        overMain({
+          name: 'OrgRoleSelect',
+          params: { ...orbitTarget, requestChannel: 'EMAIL' },
+        }),
       ],
       [
         '요청 경로가 목록 밖인 요청 완료',
+        overMain({
+          name: 'OrgJoinRequested',
+          params: { requestId: '3', requestChannel: 'EMAIL' },
+        }),
+      ],
+      // #219 전에는 회사 참여 화면이 마이 탭 스택에 있었다. 그때 저장한 상태는 지금 구조와 달라 버린다
+      [
+        '마이 탭 스택에 회사 찾기가 든 이전 상태',
+        withMyRoutes([{ name: 'MyPage' }, { name: 'OrgJoin' }]),
+      ],
+      [
+        '마이 탭 스택에 승인 대기가 든 이전 상태',
         withMyRoutes([
           { name: 'MyPage' },
-          {
-            name: 'OrgJoinRequested',
-            params: { requestId: '3', requestChannel: 'EMAIL' },
-          },
+          { name: 'OrgJoinReview', params: { requestId: '1' } },
         ]),
       ],
       // 다시 열자마자 카메라를 켜지 않는다 (#108)
@@ -213,10 +222,7 @@ describe('내비게이션 상태 저장', () => {
       ],
       [
         'QR 로 읽은 회사 코드가 글자가 아닌 회사 찾기',
-        withMyRoutes([
-          { name: 'MyPage' },
-          { name: 'OrgJoin', params: { qrCode: 7 } },
-        ]),
+        overMain({ name: 'OrgJoin', params: { qrCode: 7 } }),
       ],
       ['범위 밖 index', withHomeRoutes([{ name: 'WorkHome' }], 3)],
       ['빈 routes', withHomeRoutes([])],
@@ -268,7 +274,7 @@ describe('내비게이션 상태 저장', () => {
 
     // 하위 내비게이터는 남은 하위 이동 파라미터를 저장한 하위 상태보다 먼저 써서 화면을 다시 만든다 (useNavigationBuilder).
     // 이미 하위 상태에 반영된 것이라 지운다
-    it('바깥에서 하위 화면을 고른 파라미터(내 일정 › 응답 필요, 마이 › 조직 참여)는 받되, 하위 상태가 있으면 지운다', () => {
+    it('바깥에서 하위 화면을 고른 파라미터(내 일정 › 응답 필요)는 받되, 하위 상태가 있으면 지운다', () => {
       const state = withRoot([
         {
           name: 'Main',
@@ -300,12 +306,8 @@ describe('내비게이션 상태 저장', () => {
               {
                 name: 'my',
                 state: {
-                  index: 2,
-                  routes: [
-                    { name: 'MyPage' },
-                    { name: 'OrgJoin' },
-                    { name: 'OrgRoleSelect', params: orbitTarget },
-                  ],
+                  index: 1,
+                  routes: [{ name: 'MyPage' }, { name: 'OrgJoinRequests' }],
                 },
               },
             ],
@@ -320,7 +322,6 @@ describe('내비게이션 상태 저장', () => {
       expect(parseSavedNavigation(saved(state), NOW)).toEqual(restored);
     });
 
-    // QR 코드 인식(#195)은 읽은 회사 코드를 회사 찾기 파라미터로 넘기며 닫히고(마이는 Main 을 거쳐), 회사 찾기는 받은 뒤 지운다
     // #221 전 앱은 내 일정 탭에 하위 스택 없이 하위 탭 값을 남겼다 (응답 필요로 옮긴 뒤 지워 빈 객체). 업데이트 직후 한 번
     // 이 값 때문에 다른 탭의 보던 화면까지 버리지 않게 받아 주고, 지금 구조에는 뜻이 없어 복원할 때 뺀다
     it.each([{}, { tab: 'pending' }])(
@@ -346,25 +347,29 @@ describe('내비게이션 상태 저장', () => {
       },
     );
 
+    // QR 코드 인식(#195)은 읽은 회사 코드를 회사 찾기 파라미터로 넘기며 닫히고, 회사 찾기는 받은 뒤 지운다.
+    // 회사 참여 흐름은 탭 바 없이 메인 위 루트 스택에 쌓는다 (#219)
     it('QR 로 읽은 회사 코드를 넘긴 회사 찾기는 받기 전·지운 뒤 모두 연다', () => {
       for (const params of [{ qrCode: 'RBT124' }, {}]) {
-        const state = withMyRoutes([
-          { name: 'MyPage' },
-          { name: 'OrgJoin', params },
-        ]);
+        const state = overMain({ name: 'OrgJoin', params });
 
         expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
       }
-      const passed = withRoot([
-        {
-          name: 'Main',
-          params: {
-            screen: 'my',
-            params: { screen: 'OrgJoin', params: { qrCode: 'RBT124' } },
-          },
-        },
-      ]);
-      expect(parseSavedNavigation(saved(passed), NOW)).toEqual(passed);
+    });
+
+    it('회사 찾기·역할 선택·요청 완료·승인 대기·거절은 메인 위 루트 스택에서 연다 (#219)', () => {
+      const state = overMain(
+        { name: 'OrgJoin' },
+        { name: 'OrgRoleSelect', params: orbitTarget },
+      );
+      expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
+      for (const route of [
+        { name: 'OrgJoinReview', params: { requestId: '1' } },
+        { name: 'OrgJoinRejected', params: { requestId: '3' } },
+      ]) {
+        const over = overMain(route);
+        expect(parseSavedNavigation(saved(over), NOW)).toEqual(over);
+      }
     });
 
     it('요청 완료는 요청 경로가 있어도 없어도 연다 (경로는 이 앱이 보낸 요청에만 있다)', () => {
@@ -372,10 +377,7 @@ describe('내비게이션 상태 저장', () => {
         { requestId: '3' },
         { requestId: '101', requestChannel: 'COMPANY_CODE' },
       ]) {
-        const state = withMyRoutes([
-          { name: 'MyPage' },
-          { name: 'OrgJoinRequested', params },
-        ]);
+        const state = overMain({ name: 'OrgJoinRequested', params });
 
         expect(parseSavedNavigation(saved(state), NOW)).toEqual(state);
       }

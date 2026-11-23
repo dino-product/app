@@ -78,6 +78,20 @@ describe('JoinRejectedScreen', () => {
     ).toBeOnTheScreen();
   });
 
+  // 알림에서 연 마이 거절 화면도 하단 탭 바 없이 연다 (#219). Figma 3255:18035 하단 바(높이 102): 버튼 위 14, 좌우 24, 아래 32
+  it('아래 버튼 줄은 탭 바 없는 Figma 하단 바(버튼 위 14, 아래 32)다', async () => {
+    await renderRejected();
+
+    expect(screen.getByRole('button', { name: '확인' }).parent).toHaveStyle({
+      paddingTop: 14,
+      paddingHorizontal: 24,
+    });
+    expect(screen.root?.props.edges).toEqual(
+      expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+    );
+    expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+  });
+
   // Figma 회사찾기-거절 (3255:18035): 값 Caption/M/Semibold Gray800
   it('요약 값은 SemiBold Gray800 이다', async () => {
     await renderRejected();

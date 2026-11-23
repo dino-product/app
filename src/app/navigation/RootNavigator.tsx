@@ -324,32 +324,11 @@ function MyTab() {
         component={WithdrawalBlockedRoute}
         getId={once}
       />
-      {/* 조직 참여 (#73) */}
-      <MyStack.Screen name="OrgJoin" component={OrgJoinRoute} getId={once} />
-      <MyStack.Screen
-        name="OrgRoleSelect"
-        component={RoleSelectRoute}
-        getId={byOrganization}
-      />
-      <MyStack.Screen
-        name="OrgJoinRequested"
-        component={JoinRequestedRoute}
-        getId={byRequest}
-      />
-      <MyStack.Screen
-        name="OrgJoinRejected"
-        component={JoinRejectedRoute}
-        getId={byRequest}
-      />
+      {/* 조직 참여 신청 현황 (#73). Figma 에 탭 바가 있다. 회사 참여 흐름의 다른 화면은 루트 스택에 있다 (#219) */}
       <MyStack.Screen
         name="OrgJoinRequests"
         component={JoinRequestsRoute}
         getId={once}
-      />
-      <MyStack.Screen
-        name="OrgJoinReview"
-        component={JoinReviewRoute}
-        getId={byRequest}
       />
     </MyStack.Navigator>
   );
@@ -493,11 +472,37 @@ export function RootNavigator() {
             component={RejectReasonRoute}
             getId={byId}
           />
-          {/* 마이 › 조직 참여의 QR 코드 인식 (#108). 전체 화면 카메라라 하단 탭이 없는 루트에 둔다 */}
+          {/* 마이 › 조직 참여 (#73). 회사 참여 흐름은 Figma 대로 하단 탭 바 없이 메인 위에 쌓는다 (#219).
+              QR 코드 인식(#108)은 전체 화면 카메라다 */}
+          <RootStack.Screen
+            name="OrgJoin"
+            component={OrgJoinRoute}
+            getId={once}
+          />
           <RootStack.Screen
             name="OrgQrScan"
             component={OrgQrScanRoute}
             getId={once}
+          />
+          <RootStack.Screen
+            name="OrgRoleSelect"
+            component={RoleSelectRoute}
+            getId={byOrganization}
+          />
+          <RootStack.Screen
+            name="OrgJoinRequested"
+            component={JoinRequestedRoute}
+            getId={byRequest}
+          />
+          <RootStack.Screen
+            name="OrgJoinRejected"
+            component={JoinRejectedRoute}
+            getId={byRequest}
+          />
+          <RootStack.Screen
+            name="OrgJoinReview"
+            component={JoinReviewRoute}
+            getId={byRequest}
           />
         </>
       )}

@@ -140,12 +140,7 @@ const myStack = {
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,
-  OrgJoin: companyFind,
-  OrgRoleSelect: joinTarget,
-  OrgJoinRequested: joinRequest,
-  OrgJoinRejected: byRequest,
   OrgJoinRequests: once,
-  OrgJoinReview: byRequest,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
 // #221 전 앱은 내 일정 탭을 하위 스택 없는 화면으로 두고, 바깥에서 고른 하위 탭 값(응답 필요)을 남겼다(옮긴 뒤 지워 빈 객체).
 // 업데이트 직후 이 값 하나로 다른 탭의 보던 화면까지 버리지 않게 받아 주고, 지금 구조에는 뜻이 없어 복원할 때 뺀다 (#226 리뷰)
@@ -188,8 +183,14 @@ export const navigationSchema: NavigatorSchema = {
   Main: nested(mainTabs),
   RequestDetail: byId,
   RejectReason: byId,
+  // 회사 참여 흐름은 하단 탭 바 없이 메인 위 루트 스택에 있다 (#219)
+  OrgJoin: companyFind,
   // QR 코드 인식(#108)으로 다시 열면 앱을 켜자마자 카메라가 켜진다. 이 화면이 든 상태는 버리고 첫 화면으로 연다
   OrgQrScan: { params: () => false },
+  OrgRoleSelect: joinTarget,
+  OrgJoinRequested: joinRequest,
+  OrgJoinRejected: byRequest,
+  OrgJoinReview: byRequest,
 } satisfies Record<keyof RootStackParamList, ScreenSchema>;
 
 function isValidState(state: unknown, navigator: NavigatorSchema): boolean {

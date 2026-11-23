@@ -133,6 +133,16 @@ describe('OrgJoinScreen', () => {
     const hidden = (text: string) =>
       screen.getByText(text, { includeHiddenElements: true });
 
+    // 하단 탭 바 없이 연다 (#219). Figma 3235:17242 · 51028:17074 는 탭 바 없이 아래가 홈 인디케이터(44)다
+    it('탭 바 없이 열어 아래 안전 영역(최소 32)을 띄운다', async () => {
+      await renderJoin();
+
+      expect(screen.root?.props.edges).toEqual(
+        expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+      );
+      expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+    });
+
     it('소개: 제목 Body/L/Bold Gray900, 설명 Body/XS/Medium Gray600, 사이 6. 소개·입력·구분선·QR 사이 24', async () => {
       await renderJoin();
 

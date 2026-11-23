@@ -4,8 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
+import {
+  STANDALONE_SCREEN_EDGES,
+  standaloneScreen,
+} from '../../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
-import { flowLayouts } from '../components/flowLayouts';
 import { SummaryCard } from '../components/SummaryCard';
 import {
   participationTypeLabels,
@@ -34,8 +37,8 @@ export function JoinRejectedScreen({
   const look = looks[flow];
   return (
     <SafeAreaView
-      edges={flowLayouts[flow].edges}
-      style={flowLayouts[flow].screen}
+      edges={STANDALONE_SCREEN_EDGES}
+      style={standaloneScreen.screen}
     >
       <SubScreenHeader
         title={flow === 'onboarding' ? REJECTED_TITLE : '조직 참여하기'}
@@ -95,7 +98,7 @@ export function JoinRejectedScreen({
         </View>
       </ScrollView>
 
-      <View style={[readableColumn, flowLayouts[flow].actions]}>
+      <View style={[readableColumn, standaloneScreen.actions]}>
         <CTA label="확인" onPress={onConfirm} />
       </View>
     </SafeAreaView>

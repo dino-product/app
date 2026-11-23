@@ -13,6 +13,8 @@ import {
   typography,
   withOpacity,
 } from '../../../../shared/design-system';
+import { iconSvgs } from '../../../../shared/design-system/icons/svgs';
+import { svgViewsDrawing } from '../../../../shared/testing/icon';
 import {
   fail,
   networkError,
@@ -110,12 +112,14 @@ describe('JoinRequestedScreen', () => {
     expect(
       screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
     ).toBeOnTheScreen();
-    // 마이 Figma(3235:14886)의 첫 단계 이름은 '검토 중' 이다 (온보딩 3227:8824 는 '요청 완료')
+    // 첫 단계 이름은 마이·온보딩 모두 '요청 완료' 다 (#219, 사용자 확인 · 온보딩 Figma 3227:8846)
     expect(
       screen.getByLabelText(
-        '진행 단계: 검토 중, 다음은 사무실 검토 중, 참여 완료',
+        '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
       ),
     ).toBeOnTheScreen();
+    expect(screen.getByText('요청 완료')).toBeOnTheScreen();
+    expect(screen.queryByText('검토 중')).toBeNull();
   });
 
   it('요약에 회사, 희망 유형, 요청 경로, 요청 일시가 보인다', async () => {
@@ -475,162 +479,140 @@ describe('JoinRequestedScreen', () => {
         screen.getByText('이전 코드·링크·QR을 통한 새로운 요청은 차단됩니다.'),
       ).toBeOnTheScreen();
     });
-
-    // 온보딩 모양은 이 작업(#199)에서 바꾸지 않는다: 진행 표시 원 36 · 숫자 Body/XS/SemiBold · 단계 폭 88 · 첫 단계 '요청 완료'
-    it('온보딩 진행 표시는 지금 모양 그대로다', async () => {
-      await renderRequested({ flow: 'onboarding' });
-
-      expect(
-        screen.getByLabelText(
-          '진행 단계: 요청 완료, 다음은 사무실 검토 중, 참여 완료',
-        ),
-      ).toBeOnTheScreen();
-      expect(circle(2)).toHaveStyle({
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: colors.gray[200],
-      });
-      expect(stylePt(circle(2), 'borderWidth')).toBe(0);
-      expect(within(circle(2)).getByText('2')).toHaveStyle(
-        typography['Body/XS/SemiBold'],
-      );
-      expect(circle(2).parent).toHaveStyle({ width: 88, gap: 8 });
-      expect(screen.getByText('요청 완료')).toHaveStyle({
-        ...typography['Caption/M/SemiBold'],
-        color: colors.gray[700],
-      });
-      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
-      expect(screen.queryByLabelText(/^상태,/)).toBeNull();
-    });
-
-    // 세로 간격도 #85 그대로다: 머리 아래 42, 안내–진행 32, 진행–요약 24, 요약–아래 문구 24 (리뷰 #210)
-    it('온보딩 세로 간격은 지금 그대로다', async () => {
-      await renderRequested({ flow: 'onboarding' });
-
-      const steps = screen.getByTestId('join-steps');
-      expect(steps.parent).toHaveStyle({ gap: 32 });
-      let scroll = steps.parent;
-      while (scroll && scroll.type !== 'RCTScrollView') {
-        scroll = scroll.parent;
-      }
-      expect(
-        StyleSheet.flatten(scroll?.props.contentContainerStyle),
-      ).toMatchObject({ paddingTop: 42, gap: 24 });
-      expect(
-        screen.getByText('승인 전까지 회사의 일정과 작업은 표시되지 않습니다.')
-          .parent,
-      ).toHaveStyle({ gap: 24 });
-    });
   });
 
-  // 마이 › 조직 참여에서 보낸 요청과 마이페이지 검토 줄에서 연 요청은 Figma 회사찾기-요청완료 (3235:14886) 의 패널 값이다
-  describe('마이 모양 (Figma 3235:14886)', () => {
-    it('아이콘 40 아래 24 에 제목, 제목–설명 6, 설명은 Body/XS/Medium Gray600 이다', async () => {
-      await renderRequested();
+  // 마이 요청완료(3235:14886)와 온보딩 승인 대기(3227:8824)는 안내·진행 표시·간격의 Figma 패널 값이 같다 (#212 로 온보딩을 맞춤).
+  // 진행 표시는 원 40 둘레에 배경과 같은 흰색 6 을 두어 뒤의 선이 원에 닿지 않게 하고, 보이는 테두리는 없다 (#219)
+  describe.each(['my', 'onboarding'] as const)(
+    '안내·진행 표시·간격 (Figma 3235:14886 · 3227:8824) — %s',
+    flow => {
+      const renderFlow = () => renderRequested({ flow });
 
-      const title = screen.getByRole('header', {
-        name: '참여 요청을 보냈어요',
-      });
-      expect(title).toHaveStyle({
-        ...typography['Body/L/Bold'],
-        color: colors.gray[900],
-      });
-      const texts = title.parent as HostElement;
-      expect(texts).toHaveStyle({ gap: 6 });
-      expect(texts.parent).toHaveStyle({ gap: 24 });
-      const [icon] = (texts.parent as HostElement).children as HostElement[];
-      expect(icon).toHaveStyle({ width: 40, height: 40 });
-      expect(
-        screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
-      ).toHaveStyle({
-        ...typography['Body/XS/Medium'],
-        color: colors.gray[600],
-      });
-    });
+      it('아이콘 40 아래 24 에 제목, 제목–설명 6, 설명은 Body/XS/Medium Gray600 이다', async () => {
+        await renderFlow();
 
-    // 머리 아래 36 에서 시작 (Figma 152 − 머리 116), 안내–진행 24, 진행–요약 42, 요약–아래 문구 12
-    it('세로 간격은 머리 아래 36, 안내–진행 24, 진행–요약 42, 요약–아래 문구 12 다', async () => {
-      await renderRequested();
-
-      const steps = screen.getByTestId('join-steps');
-      expect(steps.parent).toHaveStyle({ gap: 24 });
-      const footnote = screen.getByText(
-        '승인 전까지 회사의 일정과 작업은 표시되지 않습니다.',
-      );
-      expect(footnote.parent).toHaveStyle({ gap: 12 });
-      expect(footnote).toHaveStyle({
-        ...typography['Caption/S/Medium'],
-        color: colors.libraryGray[500],
-      });
-      let scroll = steps.parent;
-      while (scroll && scroll.type !== 'RCTScrollView') {
-        scroll = scroll.parent;
-      }
-      expect(
-        StyleSheet.flatten(scroll?.props.contentContainerStyle),
-      ).toMatchObject({ paddingTop: 36, paddingHorizontal: 24, gap: 42 });
-    });
-
-    // 원은 40 이고 바깥 흰 테 6 이 뒤의 선을 가린다. 숫자 Body/S/SemiBold 흰색, 단계 이름 Caption/M/SemiBold 위 10
-    it('진행 표시 원은 40 에 흰 테 6, 숫자는 Body/S/SemiBold, 이름은 원 아래 10 이다', async () => {
-      await renderRequested();
-
-      for (const step of [1, 2, 3]) {
-        const node = circle(step);
-        expect(stylePt(node, 'width') - 2 * stylePt(node, 'borderWidth')).toBe(
-          40,
-        );
-        expect(node).toHaveStyle({
-          height: 52,
-          borderRadius: 26,
-          borderWidth: 6,
-          borderColor: colors.white[100],
-          margin: -6,
+        const title = screen.getByRole('header', {
+          name: '참여 요청을 보냈어요',
         });
-        expect(node.parent).toHaveStyle({ gap: 10 });
-      }
-      expect(circle(1)).toHaveStyle({ backgroundColor: colors.secondary });
-      expect(circle(2)).toHaveStyle({ backgroundColor: colors.gray[200] });
-      expect(within(circle(2)).getByText('2')).toHaveStyle({
-        ...typography['Body/S/SemiBold'],
-        color: colors.white[100],
+        expect(title).toHaveStyle({
+          ...typography['Body/L/Bold'],
+          color: colors.gray[900],
+        });
+        const texts = title.parent as HostElement;
+        expect(texts).toHaveStyle({ gap: 6 });
+        expect(texts.parent).toHaveStyle({ gap: 24 });
+        const [icon] = (texts.parent as HostElement).children as HostElement[];
+        expect(icon).toHaveStyle({ width: 40, height: 40 });
+        expect(
+          screen.getByText('사무실에서 요청을 확인하면 알려드릴게요.'),
+        ).toHaveStyle({
+          ...typography['Body/XS/Medium'],
+          color: colors.gray[600],
+        });
       });
-      expect(screen.getByText('검토 중')).toHaveStyle({
-        ...typography['Caption/M/SemiBold'],
-        color: colors.gray[700],
-      });
-      expect(screen.getByText('참여 완료')).toHaveStyle({
-        ...typography['Caption/M/SemiBold'],
-        color: colors.gray[500],
-      });
-    });
 
-    // Figma Line 67: 1 두께 Gray200(#DEDEDE), 첫 원 가운데에서 마지막 원 가운데까지. 단계 가운데 사이 117
-    it('단계 사이 선은 1 두께 Gray200 이고, 단계 가운데 사이는 117 이다', async () => {
-      await renderRequested();
+      // 머리 아래 36 에서 시작 (Figma 152 − 머리 116), 안내–진행 24, 진행–요약 42, 요약–아래 문구 12
+      it('세로 간격은 머리 아래 36, 안내–진행 24, 진행–요약 42, 요약–아래 문구 12 다', async () => {
+        await renderFlow();
 
-      expect(screen.getByTestId('join-steps-line')).toHaveStyle({
-        height: 1,
-        top: 19.5,
-        backgroundColor: colors.gray[200],
+        const steps = screen.getByTestId('join-steps');
+        expect(steps.parent).toHaveStyle({ gap: 24 });
+        const footnote = screen.getByText(
+          '승인 전까지 회사의 일정과 작업은 표시되지 않습니다.',
+        );
+        expect(footnote.parent).toHaveStyle({ gap: 12 });
+        expect(footnote).toHaveStyle({
+          ...typography['Caption/S/Medium'],
+          color: colors.libraryGray[500],
+        });
+        let scroll = steps.parent;
+        while (scroll && scroll.type !== 'RCTScrollView') {
+          scroll = scroll.parent;
+        }
+        expect(
+          StyleSheet.flatten(scroll?.props.contentContainerStyle),
+        ).toMatchObject({ paddingTop: 36, paddingHorizontal: 24, gap: 42 });
       });
-      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
-      expect(circle(1).parent).toHaveStyle({ flex: 1 });
-      const row = circle(1).parent?.parent as HostElement;
-      expect(row).toHaveStyle({ maxWidth: 117 * 3 });
-      // 콘텐츠 폭 345 보다 6 넓은 351 을 세 칸으로 나눈다
-      expect(row.parent).toHaveStyle({ marginHorizontal: -3 });
-    });
 
-    it('버튼 사이는 10 이다', async () => {
-      await renderRequested();
+      // 원은 테두리 없이 칠한 40 이다. 둘레의 흰색 6 은 테두리가 아니라 원 뒤의 배경색 원판(52)이다.
+      // 테두리(borderWidth)로 그리면 둥근 가장자리에 원 색이 번져 보이는 테두리가 생긴다 (#219).
+      // 첫 원 체크 24, 숫자 Body/S/SemiBold 흰색, 단계 이름 Caption/M/SemiBold 는 원 아래 10
+      it('진행 표시 원은 테두리 없는 40 이고, 선을 끊는 흰색 6 은 배경색 원판이다', async () => {
+        await renderFlow();
 
-      expect(screen.getByRole('button', { name: '확인' }).parent).toHaveStyle({
-        gap: 10,
+        for (const step of [1, 2, 3]) {
+          const node = circle(step);
+          expect(node).toHaveStyle({ width: 40, height: 40, borderRadius: 20 });
+          expect(stylePt(node, 'borderWidth')).toBe(0);
+          const disc = node.parent as HostElement;
+          expect(disc).toHaveStyle({
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            margin: -6,
+            backgroundColor: colors.white[100],
+          });
+          expect(stylePt(disc, 'borderWidth')).toBe(0);
+          expect(disc.parent).toHaveStyle({ gap: 10 });
+        }
+        expect(circle(1)).toHaveStyle({ backgroundColor: colors.secondary });
+        expect(circle(2)).toHaveStyle({ backgroundColor: colors.gray[200] });
+        const [check] = svgViewsDrawing(circle(1), iconSvgs.check.xml);
+        expect(check.props).toMatchObject({ width: 24, height: 24 });
+        expect(within(circle(2)).getByText('2')).toHaveStyle({
+          ...typography['Body/S/SemiBold'],
+          color: colors.white[100],
+        });
+        expect(screen.getByText('요청 완료')).toHaveStyle({
+          ...typography['Caption/M/SemiBold'],
+          color: colors.gray[700],
+        });
+        expect(screen.getByText('참여 완료')).toHaveStyle({
+          ...typography['Caption/M/SemiBold'],
+          color: colors.gray[500],
+        });
       });
-    });
-  });
+
+      // Figma Line 67: 1 두께 Gray200(#DEDEDE) 실선 한 줄, 원 위쪽에서 19–20 (원 가운데보다 0.5 위).
+      // 첫 원 가운데에서 마지막 원 가운데까지 원 뒤로 지나가 원판 밖으로 나온 부분만 보인다. 단계 가운데 사이 117
+      it('단계 사이 선은 1 두께 Gray200 한 줄이고, 단계 가운데 사이는 117 이다', async () => {
+        await renderFlow();
+
+        expect(screen.getByTestId('join-steps-line')).toHaveStyle({
+          height: 1,
+          top: 19,
+          left: `${100 / 6}%`,
+          right: `${100 / 6}%`,
+          backgroundColor: colors.gray[200],
+        });
+        expect(screen.queryByTestId('join-steps-fill')).toBeNull();
+        const step = circle(1).parent?.parent as HostElement;
+        expect(step).toHaveStyle({ flex: 1 });
+        const row = step.parent as HostElement;
+        expect(row).toHaveStyle({ maxWidth: 117 * 3 });
+        // 콘텐츠 폭 345 보다 6 넓은 351 을 세 칸으로 나눈다
+        expect(row.parent).toHaveStyle({ marginHorizontal: -3 });
+      });
+
+      // 하단 탭 바 없이 연다 (#219). 아래 버튼 줄은 Figma 하단 바(3235:14892 · 3227:8830, 높이 102)대로
+      // 버튼 위 14, 좌우 24, 버튼 사이 10, 버튼 아래 32 (홈 인디케이터. 안전 영역이 더 크면 그만큼)
+      it('아래 버튼 줄은 탭 바 없는 Figma 하단 바(버튼 위 14, 아래 32)다', async () => {
+        await renderFlow();
+
+        expect(screen.getByRole('button', { name: '확인' }).parent).toHaveStyle(
+          {
+            paddingTop: 14,
+            paddingHorizontal: 24,
+            gap: 10,
+          },
+        );
+        expect(screen.root?.props.edges).toEqual(
+          expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+        );
+        expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+      });
+    },
+  );
 
   // #199: 마이페이지 소속 카드의 검토 줄에서 연 요청. 맥락에 맞는 제목, 사무실 검토 중까지 채운 진행 표시, 상태 칩
   describe('마이페이지 검토 줄에서 연 경우 (#199)', () => {
@@ -652,12 +634,14 @@ describe('JoinRequestedScreen', () => {
       ).toBeNull();
     });
 
-    it('진행 표시는 사무실 검토 중 단계까지 채워져 있다', async () => {
+    // 진행만 다르고 모양은 요청 완료와 같다: 둘째 원까지 Secondary 로 칠할 뿐, 단계 사이 선은 Figma 그대로 Gray200 한 줄이다.
+    // 칠한 단계 사이에 색을 바꾼 선을 더 긋지 않고, 원에 테두리도 없다 (#219)
+    it('진행 표시는 사무실 검토 중 단계까지 채우되, Figma 에 없는 선·테두리는 없다', async () => {
       await renderReviewing();
 
       expect(
         screen.getByLabelText(
-          '진행 단계: 검토 중, 사무실 검토 중, 다음은 참여 완료',
+          '진행 단계: 요청 완료, 사무실 검토 중, 다음은 참여 완료',
         ),
       ).toBeOnTheScreen();
       expect(circle(2)).toHaveStyle({ backgroundColor: colors.secondary });
@@ -665,14 +649,17 @@ describe('JoinRequestedScreen', () => {
       expect(screen.getByText('사무실 검토 중')).toHaveStyle({
         color: colors.gray[700],
       });
-      // 첫 원 가운데에서 둘째 원 가운데까지 (세 칸 중 한 칸) Secondary
-      expect(screen.getByTestId('join-steps-fill')).toHaveStyle({
+      expect(screen.queryByTestId('join-steps-fill')).toBeNull();
+      expect(screen.getByTestId('join-steps-line')).toHaveStyle({
         height: 1,
-        top: 19.5,
-        left: `${100 / 6}%`,
-        width: `${100 / 3}%`,
-        backgroundColor: colors.secondary,
+        backgroundColor: colors.gray[200],
       });
+      for (const step of [1, 2, 3]) {
+        expect(stylePt(circle(step), 'borderWidth')).toBe(0);
+        expect(stylePt(circle(step).parent as HostElement, 'borderWidth')).toBe(
+          0,
+        );
+      }
     });
 
     // 칩 값은 마이페이지 소속 카드의 검토 칩(Figma 3235:17157)과 같다. 요약 카드 첫 줄 '상태' 오른쪽에 둔다
