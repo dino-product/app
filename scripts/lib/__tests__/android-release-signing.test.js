@@ -61,7 +61,10 @@ describe('Android release 서명 (#57)', () => {
     expect(gradle).toMatch(
       /uploadKeyProperties\.collectEntries\s*\{[^}]*findProperty\(it\)/,
     );
-    expect(gradle).not.toMatch(/System\.getenv/);
+    // 업로드 키는 셸 환경 변수로 받지 않는다 (번들 빌드 값 #110 만 셸을 먼저 본다)
+    expect(gradle.match(/def uploadKey\s*=.*$/m)?.[0]).not.toMatch(
+      /System\.getenv/,
+    );
   });
 
   // 설정하지 않은 CI 비밀값은 빈 문자열로 들어온다. 있는 것으로 보면 file("") 로 빌드가 깨진다

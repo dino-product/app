@@ -66,11 +66,29 @@ react {
 
 /**
  * API 서버 주소(ORBIT_API_BASE_URL)와 웹 개발·운영 선택(DEVELOP_ONLY, #192)은 babel 이 JS 번들에 넣는다 (#110, babel.config.js).
- * 번들 작업의 입력으로 걸어 값만 바꿔 빌드해도 다시 번들을 만든다 (그렇지 않으면 UP-TO-DATE 로 옛 값이 남는다)
+ * 빌드하는 셸의 환경 변수를 먼저 보고, 없으면 ~/.gradle/gradle.properties(CI 는 ORG_GRADLE_PROJECT_<이름>)의 같은 이름 속성을 쓴다.
+ * iOS 의 ios/.xcode.env.local 자리다. 값이 없으면 Release 의 서버 요청이 모두 설정 오류로 실패한다 (src/shared/api/config.ts).
+ * 값은 번들러(node) 앞에 env 로 붙여 번들 작업에만 넘긴다. react { nodeExecutableAndArgs } 는 모든 라이브러리 codegen 의
+ * 입력이기도 해서, 거기 넣으면 값이 바뀔 때마다 네이티브를 다시 빌드한다.
+ * 번들 작업의 입력이라 값만 바꿔 빌드해도 다시 번들을 만든다 (그렇지 않으면 UP-TO-DATE 로 옛 값이 남는다)
  */
+def bundleBuildValues = ["ORBIT_API_BASE_URL", "DEVELOP_ONLY"].collectEntries { name ->
+    [(name): (System.getenv(name) ?: findProperty(name)?.toString() ?: "").trim()]
+}
 tasks.matching { it.name.startsWith("createBundle") }.configureEach {
-    inputs.property("orbitApiBaseUrl", providers.environmentVariable("ORBIT_API_BASE_URL").orElse(""))
-    inputs.property("developOnly", providers.environmentVariable("DEVELOP_ONLY").orElse(""))
+    inputs.property("orbitApiBaseUrl", bundleBuildValues.ORBIT_API_BASE_URL)
+    inputs.property("developOnly", bundleBuildValues.DEVELOP_ONLY)
+}
+// 번들 작업은 react 플러그인이 onVariants 에서 만들면서 node 명령을 react {} 값으로 정한다. 그보다 뒤에 덮어써야 해서
+// 같은 onVariants 에서 이름으로 고친다 (위 configureEach 에서 고치면 플러그인 설정이 나중에 돌아 [node] 로 되돌아간다)
+def bundleEnv = bundleBuildValues.findAll { it.value }.collect { "${it.key}=${it.value}".toString() }
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def bundleTask = "createBundle${variant.name.capitalize()}JsAndAssets"
+        if (bundleEnv && tasks.names.contains(bundleTask)) {
+            tasks.named(bundleTask).configure { nodeExecutableAndArgs.set(["env"] + bundleEnv + ["node"]) }
+        }
+    }
 }
 
 /**
