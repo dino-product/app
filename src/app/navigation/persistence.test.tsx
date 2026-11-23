@@ -250,15 +250,14 @@ describe('내비게이션 상태 저장', () => {
         'id 가 없는 내 일정 탭 안 작업 상세 (#221)',
         withScheduleRoutes([{ name: 'MySchedule' }, { name: 'WorkDetail' }]),
       ],
-      // #221 전에는 내 일정 탭이 하위 스택 없는 화면이었다. 그때 남긴 하위 탭 값은 지금 구조에 맞지 않는다
       [
-        '내 일정 탭에 하위 화면 없이 남은 하위 탭 값 (#221 전 구조)',
+        '#221 전 구조의 내 일정 하위 탭 값이 없는 값',
         withRoot([
           {
             name: 'Main',
             state: {
               index: 0,
-              routes: [{ name: 'schedule', params: { tab: 'pending' } }],
+              routes: [{ name: 'schedule', params: { tab: 'done' } }],
             },
           },
         ]),
@@ -322,6 +321,31 @@ describe('내비게이션 상태 저장', () => {
     });
 
     // QR 코드 인식(#195)은 읽은 회사 코드를 회사 찾기 파라미터로 넘기며 닫히고(마이는 Main 을 거쳐), 회사 찾기는 받은 뒤 지운다
+    // #221 전 앱은 내 일정 탭에 하위 스택 없이 하위 탭 값을 남겼다 (응답 필요로 옮긴 뒤 지워 빈 객체). 업데이트 직후 한 번
+    // 이 값 때문에 다른 탭의 보던 화면까지 버리지 않게 받아 주고, 지금 구조에는 뜻이 없어 복원할 때 뺀다
+    it.each([{}, { tab: 'pending' }])(
+      '#221 전 앱이 내 일정 탭에 남긴 %j 는 받고 복원할 때 뺀다',
+      params => {
+        const state = withHomeRoutes([
+          { name: 'WorkHome' },
+          { name: 'WorkDetail', params: { id: '201' } },
+        ]);
+        const tabs = state.routes[0].state.routes;
+        (tabs[1] as Record<string, unknown>).params = params;
+
+        const restored = parseSavedNavigation(
+          saved(state),
+          NOW,
+        ) as typeof state;
+
+        expect(restored.routes[0].state.routes[0]).toEqual(tabs[0]);
+        expect(restored.routes[0].state.routes[1]).toEqual({
+          key: 'schedule-1',
+          name: 'schedule',
+        });
+      },
+    );
+
     it('QR 로 읽은 회사 코드를 넘긴 회사 찾기는 받기 전·지운 뒤 모두 연다', () => {
       for (const params of [{ qrCode: 'RBT124' }, {}]) {
         const state = withMyRoutes([
