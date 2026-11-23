@@ -20,6 +20,25 @@ async function openHistory() {
   await userEvent.press(tab('작업 이력'));
 }
 
+/** Android 뒤로 가기를 듣는 핸들러를 모아, 누르는 함수를 돌려준다 */
+function listenBack() {
+  type Handler = Parameters<typeof BackHandler.addEventListener>[1];
+  const handlers = new Set<Handler>();
+  jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, handler) => {
+      handlers.add(handler);
+      return { remove: () => handlers.delete(handler) };
+    });
+  return () =>
+    act(() => {
+      // RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리하면 멈춘다. 이벤트 인자는 쓰지 않는다
+      [...handlers]
+        .reverse()
+        .some(handler => handler(undefined as never) === true);
+    });
+}
+
 fixAppTestClock();
 
 describe('App — 작업 이력 탭', () => {
@@ -142,21 +161,7 @@ describe('App — 작업 이력 탭', () => {
   });
 
   it('Android 뒤로가기: 작업 이력 상세에서는 목록으로, 목록에서는 홈 탭으로 간다', async () => {
-    type Handler = Parameters<typeof BackHandler.addEventListener>[1];
-    const handlers = new Set<Handler>();
-    jest
-      .spyOn(BackHandler, 'addEventListener')
-      .mockImplementation((_event, handler) => {
-        handlers.add(handler);
-        return { remove: () => handlers.delete(handler) };
-      });
-    const pressBack = () =>
-      act(() => {
-        // RN BackHandler 처럼 나중에 등록한 핸들러부터 부르고, 하나가 처리하면 멈춘다. 이벤트 인자는 쓰지 않는다
-        [...handlers]
-          .reverse()
-          .some(handler => handler(undefined as never) === true);
-      });
+    const pressBack = listenBack();
     await openHistory();
     await userEvent.press(rows()[0]);
 
@@ -164,6 +169,32 @@ describe('App — 작업 이력 탭', () => {
     expect(header('작업 이력')).toBeOnTheScreen();
     expect(header('작업 상세')).not.toBeOnTheScreen();
 
+    await pressBack();
+    expect(tab('홈')).toBeSelected();
+    expect(header('내 작업')).toBeOnTheScreen();
+  });
+
+  // #203 날짜 선택 상자. 열린 동안은 탭 밀기처럼 탭 바로도 옮기지 않는다 (#177 새로고침 잠금과 같은 길).
+  // 떠난 탭은 붙어 있는 채 숨으므로, 상자를 연 채 옮기면 숨은 상자가 다음 뒤로 가기를 먹고 고른 달을 몰래 적용했다
+  it('날짜 선택 상자가 열린 동안은 탭 바로 옮기지 않고, 뒤로 가기는 상자를 먼저 닫는다. 닫은 뒤 다른 탭으로 옮겨 뒤로 가면 홈 탭이다', async () => {
+    const pressBack = listenBack();
+    await openHistory();
+    const monthButton = screen.getByRole('button', { name: monthTitle(0) });
+    await userEvent.press(monthButton);
+    expect(monthButton).toBeExpanded();
+
+    await userEvent.press(tab('내 일정'));
+    expect(tab('작업 이력')).toBeSelected();
+    expect(monthButton).toBeExpanded();
+
+    await pressBack();
+    expect(tab('작업 이력')).toBeSelected();
+    expect(monthButton).toBeCollapsed();
+    // 상자가 다 닫히면(240ms) 잠금을 놓는다
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+
+    await userEvent.press(tab('내 일정'));
+    expect(tab('내 일정')).toBeSelected();
     await pressBack();
     expect(tab('홈')).toBeSelected();
     expect(header('내 작업')).toBeOnTheScreen();

@@ -82,6 +82,8 @@ export type WorkHistoryScreenProps = {
   /** 당겨서 새로고침 */
   refreshing?: boolean;
   onRefresh?: () => void;
+  /** 날짜 선택 상자가 보이는지(닫는 중 포함) 알린다. 바깥이 그동안 탭 바·뒤로 가기 탭 전환을 막는다 (#203) */
+  onPickerVisibleChange?: (visible: boolean) => void;
 };
 
 const READY: LoadState = { status: 'ready' };
@@ -135,6 +137,7 @@ function WorkHistoryScreenView({
   onMonthChange,
   refreshing = false,
   onRefresh,
+  onPickerVisibleChange,
 }: WorkHistoryScreenProps) {
   const [viewMonth, setViewMonth] = useState<YearMonth>(() => monthOf(today));
   const monthWorks = useMemo(
@@ -212,9 +215,14 @@ function WorkHistoryScreenView({
   // 스크롤하면 상단 바가 접히고(제목이 사라지고 월 선택이 바에 흡수됨), 맨 위로 돌아오면 펼친다 (#175)
   const collapse = useHeaderCollapse();
   const holdCollapse = collapse.hold;
+  // 상자가 보이는 동안은 탭도 옮기지 않는다: 탭 밀기는 상자 층이 막고, 탭 바·Android 뒤로 가기는 바깥(route)이 막는다.
+  // 떠난 탭은 숨은 채 붙어 있어, 연 채 옮기면 숨은 상자가 다음 뒤로 가기를 먹고 고른 달을 몰래 적용한다
   useLayoutEffect(() => {
     holdCollapse(pickerVisible);
   }, [holdCollapse, pickerVisible]);
+  useLayoutEffect(() => {
+    onPickerVisibleChange?.(pickerVisible);
+  }, [onPickerVisibleChange, pickerVisible]);
 
   // 목록 영역을 좌우로 밀어 달을 옮긴다 (#153). 탭 전환과 같은 판정(useSwipeSwitch)·영역 규칙을 쓴다:
   // 목록 영역(리스트에서 보이는 상단 바·머리를 뺀 아래쪽, monthSwipe.ts rowsArea) 안쪽 깊은 곳에서 시작한 밀기만 달을 옮기고, 그 가장자리 여유·화면 가장자리 띠·

@@ -10,6 +10,7 @@ import {
   canSwitchTab,
   TabSwitchLockLayout,
   useHoldTabSwitchWhile,
+  useTabSwitchHold,
   useTabSwitchLock,
   type TabSwitchLock,
 } from './tabSwitchLock';
@@ -180,6 +181,51 @@ describe('TabSwitchLockLayout · useHoldTabSwitchWhile', () => {
 
   it('탭 내비게이터 밖(잠금이 없음)에서는 아무 일도 하지 않는다', async () => {
     await expect(render(<Refreshing active />)).resolves.toBeDefined();
+  });
+
+  // #203 날짜 선택 상자처럼 화면 안쪽 상태로 잡는 잠금. 다시 그리지 않고 그때그때 잡고 놓는다
+  describe('useTabSwitchHold', () => {
+    let hold: (held: boolean) => void = () => {};
+    function Holder() {
+      hold = useTabSwitchHold();
+      return null;
+    }
+
+    it('true 면 잡고 false 면 놓는다. 두 번 잡아도 한 번 놓으면 풀린다', async () => {
+      const harness: Harness = { lock: null, focused: true };
+      await renderLayout(tabState(1), harness, <Holder />);
+      const lock = harness.lock as TabSwitchLock;
+
+      hold(true);
+      hold(true);
+      expect(lock.canSwitch()).toBe(false);
+      hold(false);
+      expect(lock.canSwitch()).toBe(true);
+      hold(false);
+      expect(lock.canSwitch()).toBe(true);
+    });
+
+    it('잡은 화면이 사라지면 잠금도 풀린다', async () => {
+      const harness: Harness = { lock: null, focused: true };
+      const view = await renderLayout(tabState(1), harness, <Holder />);
+      hold(true);
+
+      await view.rerender(
+        <TabSwitchLockLayout
+          state={tabState(1)}
+          navigation={{ isFocused: () => true }}
+        >
+          {null}
+        </TabSwitchLockLayout>,
+      );
+      expect(harness.lock?.canSwitch()).toBe(true);
+    });
+
+    it('탭 내비게이터 밖에서는 아무 일도 하지 않는다', async () => {
+      await render(<Holder />);
+      expect(() => hold(true)).not.toThrow();
+      expect(() => hold(false)).not.toThrow();
+    });
   });
 
   it('Android 뒤로가기: 새로고침 중 다른 탭 첫 화면에서는 홈 탭으로 가지 않는다 (잡는 동안만 듣는다)', async () => {

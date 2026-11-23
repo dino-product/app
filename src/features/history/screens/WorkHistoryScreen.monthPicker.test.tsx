@@ -609,6 +609,20 @@ describe('날짜 선택 — 열린 동안 멈추는 것 (#203)', () => {
     // 밀기는 누르기가 아니다: 상자는 열린 채다
     expect(monthButton()).toBeExpanded();
   });
+
+  it('상자가 보이는 동안(닫는 중 포함)을 알려 바깥이 탭 바·뒤로 가기 탭 전환을 막게 한다', async () => {
+    const onPickerVisibleChange = jest.fn();
+    await renderHistory({ onPickerVisibleChange });
+    expect(onPickerVisibleChange).not.toHaveBeenCalledWith(true);
+
+    await userEvent.press(monthButton());
+    expect(onPickerVisibleChange).toHaveBeenLastCalledWith(true);
+
+    await tap(part('work-history-month-picker-backdrop'));
+    expect(onPickerVisibleChange).toHaveBeenLastCalledWith(true);
+    await finishAnimations();
+    expect(onPickerVisibleChange).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe('날짜 선택 — 스크린리더 (#203)', () => {

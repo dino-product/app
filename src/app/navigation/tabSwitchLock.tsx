@@ -6,6 +6,7 @@ import type {
 } from '@react-navigation/native';
 import {
   createContext,
+  useCallback,
   useContext,
   useLayoutEffect,
   useRef,
@@ -19,7 +20,8 @@ import { BackHandler } from 'react-native';
 // 내려간 채로 멈췄다. 탭 첫 화면이 새로고침하는 동안 잠금을 잡고(useHoldTabSwitchWhile), 탭을 옮기는 길
 // — 좌우 밀기(TabSwipeArea 의 canSwipe), 탭 바 누름(MainTabBar), Android 뒤로가기(다른 탭 첫 화면 → 홈 탭) — 이
 // 그때그때 canSwitch() 를 묻는다. 새로고침이 끝나면(성공·실패 모두) 잠금을 놓아 바로 다시 옮길 수 있다.
-// 묻는 쪽이 누르거나 밀 때 읽으므로 잠금이 바뀌어도 아무것도 다시 그리지 않는다
+// 묻는 쪽이 누르거나 밀 때 읽으므로 잠금이 바뀌어도 아무것도 다시 그리지 않는다.
+// 작업 이력 날짜 선택 상자(#203)가 보이는 동안도 같은 잠금을 잡는다 (useTabSwitchHold)
 
 /** 새로고침 중인 화면 수로 본 탭 전환 가능 여부 */
 export function canSwitchTab(refreshingScreens: number): boolean {
@@ -122,5 +124,32 @@ export function useHoldTabSwitchWhile(active: boolean) {
   useLayoutEffect(
     () => (active && lock !== null ? lock.hold() : undefined),
     [active, lock],
+  );
+}
+
+/**
+ * 화면 안쪽 상태(날짜 선택 상자 등)로 탭 전환을 막을 때 쓴다. 돌려준 함수에 true 를 주면 잡고 false 면 놓는다 (여러 번 잡아도 한 번만 잡는다).
+ * 상태를 그 화면이 들고 있어 루트가 다시 그리지 않고 그때그때 잡는다. 화면이 사라지면 놓는다. 메인 탭 밖이면 아무 일도 하지 않는다
+ */
+export function useTabSwitchHold(): (held: boolean) => void {
+  const lock = useContext(TabSwitchLockContext);
+  const release = useRef<(() => void) | null>(null);
+  useLayoutEffect(
+    () => () => {
+      release.current?.();
+      release.current = null;
+    },
+    [lock],
+  );
+  return useCallback(
+    (held: boolean) => {
+      if (!held) {
+        release.current?.();
+        release.current = null;
+      } else if (release.current === null && lock !== null) {
+        release.current = lock.hold();
+      }
+    },
+    [lock],
   );
 }
