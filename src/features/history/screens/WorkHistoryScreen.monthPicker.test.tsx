@@ -778,6 +778,32 @@ describe('날짜 선택 — 스크린리더 (#203)', () => {
     });
   });
 
+  // 휠 열에 초점이 있는 채 닫으면 휠 층이 사라지며 초점이 화면 처음으로 튄다. 닫자마자 월 글자 버튼으로 옮긴다
+  it('닫으면 스크린리더 초점을 월 글자 버튼으로 옮긴다', async () => {
+    const focus = jest
+      .spyOn(AccessibilityInfo, 'sendAccessibilityEvent')
+      .mockClear();
+    await renderHistory();
+    await userEvent.press(monthButton());
+    await settleWheel(monthWheel(), 7);
+    expect(focus).not.toHaveBeenCalled();
+
+    await act(() => {
+      fireEvent(picker()!, 'accessibilityEscape');
+    });
+
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        props: expect.objectContaining({
+          accessibilityRole: 'button',
+          accessibilityLabel: '2026년 8월',
+        }),
+      }),
+      'focus',
+    );
+  });
+
   // 열면 초점은 월 글자 버튼에 남는다. 거기서도 닫기 동작이 먹는다
   it('월 글자 버튼에 초점이 있어도 닫기 동작으로 닫고, 닫혀 있으면 닫기 동작을 받지 않는다', async () => {
     await renderHistory();

@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
+  AccessibilityInfo,
   Animated,
   Pressable,
   StyleSheet,
   type LayoutChangeEvent,
   type StyleProp,
+  type ViewInstance,
   type ViewStyle,
 } from 'react-native';
 import {
@@ -99,6 +101,16 @@ export function MonthSwitcher({
   );
   // 화면이 다시 그려져도 같은 스타일을 넘겨 애니메이션 값의 연결을 다시 만들지 않는다
   const rowStyle = useMemo(() => [styles.row, style], [style]);
+
+  // 상자를 닫으면 스크린리더 초점을 이 버튼으로 옮긴다. 휠 열에 초점이 있는 채 닫으면 휠 층이 사라지며 초점이 화면 처음으로 튄다
+  const titleRef = useRef<ViewInstance>(null);
+  const wasOpen = useRef(pickerOpen);
+  useEffect(() => {
+    if (wasOpen.current && !pickerOpen && titleRef.current) {
+      AccessibilityInfo.sendAccessibilityEvent(titleRef.current, 'focus');
+    }
+    wasOpen.current = pickerOpen;
+  }, [pickerOpen]);
   const arrow = collapsed || pickerVisible ? COLLAPSED_ARROW : EXPANDED_ARROW;
 
   return (
@@ -122,6 +134,7 @@ export function MonthSwitcher({
           </Animated.View>
         </Pressable>
         <Pressable
+          ref={titleRef}
           accessibilityRole="button"
           accessibilityLabel={title}
           accessibilityState={{ expanded: pickerOpen }}
