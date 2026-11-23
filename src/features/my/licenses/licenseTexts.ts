@@ -1,7 +1,8 @@
 import type { LicenseId } from './openSourceNotices';
 
-// 오픈소스 고지의 라이선스 전문 (#232). 원문을 문단(빈 줄로 나뉜 덩어리)으로 나눠 싣는다. 문단 안 줄바꿈은 원문대로 두되,
-// MIT 원문(SPDX)은 한 문장을 100자 폭으로 끊어 둬서 휴대폰 폭에 맞게 한 줄로 잇는다.
+// 오픈소스 고지의 라이선스 전문 (#232). 원문을 문단(빈 줄로 나뉜 덩어리)으로 나눠 싣는다. 낱말은 원문 그대로다.
+// 문단 안 줄바꿈은 원문대로 두되 MIT 원문(SPDX)은 한 문장을 100자 폭으로 끊어 둬서 휴대폰 폭에 맞게 한 줄로 잇는다.
+// 줄 앞 들여쓰기(Apache 4조 (a)~(d), zlib 1~3)와 줄 끝 공백, 탭은 화면 폭에 맞게 지웠다
 // - MIT·Apache-2.0·BSD-3-Clause·Zlib·BSL-1.0·OFL-1.1: SPDX License List 원문 (github.com/spdx/license-list-data, text/*.txt)
 // - MMKV: MMKV 2.4.0 배포본의 LICENSE.TXT (ios/Pods/MMKVCore/LICENSE.TXT). BSD 3-Clause 에 OpenSSL·SSLeay 라이선스가 붙어 있어
 //   두 고지 문구('This product includes …')를 맨 앞에 따로 싣는다 (고지 문서의 게시 조건)

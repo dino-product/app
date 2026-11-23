@@ -88,7 +88,9 @@ export function OpenSourceLicensesScreen({
 }
 
 const keyExtractor = (item: Item, index: number) =>
-  item.kind === 'component' ? item.component.name : String(index);
+  item.kind === 'component'
+    ? `${item.component.name}@${item.component.version}`
+    : String(index);
 
 const renderItem: SectionListRenderItem<Item, LicenseSection> = ({ item }) =>
   item.kind === 'component' ? (
@@ -101,7 +103,7 @@ const renderSectionHeader = ({
   section,
 }: {
   section: SectionListData<Item, LicenseSection>;
-}) => <SectionHeader kind={section.kind} title={section.title} />;
+}) => <LicenseSectionHeader kind={section.kind} title={section.title} />;
 
 function Intro() {
   return (
@@ -112,7 +114,7 @@ function Intro() {
 }
 
 /** 묶음 제목은 약관 및 앱 정보의 '약관 및 정책' 과 같은 글, '라이선스 전문' 은 한 단계 큰 글, 라이선스 이름은 항목 이름과 같은 굵기 */
-function SectionHeader({
+export function LicenseSectionHeader({
   kind,
   title,
 }: {
@@ -145,22 +147,30 @@ function SectionHeader({
   );
 }
 
-/** 표 한 줄: 이름 / 버전 · 라이선스 / 저작권. 스크린리더는 한 덩어리로 읽는다 */
-const ComponentRow = memo(function OpenSourceComponentRow({
+/**
+ * 표 한 줄: 이름 / 버전 · 라이선스 / 저작권. 스크린리더는 한 덩어리로 읽는다 (iOS·Android 가 같게 이름을 정해 준다).
+ * 저작권은 법적 고지라 흰 바탕에서 WCAG AA(4.5:1)를 넘는 Gray600 으로 쓴다 (#233 리뷰)
+ */
+export const ComponentRow = memo(function OpenSourceComponentRow({
   component,
 }: {
   component: OpenSourceComponent;
 }) {
   const { name, version, license, copyright } = component;
+  const meta = version === '-' ? license : `${version} · ${license}`;
   return (
-    <View accessible style={styles.component}>
+    <View
+      accessible
+      accessibilityLabel={`${name}, ${meta}, ${copyright}`}
+      style={styles.component}
+    >
       <Text variant="Body/XS/SemiBold" color={colors.gray[900]}>
         {name}
       </Text>
-      <Text variant="Caption/S/Medium" color={colors.gray[600]}>
-        {version === '-' ? license : `${version} · ${license}`}
+      <Text variant="Caption/S/Medium" color={colors.gray[700]}>
+        {meta}
       </Text>
-      <Text variant="Caption/S/Medium" color={colors.libraryGray[500]}>
+      <Text variant="Caption/S/Medium" color={colors.gray[600]}>
         {copyright}
       </Text>
     </View>

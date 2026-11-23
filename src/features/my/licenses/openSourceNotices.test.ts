@@ -78,6 +78,16 @@ describe('오픈소스 고지', () => {
     expect(group?.components).toContainEqual(component);
   });
 
+  // 목록 행 key 가 묶음 안 이름·버전이라 겹치면 안 된다
+  it('묶음 안에서 이름·버전이 겹치지 않는다', () => {
+    for (const group of openSourceGroups) {
+      const keys = group.components.map(
+        component => `${component.name}@${component.version}`,
+      );
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
   it('라이선스 전문은 MIT · Apache 2.0 · BSD 3-Clause · zlib · BSL 1.0 · OFL 1.1 · MMKV 순서다', () => {
     expect(licenseTexts.map(text => [text.id, text.title])).toEqual([
       ['MIT', 'MIT License'],
