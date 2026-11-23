@@ -1228,18 +1228,28 @@ describe('App', () => {
     });
   });
 
-  // 마이페이지도 회색이다 (App.my.test)
-  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인은 회색)', async () => {
+  // 마이페이지도 회색이다 (App.my.test). 내 일정(Figma 3754:6269)·작업 이력(3753:4890) 첫 화면도 바탕이 Background/3 이다
+  it('탭 바 둥근 모서리 뒤는 지금 화면의 배경색이다 (홈 메인·내 일정·작업 이력은 회색, 작업 상세는 흰색)', async () => {
     await renderSignedInHome();
     const backdrop = () => screen.getByTestId('main-tab-bar');
+    const gray = { backgroundColor: colors.background[3] };
+    const white = { backgroundColor: colors.white[100] };
 
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.background[3] });
+    expect(backdrop()).toHaveStyle(gray);
 
     await openStartedWorkDetail();
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.white[100] });
+    expect(backdrop()).toHaveStyle(white);
 
     await userEvent.press(tab('내 일정'));
-    expect(backdrop()).toHaveStyle({ backgroundColor: colors.white[100] });
+    expect(backdrop()).toHaveStyle(gray);
+    await userEvent.press(
+      await screen.findByRole('button', { name: /^세탁기 설치, 작업전/ }),
+    );
+    await screen.findByRole('header', { name: '작업 상세' });
+    expect(backdrop()).toHaveStyle(white);
+
+    await userEvent.press(tab('작업 이력'));
+    expect(backdrop()).toHaveStyle(gray);
   });
 
   it('전화·길찾기 링크를 열지 못해도 앱이 처리되지 않은 오류를 내지 않는다', async () => {

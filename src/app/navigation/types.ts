@@ -87,6 +87,9 @@ export type HistoryStackParamList = {
   CompletedWorkDetail: { id: string };
 };
 
+export const HISTORY_INITIAL_ROUTE =
+  'WorkHistory' satisfies keyof HistoryStackParamList;
+
 // 마이페이지 하위 화면도 탭 안에 쌓는다. Figma 는 탈퇴 프레임에만 탭 바가 있지만 한 스택으로 맞췄다 (디자인 확인 항목)
 export type MyStackParamList = {
   MyPage: undefined;

@@ -5,19 +5,26 @@ import { BottomNavigationBar, colors } from '../../shared/design-system';
 import { mainTabs, type MainTabKey } from '../../shared/navigation/mainTabs';
 import { useTabSwitchLock } from './tabSwitchLock';
 import {
+  HISTORY_INITIAL_ROUTE,
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
+  SCHEDULE_INITIAL_ROUTE,
   type MainTabParamList,
 } from './types';
 
 // 탭 스택이 아직 상태를 만들기 전이면 그 탭의 첫 화면이다
-const initialRoutes: Partial<Record<keyof MainTabParamList, string>> = {
+const initialRoutes: Record<keyof MainTabParamList, string> = {
   home: HOME_INITIAL_ROUTE,
+  schedule: SCHEDULE_INITIAL_ROUTE,
+  history: HISTORY_INITIAL_ROUTE,
   my: MY_INITIAL_ROUTE,
 };
-// 배경이 회색인 화면 (Figma: 홈 메인, 마이페이지)
+// 배경이 회색(Background/3)인 화면. Figma: 홈 메인, 내 일정(3754:6269), 작업이력(3753:4890), 마이페이지.
+// 작업 상세 등 탭 안 하위 화면은 흰색이다
 const grayScreens: ReadonlySet<string> = new Set([
   HOME_INITIAL_ROUTE,
+  SCHEDULE_INITIAL_ROUTE,
+  HISTORY_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
 ]);
 

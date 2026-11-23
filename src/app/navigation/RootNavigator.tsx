@@ -66,6 +66,7 @@ import {
 import { createCoverTabNavigator } from './coverTabs/createCoverTabNavigator';
 import { TabSwitchLockLayout, useTabSwitchLock } from './tabSwitchLock';
 import {
+  HISTORY_INITIAL_ROUTE,
   HOME_INITIAL_ROUTE,
   MY_INITIAL_ROUTE,
   ONBOARDING_INITIAL_ROUTE,
@@ -267,6 +268,7 @@ function HistoryTab() {
   const stackOptions = useStackOptions();
   return (
     <HistoryStack.Navigator
+      initialRouteName={HISTORY_INITIAL_ROUTE}
       screenOptions={stackOptions}
       screenLayout={stackScreenLayout}
     >
