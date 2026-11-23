@@ -22,7 +22,11 @@ import {
 } from '../../jest/firebase';
 import { saveSignedInStep } from '../features/onboarding/login';
 import { participationRequestsKey } from '../features/my/org/participationQueries';
-import { REJECT_REASON } from '../features/my/org/testing';
+import {
+  EXISTING_REQUESTS,
+  participationOf,
+  REJECT_REASON,
+} from '../features/my/org/testing';
 import { readPushDeviceId, readPushDeviceOwner } from '../features/push/push';
 import { createWorkRepository } from '../features/work/data/config';
 import {
@@ -39,6 +43,7 @@ import {
   type FakeResponse,
 } from '../shared/testing/fakeServer';
 import App from './App';
+import { NAVIGATION_STATE_KEY } from './navigation/persistence';
 import {
   accountServer,
   ELIGIBILITY_PATH,
@@ -429,7 +434,8 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
     );
   });
 
-  it('참여 거절 알림을 누르면 마이 탭에 그 요청의 거절 화면(서버 사유)을 연다', async () => {
+  // 회사 참여 흐름 화면은 탭 바 없이 메인 위 루트 스택에 연다 (#219)
+  it('참여 거절 알림을 누르면 탭 바 없이 그 요청의 거절 화면(서버 사유)을 연다', async () => {
     enableFirebase();
     const app = await renderSignedInApp({
       server: pushServer().on('PUT', readPath('33'), noContent()),
@@ -450,10 +456,57 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
       await screen.findByRole('header', { name: '참여 요청이 거절되었어요' }),
     ).toBeOnTheScreen();
     expect(await screen.findByText(REJECT_REASON)).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: '마이' })).toBeSelected();
+    expect(screen.queryByRole('tab', { name: '마이' })).toBeNull();
     await waitFor(() =>
       expect(app.server.callsTo('PUT', readPath('33'))).toHaveLength(1),
     );
+  });
+
+  // 리뷰(#210) 재현: 검토 화면을 연 채 사무실이 거절하고 거절 알림을 누르면 루트 스택은 [메인, 검토 화면, 거절 화면] 이다.
+  // 회사 참여 화면은 탭 바 없이 메인 위에 쌓여(#219) 이 겹침은 푸시로 생긴다.
+  // 아래 검토 화면이 '승인 대기 아님' 으로 떠날 때 위의 거절 화면까지 지우면 안 된다
+  it('검토 화면을 연 채 거절 알림으로 연 거절 화면은 아래 검토 화면이 떠나도 남고, 뒤로 가면 마이페이지다', async () => {
+    enableFirebase();
+    const app = await renderSignedInApp({
+      server: pushServer().on('PUT', readPath('33'), noContent()),
+      requests: EXISTING_REQUESTS.map(item =>
+        item.requestId === 3
+          ? { ...item, status: 'PENDING', rejectReason: null, decidedAt: null }
+          : item,
+      ),
+    });
+    await registered(app);
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await userEvent.press(
+      await screen.findByRole('button', { name: '스마트 홈케어, 직원, 검토' }),
+    );
+    expect(header('승인 대기')).toBeOnTheScreen();
+    participationOf(app.server).decide(
+      { status: 'REJECTED', rejectReason: '이번 달 채용이 마감되었습니다' },
+      3,
+    );
+
+    await act(async () =>
+      openPush(
+        pushMessage({
+          notificationId: '33',
+          type: 'PARTICIPATION_REQUEST_REJECTED',
+          participationRequestId: '3',
+        }),
+      ),
+    );
+
+    expect(
+      await screen.findByText('이번 달 채용이 마감되었습니다'),
+    ).toBeOnTheScreen();
+    // 거절 화면이 받은 새 목록으로 아래 검토 화면의 문지기가 판단할 때까지 기다린다
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 200)));
+    expect(header('참여 요청이 거절되었어요')).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: '마이' })).toBeNull();
+    // 거절 화면에서 뒤로 가면 검토 화면이 아니라 마이페이지다
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(header('마이페이지')).toBeOnTheScreen();
+    expect(header('승인 대기')).toBeNull();
   });
 
   it('로그인 전에 누른 푸시는 로그인해 메인에 들어온 뒤 그 화면을 연다', async () => {
@@ -488,6 +541,87 @@ describe('App — 푸시를 눌러 열기 (#118)', () => {
     );
 
     expect(header('알림센터')).toBeOnTheScreen();
+  });
+});
+
+// 리뷰(#225): 회사 참여 흐름(#219)·요청 상세처럼 탭 위 루트 스택 화면이 맨 위일 때 메인 탭 화면으로 여는 푸시를 누르면,
+// 메인을 하나 더 쌓지 않고 그 화면들을 빼며 아래 메인으로 돌아가 연다. 저장한 상태에도 메인이 하나다
+describe('App — 루트 스택 화면 위에서 메인 탭 화면으로 여는 푸시 (#225 리뷰)', () => {
+  /** 마지막으로 저장한 루트 스택 화면 이름 (#34 상태 저장) */
+  const rootRouteNames = () =>
+    (
+      JSON.parse(appStorage.getString(NAVIGATION_STATE_KEY) ?? '{}') as {
+        state?: { routes: { name: string }[] };
+      }
+    ).state?.routes.map(route => route.name);
+
+  async function openCompanyFind() {
+    enableFirebase();
+    const app = await renderSignedInApp({ server: pushServer() });
+    await registered(app);
+    await userEvent.press(screen.getByRole('tab', { name: '마이' }));
+    await screen.findByRole('button', { name: '신청 현황, 2건' });
+    await userEvent.press(screen.getByRole('button', { name: '조직 참여' }));
+    expect(header('회사 찾기')).toBeOnTheScreen();
+    return app;
+  }
+
+  it('요청 완료를 연 채 참여 승인 알림을 누르면 메인 하나 위에 신청 현황을 열고, 뒤로 가면 마이페이지다', async () => {
+    await openCompanyFind();
+    await userEvent.type(screen.getByLabelText('회사 코드 입력'), 'RBT124');
+    await userEvent.press(screen.getByRole('button', { name: '회사 확인' }));
+    await screen.findByRole('header', { name: '역할을 선택해주세요' });
+    await userEvent.press(screen.getByRole('radio', { name: /^기사/ }));
+    await userEvent.press(
+      screen.getByRole('button', { name: '참여 요청하기' }),
+    );
+    expect(header('참여 요청을 보냈어요')).toBeOnTheScreen();
+    expect(rootRouteNames()).toEqual(['Main', 'OrgJoinRequested']);
+
+    await act(async () => openPush(approvedPush));
+
+    expect(header('참여 신청 현황')).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: '마이' })).toBeSelected();
+    expect(rootRouteNames()).toEqual(['Main']);
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(header('마이페이지')).toBeOnTheScreen();
+    expect(header('참여 요청을 보냈어요')).toBeNull();
+  });
+
+  it('회사 찾기를 연 채 작업 알림을 누르면 메인 하나 위에 작업 상세를 열고, 뒤로 가면 내 작업이다', async () => {
+    await openCompanyFind();
+
+    await act(async () => openPush(workPush));
+
+    await waitFor(() => expect(header('작업 상세')).toBeOnTheScreen());
+    expect(rootRouteNames()).toEqual(['Main']);
+    await userEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(header('내 작업')).toBeOnTheScreen();
+    expect(header('회사 찾기')).toBeNull();
+  });
+
+  // #219 전부터 루트 스택에 있던 요청 상세도 같다
+  it('요청 상세를 연 채 참여 승인 알림을 누르면 메인 하나 위에 신청 현황을 연다', async () => {
+    enableFirebase();
+    const app = await renderSignedInApp({ server: pushServer() });
+    await registered(app);
+    // 작업 106 은 테스트 작업 저장소의 수락 대기 작업이다
+    await act(async () =>
+      openPush(
+        pushMessage({
+          notificationId: '31',
+          type: 'WORK_ASSIGNED',
+          workId: '106',
+        }),
+      ),
+    );
+    await screen.findByRole('button', { name: '수락' });
+    expect(rootRouteNames()).toEqual(['Main', 'RequestDetail']);
+
+    await act(async () => openPush(approvedPush));
+
+    expect(header('참여 신청 현황')).toBeOnTheScreen();
+    expect(rootRouteNames()).toEqual(['Main']);
   });
 });
 

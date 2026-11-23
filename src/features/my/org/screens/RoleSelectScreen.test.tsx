@@ -85,6 +85,20 @@ describe('RoleSelectScreen', () => {
     ).toBeOnTheScreen();
   });
 
+  // 마이 › 조직 참여의 역할 선택도 하단 탭 바 없이 연다 (#219). Figma 3278:20974 하단 바(높이 102): 버튼 위 14, 좌우 24, 아래 32
+  it('마이 역할 선택은 탭 바 없는 Figma 하단 바(버튼 위 14, 아래 32)다', async () => {
+    await renderRole();
+
+    expect(submit().parent).toHaveStyle({
+      paddingTop: 14,
+      paddingHorizontal: 24,
+    });
+    expect(screen.root?.props.edges).toEqual(
+      expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+    );
+    expect(screen.root).toHaveStyle({ paddingBottom: 32 });
+  });
+
   it('유형을 고르기 전에는 참여 요청하기가 비활성이다', async () => {
     await renderRole();
 

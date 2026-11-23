@@ -245,7 +245,8 @@ export function NotificationCenterRoute({
 }
 
 // 내 작업 홈의 종으로 연 알림센터 (#96). 홈 탭 스택에 쌓아 뒤로 가면(뒤로 가기·스와이프·Android 뒤로가기) 홈으로 돌아온다.
-// 작업 알림은 같은 스택에 작업 상세를 쌓는다(수락 대기면 요청 상세). 참여 거절 화면은 마이 탭 스택에 있어 마이 탭에서 연다 (그 아래는 마이페이지)
+// 작업 알림은 같은 스택에 작업 상세를 쌓는다(수락 대기면 요청 상세). 참여 거절 화면은 탭 바 없이 메인 위 루트 스택에 열어(#219),
+// 확인·뒤로 가면 이 알림센터로 돌아온다
 export function HomeNotificationCenterRoute({
   navigation,
 }: HomeScreenProps<'NotificationCenter'>) {
@@ -266,10 +267,8 @@ export function HomeNotificationCenterRoute({
       if (target.kind === 'work') {
         openWork(target);
       } else {
-        navigation.navigate('my', {
-          screen: 'OrgJoinRejected',
-          params: { requestId: target.requestId },
-          initial: false,
+        navigation.navigate('OrgJoinRejected', {
+          requestId: target.requestId,
         });
       }
     },

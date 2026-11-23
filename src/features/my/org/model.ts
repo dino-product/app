@@ -4,8 +4,8 @@
 export type ParticipationType = 'STAFF' | 'TECHNICIAN';
 
 /**
- * 회사 참여 화면을 여는 흐름. my: 마이 › 조직 참여 (#73, 하단 탭 위),
- * onboarding: 가입 직후 회사 참여 (#85, 탭 없음). 머리 제목·아래 여백이 Figma 마다 다르다
+ * 회사 참여 화면을 여는 흐름. my: 마이 › 조직 참여 (#73), onboarding: 가입 직후 회사 참여 (#85).
+ * 둘 다 하단 탭 바 없이 열고(#219), 머리 제목·글자 등 일부 값이 Figma 마다 다르다
  */
 export type JoinFlow = 'my' | 'onboarding';
 

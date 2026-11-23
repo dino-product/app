@@ -29,9 +29,10 @@ import {
   RETURN_TRANSITION_TIMEOUT_MS,
   useAwaitReturnTransition,
 } from './orgRoutes';
-import type { MyScreenProps } from './types';
+import type { RootScreenProps } from './types';
 
-type ReviewProps = MyScreenProps<'OrgJoinReview'>;
+// 승인 대기는 탭 바 없이 메인 위 루트 스택에 쌓는다 (#219)
+type ReviewProps = RootScreenProps<'OrgJoinReview'>;
 
 // 참여 요청 하나를 그리는 화면(요청 완료·거절·참여 완료)의 문지기 (#116).
 // 캐시는 옛 상태일 수 있다(대기였다가 거절됨, 다른 기기가 보낸 요청). 화면을 연 뒤 받은 서버 목록으로 판단한다
@@ -286,7 +287,7 @@ describe('JoinReviewRoute', () => {
       server: participation.server,
       session: testSession(),
     });
-    // 마이 스택에 마이페이지만 남은 뒤에도 canGoBack 은 탭 내비게이터를 보고 true 다 (backBehavior firstRoute)
+    // 루트 스택에는 아래에 메인이 있어 canGoBack 은 true 다
     const navigation = {
       addListener: jest.fn(() => () => {}),
       canGoBack: jest.fn(() => true),
@@ -319,15 +320,15 @@ describe('JoinReviewRoute', () => {
       [(state: object) => { payload: { routes: unknown[]; index: number } }],
     ];
     return toAction({
-      key: 'my-stack',
+      key: 'root-stack',
       type: 'stack',
       stale: false,
-      routeNames: ['MyPage', 'OrgJoinReview', 'OrgJoinRejected'],
+      routeNames: ['Main', 'OrgJoinReview', 'OrgJoinRejected'],
       index: routes.length - 1,
       routes,
     }).payload;
   };
-  const myPage = { key: 'MyPage-0', name: 'MyPage' };
+  const main = { key: 'Main-0', name: 'Main' };
   const review = { key: 'OrgJoinReview-1', name: 'OrgJoinReview' };
 
   it('신청을 취소하면 이 화면만 스택에서 한 번 빼고, 뒤로 가기·popTo 는 보내지 않는다', async () => {
@@ -347,8 +348,8 @@ describe('JoinReviewRoute', () => {
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.popTo).not.toHaveBeenCalled();
     expect(navigation.navigate).not.toHaveBeenCalled();
-    expect(leaveFrom(navigation, [myPage, review])).toMatchObject({
-      routes: [myPage],
+    expect(leaveFrom(navigation, [main, review])).toMatchObject({
+      routes: [main],
       index: 0,
     });
   });
@@ -366,10 +367,8 @@ describe('JoinReviewRoute', () => {
       key: 'OrgJoinRejected-1',
       name: 'OrgJoinRejected',
     };
-    expect(
-      leaveFrom(navigation, [myPage, review, rejectedRoute]),
-    ).toMatchObject({
-      routes: [myPage, rejectedRoute],
+    expect(leaveFrom(navigation, [main, review, rejectedRoute])).toMatchObject({
+      routes: [main, rejectedRoute],
       index: 1,
     });
   });

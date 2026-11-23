@@ -129,12 +129,7 @@ const myStack = {
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,
-  OrgJoin: companyFind,
-  OrgRoleSelect: joinTarget,
-  OrgJoinRequested: joinRequest,
-  OrgJoinRejected: byRequest,
   OrgJoinRequests: once,
-  OrgJoinReview: byRequest,
 } satisfies Record<keyof MyStackParamList, ScreenSchema>;
 const mainTabs = {
   home: nested(homeStack),
@@ -172,8 +167,14 @@ export const navigationSchema: NavigatorSchema = {
   Main: nested(mainTabs),
   RequestDetail: byId,
   RejectReason: byId,
+  // 회사 참여 흐름은 하단 탭 바 없이 메인 위 루트 스택에 있다 (#219)
+  OrgJoin: companyFind,
   // QR 코드 인식(#108)으로 다시 열면 앱을 켜자마자 카메라가 켜진다. 이 화면이 든 상태는 버리고 첫 화면으로 연다
   OrgQrScan: { params: () => false },
+  OrgRoleSelect: joinTarget,
+  OrgJoinRequested: joinRequest,
+  OrgJoinRejected: byRequest,
+  OrgJoinReview: byRequest,
 } satisfies Record<keyof RootStackParamList, ScreenSchema>;
 
 function isValidState(state: unknown, navigator: NavigatorSchema): boolean {

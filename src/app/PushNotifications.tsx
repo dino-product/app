@@ -133,8 +133,12 @@ export function PushNotifications({
       }
       if (route.name === 'RequestDetail') {
         navigation.navigate('RequestDetail', route.params);
+      } else if (route.name === 'OrgJoinRejected') {
+        navigation.navigate('OrgJoinRejected', route.params);
       } else {
-        navigation.navigate('Main', route.params);
+        // 메인 위에 루트 스택 화면(회사 참여 흐름 #219·요청 상세 등)이 있으면 그 화면들을 빼고 아래 메인으로 돌아가 연다.
+        // pop 없이는 맨 위가 메인이 아닐 때 메인(탭 전체)을 하나 더 쌓는다 (리뷰 #225)
+        navigation.navigate('Main', route.params, { pop: true });
       }
       if (target.data.notificationId !== undefined) {
         markRead(target.data.notificationId);
