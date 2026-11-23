@@ -9,6 +9,16 @@ describe('JumpAnchor', () => {
   const jump = () =>
     screen.getByTestId('jump', { includeHiddenElements: true });
 
+  it('아이콘은 Figma 대로 24 다', async () => {
+    await render(
+      <JumpAnchor label="이동" visible onPress={jest.fn()} testID="jump" />,
+    );
+
+    expect(
+      screen.getByTestId('jump-icon', { includeHiddenElements: true }),
+    ).toHaveStyle({ width: 24, height: 24 });
+  });
+
   it('글자와 스크린리더 이름을 받는다', async () => {
     await render(
       <JumpAnchor
@@ -25,12 +35,13 @@ describe('JumpAnchor', () => {
     ).toHaveTextContent('약관 동의하기');
   });
 
-  it('아래 안전 영역이 없으면 버튼은 아래 16, 그라데이션은 218 이다 (작업 상세와 같다)', async () => {
+  // Figma 작업수행-상세: 버튼(2741:3444)은 탭 바 위 24, 아이콘 charm:chevrons-down(2741:3450)은 24×24
+  it('아래 안전 영역이 없으면 버튼은 아래 24, 그라데이션은 218 이다 (작업 상세와 같다)', async () => {
     await render(
       <JumpAnchor label="이동" visible onPress={jest.fn()} testID="jump" />,
     );
 
-    expect(jump()).toHaveStyle({ bottom: 16 });
+    expect(jump()).toHaveStyle({ bottom: 24 });
     expect(fade()).toHaveStyle({
       height: 218,
       backgroundImage:
@@ -50,7 +61,7 @@ describe('JumpAnchor', () => {
       />,
     );
 
-    expect(jump()).toHaveStyle({ bottom: 16 + 34 });
+    expect(jump()).toHaveStyle({ bottom: 24 + 34 });
     expect(fade()).toHaveStyle({
       height: 218 + 34,
       backgroundImage:

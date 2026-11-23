@@ -417,7 +417,7 @@ describe('TermsDetailScreen', () => {
 
       expect(
         screen.getByTestId('terms-agree-jump', { includeHiddenElements: true }),
-      ).toHaveStyle({ bottom: 16 + 34 });
+      ).toHaveStyle({ bottom: 24 + 34 });
     });
 
     it('동의 라디오가 화면에 다 보이면 숨는다', async () => {

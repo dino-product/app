@@ -121,8 +121,14 @@ export function JumpAnchor({
       >
         <CTA
           variant="brand"
+          // Figma charm:chevrons-down (2741:3450) 24×24
           icon={
-            <Icon name="chevrons-down" size={20} color={colors.white[100]} />
+            <Icon
+              name="chevrons-down"
+              size={24}
+              color={colors.white[100]}
+              testID={`${testID}-icon`}
+            />
           }
           label={label}
           accessibilityLabel={accessibilityLabel}
@@ -144,8 +150,11 @@ const JUMP_FADE_HEIGHT = FIGMA_FADE_HEIGHT - FIGMA_TAB_BAR_HEIGHT;
 /** Figma 레이어 위에서 잰 투명 구간 끝 / 불투명 시작 (pt) */
 const JUMP_FADE_CLEAR_UNTIL = (FIGMA_FADE_HEIGHT * 0.065) / 1.065;
 const JUMP_FADE_SOLID_FROM = (FIGMA_FADE_HEIGHT * (0.5432692 + 0.065)) / 1.065;
-/** 버튼이 그라데이션 아래 끝(탭 바 위 또는 안전 영역 위)에서 떨어진 거리 */
-const JUMP_BOTTOM = 16;
+/**
+ * 버튼이 그라데이션 아래 끝(탭 바 위 또는 안전 영역 위)에서 떨어진 거리.
+ * Figma 버튼(2741:3444)은 y670 높이 56 이라 탭 바(2829:3637, y750) 위 24 에서 끝난다
+ */
+const JUMP_BOTTOM = 24;
 /** 높이 height 인 그라데이션에서 위에서 잰 거리의 비율 */
 const fadeStop = (fromTop: number, height: number) =>
   `${Math.round((fromTop / height) * 10000) / 100}%`;
