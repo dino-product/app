@@ -3,6 +3,7 @@ import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 import { BottomNavigationBar, colors } from '../../shared/design-system';
 import { mainTabs, type MainTabKey } from '../../shared/navigation/mainTabs';
+import { useTabSwitchFeedback } from './coverTabs/CoverTabView';
 import { useTabSwitchLock } from './tabSwitchLock';
 import {
   HISTORY_INITIAL_ROUTE,
@@ -42,6 +43,7 @@ export function MainTabBar({ state, navigation }: BottomTabBarProps) {
     focused.name;
 
   const lock = useTabSwitchLock();
+  const feedback = useTabSwitchFeedback();
   const onChange = (key: MainTabKey) => {
     // 새로고침 중에는 어느 탭을 눌러도 아무 일도 없다 (#177). 지금 탭을 다시 눌러 맨 위로 올리는 것도 하지 않는다
     if (lock !== null && !lock.canSwitch()) {
@@ -61,6 +63,8 @@ export function MainTabBar({ state, navigation }: BottomTabBarProps) {
       data: { behavior: { popToTop: isFocused, scrollToTop: isFocused } },
     });
     if (!isFocused && !event.defaultPrevented) {
+      // 사용자가 눌러 옮긴 탭이다. 그리로 바뀌면 햅틱이 울린다 (#230)
+      feedback?.markUserSwitch(route.key);
       navigation.navigate(route.name, route.params);
     }
   };

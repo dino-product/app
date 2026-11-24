@@ -5,7 +5,10 @@ import {
   type TabNavigationState,
 } from '@react-navigation/native';
 import {
+  createContext,
   memo,
+  useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -106,6 +109,18 @@ function timing(value: Animated.Value, toValue: number, duration: number) {
   });
 }
 
+type TabSwitchFeedback = {
+  /** 사용자가 탭 바로 이 탭(route key)을 눌러 옮긴다. 탭이 그리로 바뀌면 햅틱을 울린다 */
+  markUserSwitch: (routeKey: string) => void;
+};
+
+const TabSwitchFeedbackContext = createContext<TabSwitchFeedback | null>(null);
+
+/** 탭 바가 쓴다. 메인 탭 밖이면 null */
+export function useTabSwitchFeedback(): TabSwitchFeedback | null {
+  return useContext(TabSwitchFeedbackContext);
+}
+
 type Props = {
   state: TabNavigationState<ParamListBase>;
   navigation: BottomTabBarProps['navigation'];
@@ -177,6 +192,14 @@ export function CoverTabView({
     setLoaded([...loaded, ...missing]);
   }
 
+  /** 사용자가 밀거나 탭 바를 눌러 옮기는 탭(route key). 탭이 그리로 바뀔 때만 햅틱을 울린다 */
+  const userSwitchTo = useRef<string | null>(null);
+  const [feedback] = useState<TabSwitchFeedback>(() => ({
+    markUserSwitch: routeKey => {
+      userSwitchTo.current = routeKey;
+    },
+  }));
+
   const latest = useRef({ state, navigation, width, reduceMotion });
   useLayoutEffect(() => {
     latest.current = { state, navigation, width, reduceMotion };
@@ -226,6 +249,7 @@ export function CoverTabView({
           ? { ...current, landing: true }
           : current,
       );
+      userSwitchTo.current = route.key;
       nav.dispatch({
         ...TabActions.jumpTo(route.name, route.params),
         target: now.key,
@@ -292,9 +316,6 @@ export function CoverTabView({
         follow = next.follow;
         if (next.snap) {
           snapFollow(drag.motion, next.snap === 'in' ? 1 : FOLLOW_BEFORE);
-        }
-        if (next.haptic) {
-          haptic.threshold();
         }
       },
       end: (dx, commit) => {
@@ -397,6 +418,20 @@ export function CoverTabView({
   useLayoutEffect(() => {
     cover.sync(transition);
   }, [cover, transition]);
+  // 사용자가 밀거나 탭 바를 눌러 옮긴 탭으로 실제로 바뀌는 순간에만 햅틱을 한 번 울린다 (#230).
+  // 미는 도중·놓기만 한 때·원래 탭으로 돌아갈 때·지금 탭을 다시 누를 때는 울리지 않는다.
+  // 다른 길(Android 뒤로가기는 시스템 햅틱이 따로 있다, 알림·화면 안 버튼)로 바뀐 탭도 울리지 않는다
+  const switchedFrom = useRef(state.index);
+  useEffect(() => {
+    if (switchedFrom.current === state.index) {
+      return;
+    }
+    switchedFrom.current = state.index;
+    if (userSwitchTo.current === state.routes[state.index]?.key) {
+      haptic.tabSwitch();
+    }
+    userSwitchTo.current = null;
+  }, [state.index, state.routes]);
   useLayoutEffect(() => cover.dispose, [cover]);
   useLayoutEffect(
     () =>
@@ -451,18 +486,20 @@ export function CoverTabView({
 
   return (
     <View style={styles.container}>
-      <TabCoverContext.Provider value={cover}>
-        <View style={styles.scenes}>
-          {scenes}
-          {motionStyles && transition?.to !== null ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.scrim, motionStyles.scrim]}
-            />
-          ) : null}
-        </View>
-      </TabCoverContext.Provider>
-      {tabBar({ state, descriptors, navigation, insets })}
+      <TabSwitchFeedbackContext.Provider value={feedback}>
+        <TabCoverContext.Provider value={cover}>
+          <View style={styles.scenes}>
+            {scenes}
+            {motionStyles && transition?.to !== null ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.scrim, motionStyles.scrim]}
+              />
+            ) : null}
+          </View>
+        </TabCoverContext.Provider>
+        {tabBar({ state, descriptors, navigation, insets })}
+      </TabSwitchFeedbackContext.Provider>
     </View>
   );
 }
