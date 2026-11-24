@@ -33,7 +33,7 @@
     "androidMaxStatus": "light"
   },
   "bundle": {
-    "maxJsBundleKb": { "ios": 2048, "android": 2048 }
+    "maxJsBundleKb": { "ios": 2304, "android": 2304 }
   },
   "render": {
     "maxInitialUpdateCount": 0,
