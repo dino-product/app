@@ -39,7 +39,6 @@ const rows = [
   '서비스 이용약관 (필수)',
   '개인정보 처리방침 (필수)',
   '제3자 제공 동의 (필수)',
-  '위치기반 서비스 이용약관 (필수)',
   '혜택 이벤트 알림 수신동의 (선택)',
 ] as const;
 
@@ -54,12 +53,11 @@ const allAgreed: TermsAgreement = {
   SERVICE: true,
   PRIVACY: true,
   THIRD_PARTY: true,
-  LOCATION: true,
   MARKETING: true,
 };
 
 describe('TermsAgreementScreen', () => {
-  it('제목과 약관 행 다섯 개(필수 4, 선택 1)를 모두 동의하지 않은 채 보여준다', async () => {
+  it('제목과 약관 행 네 개(필수 3, 선택 1)를 모두 동의하지 않은 채 보여준다. 위치기반 서비스 이용약관은 없다 (#232)', async () => {
     await renderTerms();
 
     expect(
@@ -72,6 +70,9 @@ describe('TermsAgreementScreen', () => {
       expect(row(name)).toHaveAccessibilityValue(NOT_AGREED);
     }
     expect(signUp()).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: /위치기반/ }),
+    ).not.toBeOnTheScreen();
   });
 
   it("'서비스 이용약관 (필수)' 등 항목을 누르면 동의하지 않은 채로 그 약관 상세를 연다", async () => {
@@ -115,16 +116,14 @@ describe('TermsAgreementScreen', () => {
   });
 
   it('(필수) 약관 중 하나라도 동의하지 않으면 가입하기가 비활성이다', async () => {
-    await renderTerms({ initial: { ...allAgreed, LOCATION: false } });
+    await renderTerms({ initial: { ...allAgreed, THIRD_PARTY: false } });
 
-    expect(row('위치기반 서비스 이용약관 (필수)')).toHaveAccessibilityValue(
-      NOT_AGREED,
-    );
+    expect(row('제3자 제공 동의 (필수)')).toHaveAccessibilityValue(NOT_AGREED);
     expect(allAgree()).not.toBeChecked();
     expect(signUp()).toBeDisabled();
   });
 
-  it('(필수) 넷에 동의하면 선택이 꺼져 있어도 가입하기가 켜지고, 누르면 동의한 약관을 넘긴다', async () => {
+  it('(필수) 셋에 동의하면 선택이 꺼져 있어도 가입하기가 켜지고, 누르면 동의한 약관을 넘긴다', async () => {
     const agreement = { ...allAgreed, MARKETING: false };
     const { onSignUp } = await renderTerms({ initial: agreement });
 

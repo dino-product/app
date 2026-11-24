@@ -105,7 +105,9 @@ describe('TermsDetailScreen', () => {
 
   it('원격 전문이 없는 약관은 받지 않고 준비 중 안내를 보인다', async () => {
     const { server } = await renderDetail({
-      sections: [{ key: 'location', title: '위치기반', document: null }],
+      sections: [
+        { key: 'THIRD_PARTY', title: '제3자 제공 동의', document: null },
+      ],
     });
 
     expect(screen.getByText('약관 전문을 준비하고 있어요.')).toBeOnTheScreen();

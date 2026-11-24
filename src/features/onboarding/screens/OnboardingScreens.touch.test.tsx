@@ -53,7 +53,7 @@ describe('온보딩 터치 영역', () => {
       await renderTerms();
 
       const rows = screen.getAllByRole('button', { name: /\((필수|선택)\)$/ });
-      expect(rows).toHaveLength(5);
+      expect(rows).toHaveLength(4);
       for (const row of rows) {
         expectMinTouchTarget(row, { height: 24 });
       }

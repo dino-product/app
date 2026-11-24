@@ -15,7 +15,7 @@ export type TermsDocumentState =
   | { status: 'ready'; blocks: readonly TermsBlock[] }
   | { status: 'loading' }
   | { status: 'error'; message: string; onRetry: () => void }
-  /** 원격 전문이 없는 약관 (제3자 제공·위치기반) */
+  /** 원격 전문이 없는 약관 (제3자 제공) */
   | { status: 'unavailable' };
 
 export const TERMS_LOAD_FAILED = '약관을 불러오지 못했어요.';

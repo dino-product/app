@@ -102,7 +102,7 @@ export function parseProfile(value: unknown): AccountProfile {
 
 /**
  * 약관 동의 본문 (AgreeToTermsRequest). 서버 약관은 서비스·개인정보(필수)·마케팅(선택) 셋이다.
- * Figma 의 제3자 제공·위치기반은 서버 항목이 없어 앱에서만 필수로 확인한다 (#112 G10)
+ * 제3자 제공은 서버 항목이 없어 앱에서만 필수로 확인한다 (#112 G10)
  */
 export function toTermsAgreementRequest(agreement: TermsAgreement) {
   return {

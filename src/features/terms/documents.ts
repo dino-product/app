@@ -36,16 +36,15 @@ export function termsDocumentUrl(
   return `${origin}/terms/${document}/${TERMS_VERSION}.txt`;
 }
 
-// 약관 행 ↔ 전문 대응표. 행은 Figma 대로(가입 약관 다섯, 마이 › 약관 둘), 전문은 원격 네 종류다.
+// 약관 행 ↔ 전문 대응표. 행은 가입 약관 넷(Figma 다섯에서 위치기반을 뺐다, #232), 마이 › 약관 둘이고, 전문은 원격 네 종류다.
 // 가입의 '개인정보 처리방침 (필수)' 는 서버에 PRIVACY(개인정보 수집·이용 동의)로 보내므로 그 동의서를 보인다.
-// 제3자 제공·위치기반은 원격 전문이 없어(null) 상세에 준비 중 안내만 둔다 (사용자 확인 항목)
+// 제3자 제공은 원격 전문이 없어(null) 상세에 준비 중 안내만 둔다 (사용자 확인 항목)
 export const signUpTermsDocuments: Readonly<
   Record<TermsType, TermsDocument | null>
 > = {
   SERVICE: 'service',
   PRIVACY: 'privacy-consent',
   THIRD_PARTY: null,
-  LOCATION: null,
   MARKETING: 'marketing',
 };
 

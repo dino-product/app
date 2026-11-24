@@ -52,12 +52,12 @@ describe('termsDocumentUrl', () => {
 });
 
 describe('약관 행 ↔ 전문 대응표', () => {
-  it('가입 약관: 서비스→service, 개인정보 처리방침(필수)→privacy-consent, 혜택 알림→marketing, 제3자·위치기반은 전문 없음', () => {
+  // 위치기반 서비스 이용약관은 가입 약관에서 뺐다 (#232)
+  it('가입 약관: 서비스→service, 개인정보 처리방침(필수)→privacy-consent, 혜택 알림→marketing, 제3자 제공은 전문 없음', () => {
     expect(signUpTermsDocuments).toEqual({
       SERVICE: 'service',
       PRIVACY: 'privacy-consent',
       THIRD_PARTY: null,
-      LOCATION: null,
       MARKETING: 'marketing',
     });
   });

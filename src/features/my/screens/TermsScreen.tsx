@@ -8,25 +8,20 @@ import { myPageTermsTitles, type MyPageTerms } from '../../terms/documents';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 
-// Figma 마이페이지-약관 (2889:13917). 서비스 이용약관·개인정보 처리방침은 원격 전문을 앱 안 약관 상세로 연다 (#192)
-export type TermsLinks = {
-  openSource: string;
-};
-
+// Figma 마이페이지-약관 (2889:13917). 서비스 이용약관·개인정보 처리방침은 원격 전문을 앱 안 약관 상세로 연다 (#192).
+// 오픈소스 라이선스는 앱에 실은 고지 문서를 앱 안 화면으로 연다 (#232)
 export function TermsScreen({
-  links,
   appVersion,
-  onOpenLink,
   onOpenTerms,
+  onOpenLicenses,
   onBack,
   titleRef,
 }: {
-  /** 비어 있으면(주소가 아직 없음) 그 행을 비활성으로 둔다 */
-  links: TermsLinks;
   appVersion: string;
-  onOpenLink: (url: string) => void;
   /** 약관 상세를 연다 */
   onOpenTerms: (terms: MyPageTerms) => void;
+  /** 오픈소스 라이선스 화면을 연다 */
+  onOpenLicenses: () => void;
   onBack: () => void;
   /** 바깥에서 스크린리더 포커스를 제목으로 옮길 때 쓴다 */
   titleRef?: Ref<TextInstance>;
@@ -45,10 +40,10 @@ export function TermsScreen({
           </Text>
           <TermsRow terms="service" onOpenTerms={onOpenTerms} />
           <TermsRow terms="privacy" onOpenTerms={onOpenTerms} />
-          <LinkRow
+          <MenuRow
             label="오픈소스 라이선스"
-            url={links.openSource}
-            onOpenLink={onOpenLink}
+            tone="muted"
+            onPress={onOpenLicenses}
           />
         </View>
 
@@ -85,26 +80,6 @@ const TermsRow = memo(function MyTermsRow({
       label={myPageTermsTitles[terms]}
       tone="muted"
       onPress={() => onOpenTerms(terms)}
-    />
-  );
-});
-
-// 주소가 비어 있으면(아직 정해지지 않음) 비활성 행이다
-const LinkRow = memo(function MyLinkRow({
-  label,
-  url,
-  onOpenLink,
-}: {
-  label: string;
-  url: string;
-  onOpenLink: (url: string) => void;
-}) {
-  return (
-    <MenuRow
-      label={label}
-      tone="muted"
-      disabled={url === ''}
-      onPress={() => onOpenLink(url)}
     />
   );
 });

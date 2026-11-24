@@ -23,10 +23,10 @@ import { MyPageScreen } from '../../features/my/screens/MyPageScreen';
 import { NotificationCenterScreen } from '../../features/my/screens/NotificationCenterScreen';
 import { NotificationSettingsScreen } from '../../features/my/screens/NotificationSettingsScreen';
 import { ProfileEditScreen } from '../../features/my/screens/ProfileEditScreen';
+import { OpenSourceLicensesScreen } from '../../features/my/screens/OpenSourceLicensesScreen';
 import { TermsScreen } from '../../features/my/screens/TermsScreen';
 import { WithdrawalBlockedScreen } from '../../features/my/screens/WithdrawalBlockedScreen';
 import { WithdrawalScreen } from '../../features/my/screens/WithdrawalScreen';
-import { termsLinks } from '../../features/my/termsLinks';
 import {
   myPageTermsDocuments,
   myPageTermsTitles,
@@ -43,7 +43,6 @@ import { useWorkRepository } from '../../features/work/data/WorkRepositoryProvid
 import { useApiClient } from '../../shared/api';
 import { APP_VERSION } from '../appVersion';
 import { useAuth } from '../AuthProvider';
-import { openWebPage } from '../externalLinks';
 import {
   notificationWorkScreen,
   type NotificationWorkScreen,
@@ -305,11 +304,24 @@ export function TermsRoute({ navigation }: MyScreenProps<'Terms'>) {
 
   return (
     <TermsScreen
-      links={termsLinks}
       appVersion={APP_VERSION}
       titleRef={titleRef}
-      onOpenLink={openWebPage}
       onOpenTerms={terms => navigation.navigate('TermsDetail', { terms })}
+      onOpenLicenses={() => navigation.navigate('OpenSourceLicenses')}
+      onBack={() => navigation.goBack()}
+    />
+  );
+}
+
+// 마이 › 오픈소스 라이선스 (#232). 앱에 실은 고지 문서를 읽기만 한다
+export function OpenSourceLicensesRoute({
+  navigation,
+}: MyScreenProps<'OpenSourceLicenses'>) {
+  const titleRef = useFocusTitleOnOpen(navigation);
+
+  return (
+    <OpenSourceLicensesScreen
+      titleRef={titleRef}
       onBack={() => navigation.goBack()}
     />
   );

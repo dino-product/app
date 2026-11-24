@@ -369,13 +369,27 @@ describe('App — 마이 탭', () => {
     expect(tab('마이')).toBeSelected();
   });
 
-  it('약관 및 앱 정보는 앱 버전을 보여주고, 오픈소스 라이선스는 주소가 없어 비활성이다', async () => {
+  it('약관 및 앱 정보는 앱 버전을 보여준다', async () => {
     await openMyPage();
 
     await userEvent.press(button('약관 및 앱 정보'));
 
-    expect(button('오픈소스 라이선스')).toBeDisabled();
     expect(screen.getByText('현재 버전 1.0')).toBeOnTheScreen();
+  });
+
+  // #232: 앱에 실은 고지 문서를 앱 안 화면으로 연다. 탭 바는 마이에 머문다
+  it('약관 및 앱 정보에서 오픈소스 라이선스를 누르면 고지 화면을 열고, 뒤로 가면 돌아온다', async () => {
+    await openMyPage();
+    await userEvent.press(button('약관 및 앱 정보'));
+
+    await userEvent.press(button('오픈소스 라이선스'));
+
+    expect(header('오픈소스 라이선스')).toBeOnTheScreen();
+    expect(header('React Native 라이브러리')).toBeOnTheScreen();
+    expect(tab('마이')).toBeSelected();
+
+    await userEvent.press(button('뒤로 가기'));
+    expect(header('약관 및 앱 정보')).toBeOnTheScreen();
   });
 
   // #192: 원격 전문(웹 버킷 txt)을 앱 안 약관 상세로 연다. 서비스→service, 개인정보 처리방침→privacy-policy

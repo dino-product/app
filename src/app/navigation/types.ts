@@ -108,6 +108,8 @@ export type MyStackParamList = {
   Terms: undefined;
   /** 약관 상세 (#192). 원격 전문을 앱 안에서 보인다 */
   TermsDetail: { terms: MyPageTerms };
+  /** 오픈소스 라이선스 (#232). 앱에 실은 고지 문서 */
+  OpenSourceLicenses: undefined;
   Account: undefined;
   Withdrawal: undefined;
   WithdrawalBlocked: undefined;

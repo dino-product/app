@@ -137,6 +137,7 @@ const myStack = {
       typeof params.terms === 'string' &&
       Object.prototype.hasOwnProperty.call(myPageTermsTitles, params.terms),
   },
+  OpenSourceLicenses: once,
   Account: once,
   Withdrawal: once,
   WithdrawalBlocked: once,
