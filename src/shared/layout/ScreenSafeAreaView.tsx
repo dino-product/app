@@ -54,11 +54,13 @@ export function ScreenSafeAreaView({
     <SafeAreaView
       {...props}
       edges={bottom ? TOP_BOTTOM_EDGES : TOP_EDGES}
-      style={[style, styles.minTop]}
+      style={[style, Platform.OS === 'android' ? minTop.android : minTop.ios]}
     />
   );
 }
 
-const styles = StyleSheet.create({
-  minTop: { paddingTop: MIN_SCREEN_TOP },
+// 운영체제는 그릴 때 본다 (테스트가 Platform.OS 를 바꿔 Android 틀을 그려 볼 수 있다)
+const minTop = StyleSheet.create({
+  android: { paddingTop: minScreenTop('android') },
+  ios: { paddingTop: minScreenTop('ios') },
 });

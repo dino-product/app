@@ -263,10 +263,13 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
     const screenTop = jest
       .spyOn(screenSafeArea, 'useScreenTop')
       .mockReturnValue(60);
-    await renderHistory();
+    try {
+      await renderHistory();
 
-    expect(part('work-history-bar-background')).toHaveStyle({ top: -60 });
-    screenTop.mockRestore();
+      expect(part('work-history-bar-background')).toHaveStyle({ top: -60 });
+    } finally {
+      screenTop.mockRestore();
+    }
   });
 
   it('요약 카드는 바 아래(108)에서 시작하는 리스트 내용이고, 바의 빈 곳 터치는 아래 리스트로 통과한다', async () => {

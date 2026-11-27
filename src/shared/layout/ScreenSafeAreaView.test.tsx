@@ -1,7 +1,9 @@
 import { render, renderHook, screen } from '@testing-library/react-native';
-import type { ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import type { ReactElement, ReactNode } from 'react';
+import { Platform, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ParticipationRequestGate } from '../../app/navigation/orgRoutes';
+import { WorkDetailStatusScreen } from '../../features/work/screens/WorkDetailStatusScreen';
 import {
   blockedScreens,
   refreshableScreens,
@@ -18,7 +20,25 @@ import {
 
 // 화면 위 여백 (#236). iPhone 은 다이내믹 아일랜드 때문에 위 안전 영역이 59(Figma iPhone 16 상태 표시줄 60)인데
 // Android 는 상태 표시줄(24dp 안팎)만 비워 머리가 위로 붙는다. Android 는 상태 표시줄과 60 중 큰 값을 비운다.
-// 테스트는 iOS 로 돌아 MIN_SCREEN_TOP 이 0 이고, Android 값은 운영체제를 넘겨 본다
+// 테스트는 iOS 로 돌아 MIN_SCREEN_TOP 이 0 이고, Android 값은 운영체제를 넘기거나 Platform.OS 를 바꿔 본다
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+const insetsWrapper =
+  (top: number) =>
+  ({ children }: { children: ReactNode }) =>
+    (
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 393, height: 852 },
+          insets: { top, bottom: 34, left: 0, right: 0 },
+        }}
+      >
+        {children}
+      </SafeAreaProvider>
+    );
 
 describe('화면 위 여백', () => {
   it('Android 는 상태 표시줄과 Figma 상태 표시줄 60 중 큰 값이다', () => {
@@ -38,19 +58,20 @@ describe('화면 위 여백', () => {
   });
 
   it('useScreenTop 은 기기의 위 안전 영역에서 낸다', async () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 393, height: 852 },
-          insets: { top: 47, bottom: 34, left: 0, right: 0 },
-        }}
-      >
-        {children}
-      </SafeAreaProvider>
-    );
-    const { result } = await renderHook(() => useScreenTop(), { wrapper });
+    const { result } = await renderHook(() => useScreenTop(), {
+      wrapper: insetsWrapper(47),
+    });
 
     expect(result.current).toBe(47);
+  });
+
+  it('Android 의 useScreenTop 은 상태 표시줄 24 여도 60 이다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const { result } = await renderHook(() => useScreenTop(), {
+      wrapper: insetsWrapper(24),
+    });
+
+    expect(result.current).toBe(60);
   });
 });
 
@@ -91,10 +112,42 @@ describe('ScreenSafeAreaView', () => {
       paddingBottom: 32,
     });
   });
+
+  // 틀이 그릴 때 운영체제를 본다. Android 는 paddingTop 60 이라 top: 'maximum' 이 상태 표시줄과 60 중 큰 값을 둔다
+  it('Android 에서는 틀의 paddingTop 이 60 이다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    await render(<ScreenSafeAreaView bottom style={styles.standalone} />);
+
+    expect(screen.root?.props.edges).toEqual(
+      expect.objectContaining({ top: 'maximum', bottom: 'maximum' }),
+    );
+    expect(screen.root).toHaveStyle({ paddingTop: 60, paddingBottom: 32 });
+  });
 });
 
+const noop = () => {};
+
+// 오버스크롤 화면 목록 밖의 틀: 작업 상세를 받는 동안의 화면, 참여 요청을 받는 동안의 화면 (#237 리뷰)
+const otherFrames: [string, ReactElement][] = [
+  [
+    '작업 상세 받는 중',
+    <WorkDetailStatusScreen state={{ status: 'loading' }} onBack={noop} />,
+  ],
+  [
+    '참여 요청 받는 중',
+    <ParticipationRequestGate
+      requestId="request-1"
+      title="참여 요청을 보냈어요"
+      onBack={noop}
+      onMissing={noop}
+    >
+      {() => <></>}
+    </ParticipationRequestGate>,
+  ],
+];
+
 describe('앱 화면 틀', () => {
-  it.each([...blockedScreens, ...refreshableScreens])(
+  it.each([...blockedScreens, ...refreshableScreens, ...otherFrames])(
     '%s: 위 여백을 화면 틀(ScreenSafeAreaView)로 잡는다',
     async (_, element) => {
       const container = await renderAppScreen(element);
