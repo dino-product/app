@@ -17,7 +17,6 @@ import {
   type NativeSyntheticEvent,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   CTA,
@@ -52,6 +51,7 @@ import {
   type WorkReport,
 } from '../model';
 import type { WorkStatusCode } from '../data/types';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 작업 수행 › 작업수행-상세, 작업수행-상세/보고제출 활성 (입력 전·입력 완료·제출 후, 제출 완료·작업 취소 모달 포함)
 export type WorkDetailScreenProps = {
@@ -205,7 +205,7 @@ export function WorkDetailScreen({
     scrollRef.current?.scrollTo({ y: reportY.current, animated: true });
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -351,7 +351,7 @@ export function WorkDetailScreen({
       </KeyboardAvoidingArea>
 
       {result && <ResultModal visible result={result} onConfirm={onDone} />}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

@@ -7,7 +7,6 @@ import {
   type PressableStateCallbackType,
   type ScrollViewInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   createTextStyle,
@@ -49,6 +48,7 @@ import {
   type ParticipationRequest,
 } from '../org/model';
 import type { QueryState } from '../queryState';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지 (3235:17104). 프로필은 GET /profiles/{accountId}, 소속 발주사는 GET /memberships 결과다 (#115).
 // 경로가 조회(useMyProfile·useMyMemberships)해 넘기고, 받은 값·상태가 같으면 다시 그리지 않는다(memo, 탭 전환 렌더 0).
@@ -111,7 +111,7 @@ function MyPageScreenView({
     [memberships, reviewRequests],
   );
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <AutoHideHeaderLayout
         autoHide={autoHide}
         header={
@@ -267,7 +267,7 @@ function MyPageScreenView({
           )}
         </TabSwipeScrollLock>
       </AutoHideHeaderLayout>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

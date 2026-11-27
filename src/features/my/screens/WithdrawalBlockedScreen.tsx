@@ -7,7 +7,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApiClient } from '../../../shared/api';
 import { colors, Icon, Text, touchSlop } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
@@ -22,6 +21,7 @@ import {
 } from '../model';
 import { useQueryState } from '../queryState';
 import { withdrawalEligibilityQuery } from '../withdrawalApi';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-탈퇴 불가 (2935:14696). 서버가 준 사유(GET withdrawal-eligibility, #115) 중 건수가 있는 것만 카드로 보인다.
 // 처음 열 때는 계정 관리가 탈퇴를 누른 때 물어 둔 결과를 쓰고, 사유를 정리하러 다른 화면에 갔다가 돌아오면 다시 묻는다.
@@ -61,7 +61,7 @@ export function WithdrawalBlockedScreen({
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader title="계정 관리" onBack={onBack} titleRef={titleRef} />
       <ScrollView
         {...noOverscroll}
@@ -93,7 +93,7 @@ export function WithdrawalBlockedScreen({
           />
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

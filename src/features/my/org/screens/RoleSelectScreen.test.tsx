@@ -94,7 +94,7 @@ describe('RoleSelectScreen', () => {
       paddingHorizontal: 24,
     });
     expect(screen.root?.props.edges).toEqual(
-      expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+      expect.objectContaining({ top: 'maximum', bottom: 'maximum' }),
     );
     expect(screen.root).toHaveStyle({ paddingBottom: 32 });
   });

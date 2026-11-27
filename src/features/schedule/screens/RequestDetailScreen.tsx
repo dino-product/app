@@ -6,7 +6,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   CTA,
@@ -19,6 +18,7 @@ import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { WorkInfoSections } from '../../work/components/WorkInfoSections';
 import type { WorkDetail, WorkPlace } from '../../work/model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 스케줄 › 응답 필요 작업의 상세 (하단 거절 / 수락)
 export function RequestDetailScreen({
@@ -68,7 +68,7 @@ export function RequestDetailScreen({
   };
 
   return (
-    <SafeAreaView edges={SCREEN_EDGES} style={styles.screen}>
+    <ScreenSafeAreaView bottom style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -109,13 +109,12 @@ export function RequestDetailScreen({
         />
         <CTA label="수락" onPress={accept} style={styles.action} />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 
 // Figma 2714:12494 아래 바: 큰 버튼(56) 사이 10, 위 14, 아래 32 는 홈 인디케이터 자리다 (거절 사유 화면과 같다).
 // 안전 영역이 더 크면 그만큼, 없는 기기도 32 를 둔다
-const SCREEN_EDGES = { top: 'additive', bottom: 'maximum' } as const;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingBottom: 32, backgroundColor: colors.white[100] },

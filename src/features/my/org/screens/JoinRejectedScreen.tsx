@@ -1,13 +1,9 @@
 import type { Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { SummaryCard } from '../components/SummaryCard';
 import {
@@ -15,6 +11,7 @@ import {
   type JoinFlow,
   type ParticipationRequest,
 } from '../model';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 회사찾기-거절 (3255:18035). 알림센터의 참여 거절 알림에서 들어온다 (디자인 확인 항목).
 // 온보딩(#85)은 참여 요청 결과-거절 (3257:10610) 이고 승인 대기에서 결정되면 온다
@@ -36,10 +33,7 @@ export function JoinRejectedScreen({
   const onboarding = flow === 'onboarding';
   const look = looks[flow];
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader
         title={flow === 'onboarding' ? REJECTED_TITLE : '조직 참여하기'}
         onBack={onBack}
@@ -101,7 +95,7 @@ export function JoinRejectedScreen({
       <View style={[readableColumn, standaloneScreen.actions]}>
         <CTA label="확인" onPress={onConfirm} />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

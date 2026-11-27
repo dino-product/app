@@ -9,7 +9,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   CTA,
@@ -26,10 +25,7 @@ import {
 } from '../../../../shared/native/cameraPermission';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { NoticeModal } from '../components/NoticeModal';
 import {
@@ -40,6 +36,7 @@ import {
 } from '../model';
 import { invalidCodeNotice } from '../notices';
 import { useCompanyCheck, type CompanyCheckHandlers } from '../useCompanyCheck';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 회사찾기 (3235:17242 / 3255:18315 / 3255:18375, 유효하지 않은 코드 3255:18149, 이미 참여 51028:17074).
 // 온보딩(#85)은 회사 찾기 (3205:6299 / 3278:23116), 유효하지 않은 코드 (3257:10685) 이고 머리 제목이 늘 '회사 참여' 다.
@@ -181,10 +178,7 @@ export function OrgJoinScreen({
   };
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       {/* 마이에서는 유효하지 않은 코드면 Figma 처럼 제목이 '회사 참여' 로 바뀐다 (디자인 확인 항목) */}
       <SubScreenHeader
         title={flow === 'onboarding' || invalid ? '회사 참여' : '조직 참여하기'}
@@ -290,7 +284,7 @@ export function OrgJoinScreen({
         notice={screenFocused ? notice : null}
         onClose={closeNotice}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

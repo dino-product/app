@@ -9,11 +9,11 @@ import {
 import type { AutoHideHeader } from './useAutoHideHeader';
 
 // 탭 첫 화면의 머리(상단 바 + 늘 보이는 부분)를 스크롤 뷰 위에 겹쳐 그리고 스크롤에 따라 숨긴다 (#148).
-// 쓰는 법: SafeAreaView(edges top) 안에 두고, children 으로 스크롤 뷰 하나(또는 그것만 감싼 뷰 하나)를 넘긴다. 스크롤 뷰에는
+// 쓰는 법: 화면 틀(ScreenSafeAreaView) 안에 두고, children 으로 스크롤 뷰 하나(또는 그것만 감싼 뷰 하나)를 넘긴다. 스크롤 뷰에는
 // autoHide.scrollProps 를 펼쳐 넣고 내용 위 여백에 autoHide.height 를 더한다 (useAutoHideHeader 참고).
 //
 // 머리는 읽는 순서를 위해 스크롤 뷰 앞에 두고 zIndex 로 위에 그린다. 바깥 영역이 잘라 내므로 숨은 상단 바가
-// 상태 표시줄(안전 영역)을 가리지 않고, 그 자리는 화면 배경(SafeAreaView)이 그대로 보인다.
+// 상태 표시줄(안전 영역)을 가리지 않고, 그 자리는 화면 배경(화면 틀)이 그대로 보인다.
 // 머리의 빈 곳은 터치를 받지 않아 끌면 아래 리스트가 스크롤된다.
 //
 // 리스트 영역 바탕색은 스크롤 뷰가 아니라 bodyStyle 에 준다

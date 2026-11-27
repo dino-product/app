@@ -25,6 +25,7 @@ import {
 import { ENTER_OFFSET } from '../../../shared/gesture/enterTransition';
 import { SWITCH_DISTANCE, type Rect } from '../../../shared/gesture/tabSwipe';
 import * as tabSwipeArea from '../../../shared/gesture/TabSwipeArea';
+import * as screenSafeArea from '../../../shared/layout/ScreenSafeAreaView';
 import { iconSvgs } from '../../../shared/design-system/icons/svgs';
 import { expectPressedBackground } from '../../../shared/testing/pressFeedback';
 import { holdNativeAnimations } from '../../../../jest/nativeAnimation';
@@ -254,6 +255,21 @@ describe('WorkHistoryScreen — 상단 바 (기본)', () => {
       backgroundColor: colors.background[3],
     });
     expect(styleOf(part('work-history-bar-tint')).opacity).toBe(0);
+  });
+
+  // 바 배경은 상태 표시줄 자리까지 덮는다. Android 는 화면 위 여백이 상태 표시줄보다 클 수 있어(최소 60)
+  // 그 여백만큼 올린다 (#236). 테스트는 iOS 라 Android 값을 훅에서 넣는다
+  it('바 배경은 화면 위 여백만큼 위로 올라가 상태 표시줄 자리까지 덮는다', async () => {
+    const screenTop = jest
+      .spyOn(screenSafeArea, 'useScreenTop')
+      .mockReturnValue(60);
+    try {
+      await renderHistory();
+
+      expect(part('work-history-bar-background')).toHaveStyle({ top: -60 });
+    } finally {
+      screenTop.mockRestore();
+    }
   });
 
   it('요약 카드는 바 아래(108)에서 시작하는 리스트 내용이고, 바의 빈 곳 터치는 아래 리스트로 통과한다', async () => {

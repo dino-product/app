@@ -884,7 +884,7 @@ describe('RejectReasonScreen', () => {
       });
       // 버튼 아래 32 는 홈 인디케이터 자리다. 안전 영역이 더 크면 그만큼, 없는 기기는 32 를 둔다
       expect(screen.root?.props.edges).toEqual(
-        expect.objectContaining({ top: 'additive', bottom: 'maximum' }),
+        expect.objectContaining({ top: 'maximum', bottom: 'maximum' }),
       );
       expect(screen.root).toHaveStyle({ paddingBottom: 32 });
     });

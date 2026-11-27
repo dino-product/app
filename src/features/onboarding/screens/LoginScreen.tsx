@@ -16,6 +16,7 @@ import {
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { loginIllustrationXml, orbitLogoXml } from '../components/loginArt';
 import type { LoginMethod } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 로그인 (3284:21451), 로그인-최근 로그인 (3551:18597). 보라 배경 위 문구·로고·일러스트, 아래 흰 시트에 시작 버튼.
 // 버튼을 누르면 바깥(LoginRoute)이 카카오·Apple SDK 로 로그인한다 (#113).
@@ -53,7 +54,7 @@ export function LoginScreen({
 }) {
   return (
     <View style={styles.screen}>
-      <SafeAreaView edges={['top']} style={styles.top}>
+      <ScreenSafeAreaView style={styles.top}>
         <View
           accessible
           accessibilityRole="header"
@@ -87,7 +88,7 @@ export function LoginScreen({
             />
           </View>
         </View>
-      </SafeAreaView>
+      </ScreenSafeAreaView>
 
       <SafeAreaView edges={SHEET_EDGES} style={styles.sheet}>
         <View style={[readableColumn, styles.sheetBody]}>

@@ -22,7 +22,6 @@ import {
   type FlatListProps,
   type ViewInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import { colors } from '../../../shared/design-system';
 import {
@@ -63,6 +62,7 @@ import {
   type CompletedWork,
   type YearMonth,
 } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 작업이력 (기본)·(스크롤). 고른 달에 완료한 작업을 최근 순으로 보여준다
 export type WorkHistoryScreenProps = {
@@ -300,11 +300,7 @@ function WorkHistoryScreenView({
   );
 
   return (
-    <SafeAreaView
-      edges={['top']}
-      testID="work-history-screen"
-      style={styles.screen}
-    >
+    <ScreenSafeAreaView testID="work-history-screen" style={styles.screen}>
       <View style={styles.body}>
         {/* 리스트 위에 겹쳐 그리는 상단 바 (#175). Figma 작업이력에는 종이 없다 */}
         <HistoryHeaderBar
@@ -379,7 +375,7 @@ function WorkHistoryScreenView({
           />
         ) : null}
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

@@ -15,7 +15,6 @@ import {
   View,
   type FlatListInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   Icon,
@@ -43,6 +42,7 @@ import { WeekDays } from '../components/WeekDays';
 import { WorkHomeSkeleton } from '../components/WorkSkeletons';
 import { loadHomeView, saveHomeView, type ScheduleView } from '../homeView';
 import { mondayWeek, type CurrentWork, type ScheduleItem } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 작업 수행 › 메인화면 - 시작 가능 (작업 시작 / 작업 수행중, 블록 보기 3463:17452), 진행(무), 일정(무)
 export type WorkHomeScreenProps = {
@@ -202,7 +202,7 @@ function WorkHomeScreenView({
 
   // 불러오는 동안에도 같은 머리에 상단 바를 둔다. 다 불러와 리스트로 바뀌어도 상단 바를 새로 그리지 않는다
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <AutoHideHeaderLayout
         autoHide={autoHide}
         header={
@@ -247,7 +247,7 @@ function WorkHomeScreenView({
           </TabSwipeScrollLock>
         )}
       </AutoHideHeaderLayout>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

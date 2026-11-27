@@ -17,7 +17,6 @@ import {
   type TextInputInstance,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReduceMotion } from '../../../shared/accessibility/useReduceMotion';
 import {
   colors,
@@ -41,6 +40,7 @@ import {
   type RejectReasonDraft,
   type RejectReasonKey,
 } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 스케줄 › 거절 사유: 처음 3239:9164, 선택 2714:12181, 기타 펼침 3227:8674, 입력 중 3239:9238
 const OTHER_TEXT_ERROR = '기타 사유를 입력해 주세요.';
@@ -291,7 +291,7 @@ export function RejectReasonScreen({
   };
 
   return (
-    <SafeAreaView edges={SCREEN_EDGES} style={styles.screen}>
+    <ScreenSafeAreaView bottom style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -419,7 +419,7 @@ export function RejectReasonScreen({
           style={styles.action}
         />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 
@@ -542,7 +542,6 @@ function useScrollMetrics() {
 }
 
 // 아래 버튼 밑 32 는 홈 인디케이터 자리다. 안전 영역이 더 크면 그만큼, 없는 기기도 32 를 둔다 (styles.screen)
-const SCREEN_EDGES = { top: 'additive', bottom: 'maximum' } as const;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingBottom: 32, backgroundColor: colors.white[100] },

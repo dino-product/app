@@ -1,13 +1,9 @@
 import type { Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
 import { InfoNotice } from '../../my/org/components/InfoNotice';
 import { SummaryCard } from '../../my/org/components/SummaryCard';
@@ -17,6 +13,7 @@ import {
   type ParticipationRequest,
 } from '../../my/org/model';
 import { withRo } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 참여 완료 (3227:8525), 참여 완료-유형 변경 (3239:9100).
 // 유형 변경 화면은 제목이 '직원' 인데 요약 유형은 '기사' 라, 둘 다 확정된 유형으로 보인다 (기본안, 디자인 확인 항목).
@@ -40,10 +37,7 @@ export function JoinApprovedScreen({
   const typeChanged = approvedType !== request.desiredType;
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader title="참여 완료" onBack={onBack} titleRef={titleRef} />
       <ScrollView
         {...noOverscroll}
@@ -110,7 +104,7 @@ export function JoinApprovedScreen({
       <View style={[readableColumn, standaloneScreen.actions]}>
         <CTA label="시작하기" onPress={onStart} />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

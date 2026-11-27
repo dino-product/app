@@ -6,7 +6,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
@@ -18,6 +17,7 @@ import {
   type WithdrawalBlock,
   type WithdrawalEligibility,
 } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-계정 관리 화면 (2889:14188). 탈퇴 확인 실패 알림창 문구는 Figma 에 없어 기본안이다
 export function AccountScreen({
@@ -83,7 +83,7 @@ export function AccountScreen({
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader title="계정 관리" onBack={onBack} titleRef={titleRef} />
       <ScrollView
         {...noOverscroll}
@@ -117,7 +117,7 @@ export function AccountScreen({
           onLogout();
         }}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

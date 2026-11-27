@@ -1,12 +1,12 @@
 import { memo, type Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { myPageTermsTitles, type MyPageTerms } from '../../terms/documents';
 import { MenuRow } from '../components/MenuRow';
 import { SubScreenHeader } from '../components/SubScreenHeader';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-약관 (2889:13917). 서비스 이용약관·개인정보 처리방침은 원격 전문을 앱 안 약관 상세로 연다 (#192).
 // 오픈소스 라이선스는 앱에 실은 고지 문서를 앱 안 화면으로 연다 (#232)
@@ -27,7 +27,7 @@ export function TermsScreen({
   titleRef?: Ref<TextInstance>;
 }) {
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader
         title="약관 및 앱 정보"
         onBack={onBack}
@@ -64,7 +64,7 @@ export function TermsScreen({
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

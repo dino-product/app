@@ -6,9 +6,9 @@ import {
   type LayoutChangeEvent,
   type ViewInstance,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
+import { useScreenTop } from '../../../shared/layout/ScreenSafeAreaView';
 import { TabHeader } from '../../../shared/layout/TabHeader';
 import { collapseKeyframes } from '../headerCollapse';
 import type { HeaderCollapse } from '../useHeaderCollapse';
@@ -58,8 +58,9 @@ export function HistoryHeaderBar({
     collapse.subscribe,
     collapse.isCollapsed,
   );
-  // 접힌 바 배경은 상태 표시줄 자리까지 덮는다 (Figma 바 높이 128 은 상태 표시줄 60 을 포함한다)
-  const { top: statusBar } = useSafeAreaInsets();
+  // 접힌 바 배경은 상태 표시줄 자리까지 덮는다 (Figma 바 높이 128 은 상태 표시줄 60 을 포함한다).
+  // 화면 위 여백만큼 올린다. Android 는 상태 표시줄 아래를 비워 여백이 상태 표시줄보다 클 수 있다 (#236)
+  const screenTop = useScreenTop();
   const { progress, barShift, monthShift } = collapse;
   // 상자는 월 글자 폭·자리에서 펼쳐진다. 잰 폭은 상자를 치운 뒤에도 남겨 다음에 열 때 첫 프레임부터 쓴다 (Figma 99 · 345)
   const [measured] = useState(() => {
@@ -110,9 +111,9 @@ export function HistoryHeaderBar({
   const backgroundStyle = useMemo(
     () => [
       styles.background,
-      { top: -statusBar, transform: [{ translateY: barShift }] },
+      { top: -screenTop, transform: [{ translateY: barShift }] },
     ],
-    [statusBar, barShift],
+    [screenTop, barShift],
   );
 
   return (
