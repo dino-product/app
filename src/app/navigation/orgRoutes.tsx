@@ -7,7 +7,6 @@ import {
   type Ref,
 } from 'react';
 import type { TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SubScreenHeader } from '../../features/my/components/SubScreenHeader';
 import type {
   ParticipationRequest,
@@ -25,10 +24,7 @@ import { QrScanScreen } from '../../features/my/org/screens/QrScanScreen';
 import { RoleSelectScreen } from '../../features/my/org/screens/RoleSelectScreen';
 import { LoadStateView } from '../../shared/layout/LoadStateView';
 import { readableColumn } from '../../shared/layout/readableColumn';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../shared/layout/standaloneScreen';
 import { useFocusTitleOnOpen } from './routes';
 import {
   MY_INITIAL_ROUTE,
@@ -36,6 +32,7 @@ import {
   type RootScreenProps,
   type RootStackParamList,
 } from './types';
+import { ScreenSafeAreaView } from '../../shared/layout/ScreenSafeAreaView';
 
 // 마이 › 조직 참여 화면들 (#73). 서버 상태(회사 확인·참여 요청·취소·신청 현황, #116)는 화면이 participationQueries 로
 // 읽고 보내며, 여기서는 화면 사이 이동을 잇는다.
@@ -100,10 +97,7 @@ export function ParticipationRequestGate({
     return null;
   }
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader title={title} onBack={onBack} titleRef={titleRef} />
       <LoadStateView
         style={readableColumn}
@@ -118,7 +112,7 @@ export function ParticipationRequestGate({
             : { status: 'loading' }
         }
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

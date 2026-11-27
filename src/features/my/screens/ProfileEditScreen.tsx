@@ -8,7 +8,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiErrorCode, isApiError, useApiClient } from '../../../shared/api';
 import { colors, CTA, Icon } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
@@ -33,6 +32,7 @@ import {
   type ProfileInput,
 } from '../model';
 import { useQueryState } from '../queryState';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-프로필 수정 (3255:19508 빈 입력 / 3255:19478 입력 중).
 // 서버의 지금 이름·연락처를 채워 열고, 바뀐 값이 규칙에 맞을 때만 '저장하기' 가 켜진다.
@@ -59,7 +59,7 @@ export function ProfileEditScreen({
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader
         title="프로필 수정"
         onBack={onBack}
@@ -70,7 +70,7 @@ export function ProfileEditScreen({
       ) : (
         <LoadStateView state={profile} skeleton={<ProfileFormSkeleton />} />
       )}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

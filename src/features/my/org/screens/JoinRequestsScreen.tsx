@@ -16,7 +16,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   CTA,
@@ -41,6 +40,7 @@ import {
   useCancelParticipationRequest,
   useParticipationRequests,
 } from '../participationQueries';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-신청현황 (2880:15194 빈 상태 / 2874:14773 승인 대기 목록). 카드는 흰 바탕·Gray200 테두리이고
 // 신청 취소는 오른쪽 위 X 다 (승인 대기 칩·'신청 취소' 글자는 빠졌다, #200). 조직 참여하기는 목록 위에 겹친 그라데이션 자리에 있다.
@@ -175,7 +175,7 @@ export function JoinRequestsScreen({
   const failed = query.isError && !query.isFetching;
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader
         title="참여 신청 현황"
         onBack={onBack}
@@ -248,7 +248,7 @@ export function JoinRequestsScreen({
           }
         }}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

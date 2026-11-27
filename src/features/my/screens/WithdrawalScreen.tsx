@@ -8,7 +8,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { isApiError, useApiClient } from '../../../shared/api';
 import { colors, CTA, Text, TextArea } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
@@ -25,6 +24,7 @@ import {
   withdrawalEligibilityQueryKey,
   withdrawalMutationKey,
 } from '../withdrawalApi';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-탈퇴 (2935:15259). 최종 확인 뒤 POST /profiles/{accountId}/withdrawals 로 사유와 함께 탈퇴한다 (#115).
 // 204 면 onWithdrawn(세션을 끝내고 로그인 화면), 탈퇴 직전에 막는 사유가 생겼으면(PROFILE-006) onBlocked(탈퇴 불가 화면),
@@ -109,7 +109,7 @@ export function WithdrawalScreen({
     );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader
         title="계정 관리"
         onBack={onBack}
@@ -190,7 +190,7 @@ export function WithdrawalScreen({
           <CTA label="탈퇴하기" onPress={confirmWithdraw} disabled={locked} />
         </ScrollView>
       </KeyboardAvoidingArea>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

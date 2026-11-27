@@ -4,6 +4,7 @@ import {
   userEvent,
   within,
 } from '@testing-library/react-native';
+import { MIN_SCREEN_TOP } from '../../../shared/layout/ScreenSafeAreaView';
 import type { LoginMethod } from '../model';
 import { LoginScreen } from './LoginScreen';
 
@@ -104,5 +105,20 @@ describe('LoginScreen', () => {
 
       expect(bubbleIn('KAKAO')).not.toBeOnTheScreen();
     });
+  });
+  // 위 그림 자리는 다른 화면처럼 화면 위 여백(Android 는 상태 표시줄과 60 중 큰 값) 아래에서 시작한다 (#236)
+  it('위는 화면 틀 규칙대로 여백을 둔다', async () => {
+    await renderLogin();
+
+    const [top] = screen.container.queryAll(
+      node => node.props.edges !== undefined,
+    );
+    expect(top?.props.edges).toEqual({
+      top: 'maximum',
+      bottom: 'off',
+      left: 'off',
+      right: 'off',
+    });
+    expect(top).toHaveStyle({ paddingTop: MIN_SCREEN_TOP });
   });
 });

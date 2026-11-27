@@ -6,7 +6,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text, Toggle } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -15,6 +14,7 @@ import { NotificationSettingsSkeleton } from '../components/MySkeletons';
 import { SubScreenHeader } from '../components/SubScreenHeader';
 import type { NotificationSettings } from '../model';
 import { useNotificationSettings } from '../notificationQueries';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-알림설정 (2889:13774 모두 켬 / 2889:13608 모두 끔). 저장 버튼 없이 바로 반영한다.
 // 토글은 서버 값이고(#117), 바꾸면 바로 보인 뒤 세 값 모두 저장한다. 실패하면 이전 값으로 돌리고 알린다.
@@ -53,7 +53,7 @@ export function NotificationSettingsScreen({
     useNotificationSettings(alertSaveFailed);
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader title="알림 설정" onBack={onBack} titleRef={titleRef} />
       {settings === undefined ? (
         <LoadStateView
@@ -83,7 +83,7 @@ export function NotificationSettingsScreen({
           ))}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

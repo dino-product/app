@@ -16,7 +16,6 @@ import {
   View,
   type FlatListInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   Icon,
@@ -63,6 +62,7 @@ import {
 } from '../model';
 import { loadScheduleView, saveScheduleView } from '../scheduleView';
 import type { YearMonth } from '../../history/model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 스케줄 › 내 일정 (확정 일정: 주간 / 달력 펼침, 응답 필요)
 export type ScheduleScreenProps = {
@@ -407,7 +407,7 @@ function ScheduleScreenView({
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       {/* 머리말은 리스트 위에 겹쳐 그린다 (화면 바탕과 같은 색, 그림자 없음 #201).
           탭 첫 화면 공통 상단 바 (#103). Figma 내 일정(3754:6269)에는 종이 없다 */}
       <AutoHideHeaderLayout
@@ -503,7 +503,7 @@ function ScheduleScreenView({
           </TabSwipeScrollLock>
         )}
       </AutoHideHeaderLayout>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

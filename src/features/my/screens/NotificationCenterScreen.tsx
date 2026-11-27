@@ -17,7 +17,6 @@ import {
   type PressableStateCallbackType,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, pressedBackground, Text } from '../../../shared/design-system';
 import { LoadStateView } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -39,6 +38,7 @@ import {
   useMarkNotificationRead,
   useNotificationList,
 } from '../notificationQueries';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 마이페이지-알림센터 (2935:15831). 서버 알림 목록(#117)을 쪽마다 이어 받는다.
 // 읽지 않은 알림은 회색 배경이고, 누르면 읽음을 보낸 뒤(실패해도) 작업 상세·참여 거절 화면을 연다.
@@ -169,7 +169,7 @@ export function NotificationCenterScreen({
   }
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader title="알림센터" onBack={onBack} titleRef={titleRef} />
       {data === undefined ? (
         <LoadStateView
@@ -201,7 +201,7 @@ export function NotificationCenterScreen({
           testID="notification-list"
         />
       )}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

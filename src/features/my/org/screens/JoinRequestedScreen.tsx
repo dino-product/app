@@ -6,14 +6,10 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../../shared/layout/standaloneScreen';
 import { MembershipChip } from '../../components/MembershipChip';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { CancelRequestModal } from '../components/CancelRequestModal';
@@ -28,6 +24,7 @@ import {
 } from '../model';
 import { cancelFailure } from '../notices';
 import { useCancelParticipationRequest } from '../participationQueries';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 회사찾기-요청완료. 마이는 3235:14886, 온보딩(#85)은 승인 대기 3227:8824 이고 머리 제목 '승인 대기', 버튼 위 안내 상자가 더 있다.
 // 두 Figma 는 안내·진행 표시·간격이 같고(#212), 요약 값 글자만 다르다.
@@ -174,10 +171,7 @@ export function JoinRequestedScreen({
   ];
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader
         title={joinRequestedTitle(flow, stage)}
         onBack={onBack}
@@ -255,7 +249,7 @@ export function JoinRequestedScreen({
         onClose={() => setCanceling(false)}
         onConfirm={cancelRequest}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

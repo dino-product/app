@@ -8,10 +8,7 @@ import {
   type SectionListRenderItem,
   type TextInstance,
 } from 'react-native';
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
   Radio,
@@ -28,6 +25,7 @@ import type { TermsDocument } from '../documents';
 import { useTermsDocuments, type TermsDocumentState } from '../termsQueries';
 import type { TermsBlock } from '../termsText';
 import { AGREE_VIEWABILITY, RADIOS_ITEM, useAgreeJump } from './useAgreeJump';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 약관 상세 페이지 (51019:16927). 뒤로 가기만 있는 머리 아래에 큰 제목, (있으면) 안내, 원격 전문을 보인다 (#192).
 // 전문은 '제N조' 를 글머리표 줄로, 그 아래 글을 18 들여 쓴다. 받는 동안은 본문 자리에 스켈레톤, 실패하면 다시 시도.
@@ -170,7 +168,7 @@ export function TermsDetailScreen({
   const jumpSection = target === null ? undefined : listSections[target];
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader onBack={onBack} />
       <SectionList<Item, Section>
         {...noOverscroll}
@@ -199,7 +197,7 @@ export function TermsDetailScreen({
           testID="terms-agree-jump"
         />
       )}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

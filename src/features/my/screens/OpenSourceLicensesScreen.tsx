@@ -7,7 +7,6 @@ import {
   type SectionListRenderItem,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, Text } from '../../../shared/design-system';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -18,6 +17,7 @@ import {
   openSourceGroups,
   type OpenSourceComponent,
 } from '../licenses/openSourceNotices';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // 마이 › 약관 및 앱 정보 › 오픈소스 라이선스 (#232). 앱에 실은 고지 문서(features/my/licenses)를 읽기만 한다.
 // Figma 마이페이지-약관(2889:13917)에 이 행은 있지만 상세 프레임은 없어, 마이 하위 화면 머리(제목 가운데)에
@@ -67,7 +67,7 @@ export function OpenSourceLicensesScreen({
   titleRef?: Ref<TextInstance>;
 }) {
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <SubScreenHeader
         title="오픈소스 라이선스"
         onBack={onBack}
@@ -83,7 +83,7 @@ export function OpenSourceLicensesScreen({
         stickySectionHeadersEnabled={false}
         contentContainerStyle={[readableColumn, styles.content]}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

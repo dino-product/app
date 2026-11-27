@@ -8,7 +8,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   CTA,
@@ -21,6 +20,7 @@ import { RETRY_LABEL } from '../../../../shared/layout/LoadStateView';
 import { useLightStatusBar } from '../../../../shared/layout/useLightStatusBar';
 import { QrCamera } from '../components/QrCamera';
 import { companyCodeFromQr } from '../model';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // 회사 찾기 › QR 코드 인식 (#108). Figma 에 QR 스캔·권한 거부·인식 실패 화면이 없어 최소 구성이다 (Figma 에 없음):
 // 전체 화면 카메라, 가운데 사각 안내, 닫기. 카메라 권한은 회사 찾기에서 받고 연다 (OrgJoinScreen).
@@ -146,7 +146,7 @@ export function QrScanScreen({
         </View>
       </View>
 
-      <SafeAreaView edges={['top']} style={styles.header}>
+      <ScreenSafeAreaView style={styles.header}>
         <View style={styles.headerRow}>
           <Pressable
             accessibilityRole="button"
@@ -166,7 +166,7 @@ export function QrScanScreen({
             QR 코드 인식
           </Text>
         </View>
-      </SafeAreaView>
+      </ScreenSafeAreaView>
     </View>
   );
 }

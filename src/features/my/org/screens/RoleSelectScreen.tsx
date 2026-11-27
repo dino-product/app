@@ -6,14 +6,10 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../../shared/design-system';
 import { readableColumn } from '../../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../components/SubScreenHeader';
 import { InfoNotice } from '../components/InfoNotice';
 import { NoticeModal } from '../components/NoticeModal';
@@ -26,6 +22,7 @@ import {
 } from '../model';
 import { requestFailure, type RequestFailure } from '../notices';
 import { useRequestParticipation } from '../participationQueries';
+import { ScreenSafeAreaView } from '../../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 회사찾기 › 역할 선택 (3278:20936 고르기 전 / 3278:20974 기사 선택).
 // 온보딩(#85)은 역할 선택 (3255:18530 / 3255:19213) 이고 머리 제목이 '참여 요청' 이다.
@@ -133,10 +130,7 @@ export function RoleSelectScreen({
   };
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader
         title={flow === 'onboarding' ? '참여 요청' : '조직 참여하기'}
         onBack={onBack}
@@ -259,7 +253,7 @@ export function RoleSelectScreen({
         notice={screenFocused ? failure?.notice ?? null : null}
         onClose={closeFailure}
       />
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

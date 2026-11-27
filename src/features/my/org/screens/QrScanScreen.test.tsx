@@ -3,6 +3,7 @@ import { AccessibilityInfo, AppState, Platform, StatusBar } from 'react-native';
 import { changeAppState, mockAppState } from '../../../../../jest/appState';
 import { failCamera, scanQr } from '../../../../../jest/qrCamera';
 import type { FakeServer } from '../../../../shared/testing/fakeServer';
+import { MIN_SCREEN_TOP } from '../../../../shared/layout/ScreenSafeAreaView';
 import { renderWithApi } from '../../../../shared/testing/renderWithApi';
 import { testSession } from '../../../../shared/testing/session';
 import { COMPANY_LOOKUP_PATH } from '../participationApi';
@@ -261,5 +262,20 @@ describe('QrScanScreen', () => {
       expect(screen.getByText(UNRECOGNIZED)).toBeOnTheScreen();
       expect(announce).not.toHaveBeenCalled();
     });
+  });
+  // 닫기 머리는 다른 화면처럼 화면 위 여백(Android 는 상태 표시줄과 60 중 큰 값) 아래에 둔다 (#236)
+  it('닫기 머리는 화면 틀 규칙대로 위 여백을 둔다', async () => {
+    await renderScan();
+
+    const [frame] = screen.container.queryAll(
+      node => node.props.edges !== undefined,
+    );
+    expect(frame?.props.edges).toEqual({
+      top: 'maximum',
+      bottom: 'off',
+      left: 'off',
+      right: 'off',
+    });
+    expect(frame).toHaveStyle({ paddingTop: MIN_SCREEN_TOP });
   });
 });

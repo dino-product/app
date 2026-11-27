@@ -6,7 +6,6 @@ import {
   View,
   type TextInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Icon, Text } from '../../../shared/design-system';
 import { KeyboardAvoidingArea } from '../../../shared/keyboard/KeyboardAvoidingArea';
 import { readableColumn } from '../../../shared/layout/readableColumn';
@@ -15,10 +14,8 @@ import { FormField } from '../../my/components/FormField';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
 import { formatPhoneNumber, type ProfileInput } from '../../my/model';
 import { canRegisterProfile } from '../model';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../shared/layout/standaloneScreen';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 프로필 등록 (3267:11862 빈 입력 / 3267:11212 입력). 마이 › 프로필 수정(#72)과 같은 입력칸을 쓴다.
 // 이름 2~20자와 연락처 11자리를 모두 넣어야 '완료' 가 켜진다 (Spec_프로필 입력 화면).
@@ -72,10 +69,7 @@ export function ProfileRegisterScreen({
     onSubmit({ name: name.trim(), phoneNumber: phone.replace(/\D/g, '') });
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader
         title="프로필 등록"
         onBack={onBack}
@@ -131,7 +125,7 @@ export function ProfileRegisterScreen({
           disabled={!canSubmit || submitting}
         />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

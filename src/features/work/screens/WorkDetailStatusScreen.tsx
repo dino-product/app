@@ -1,6 +1,5 @@
 import type { Ref } from 'react';
 import { Pressable, StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   Icon,
@@ -13,6 +12,7 @@ import {
 } from '../../../shared/layout/LoadStateView';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { WorkDetailSkeleton } from '../components/WorkSkeletons';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // 작업 상세(작업 수행·응답 필요·완료 작업)를 아직 그릴 수 없을 때: 불러오는 중, 오류(다시 시도), 볼 수 없는 작업.
 // 머리는 상세와 같다. Figma 에 없어 기존 컴포넌트로 최소 구성한 기본안이다 (Figma 미확인)
@@ -31,7 +31,7 @@ export function WorkDetailStatusScreen({
   titleRef?: Ref<TextInstance>;
 }) {
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
+    <ScreenSafeAreaView style={styles.screen}>
       <View style={[readableColumn, styles.header]}>
         <Pressable
           accessibilityRole="button"
@@ -68,7 +68,7 @@ export function WorkDetailStatusScreen({
       ) : (
         <LoadStateView state={state} skeleton={<WorkDetailSkeleton />} />
       )}
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 

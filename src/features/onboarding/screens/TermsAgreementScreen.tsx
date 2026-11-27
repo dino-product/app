@@ -1,13 +1,9 @@
 import { useCallback, type Ref } from 'react';
 import { ScrollView, StyleSheet, View, type TextInstance } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, CTA, Text } from '../../../shared/design-system';
 import { readableColumn } from '../../../shared/layout/readableColumn';
 import { noOverscroll } from '../../../shared/layout/noOverscroll';
-import {
-  STANDALONE_SCREEN_EDGES,
-  standaloneScreen,
-} from '../../../shared/layout/standaloneScreen';
+import { standaloneScreen } from '../../../shared/layout/standaloneScreen';
 import { SubScreenHeader } from '../../my/components/SubScreenHeader';
 import {
   AgreeAllCheckbox,
@@ -23,6 +19,7 @@ import {
   type TermsAgreement,
   type TermsType,
 } from '../model';
+import { ScreenSafeAreaView } from '../../../shared/layout/ScreenSafeAreaView';
 
 // Figma 약관 동의 (3284:22327 빈 / 3278:19869 전체 체크). 필수 네 개에 모두 동의해야 '가입하기' 가 켜진다.
 // 약관 행을 누르면 동의를 바꾸지 않고 그 약관 상세(Figma 약관 상세 페이지 51019:16927)를 연다. 동의는 상세의 라디오로 한다 (#193).
@@ -66,10 +63,7 @@ export function TermsAgreementScreen({
   };
 
   return (
-    <SafeAreaView
-      edges={STANDALONE_SCREEN_EDGES}
-      style={standaloneScreen.screen}
-    >
+    <ScreenSafeAreaView bottom style={standaloneScreen.screen}>
       <SubScreenHeader onBack={onBack} />
 
       <ScrollView
@@ -110,7 +104,7 @@ export function TermsAgreementScreen({
           disabled={!canSignUp(agreement) || submitting}
         />
       </View>
-    </SafeAreaView>
+    </ScreenSafeAreaView>
   );
 }
 
